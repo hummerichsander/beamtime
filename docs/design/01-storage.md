@@ -106,7 +106,7 @@ Agents build views from Beamtime's building blocks (layer 5). Every folder shows
    every logged table, image and text, so nothing a run logs is ever invisible.
 
 A view is **rendered for the folder being viewed**, not for the folder that defines it. Queries are
-relative to the viewed folder: `runs: .` means all runs below it. One view in `scaling/` therefore
+relative to the viewed folder: `from: .` means all runs below it. One view in `scaling/` therefore
 shows all scaling runs when viewing `scaling/`, only the sweep's runs when viewing
 `scaling/lr-sweep/`, and a single run when viewing a run. A subgroup or run that needs something
 different defines its own view, which in turn is inherited further down.
@@ -141,7 +141,7 @@ report evolved. `beamtime view edit` hides the versioning from agents.
 Building blocks get their data in one of two ways:
 
 1. **Queries on run data**, the normal case. A widget names what it wants
-   (`{runs: ., y: val/loss, color: config.lr}`) and contains no values. The index answers from
+   (`{from: ., y: val/loss, color: config.lr}`) and contains no values. The index answers from
    `_metrics.jsonl`, `_data.jsonl`, `_run_card.json` and `_config.json` and downsamples long
    curves. Queries follow the viewed folder, so they stay correct when a view is inherited, and
    update while runs go on. Derived values that can be computed from the query result (aggregates,

@@ -215,8 +215,9 @@ before implementation. Do not implement a layer whose design is not settled.
   one: its own or the nearest ancestor's, rendered relative to the viewed folder. Beamtime owns a
   fixed frame; the body is free, from widgets over Vega-Lite to sandboxed custom HTML with
   preferred libraries. Building blocks reference data through queries (runs, groups, data files
-  stored with the view) rather than embedding values. Widgets are Pydantic models, which give
-  schema, validation and the JSON schema served to agents.
+  stored with the view) rather than embedding values. Queries and widgets are msgspec
+  structs, which give validation and the JSON schema served to agents at a fraction of Pydantic's
+  import cost.
 - **Charts render with Vega-Lite** in the browser, using Beamtime's theme. The
   matplotlib/scienceplots rules above apply to static figure export, not to the web UI.
 - **Frontends share one core library:** Python SDK, CLI, MCP server, web UI. MCP outputs must be

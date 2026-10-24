@@ -1,7 +1,7 @@
 # Layer 3: Index and query
 
-Status: **draft, under discussion.** This part covers the metric store, the most
-performance-critical piece. The query language follows in a second part.
+Status: **draft, under discussion.** Part 1 covers the metric store, the most performance-critical
+piece. Part 2 covers the query language that views, CLI and MCP share.
 
 The index sits between the files ([layer 1](01-storage.md)) and everything that displays them:
 views, CLI, MCP. It is a cache in `~/.cache/beamtime/<root-hash>/`, rebuildable from the files at
@@ -175,6 +175,170 @@ and a heartbeat. From that:
   daemon is not running, to ask the user to start `beamtime serve --no-ui` rather than starting a
   long-running process themselves.
 
+## Query language
+
+One query language serves views (YAML), the CLI (flags) and MCP (JSON). The **object form** is
+canonical: a view writes it as YAML, MCP sends it as JSON, and every CLI command maps 1:1 onto it.
+An agent that learned it in one place can use it everywhere.
+
+Design goals:
+
+- **Small and predictable.** Few concepts, no general-purpose expressions.
+- **Validated with helpful errors.** An unknown metric fails with the closest matches and a pointer
+  to `beamtime keys`, instead of returning nothing.
+- **Exact by default.** Every number comes from the full data; only curves are downsampled, and the
+  answer says so.
+- **Token-aware.** Defaults keep answers small; larger answers have to be asked for.
+
+### Fields
+
+Every value a query can filter, sort or show is a **field**, a dotted path with a namespace:
+
+| Namespace | Example | Source |
+|---|---|---|
+| `run.` | `run.name`, `run.status`, `run.created_at`, `run.duration_s`, `run.steps`, `run.tags`, `run.path` | `_run.json`, run card |
+| `config.` | `config.optimizer.lr` | `_config.json` |
+| `metric.` | `metric.val/acc.max`, `metric.train/loss.ema_last` | run card statistics |
+| `value.` | `value.test/acc` | explicit run card values |
+| `proposal.` | `proposal.check`, `proposal.verdict` | index (layer 1 evaluation) |
+
+For `metric.`, the last segment is always the statistic and everything between is the metric key,
+so keys containing dots (`metric.layer.0.grad.max`) stay unambiguous. The statistics are the run
+card's: `first`, `last`, `ema_last`, `min`, `min_step`, `max`, `max_step`, `mean`, `count`,
+`last_step`, `nonfinite`, `slope_last10pct`. A config key that itself contains a dot is quoted:
+`config["a.b"]`.
+
+**Windowed statistics** are computed exactly from the column files, with a step window appended:
+`metric.val/acc.mean[1000:2000]`. This is the same reduction as a prediction's
+`reduce: {metric, stat, steps}`; predictions and queries share one implementation.
+
+### Selecting runs
+
+Every query has the shape `<kind>: {from, where, …}`. It starts by selecting runs, the same way
+for all kinds:
+
+```yaml
+from: .                        # a folder; a run id also works
+depth: all                     # all (default) | 1: only direct children
+where:
+  config.lr: {lt: 1.0e-3}
+  run.status: finished
+  run.tags: {has: baseline}
+  any:                         # OR over the listed conditions
+    - config.warmup: 500
+    - config.warmup: 1000
+```
+
+- **Paths.** In a view, `from` is relative to the viewed folder (`.`, `..`, `lr-sweep`). In the CLI
+  and MCP, it is relative to the log dir; `.` is the whole log dir.
+- **Filters** are a mapping from field to condition, combined with AND. A plain value means
+  equality. Operators: `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in`, `nin`, `has` (list contains),
+  `exists`, `glob` (string pattern). `any` and `not` combine conditions.
+- **Seeds** (`seeds: config.seed`) merge runs whose configs differ only in that key, exactly as in
+  predictions. Values then come as mean, standard deviation and count.
+
+### Query kinds
+
+There are six kinds of queries. All share the selection above.
+
+**`keys`**: what exists in a selection. This is the first call an agent makes in an unfamiliar
+folder.
+
+```yaml
+keys: {from: scaling/}
+```
+
+Returns the metric keys (with how many runs logged them and their step range), config keys (with
+distinct values or ranges), data keys (tables, images, text) and tags.
+
+**`runs`**: a run table.
+
+```yaml
+runs:
+  from: scaling/lr-sweep
+  where: {run.status: finished}
+  select: [run.name, config.lr, metric.val/acc.max, metric.train/loss.ema_last, proposal.check]
+  sort: [-metric.val/acc.max]   # leading "-" sorts descending
+  limit: 20
+```
+
+Without `select`, the columns are name, status, steps and the last value of the most common metrics.
+
+**`series`**: curves.
+
+```yaml
+series:
+  from: .
+  where: {config.warmup: 500}
+  y: [train/loss]              # metric keys
+  x: _step                     # _step (default), _t (wall time), _elapsed, or a metric key such as epoch
+  steps: [0, 5000]             # optional window
+  points: 1000                 # buckets per curve
+  smooth: {ema: 0.9}           # optional, applied to the raw data before downsampling
+```
+
+- Each curve comes back either **raw** (when it has at most `points` points in the window) or
+  **downsampled** as min, max and last per bucket, with the bucket edges. The answer always says
+  which.
+- A metric as `x` pairs each point with that metric's most recent value at or before the same step.
+- With `seeds`, curves of merged runs come back as mean with a min/max band per bucket.
+- Each view has a total point budget (around 30k); `points` per curve shrinks when many curves are
+  requested.
+
+**`data`**: logged tables, images and text.
+
+```yaml
+data: {from: ., key: val/per_class, step: last}   # last | all | a step | [start, end]
+```
+
+Tables come back as columns, images and text as references the UI or agent can load.
+
+**`timeline`**: notes and run events in time order.
+
+```yaml
+timeline: {from: scaling/, types: [verdict, decision], since: 2026-10-01, limit: 30}
+```
+
+`types` filters note types and event kinds. Each entry carries its one-line description; note
+bodies are loaded only when asked for.
+
+**`folders`**: the folder tree with what's attached to it.
+
+```yaml
+folders: {from: ., depth: 2}
+```
+
+Returns each group with its proposal statement, check, current verdict and run counts by status.
+
+### Answers
+
+- **One JSON shape per kind**, columnar for tables and curves (`{"columns": [...], "rows": [...]}`,
+  `{"x": [...], "min": [...], "max": [...], "last": [...]}`), so large answers stay compact.
+- **Every answer carries meta**: freshness (see [Freshness](#freshness-the-daemon)), whether curves
+  were downsampled, how many runs matched, and whether `limit` cut the answer.
+- **Defaults depend on the caller.** Views get up to 1000 rows and full point budgets. MCP answers
+  default to 50 rows and 100 points per curve, so an agent sees the shape of a curve without
+  flooding its context; it can ask for more.
+
+### CLI and MCP
+
+The CLI has one command per kind. Flags map 1:1 onto the object form, and `--where` takes a compact
+condition string:
+
+```sh
+beamtime keys scaling/
+beamtime runs scaling/lr-sweep --where 'run.status=finished' --where 'config.lr<1e-3' \
+    --sort -metric.val/acc.max --select run.name,config.lr,metric.val/acc.max --limit 20
+beamtime series . -y train/loss --steps 0:5000 --points 200
+beamtime query query.yaml          # or --json '{...}': the object form directly
+```
+
+Condition strings use `= != < <= > >=`, `~` for glob, and `in` with a comma list. Output is a
+readable table by default, `--json` gives the canonical answer.
+
+MCP has one tool per kind (`keys`, `runs`, `series`, `data`, `timeline`, `folders`), each taking
+the object form. Separate tools give agents a small, precise schema for each.
+
 ## Decisions
 
 - Metric store: SQLite for metadata, raw column files per (run, metric) for curves, read with mmap.
@@ -183,6 +347,15 @@ and a heartbeat. From that:
   MCP catch up within a time budget when it isn't running.
 - Agents can check the daemon with `beamtime status` and ask the user to start it.
 - One-shot CLI and MCP calls use a pure-Python reader; NumPy is used only by `serve`.
+- Queries are validated with msgspec structs, which also produce the JSON schema. Measured on the
+  M3: Pydantic costs 65–81 ms to import plus about 2.5 ms per model, together 110–150 ms per CLI
+  call; msgspec costs about 25 ms to import and almost nothing per model.
+- Views write conditions in the object form only. In a blind test (20 tasks, Sonnet and Haiku, two
+  repetitions each; `bench/query-forms/`) agents got all 160 answers right in both the object and
+  the string form, at nearly the same length, so there is no reason for a second syntax and a
+  second parser. The CLI keeps its compact `--where` strings.
+- The validator converts numeric strings on numeric fields to numbers, because PyYAML reads `1e-3`
+  as a string.
 
 ## Later
 
