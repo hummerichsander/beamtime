@@ -158,8 +158,8 @@ Provenance of a data file (the script or notebook that made it) is recorded in a
   hypothesis.yaml           # what we expect and why                 [run, frozen]
   heartbeat                 # last-alive timestamp                   [run, replaced]
   metrics.jsonl             # scalar stream                          [run, append]
-  media.jsonl               # tables, images, text                   [run, append]
-  media/<key>/<step>.<ext>  # files for large tables and images      [run, create]
+  data.jsonl                # tables, images, text                   [run, append]
+  data/<key>/<step>.<ext>   # files for large tables and images      [run, create]
   events.jsonl              # lifecycle events for the timeline      [run, append]
   output.log                # captured stdout/stderr                 [run, append]
   output.rank<N>.log        # output of other ranks (layer 2)        [rank N, append]
@@ -233,21 +233,21 @@ One JSON object per `log()` call:
 Size check: 100k steps × 30 keys is about 50 MB of JSONL. That is fine to append, sync and parse
 incrementally; the index reads from the last byte offset it has seen.
 
-### `media.jsonl` and `media/`
+### `data.jsonl` and `data/`
 
 **Runs record data; dashboards present it.** A run logs four kinds of data: scalars (in
-`metrics.jsonl`) and the three non-scalar kinds below, each indexed by one line in `media.jsonl`.
+`metrics.jsonl`) and the three non-scalar kinds below, each indexed by one line in `data.jsonl`.
 Nothing a run logs is a chart; charts are built only in dashboards (layer 5).
 
 | Kind | Stored as | Typical use |
 |---|---|---|
-| `table` | inline `columns` up to 1000 cells, else `media/<key>/<step>.parquet` | per-class metrics, predictions, distributions |
-| `image` | `media/<key>/<step>.png` | generated samples, attention maps, plots only the run can draw |
-| `text` | inline up to 4 KB, else `media/<key>/<step>.txt` | generated text, prompts |
+| `table` | inline `columns` up to 1000 cells, else `data/<key>/<step>.parquet` | per-class metrics, predictions, distributions |
+| `image` | `data/<key>/<step>.png` | generated samples, attention maps, plots only the run can draw |
+| `text` | inline up to 4 KB, else `data/<key>/<step>.txt` | generated text, prompts |
 
 ```json
-{"_step": 500, "_t": 1761301022.0, "key": "samples", "kind": "image", "path": "media/samples/500.png"}
-{"_step": 500, "_t": 1761301022.0, "key": "val/per_class", "kind": "table", "path": "media/val__per_class/500.parquet"}
+{"_step": 500, "_t": 1761301022.0, "key": "samples", "kind": "image", "path": "data/samples/500.png"}
+{"_step": 500, "_t": 1761301022.0, "key": "val/per_class", "kind": "table", "path": "data/val__per_class/500.parquet"}
 {"_step": 500, "_t": 1761301022.0, "key": "grads/layer3", "kind": "table", "columns": {"bin_start": [...], "bin_end": [...], "count": [...]}}
 ```
 
@@ -409,7 +409,7 @@ every seed. Next: check whether 200 warmup steps suffice, see [[scaling/warmup-l
 |---|---|---|
 | Replaced (`run.json`, `summary.json`, …) | write `.<name>.tmp`, then `os.replace` | `fsync` on run end |
 | Appended (`*.jsonl`, `output.log`) | one `write()` per line, buffered flush every few seconds | `fsync` on run end |
-| Created (media, annotations, freeze records) | write to temp name, then rename | none needed |
+| Created (data files, annotations, freeze records) | write to temp name, then rename | none needed |
 | Heartbeat | replaced every 30 s | none |
 
 ## Versioning

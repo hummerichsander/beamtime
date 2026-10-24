@@ -73,7 +73,7 @@ run.log(values: dict[str, Any], step: int | None = None) -> None
 ```
 
 - Scalars (`int`, `float`, `bool`, NumPy scalars, 0-d tensors via `.item()`) go to
-  `metrics.jsonl`. Data wrappers go to `media.jsonl` and `media/`.
+  `metrics.jsonl`. Data wrappers go to `data.jsonl` and `data/`.
 - Without `step`, the step increments by one per call. With `step`, it must not decrease within an
   attempt; a decreasing step is dropped with a warning (once per key).
 - The first `log` call freezes the run's hypothesis.
@@ -84,7 +84,7 @@ does not try to be clever about it.
 
 ### Data wrappers
 
-Three wrappers map to the three non-scalar kinds of [layer 1](01-storage.md#mediajsonl-and-media):
+Three wrappers map to the three non-scalar kinds of [layer 1](01-storage.md#datajsonl-and-data):
 
 | Wrapper | Accepts | Kind |
 |---|---|---|
@@ -262,7 +262,7 @@ src/beamtime/
   paths.py         # root and log dir resolution, ids
   env.py           # host, SLURM, git, packages
   capture.py       # output tee and rotation
-  media.py         # Table, Image, Text, Histogram, Figure
+  data.py          # Table, Image, Text, Histogram, Figure
   files.py         # atomic replace, JSONL appender
   lightning.py     # BeamtimeLogger
 ```
