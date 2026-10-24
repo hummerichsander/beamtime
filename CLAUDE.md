@@ -205,6 +205,10 @@ before implementation. Do not implement a layer whose design is not settled.
   `beamtime serve` pulls configured remotes via rsync over ssh from the login node and merges them
   with local runs. Job scheduler metadata (SLURM, PBS, …) is captured if present, but nothing
   depends on it. A heartbeat file lets runs that died silently show up as `lost`.
+- **The index is SQLite for metadata plus raw column files per (run, metric)** (see
+  `docs/design/03-index.md`). `beamtime serve` (headless with `--no-ui`) is the daemon that keeps it
+  fresh; CLI and MCP never depend on it and catch up within a time budget. Agents check it with
+  `beamtime status`. Keep NumPy and other heavy imports off the CLI's hot path.
 - **Never put SQLite on cluster filesystems** (Lustre/GPFS). The index cache lives in
   `~/.cache/beamtime/`, never in the repo or a log dir.
 - **Views are YAML trees of building blocks**, not markdown, built by agents. Every folder shows

@@ -1,0 +1,133 @@
+{"cand": "B", "scale": "S", "workload": "W1 full build", "first_s": 15.339280541986227, "index_bytes": 387495056}
+{"cand": "B", "scale": "S", "workload": "open+imports", "first_s": 0.08090983296278864}
+{"cand": "B", "scale": "S", "workload": "W2 chart", "variant": "default", "first_s": 0.009804791014175862, "warm_s": 0.008610958990175277, "points": 25000, "spikes_missed": 5, "spikes_total": 300}
+{"cand": "B", "scale": "S", "workload": "W2 chart", "variant": "tsdownsample", "first_s": 0.009761666995473206, "warm_s": 0.010438708995934576, "points": 50000, "spikes_missed": 5, "spikes_total": 300}
+{"cand": "B", "scale": "S", "workload": "W4 mean", "variant": "default", "first_s": 0.07790662499610335, "warm_s": 0.02675791596993804, "n_runs": 200, "checksum": 238.111817}
+{"cand": "E", "scale": "S", "workload": "open+imports", "first_s": 0.006754375004675239}
+{"cand": "E", "scale": "S", "workload": "W2 chart", "variant": "default", "first_s": 0.06523700000252575, "warm_s": 0.0882624999503605, "points": 25000, "spikes_missed": 5, "spikes_total": 300}
+{"cand": "E", "scale": "S", "workload": "W4 mean", "variant": "default", "first_s": 0.047251334006432444, "warm_s": 0.03789929096819833, "n_runs": 200, "checksum": 238.111817}
+{"cand": "B", "scale": "S", "workload": "W6 one-shot CLI (W2)", "first_s": 0.14975662500364706, "warm_s": 0.1304818750359118}
+{"cand": "E", "scale": "S", "workload": "W6 one-shot CLI (W2)", "first_s": 0.13727670803200454, "warm_s": 0.16548941703513265}
+{"cand": "B", "scale": "S", "workload": "W1 incremental 1000 lines", "first_s": 0.01410120801301673, "ok": true}
+{"cand": "B", "scale": "M", "workload": "W1 full build", "first_s": 64.95746666699415, "index_bytes": 1933211120}
+{"cand": "B", "scale": "M", "workload": "open+imports", "first_s": 0.08990424999501556}
+{"cand": "B", "scale": "M", "workload": "W2 chart", "variant": "default", "first_s": 0.009364416997414082, "warm_s": 0.00827758404193446, "points": 25000, "spikes_missed": 0, "spikes_total": 300}
+{"cand": "B", "scale": "M", "workload": "W2 chart", "variant": "tsdownsample", "first_s": 0.009563707979395986, "warm_s": 0.010152207978535444, "points": 50000, "spikes_missed": 0, "spikes_total": 300}
+{"cand": "B", "scale": "M", "workload": "W4 mean", "variant": "default", "first_s": 0.35094666603254154, "warm_s": 0.06635229202220216, "n_runs": 500, "checksum": 629.156126}
+{"cand": "E", "scale": "M", "workload": "open+imports", "first_s": 0.009312832960858941}
+{"cand": "E", "scale": "M", "workload": "W2 chart", "variant": "default", "first_s": 0.07970854104496539, "warm_s": 0.05511999997543171, "points": 25000, "spikes_missed": 0, "spikes_total": 300}
+{"cand": "E", "scale": "M", "workload": "W4 mean", "variant": "default", "first_s": 0.10509237495716661, "warm_s": 0.09418191702570766, "n_runs": 500, "checksum": 629.156126}
+{"cand": "B", "scale": "M", "workload": "W6 one-shot CLI (W2)", "first_s": 0.1172037500073202, "warm_s": 0.1149534999858588}
+{"cand": "E", "scale": "M", "workload": "W6 one-shot CLI (W2)", "first_s": 0.09648112498689443, "warm_s": 0.10078795801382512}
+{"cand": "B", "scale": "M", "workload": "W1 incremental 1000 lines", "first_s": 0.07080804201541469, "ok": true}
+{"cand": "B", "scale": "L1", "workload": "W1 full build", "first_s": 14.816896415955853, "index_bytes": 480069856}
+{"cand": "B", "scale": "L1", "workload": "open+imports", "first_s": 0.18237708299420774}
+{"cand": "B", "scale": "L1", "workload": "W3 zoom 1%", "variant": "default", "first_s": 0.012732332979794592, "warm_s": 0.010656166996341199, "points": 500, "spikes_missed": 0, "spikes_total": 1}
+{"cand": "B", "scale": "L1", "workload": "W3 zoom 1%", "variant": "tsdownsample", "first_s": 0.010182792029809207, "warm_s": 0.008715374977327883, "points": 1000, "spikes_missed": 0, "spikes_total": 1}
+{"cand": "B", "scale": "L1", "workload": "W3 zoom 0.01%", "variant": "default", "first_s": 0.007559083984233439, "warm_s": 0.00809104199288413, "points": 500, "spikes_missed": 0, "spikes_total": 0}
+{"cand": "B", "scale": "L1", "workload": "W3 zoom 0.01%", "variant": "tsdownsample", "first_s": 0.007972916995640844, "warm_s": 0.008238417038228363, "points": 1000, "spikes_missed": 0, "spikes_total": 0}
+{"cand": "E", "scale": "L1", "workload": "open+imports", "first_s": 0.007085874967742711}
+{"cand": "E", "scale": "L1", "workload": "W3 zoom 1%", "variant": "default", "first_s": 0.007255417003761977, "warm_s": 0.007036000024527311, "points": 500, "spikes_missed": 0, "spikes_total": 1}
+{"cand": "E", "scale": "L1", "workload": "W3 zoom 0.01%", "variant": "default", "first_s": 0.0010191250476054847, "warm_s": 0.000723165983799845, "points": 500, "spikes_missed": 0, "spikes_total": 0}
+{"cand": "B", "scale": "L1", "workload": "W1 incremental 1000 lines", "first_s": 0.23119516699807718, "ok": true}
+{"cand": "D2", "scale": "S", "workload": "W1 full build", "first_s": 6.600747874996159, "index_bytes": 202889144}
+{"cand": "D2", "scale": "S", "workload": "open+imports", "first_s": 0.11670737498207018}
+{"cand": "D2", "scale": "S", "workload": "W2 chart", "variant": "default", "first_s": 0.022683165967464447, "warm_s": 0.02137954201316461, "points": 25000, "spikes_missed": 5, "spikes_total": 300}
+{"cand": "D2", "scale": "S", "workload": "W4 mean", "variant": "default", "first_s": 0.02060824999352917, "warm_s": 0.015662374964449555, "n_runs": 200, "checksum": 238.111817}
+{"cand": "D2", "scale": "S", "workload": "W6 one-shot CLI (W2)", "first_s": 0.1831870829919353, "warm_s": 0.1831870829919353}
+{"cand": "D2", "scale": "S", "workload": "W1 incremental 1000 lines", "first_s": 0.02410537499235943, "ok": true}
+{"cand": "D2", "scale": "M", "workload": "W1 full build", "first_s": 39.982066416007, "index_bytes": 1012813948}
+{"cand": "D2", "scale": "M", "workload": "open+imports", "first_s": 0.13072329200804234}
+{"cand": "D2", "scale": "M", "workload": "W2 chart", "variant": "default", "first_s": 0.023397249984554946, "warm_s": 0.022892791021149606, "points": 25000, "spikes_missed": 0, "spikes_total": 300}
+{"cand": "D2", "scale": "M", "workload": "W4 mean", "variant": "default", "first_s": 0.17996733298059553, "warm_s": 0.07551470899488777, "n_runs": 500, "checksum": 629.156126}
+{"cand": "D2", "scale": "M", "workload": "W6 one-shot CLI (W2)", "first_s": 0.20422529202187434, "warm_s": 0.18808883300516754}
+{"cand": "D2", "scale": "M", "workload": "W1 incremental 1000 lines", "first_s": 0.027619917003903538, "ok": true}
+{"cand": "D2", "scale": "L1", "workload": "W1 full build", "first_s": 5.328131416987162, "index_bytes": 194492073}
+{"cand": "D2", "scale": "L1", "workload": "open+imports", "first_s": 0.12667379202321172}
+{"cand": "D2", "scale": "L1", "workload": "W3 zoom 1%", "variant": "default", "first_s": 0.0024318750365637243, "warm_s": 0.0021014169906266034, "points": 500, "spikes_missed": 0, "spikes_total": 1}
+{"cand": "D2", "scale": "L1", "workload": "W3 zoom 0.01%", "variant": "default", "first_s": 0.001608500024303794, "warm_s": 0.0014110829797573388, "points": 500, "spikes_missed": 0, "spikes_total": 0}
+{"cand": "D2", "scale": "L1", "workload": "W1 incremental 1000 lines", "first_s": 0.2924493749742396, "ok": true}
+{"cand": "D1", "scale": "S", "workload": "W1 full build", "first_s": 9.812198041996453, "index_bytes": 159609379}
+{"cand": "D1", "scale": "S", "workload": "open+imports", "first_s": 0.10165974998380989}
+{"cand": "D1", "scale": "S", "workload": "W2 chart", "variant": "default", "first_s": 0.023080292041413486, "warm_s": 0.02200820902362466, "points": 25000, "spikes_missed": 5, "spikes_total": 300}
+{"cand": "D1", "scale": "S", "workload": "W4 mean", "variant": "default", "first_s": 0.03224508400307968, "warm_s": 0.03167808399302885, "n_runs": 200, "checksum": 238.111817}
+{"cand": "D1", "scale": "S", "workload": "W6 one-shot CLI (W2)", "first_s": 0.17277770797954872, "warm_s": 0.17118091700831428}
+{"cand": "D1", "scale": "S", "workload": "W1 incremental 1000 lines", "first_s": 0.015276082966011018, "ok": true}
+{"cand": "D1", "scale": "M", "workload": "W1 full build", "first_s": 45.2913933339878, "index_bytes": 793815695}
+{"cand": "D1", "scale": "M", "workload": "open+imports", "first_s": 0.1109112499980256}
+{"cand": "D1", "scale": "M", "workload": "W2 chart", "variant": "default", "first_s": 0.027236540976446122, "warm_s": 0.02268737502163276, "points": 25000, "spikes_missed": 0, "spikes_total": 300}
+{"cand": "D1", "scale": "M", "workload": "W4 mean", "variant": "default", "first_s": 0.08161966601619497, "warm_s": 0.08030979102477431, "n_runs": 500, "checksum": 629.156126}
+{"cand": "D1", "scale": "M", "workload": "W6 one-shot CLI (W2)", "first_s": 0.1871422499534674, "warm_s": 0.1871422499534674}
+{"cand": "D1", "scale": "M", "workload": "W1 incremental 1000 lines", "first_s": 0.01500987500185147, "ok": true}
+{"cand": "D1", "scale": "L1", "workload": "W1 full build", "first_s": 2.094250624999404, "index_bytes": 255371252}
+{"cand": "D1", "scale": "L1", "workload": "open+imports", "first_s": 0.14816749998135492}
+{"cand": "D1", "scale": "L1", "workload": "W3 zoom 1%", "variant": "default", "first_s": 0.009892042027786374, "warm_s": 0.009579124976880848, "points": 500, "spikes_missed": 0, "spikes_total": 1}
+{"cand": "D1", "scale": "L1", "workload": "W3 zoom 0.01%", "variant": "default", "first_s": 0.008882333990186453, "warm_s": 0.007961791008710861, "points": 500, "spikes_missed": 0, "spikes_total": 0}
+{"cand": "D1", "scale": "L1", "workload": "W1 incremental 1000 lines", "first_s": 0.9758085420471616, "ok": true}
+{"cand": "A", "scale": "S", "workload": "W1 full build", "first_s": 29.22757454199018, "index_bytes": 160738928}
+{"cand": "A", "scale": "S", "workload": "open+imports", "first_s": 0.00558833300601691}
+{"cand": "A", "scale": "S", "workload": "W2 chart", "variant": "levels", "first_s": 0.008839333022478968, "warm_s": 0.00738516595447436, "points": 31250, "spikes_missed": 4, "spikes_total": 300}
+{"cand": "A", "scale": "S", "workload": "W4 mean", "variant": "levels", "first_s": 0.016618333000224084, "warm_s": 0.01265804102877155, "n_runs": 200, "checksum": 238.111817}
+{"cand": "A", "scale": "S", "workload": "W4 mean", "variant": "jsonl-json", "first_s": 10.30475850001676, "warm_s": 10.449192708998453, "n_runs": 200, "checksum": 238.111817}
+{"cand": "A", "scale": "S", "workload": "W4 mean", "variant": "jsonl-orjson", "first_s": 1.8293009159970097, "warm_s": 1.8477458329871297, "n_runs": 200, "checksum": 238.111817}
+{"cand": "A", "scale": "S", "workload": "W6 one-shot CLI (W2)", "first_s": 0.09550575003959239, "warm_s": 0.05459508299827576}
+{"cand": "A", "scale": "S", "workload": "W1 incremental 1000 lines", "first_s": 0.027286167023703456, "ok": true}
+{"cand": "A", "scale": "M", "workload": "W1 full build", "first_s": 145.88736754097044, "index_bytes": 786890352}
+{"cand": "A", "scale": "M", "workload": "open+imports", "first_s": 0.006818333000410348}
+{"cand": "A", "scale": "M", "workload": "W2 chart", "variant": "levels", "first_s": 0.011045499995816499, "warm_s": 0.010345917020458728, "points": 31250, "spikes_missed": 0, "spikes_total": 300}
+{"cand": "A", "scale": "M", "workload": "W4 mean", "variant": "levels", "first_s": 0.42894679197343066, "warm_s": 0.04169174999697134, "n_runs": 500, "checksum": 629.156126}
+{"cand": "A", "scale": "M", "workload": "W4 mean", "variant": "jsonl-json", "first_s": 26.16659008298302, "warm_s": 26.83051112497924, "n_runs": 500, "checksum": 629.156126}
+{"cand": "A", "scale": "M", "workload": "W4 mean", "variant": "jsonl-orjson", "first_s": 4.606495374988299, "warm_s": 4.6004838749649934, "n_runs": 500, "checksum": 629.156126}
+{"cand": "A", "scale": "M", "workload": "W6 one-shot CLI (W2)", "first_s": 0.20050129102310166, "warm_s": 0.05851904203882441}
+{"cand": "A", "scale": "M", "workload": "W1 incremental 1000 lines", "first_s": 0.029879417037591338, "ok": true}
+{"cand": "A", "scale": "L1", "workload": "W1 full build", "first_s": 78.86003962496761, "index_bytes": 203908240}
+{"cand": "A", "scale": "L1", "workload": "open+imports", "first_s": 0.009591709007509053}
+{"cand": "A", "scale": "L1", "workload": "W3 zoom 1%", "variant": "levels", "first_s": 0.00022833305411040783, "warm_s": 0.0002087079919874668, "points": 391, "spikes_missed": 0, "spikes_total": 1}
+{"cand": "A", "scale": "L1", "workload": "W3 zoom 0.01%", "variant": "levels", "first_s": 0.006916416983585805, "warm_s": 0.006533499981742352, "points": 1000, "spikes_missed": 0, "spikes_total": 0}
+{"cand": "A", "scale": "L1", "workload": "W1 incremental 1000 lines", "first_s": 0.026036833005491644, "ok": true}
+{"cand": "C", "scale": "S", "workload": "W1 full build", "first_s": 38.99017379101133, "index_bytes": 566875744}
+{"cand": "C", "scale": "S", "workload": "open+imports", "first_s": 0.017734083987306803}
+{"cand": "C", "scale": "S", "workload": "W2 chart", "variant": "default", "first_s": 0.14434283401351422, "warm_s": 0.14383125002495944, "points": 25000, "spikes_missed": 5, "spikes_total": 300}
+{"cand": "C", "scale": "S", "workload": "W4 mean", "variant": "default", "first_s": 0.16351774998474866, "warm_s": 0.08084862498799339, "n_runs": 200, "checksum": 238.111817}
+{"cand": "C", "scale": "S", "workload": "W6 one-shot CLI (W2)", "first_s": 0.203810041944962, "warm_s": 0.203810041944962}
+{"cand": "C", "scale": "S", "workload": "W1 incremental 1000 lines", "first_s": 0.029831499967258424, "ok": true}
+{"cand": "C", "scale": "M", "workload": "W1 full build", "first_s": 197.99945304199355, "index_bytes": 2886518512}
+{"cand": "C", "scale": "M", "workload": "open+imports", "first_s": 0.02068062504986301}
+{"cand": "C", "scale": "M", "workload": "W2 chart", "variant": "default", "first_s": 0.14267066703177989, "warm_s": 0.14581079100025818, "points": 25000, "spikes_missed": 0, "spikes_total": 300}
+{"cand": "C", "scale": "M", "workload": "W4 mean", "variant": "default", "first_s": 0.4890500420005992, "warm_s": 0.20611112500773743, "n_runs": 500, "checksum": 629.156126}
+{"cand": "C", "scale": "M", "workload": "W6 one-shot CLI (W2)", "first_s": 0.2055496250395663, "warm_s": 0.20459870900958776}
+{"cand": "C", "scale": "M", "workload": "W1 incremental 1000 lines", "first_s": 0.02872654201928526, "ok": true}
+{"cand": "C", "scale": "L1", "workload": "W1 full build", "first_s": 52.414564625010826, "index_bytes": 1367159120}
+{"cand": "C", "scale": "L1", "workload": "open+imports", "first_s": 0.019893749966286123}
+{"cand": "C", "scale": "L1", "workload": "W3 zoom 1%", "variant": "default", "first_s": 0.025956957950256765, "warm_s": 0.025958791957236826, "points": 500, "spikes_missed": 0, "spikes_total": 1}
+{"cand": "C", "scale": "L1", "workload": "W3 zoom 0.01%", "variant": "default", "first_s": 0.0004837089800275862, "warm_s": 0.0004760830197483301, "points": 500, "spikes_missed": 0, "spikes_total": 0}
+{"cand": "C", "scale": "L1", "workload": "W1 incremental 1000 lines", "first_s": 0.020442834007553756, "ok": true}
+{"workload": "W6 import", "variant": "pass", "first_s": 0.028844333020970225, "warm_s": 0.020295145543059334}
+{"workload": "W6 import", "variant": "import json", "first_s": 0.026402417046483606, "warm_s": 0.026903624995611608}
+{"workload": "W6 import", "variant": "import sqlite3", "first_s": 0.027890500030480325, "warm_s": 0.026257395511493087}
+{"workload": "W6 import", "variant": "import orjson", "first_s": 0.038323584012687206, "warm_s": 0.038969417015323415}
+{"workload": "W6 import", "variant": "import numpy", "first_s": 0.08657200000016019, "warm_s": 0.08686368749476969}
+{"workload": "W6 import", "variant": "import pyarrow", "first_s": 0.1627455420093611, "warm_s": 0.13647370849503204}
+{"workload": "W6 import", "variant": "import duckdb", "first_s": 0.12094333302229643, "warm_s": 0.11786439552088268}
+{"workload": "W6 import", "variant": "import tsdownsample", "first_s": 0.0965437910053879, "warm_s": 0.08923945849528536}
+{"workload": "W6 import", "variant": "import numpy, duckdb, pyarrow", "first_s": 0.2134737079613842, "warm_s": 0.2069507084961515}
+{"workload": "W6 import", "variant": "python -I -S -c pass", "first_s": 0.02159541705623269, "warm_s": 0.016378707980038598}
+{"workload": "JSONL scan", "variant": "json.loads per line", "first_s": 4.255572458030656, "mb_per_s": 52.164715132762716, "lines_per_s": 117493.00591896963, "mb": 221.990725}
+{"workload": "JSONL scan", "variant": "orjson.loads per line", "first_s": 0.9164224170381203, "mb_per_s": 242.23624485035472, "lines_per_s": 545599.9228128894, "mb": 221.990725}
+{"workload": "JSONL scan", "variant": "read_jsonl columnar (json)", "first_s": 5.127646292035934, "mb_per_s": 43.29290913548144, "lines_per_s": 97510.62603061782, "mb": 221.990725}
+{"workload": "JSONL scan", "variant": "read_jsonl columnar (orjson)", "first_s": 1.9121972910361364, "mb_per_s": 116.09195664099748, "lines_per_s": 261479.29522955854, "mb": 221.990725}
+{"workload": "JSONL scan", "variant": "pyarrow.json.read_json", "first_s": 0.48375137499533594, "mb_per_s": 458.8942512093951, "lines_per_s": 1033588.7934268316, "mb": 221.990725}
+{"workload": "JSONL scan", "variant": "duckdb read_json (all files, 1 query)", "first_s": 0.6225274580065161, "mb_per_s": 356.5958772499259, "lines_per_s": 803177.4238539152, "mb": 221.990725}
+{"workload": "W5 run table", "variant": "scan 30k json files, no index", "first_s": 1.1941059589735232, "warm_s": 0.5851040830020793}
+{"workload": "W5 build", "variant": "sqlite json columns", "first_s": 1.5826107920147479, "index_bytes": 4276224}
+{"workload": "W5 run table", "variant": "sqlite json_extract", "first_s": 0.012627666001208127, "warm_s": 0.009904041013214737}
+{"workload": "W5 run table", "variant": "sqlite load all + filter in Python", "first_s": 0.07316749996971339, "warm_s": 0.07251604099292308}
+{"workload": "W5 run table", "variant": "sqlite one-shot fresh process", "first_s": 0.038990291010122746, "warm_s": 0.03843920899089426}
+{"workload": "W5 build", "variant": "duckdb read_json over 30k files", "first_s": 1.4171485000406392}
+{"workload": "W5 run table", "variant": "duckdb in-memory table", "first_s": 0.0063447499996982515, "warm_s": 0.0018609580001793802}
+{"cand": "B", "scale": "L1", "workload": "W1 full build", "first_s": 15.132272583956365, "index_bytes": 480069856}
+{"cand": "B", "scale": "L1", "workload": "W1 incremental 1000 lines", "first_s": 0.023614375037141144, "ok": true}
+{"cand": "D1", "scale": "L1", "workload": "W1 full build", "first_s": 2.3350367920356803, "index_bytes": 255374757}
+{"cand": "D1", "scale": "L1", "workload": "W1 incremental 1000 lines", "first_s": 0.027635333011858165, "ok": true}
+{"cand": "D2", "scale": "L1", "workload": "W1 full build", "first_s": 6.516038125031628, "index_bytes": 194754216}
+{"cand": "D2", "scale": "L1", "workload": "W1 incremental 1000 lines", "first_s": 0.01879108400316909, "ok": true}
