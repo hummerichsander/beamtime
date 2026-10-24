@@ -3,14 +3,14 @@
 Status: **draft, under discussion**
 
 The storage format is the contract every other layer builds on. The SDK writes it, the index reads
-it, sync copies it, and agents `cat` and `grep` it directly. It has to work on a laptop and on a
-cluster filesystem (Lustre, GPFS, NFS) without a server or database.
+it, sync copies it, and agents `cat` and `grep` it directly. It has to work on a laptop, a
+workstation and a cluster filesystem (Lustre, GPFS, NFS) without a server or database.
 
 ## Scope
 
 Beamtime **records** experiments; it never **runs** them. It does not launch jobs, schedule sweeps,
-pick hyperparameters or talk to SLURM. Launching stays with SLURM, scripts or the agent. Beamtime
-only reads what the environment exposes (e.g. SLURM variables) and stores what the run logs.
+pick hyperparameters or talk to job schedulers. Beamtime only reads what the environment exposes
+(host, git, scheduler variables if any) and stores what the run logs.
 
 ## Principles
 
@@ -20,12 +20,16 @@ only reads what the environment exposes (e.g. SLURM variables) and stores what t
    and can be rebuilt with `beamtime reindex`.
 3. **Every file has exactly one writer.** No two processes or machines ever modify the same file.
    State that several parties change is stored as new, immutable files, and the latest one wins.
-   This makes concurrent HPC jobs safe without locks and turns sync into a plain union of files.
+   This makes concurrent jobs safe without locks and turns sync into a plain union of files.
 4. **Append or replace, never edit in place.** Streams are append-only JSONL. Whole-file state is
    written to a temp file and renamed, so readers never see a half-written file.
-5. **Machine-written files are JSON, human- or agent-authored files are YAML or Markdown.** Config
-   values come from Python dicts and must round-trip exactly. Hypotheses and dashboards are
-   structured and written as YAML; notes are text and written as Markdown with YAML frontmatter.
+5. **Machine-written files start with `_`; authored files don't.** Everything Beamtime writes is
+   prefixed (`_run.json`, `_metrics.jsonl`) and must not be edited by hand. Everything people and
+   agents write (`proposal.yaml`, `notes/`, `view/`) has no prefix. This matches the reserved
+   `_step` and `_t` keys inside the files.
+6. **Machine-written files are JSON, authored files are YAML or Markdown.** Config values come from
+   Python dicts and must round-trip exactly. Proposals and views are structured and written as YAML;
+   notes are text and written as Markdown with YAML frontmatter.
 
 ## Root and log dirs
 
@@ -43,109 +47,128 @@ my-repo/
 # beamtime.yaml
 logdirs: [beamtime]                      # scanned recursively for runs, default [beamtime]
 remotes:                                 # layer 4
-  hpc: user@login.cluster.de:/scratch/me/my-repo/beamtime
+  cluster: user@login.cluster.de:/scratch/me/my-repo/beamtime
 ```
 
 - The root is the nearest directory with `beamtime.yaml`, else the git root, else the working
   directory.
-- `BEAMTIME_LOGDIR` overrides where new runs go, typically scratch on a cluster.
+- `BEAMTIME_LOGDIR` overrides where new runs go, e.g. scratch space on a cluster.
 - The index cache lives outside the repo in `~/.cache/beamtime/<root-hash>/`, so nothing
   machine-specific ends up in the repo and SQLite never touches a cluster filesystem.
 
 ## Folders
 
-Below a log dir, the user organizes runs in ordinary folders. A folder that contains a `run.json`
+Below a log dir, the user organizes runs in ordinary folders. A folder that contains a `_run.json`
 is a **run**; every other folder is a **group**. Directions, sweeps and ablations are all just
 groups:
 
 ```
 beamtime/
   scaling/                          # group: a research direction
-    hypothesis.yaml
-    dashboard/                      # shown here and inherited by everything below
+    proposal.yaml
+    view/                           # shown here and inherited by everything below
     notes/
     lr-sweep/                       # group: a sweep
-      hypothesis.yaml
-      dashboard/                    # overrides the inherited one for this sweep
+      proposal.yaml
+      view/                         # overrides the inherited one for this sweep
       20261024-101532-k3m9xq2a/     # run
       20261024-101533-p2x8fq1c/     # run
   tokenizer/
     bpe-vs-unigram/ …
 ```
 
-Every folder, run or group, can carry the same three kinds of annotations:
+Every folder, run or group, can carry the same three kinds of authored files:
 
 | File | Meaning |
 |---|---|
-| `hypothesis.yaml` | What is expected for the runs in this folder, and why. |
-| `notes/<ts>-<rand>.md` | Comments, decisions, dead ends, and verdicts on the hypothesis. |
-| `dashboard/<ts>-<rand>.yaml` | The folder's dashboard; the newest version is shown. |
+| `proposal.yaml` | What is expected for the runs in this folder, and why. |
+| `notes/<ts>-<rand>.md` | Comments, decisions, dead ends, and verdicts on the proposal. |
+| `view/<ts>-<rand>.yaml` | The folder's view; the newest version is shown. |
 
-This replaces the earlier separate concepts:
+This covers what other tools model as separate concepts:
 
 - **Projects** are top-level groups.
-- **Sweeps** are groups whose runs come from one launch. There is no `sweep.yaml`; the SLURM array
-  id is recorded per run.
+- **Sweeps** are groups whose runs come from one launch. There is no sweep file; scheduler job
+  information is recorded per run.
 - **The journal** is the notes on a group, or on the log dir itself for project-wide entries.
-- **Pages** are dashboards, one per folder (see [Dashboards](#dashboards)).
-- **Derived data** is any data file next to the dashboard that uses it. Provenance is written in a
-  note or the dashboard itself, not in a separate format.
+- **Reports and dashboards** are views, one per folder (see [Views](#views)).
+- **Derived data** is any data file stored with the view that uses it.
 
-The **timeline** is not stored. The index builds it from run events and notes across all
-folders.
+The **timeline** is not stored. The index builds it from run events and notes across all folders.
 
-## Dashboards
+## Views
 
-Agents build dashboards from Beamtime's widgets (layer 5). Every folder shows exactly one:
+Agents build views from Beamtime's building blocks (layer 5). Every folder shows exactly one:
 
-1. its own dashboard, if it has one;
-2. otherwise the dashboard of the nearest ancestor group that has one;
-3. otherwise Beamtime's built-in default: hypothesis with check, run table, main metric curves, and
+1. its own view, if it has one;
+2. otherwise the view of the nearest ancestor group that has one;
+3. otherwise Beamtime's built-in default: proposal with check, run table, main metric curves, and
    every logged table, image and text, so nothing a run logs is ever invisible.
 
-A dashboard is **rendered for the folder being viewed**, not for the folder that defines it. Queries
-are relative to the viewed folder: `runs: .` means all runs below it. One dashboard in `scaling/`
-therefore shows all scaling runs when viewing `scaling/`, only the sweep's runs when viewing
+A view is **rendered for the folder being viewed**, not for the folder that defines it. Queries are
+relative to the viewed folder: `runs: .` means all runs below it. One view in `scaling/` therefore
+shows all scaling runs when viewing `scaling/`, only the sweep's runs when viewing
 `scaling/lr-sweep/`, and a single run when viewing a run. A subgroup or run that needs something
-different defines its own dashboard, which in turn is inherited further down.
+different defines its own view, which in turn is inherited further down.
 
-Each save of a dashboard is a new file in `dashboard/`, and the newest one is shown. This keeps the
-one-writer rule when agents on the laptop and on the cluster both revise it, and keeps the history
-of how a report evolved. `beamtime dashboard edit` hides the versioning from agents.
+### Structure
 
-### Dashboard data
+A view has a fixed frame and a free body:
 
-Widgets get their data in one of two ways:
+- **Frame**, owned by Beamtime and identical on every view: folder, proposal with its check, current
+  verdict, run status. An agent cannot break it, and every view starts the same way.
+- **Body**, written by the agent: a layout of building blocks, from most to least structured:
+  1. **Widgets**: layout (row, grid, tabs, section) and content (charts, tables, images, stats,
+     notes).
+  2. **Vega-Lite specs** with Beamtime's theme applied, for charts no widget covers.
+  3. **Custom HTML widgets**, sandboxed in an iframe without network access, for anything else.
+     Beamtime injects their data through the same queries and offers a curated set of preferred
+     libraries (Vega-Lite first; others such as uPlot or KaTeX), served locally so views work
+     offline on a cluster login node.
+
+A shared theme keeps the visual language common across all three levels: colors, fonts, and the
+same color for the same run in every chart. The design rules, the preferred libraries and the
+agent instructions are designed in layer 5.
+
+### Versions
+
+Each save of a view is a new file in `view/`, and the newest one is shown. This keeps the one-writer
+rule when agents on the laptop and on the cluster both revise it, and keeps the history of how a
+report evolved. `beamtime view edit` hides the versioning from agents.
+
+### Data
+
+Building blocks get their data in one of two ways:
 
 1. **Queries on run data**, the normal case. A widget names what it wants
    (`{runs: ., y: val/loss, color: config.lr}`) and contains no values. The index answers from
-   `metrics.jsonl`, `summary.json` and `config.json` and downsamples long curves. Queries follow the
-   viewed folder, so they stay correct when a dashboard is inherited, and update while runs go on.
-   Derived values that can be computed from the query result (aggregates, regression fits,
-   smoothing, densities) are computed in the widget with Vega-Lite transforms, so they follow the
-   viewed folder too. This is the preferred way to show analysis.
-   Tables, images and text logged by runs are queried the same way
-   (`{runs: ., table: val/per_class, step: last}`).
+   `_metrics.jsonl`, `_data.jsonl`, `_run_card.json` and `_config.json` and downsamples long
+   curves. Queries follow the viewed folder, so they stay correct when a view is inherited, and
+   update while runs go on. Derived values that can be computed from the query result (aggregates,
+   regression fits, smoothing, densities) are computed in the chart with Vega-Lite transforms, so
+   they follow the viewed folder too. This is the preferred way to show analysis.
 2. **Data files**, for analysis that transforms cannot express (e.g. a fit done in SciPy). They are
-   tables like the ones runs log, so widgets treat both alike. The agent saves them with the
-   dashboard into `dashboard/data/<sha8>-<name>.parquet` (or `.csv`, `.json`).
-   They are named by content hash, so they are immutable and an older dashboard version keeps
-   showing the data it was built with. A data file describes the folder that defines the dashboard,
-   not the viewed folder: when the dashboard is inherited, widgets using it carry a label such as
-   "data from `scaling/`".
+   tables like the ones runs log, so building blocks treat both alike. The agent saves them with the
+   view into `view/data/<sha8>-<name>.parquet` (or `.csv`, `.json`). They are named by content hash,
+   so they are immutable and an older view version keeps showing the data it was built with. A data
+   file describes the folder that defines the view, not the viewed folder: when the view is
+   inherited, building blocks using it carry a label such as "data from `scaling/`".
 
-Provenance of a data file (the script or notebook that made it) is recorded in a note.
+Custom HTML widgets are stored the same way, as `view/html/<sha8>-<name>.html`. Provenance of a
+data file (the script or notebook that made it) is recorded in a note.
 
 ## Runs
 
 ### Identity
 
 - **Run id:** `20261024-101532-k3m9xq2a`, i.e. UTC start time plus 8 random base32 characters
-  (40 bits). It sorts chronologically and is unique without coordination: 1000 array tasks starting
-  in the same second have a collision chance of about 5e-7. The directory is created with an
-  exclusive `mkdir`, and a collision simply retries.
+  (40 bits). It sorts chronologically and is unique without coordination: 1000 jobs starting in the
+  same second have a collision chance of about 5e-7. The directory is created with an exclusive
+  `mkdir`, and a collision simply retries.
 - **Run name:** a human-readable label (`lr-3e-4-warmup`). Optional; if missing, one is generated
-  (`quiet-boson-7`). The name lives in `run.json` and can change; the id never does.
+  from high-energy physics vocabulary as adjective, particle and number: `boosted-kaon-42`,
+  `prompt-photon-7`, `displaced-muon-13`. The name lives in `_run.json` and can change; the id
+  never does.
 - The run directory is named by its id and created inside the folder passed to
   `beamtime.init(dir=...)`. Runs can be moved between folders freely; the id travels with them.
 
@@ -153,47 +176,50 @@ Provenance of a data file (the script or notebook that made it) is recorded in a
 
 ```
 20261024-101532-k3m9xq2a/
-  run.json                  # identity, environment, status          [run, replaced]
-  config.json               # hyperparameters                        [run, replaced]
-  hypothesis.yaml           # what we expect and why                 [run, frozen]
-  heartbeat                 # last-alive timestamp                   [run, replaced]
-  metrics.jsonl             # scalar stream                          [run, append]
-  data.jsonl                # tables, images, text                   [run, append]
-  data/<key>/<step>.<ext>   # files for large tables and images      [run, create]
-  events.jsonl              # lifecycle events for the timeline      [run, append]
-  output.log                # captured stdout/stderr                 [run, append]
-  output.rank<N>.log        # output of other ranks (layer 2)        [rank N, append]
-  summary.json              # final and user-set summary values      [run, replaced]
-  artifacts.jsonl           # files produced, by copy or reference   [run, append]
-  env/                      # git.diff, requirements.txt             [run, create]
-  notes/                    # comments                               [annotation, create]
-  dashboard/                # overrides the inherited dashboard      [annotation, create]
+  _run.json                 # identity, environment, status          [run, replaced]
+  _config.json              # hyperparameters                        [run, replaced]
+  _run_card.json            # compact summary for agents and tables  [run, replaced]
+  _heartbeat                # last-alive timestamp                   [run, replaced]
+  _metrics.jsonl            # scalar stream                          [run, append]
+  _data.jsonl               # tables, images, text                   [run, append]
+  _data/<key>/<step>.<ext>  # files for large tables and images      [run, create]
+  _events.jsonl             # lifecycle events for the timeline      [run, append]
+  _output.log               # captured stdout/stderr                 [run, append]
+  _output.rank<N>.log       # output of other ranks (layer 2)        [rank N, append]
+  _artifacts.jsonl          # files produced, by copy or reference   [run, append]
+  _env/                     # git.diff, packages.txt                 [run, create]
+  proposal.yaml             # what we expect and why                 [authored, frozen]
+  notes/                    # comments and verdicts                  [authored, create]
+  view/                     # overrides the inherited view           [authored, create]
 ```
 
-- **Run-owned** files are written only by the training process and stop changing once it ends.
-- **Annotation** files are written afterwards by humans or agents, from any machine. Each is a new
-  file with a unique name, so annotations written on the laptop and on the cluster never conflict.
+- **Run-owned** files (prefixed) are written only by the training process and stop changing once it
+  ends.
+- **Authored** files are written by humans or agents, from any machine. Notes and views are new
+  files with unique names, so files written on the laptop and on the cluster never conflict. A
+  run's `proposal.yaml` is written at `init` and frozen at the first logged metric.
+- Directories written by other tools (e.g. Lightning's `checkpoints/`) keep their own names.
 
-### `run.json`
+### `_run.json`
 
 ```json
 {
   "schema": 1,
   "id": "20261024-101532-k3m9xq2a",
-  "name": "lr-3e-4-warmup",
+  "name": "boosted-kaon-42",
   "tags": ["resnet18", "cifar10"],
   "status": "running",
   "created_at": "2026-10-24T10:15:32.104Z",
   "ended_at": null,
   "exit": null,
   "attempts": [
-    {"started_at": "2026-10-24T10:15:32Z", "host": "gpu042", "slurm_job_id": "8812345"}
+    {"started_at": "2026-10-24T10:15:32Z", "host": "gpu042", "scheduler_job_id": "8812345"}
   ],
-  "hypothesis_frozen_at": "2026-10-24T10:15:41Z",
-  "hypothesis_sha256": "9f2c…",
+  "proposal_frozen_at": "2026-10-24T10:15:41Z",
+  "proposal_sha256": "9f2c…",
   "host": {"hostname": "gpu042", "user": "ada", "os": "Linux", "python": "3.11.9"},
-  "slurm": {"job_id": "8812345", "array_job_id": "8812300", "array_task_id": "45",
-            "partition": "gpu", "nodelist": "gpu042", "gpus": "a100:1"},
+  "scheduler": {"kind": "slurm", "job_id": "8812345", "array_job_id": "8812300",
+                "array_task_id": "45", "partition": "gpu", "nodes": "gpu042"},
   "git": {"commit": "57878f1", "branch": "master", "dirty": true, "remote": "…"},
   "command": ["python", "train.py", "--lr", "3e-4"],
   "cwd": "/home/ada/proj",
@@ -201,19 +227,24 @@ Provenance of a data file (the script or notebook that made it) is recorded in a
 }
 ```
 
-**Status** is one of `running`, `finished`, `failed` (exception), `killed` (signal, e.g. SLURM
-timeout or preemption). An extra value is derived when reading, never written: a `running` run whose
-heartbeat is older than a threshold (default 5 min) is shown as `lost`.
+`scheduler` is absent when no job scheduler is detected. Its `kind` names the scheduler (`slurm`,
+`pbs`, `lsf`, `kubernetes`, …); the other fields are whatever that scheduler exposes, mapped to
+common names where they exist (`job_id`, `nodes`, `partition`). Detection is part of the SDK
+(layer 2).
 
-**Attempts** support continuing a run (layer 2): a resumed run keeps its id, adds an attempt,
-and keeps appending to the same streams.
+**Status** is one of `running`, `finished`, `failed` (exception), `killed` (signal: Ctrl-C,
+scheduler timeout, preemption). An extra value is derived when reading, never written: a `running`
+run whose heartbeat is older than a threshold (default 5 min) is shown as `lost`.
 
-### `config.json`
+**Attempts** support continuing a run (layer 2): a resumed run keeps its id, adds an attempt, and
+keeps appending to the same streams.
+
+### `_config.json`
 
 Plain JSON of the hyperparameters, nested as given. It can be extended while the run is going
 (e.g. parameter count known after model build), but keys are never removed.
 
-### `metrics.jsonl`
+### `_metrics.jsonl`
 
 One JSON object per `log()` call:
 
@@ -233,48 +264,81 @@ One JSON object per `log()` call:
 Size check: 100k steps × 30 keys is about 50 MB of JSONL. That is fine to append, sync and parse
 incrementally; the index reads from the last byte offset it has seen.
 
-### `data.jsonl` and `data/`
+### `_data.jsonl` and `_data/`
 
-**Runs record data; dashboards present it.** A run logs four kinds of data: scalars (in
-`metrics.jsonl`) and the three non-scalar kinds below, each indexed by one line in `data.jsonl`.
-Nothing a run logs is a chart; charts are built only in dashboards (layer 5).
+**Runs record data; views present it.** A run logs four kinds of data: scalars (in
+`_metrics.jsonl`) and the three non-scalar kinds below, each indexed by one line in `_data.jsonl`.
+Nothing a run logs is a chart; charts are built only in views (layer 5).
 
 | Kind | Stored as | Typical use |
 |---|---|---|
-| `table` | inline `columns` up to 1000 cells, else `data/<key>/<step>.parquet` | per-class metrics, predictions, distributions |
-| `image` | `data/<key>/<step>.png` | generated samples, attention maps, plots only the run can draw |
-| `text` | inline up to 4 KB, else `data/<key>/<step>.txt` | generated text, prompts |
+| `table` | inline `columns` up to 1000 cells, else `_data/<key>/<step>.parquet` | per-class metrics, predictions, distributions |
+| `image` | `_data/<key>/<step>.png` | generated samples, attention maps, plots only the run can draw |
+| `text` | inline up to 4 KB, else `_data/<key>/<step>.txt` | generated text, prompts |
 
 ```json
-{"_step": 500, "_t": 1761301022.0, "key": "samples", "kind": "image", "path": "data/samples/500.png"}
-{"_step": 500, "_t": 1761301022.0, "key": "val/per_class", "kind": "table", "path": "data/val__per_class/500.parquet"}
+{"_step": 500, "_t": 1761301022.0, "key": "samples", "kind": "image", "path": "_data/samples/500.png"}
+{"_step": 500, "_t": 1761301022.0, "key": "val/per_class", "kind": "table", "path": "_data/val__per_class/500.parquet"}
 {"_step": 500, "_t": 1761301022.0, "key": "grads/layer3", "kind": "table", "columns": {"bin_start": [...], "bin_end": [...], "count": [...]}}
 ```
 
 A histogram is a table with `bin_start`, `bin_end` and `count`, so a series of histograms over
 steps is just a table logged at many steps. `/` in keys becomes `__` in file paths.
 
-### `events.jsonl`
+### `_events.jsonl`
 
-Lifecycle events that feed the timeline: `created`, `hypothesis_frozen`, `attempt_started`,
+Lifecycle events that feed the timeline: `created`, `proposal_frozen`, `attempt_started`,
 `finished`, `failed`, `killed`, plus anything the user logs with `run.event("lr decayed")`.
 
-### `output.log`
+### `_output.log`
 
 stdout and stderr as the process wrote them. Always captured, with no switch to turn it off: agents
 need it most when a run failed, and that is exactly the run nobody thought to configure.
 
-The only limit is size, so a runaway print loop cannot fill a cluster quota. Beyond a cap (default
+The only limit is size, so a runaway print loop cannot fill a disk quota. Beyond a cap (default
 10 MB) the head is kept and the tail rotates, so both the start and the moment of death survive.
 The exact rotation scheme belongs to the SDK design (layer 2).
 
-### `summary.json`
+### `_run_card.json`
 
-Last, min and max of every scalar, plus values set explicitly (`run.summary["test/acc"] = 0.93`).
-Written at the end of the run and periodically while it runs, so agents get the gist of a run from
-one small file.
+The run card is the first thing an agent reads about a run, and what run tables are built from. It
+condenses the run into one small file (under about 10 KB), written periodically while the run goes
+on and at its end.
 
-### `artifacts.jsonl`
+```json
+{
+  "status": "finished",
+  "duration_s": 15320,
+  "steps": 50000,
+  "steps_per_s": 3.26,
+  "error": null,
+  "metrics": {
+    "val/acc": {
+      "first": 0.10, "last": 0.929, "ema_last": 0.927,
+      "min": 0.10, "min_step": 0, "max": 0.931, "max_step": 47000,
+      "mean": 0.84, "count": 500, "last_step": 50000,
+      "nonfinite": 0, "slope_last10pct": 0.0001
+    }
+  },
+  "values": {"test/acc": 0.931}
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `duration_s`, `steps`, `steps_per_s` | How long the run went and how fast. |
+| `error` | Last exception line of a failed run, so the cause is visible without opening the log. |
+| `metrics.<key>.first`, `last`, `min`, `max`, `mean`, `count` | The basic shape of every scalar. |
+| `min_step`, `max_step`, `last_step` | Where the extremes happened and how far the metric got. |
+| `ema_last` | Exponentially smoothed last value; the raw last value of a noisy metric is misleading. |
+| `nonfinite` | Count of NaN and Inf values: divergence at a glance. |
+| `slope_last10pct` | Slope over the last 10% of steps: is the metric still moving? |
+| `values` | Values set explicitly (`run.card["test/acc"] = 0.931`), e.g. final test results. |
+
+Proposal checks and verdicts are not part of the card, since the run doesn't know them. CLI and MCP
+add them when they show a card (layer 3).
+
+### `_artifacts.jsonl`
 
 ```json
 {"name": "best.ckpt", "path": "artifacts/best.ckpt", "size": 47185920, "kind": "checkpoint"}
@@ -282,92 +346,109 @@ one small file.
 ```
 
 Small files are copied into `artifacts/`. Large ones are stored by reference (`uri`) and never
-copied or synced; the reference records where they live. Checkpoints written by Lightning land in `checkpoints/`
-inside the run directory (layer 2); they are listed by reference too and excluded from sync.
+copied or synced; the reference records where they live. Checkpoints written by Lightning land in
+`checkpoints/` inside the run directory (layer 2); they are listed by reference too and excluded
+from sync.
 
-## Hypotheses
+## Proposals
 
-A hypothesis can sit on a run or on a group. On a group it covers all runs below it.
+A proposal states what a folder's runs are expected to show, and why. It can sit on a run or on a
+group; on a group it covers all runs below it.
 
 ```yaml
 statement: Warmup over 500 steps removes the loss spike at lr=3e-4.
 rationale: The spike at step 120 matches the Adam second-moment estimate still warming up.
 predictions:
   - name: no-spike
-    metric: train/loss
-    stat: max
-    steps: [100, 300]
+    reduce: {metric: train/loss, stat: max, steps: [100, 300]}
     op: "<"
     value: 2.5
   - name: beats-baseline
-    metric: val/acc
-    stat: max
+    reduce: {metric: val/acc, stat: max}
     op: ">"
     ref: {run: 20261020-091204-a7c2kd9e}
     margin: 0.005
 ```
 
-A blank hypothesis is `statement: ""` with no predictions. Every run has one; groups have one only
-if someone writes it.
+A blank proposal is `statement: ""` with no predictions. Every run has one; groups have one only if
+someone writes it.
 
 ### Freezing
 
-A hypothesis can be edited until data exists that it makes claims about. Then it is frozen, and
-predictions are frozen with it, so they cannot be adjusted after seeing results.
+A proposal can be edited until data exists that it makes claims about. Then it is frozen, and its
+predictions with it, so they cannot be adjusted after seeing results.
 
 - **Run:** frozen when the run logs its first metric. The SDK records time and SHA-256 in
-  `run.json`.
-- **Group:** frozen when the next run below it starts. That run's SDK creates
-  `hypothesis.frozen.json` next to it (exclusive create, so concurrent array tasks don't clash)
-  with time and SHA-256.
+  `_run.json`.
+- **Group:** frozen when the next run below it starts. That run's SDK creates `_frozen.json` next to
+  the proposal (exclusive create, so concurrent jobs don't clash) with time and SHA-256.
 
-A group hypothesis written after some of its runs already exist is only checked against runs that
+A group proposal written after some of its runs already exist is only checked against runs that
 started after the freeze. Claims about data that was already visible are not predictions.
 
 Any later edit shows up as a hash mismatch.
 
 ### Predictions
 
-A prediction is a claim about one number that can be checked against the logged data.
+Every prediction is evaluated in the same four steps:
 
-| Field | Meaning |
-|---|---|
-| `name` | Optional label, shown in the UI and in verdict notes. |
-| `metric` | Scalar key from `metrics.jsonl` or `summary.json`. |
-| `stat` | How to reduce the series to one number: `last`, `min`, `max`, `mean`. |
-| `steps` | Optional `[start, end]` window (inclusive) before reducing. |
-| `op` | `<`, `<=`, `>`, `>=`. |
-| `value` | Threshold to compare against… |
-| `ref` + `margin` | …or another run's value of the same `metric` and `stat`, plus an optional margin. |
+1. **Select** the runs it is about: all runs below the folder that started after the freeze,
+   optionally narrowed by `select` (status, tags, config values). On a run, this is the run itself.
+2. **Reduce** each run to one number: `reduce: {metric, stat, steps}` takes the metric's series,
+   restricts it to the optional `steps: [start, end]` window, and reduces it with `stat` (`last`,
+   `min`, `max`, `mean`).
+3. **Merge seeds** (groups only, optional): with `seeds: config.seed`, runs whose configs are
+   identical except for that key are merged into one point, the mean of their numbers. One lucky
+   seed then cannot confirm a claim.
+4. **Test** the resulting points with one of four tests:
 
-On a group, these forms apply to each run below it. Two more forms make claims across the runs:
+| `test` | Claim | Fields |
+|---|---|---|
+| `each` (default) | every point satisfies the comparison | `op` (`<`, `<=`, `>`, `>=`), and `value` or `ref` + optional `margin` |
+| `trend` | the points rise or fall when ordered by a config key | `over: config.<key>`, `direction: increasing \| decreasing`, optional `tolerance` (allowed violation between neighbours) |
+| `best` | the best point has a given config | `best: max \| min`, `where: {config.<key>: value}` |
+| `compare` | subset `a` beats subset `b` | `a` and `b` (config filters), `op`, optional `margin`; compares the means of the two subsets |
+
+`ref: {run: <id>}` compares against another run's number, reduced the same way. On a run, only
+`each` makes sense, so `test` is omitted.
+
+A group example with the full pipeline:
 
 ```yaml
+statement: Warmup improves peak validation accuracy across model sizes.
 predictions:
-  - name: monotonic
-    metric: val/loss
-    stat: last
-    trend: decreasing            # increasing | decreasing, ordered by `over`
+  - name: warmup-helps
+    select: {status: finished}
+    reduce: {metric: val/acc, stat: max}
+    seeds: config.seed
+    test: compare
+    a: {config.warmup: 500}
+    b: {config.warmup: 0}
+    op: ">"
+    margin: 0.005
+  - name: bigger-is-better
+    reduce: {metric: val/loss, stat: last}
+    seeds: config.seed
+    test: trend
     over: config.n_params
-    tolerance: 0.01              # optional: allowed violation between neighbours
-  - name: warmup-wins
-    metric: val/acc
-    stat: max
-    best: max                    # which direction is best
-    where: {config.warmup: 500}  # the best run must match this config
+    direction: decreasing
+    tolerance: 0.01
 ```
 
-Group predictions can average over seeds first, so that one lucky seed cannot confirm a
-hypothesis. With `seeds: config.seed`, runs that differ only in that config key are merged into one
-point by taking the mean of their reduced values, and the prediction is evaluated on those points.
+### Evaluation
 
-Each prediction evaluates to `pass`, `fail` or `pending` (metric not logged yet, runs still going,
-or reference run missing). The combined **check** is `pass` if all predictions pass, `fail` if any
-fails once the runs have ended, and `pending` otherwise.
+Each prediction evaluates to `pass`, `fail` or `pending`:
+
+- `pending` while any selected run is still going, a metric is not logged yet, or a `ref` run is
+  missing.
+- Selected runs that `failed`, were `killed` or are `lost` are left out of the test and reported
+  next to the result, so a claim cannot pass silently by losing its counterexamples.
+- The combined **check** of a proposal is `pass` if all predictions pass, `fail` if any fails, and
+  `pending` otherwise.
 
 The check is computed by the index and never stored, because it follows deterministically from the
-frozen hypothesis and the data. It is a proposal: the verdict of record is a note with a verdict,
-written by a human or agent, which may disagree with the check and say why.
+frozen proposal and the data. It is a proposal of its own: the verdict of record is a note with a
+verdict, written by a human or agent, which may disagree with the check and say why.
 
 ## Notes
 
@@ -399,7 +480,8 @@ every seed. Next: check whether 200 warmup steps suffice, see [[scaling/warmup-l
 - The body is optional and short. Most notes are a description plus a few lines.
 - `[[...]]` links to a run id, a folder path below the log dir, or another note's file name. The
   index resolves links, so the UI can show backlinks.
-- The newest `verdict` note is the folder's current verdict; older ones remain as history.
+- The newest `verdict` note is the folder's current verdict on its proposal; older ones remain as
+  history.
 - Unlike memory files, notes are never edited or deleted. A correction is a new note, which keeps
   the one-writer rule and the history.
 
@@ -407,36 +489,43 @@ every seed. Next: check whether 200 warmup steps suffice, see [[scaling/warmup-l
 
 | Kind | How | Durability |
 |---|---|---|
-| Replaced (`run.json`, `summary.json`, …) | write `.<name>.tmp`, then `os.replace` | `fsync` on run end |
-| Appended (`*.jsonl`, `output.log`) | one `write()` per line, buffered flush every few seconds | `fsync` on run end |
-| Created (data files, annotations, freeze records) | write to temp name, then rename | none needed |
+| Replaced (`_run.json`, `_run_card.json`, …) | write `._<name>.tmp`, then `os.replace` | `fsync` on run end |
+| Appended (`_*.jsonl`, `_output.log`) | one `write()` per line, buffered flush every few seconds | `fsync` on run end |
+| Created (data files, notes, views, freeze records) | write to temp name, then rename | none needed |
 | Heartbeat | replaced every 30 s | none |
 
 ## Versioning
 
-Every `run.json` carries `schema`. Readers accept all known versions; `beamtime migrate` rewrites
+Every `_run.json` carries `schema`. Readers accept all known versions; `beamtime migrate` rewrites
 old runs. Unknown fields are kept, never dropped.
 
 ## Decisions
 
 - The root is the user's repo; runs live in user-chosen folders under log dirs, found by
-  `run.json`.
-- Folders are the only hierarchy. Projects, sweeps and journal are groups and their notes.
-- Every folder can carry a hypothesis, notes and a dashboard. Notes are Markdown with frontmatter,
-  like Claude Code memory files; a note of type `verdict` is a result.
-- Dashboards are inherited by subgroups and runs and rendered relative to the viewed folder; any
-  folder can override. Each save is a new version.
-- Dashboard data comes from relative queries plus Vega-Lite transforms; data files are the
-  exception, immutable and tied to the defining folder.
-- Hypotheses carry machine-checkable predictions; the index computes a check, the verdict of record
-  is a note with a verdict.
-- `output.log` is always captured; there is no switch to turn it off.
-- Runs record data, dashboards present it. Runs log scalars, tables, images and text; histograms
-  are tables, and charts exist only in dashboards.
+  `_run.json`.
+- Folders are the only hierarchy. Projects, sweeps and the journal are groups and their notes.
+- Machine-written files start with `_`; authored files (`proposal.yaml`, `notes/`, `view/`) don't.
+- Beamtime is not tied to a job scheduler; scheduler details are one optional `scheduler` field.
+- Every folder can carry a proposal, notes and a view. Notes are Markdown with frontmatter, like
+  Claude Code memory files; a note of type `verdict` is a result.
+- Views are inherited by subgroups and runs and rendered relative to the viewed folder; any folder
+  can override. Each save is a new version. A fixed frame is owned by Beamtime; the body is free,
+  from widgets over Vega-Lite to sandboxed custom HTML with preferred libraries.
+- View data comes from relative queries plus Vega-Lite transforms; data files are the exception,
+  immutable and tied to the defining folder.
+- Proposals carry machine-checkable predictions, evaluated as select, reduce, merge seeds, test. The
+  index computes a check; the verdict of record is a note with a verdict.
+- The run card (`_run_card.json`) is a compact summary of each run for agents and run tables.
+- Generated run names use high-energy physics vocabulary (`boosted-kaon-42`).
+- `_output.log` is always captured; there is no switch to turn it off.
+- Runs record data, views present it. Runs log scalars, tables, images and text; histograms are
+  tables, and charts exist only in views.
 - Beamtime records experiments and never runs them.
-- `trend` predictions take an optional `tolerance`; group predictions can average over seeds.
 
 ## To revisit
 
-- **Hypotheses, predictions and notes** get a thorough design pass of their own later. The
-  sections above fix where these files live and how they freeze; their contents are provisional.
+- **Proposals, predictions and notes** get a thorough design pass of their own later. The sections
+  above fix where these files live, how they freeze and how predictions are evaluated; field names
+  are provisional.
+- **Agent instructions for views** (design rules, preferred libraries, the validate-and-screenshot
+  loop) are designed with layer 5.

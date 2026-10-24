@@ -8,7 +8,7 @@ The SDK is what training code imports. It writes the storage format from
 ## Principles
 
 1. **Never break the training run.** Once `init` has returned, no SDK error propagates into user
-   code. Problems become a warning on stderr and an event in `events.jsonl`; the run goes on.
+   code. Problems become a warning on stderr and an event in `_events.jsonl`; the run goes on.
    Only `init` may raise, and only for misuse (invalid arguments), never for I/O trouble.
 2. **Cheap in the hot loop.** `log()` of a dict of scalars costs microseconds: one `json.dumps` and
    a buffered write. No threads hand-off, no queue.
@@ -16,7 +16,7 @@ The SDK is what training code imports. It writes the storage format from
    PyArrow and Matplotlib are imported lazily, only when a data wrapper needs them. Server, UI and MCP
    dependencies live in extras (`beamtime[serve]`).
 4. **The file format is the API for everything that isn't Python.** A Julia simulation or a shell
-   script can write `run.json` and `metrics.jsonl` itself. The SDK is a convenience, not a gate.
+   script can write `_run.json` and `_metrics.jsonl` itself. The SDK is a convenience, not a gate.
 
 ## API
 
@@ -28,7 +28,7 @@ run = beamtime.init(
     name="lr-3e-4-warmup",           # optional
     tags=["resnet18"],
     config=cfg,                      # dict, dataclass, Pydantic model, Namespace, OmegaConf
-    hypothesis="Warmup removes the loss spike.",  # str, dict, path to a YAML file, or None
+    proposal="Warmup removes the loss spike.",    # str, dict, path to a YAML file, or None
     resume=None,                     # None: new run; a run id: continue that run
 )
 
@@ -37,7 +37,7 @@ for step, batch in enumerate(loader):
     run.log({"train/loss": loss, "lr": sched.get_last_lr()[0]}, step=step)
 
 run.log({"samples": beamtime.Image(grid, caption="epoch 3")}, step=step)
-run.summary["test/acc"] = 0.931
+run.card["test/acc"] = 0.931
 run.config.update({"n_params": model.n_params})
 run.event("lr decayed")
 run.artifact("best.ckpt", kind="checkpoint")
@@ -56,15 +56,15 @@ run or `None`.
    `<root>/beamtime`) and the run folder `dir` below it. An absolute `dir` is used as is.
 2. Create a new run directory with a fresh id, or continue the run given by `resume` (see
    [Resume](#resume)).
-3. Write `run.json`, `config.json`, `hypothesis.yaml` and the `env/` files.
-4. Freeze every unfrozen group hypothesis between the run folder and the log dir by creating its
-   `hypothesis.frozen.json`.
+3. Write `_run.json`, `_config.json`, `proposal.yaml` and the `_env/` files.
+4. Freeze every unfrozen group proposal between the run folder and the log dir by creating its
+   `_frozen.json`.
 5. Start output capture and the heartbeat thread, install exit and signal hooks.
 
-The `hypothesis` argument accepts a plain string (taken as the statement), a dict in the
-`hypothesis.yaml` shape, or a path to such a YAML file, which lets an agent write the hypothesis
-before launching a job. `BEAMTIME_HYPOTHESIS` can point to that file as well, for jobs launched by
-scripts. `None` writes a blank hypothesis.
+The `proposal` argument accepts a plain string (taken as the statement), a dict in the
+`proposal.yaml` shape, or a path to such a YAML file, which lets an agent write the proposal before
+launching a job. `BEAMTIME_PROPOSAL` can point to that file as well, for jobs launched by scripts.
+`None` writes a blank proposal.
 
 ### `log`
 
@@ -73,10 +73,10 @@ run.log(values: dict[str, Any], step: int | None = None) -> None
 ```
 
 - Scalars (`int`, `float`, `bool`, NumPy scalars, 0-d tensors via `.item()`) go to
-  `metrics.jsonl`. Data wrappers go to `data.jsonl` and `data/`.
+  `_metrics.jsonl`. Data wrappers go to `_data.jsonl` and `_data/`.
 - Without `step`, the step increments by one per call. With `step`, it must not decrease within an
   attempt; a decreasing step is dropped with a warning (once per key).
-- The first `log` call freezes the run's hypothesis.
+- The first `log` call freezes the run's proposal.
 - Anything that is neither a scalar nor a data wrapper is dropped with a warning.
 
 `.item()` on a GPU tensor forces a device sync. That is the user's cost and the docs say so; the SDK
@@ -99,15 +99,21 @@ Two conveniences convert at log time and add no kind of their own:
 | `Histogram(values, bins=64)` or `Histogram(bins=, counts=)` | a `table` with `bin_start`, `bin_end`, `count` |
 | `Figure(fig)` | an `image` rendered from a Matplotlib figure |
 
-There is no way to log a chart spec. Presentation belongs to dashboards.
+There is no way to log a chart spec. Presentation belongs to views.
 
-### `summary`, `config`, `event`, `artifact`
+### `card`, `config`, `event`, `artifact`
 
-- `run.summary` is a dict-like. The SDK keeps last, min and max of every scalar in memory and
-  writes them, merged with explicit values, to `summary.json` every 60 s and at the end.
+- The SDK maintains the run card ([layer 1](01-storage.md#_run_cardjson)) in memory and writes
+  `_run_card.json` every 60 s and at the end. All statistics are streaming with constant memory per
+  metric: first, last, min, max with their steps, sum and count for the mean, a non-finite counter
+  and an exponential moving average. For `slope_last10pct` it keeps a small buffer of bucket means
+  (200 buckets that merge pairwise as the run grows) and fits a line to the buckets in the last
+  10% of steps.
+- `run.card` is a dict-like for explicit values (`run.card["test/acc"] = 0.931`), stored under
+  `values`.
 - `run.config.update()` adds keys; overwriting an existing key with a different value warns and is
   ignored, so the config never silently changes meaning mid-run.
-- `run.event(message, **data)` appends to `events.jsonl`.
+- `run.event(message, **data)` appends to `_events.jsonl`.
 - `run.artifact(path, kind=None, copy=None)` copies files below 100 MB into `artifacts/` and
   references larger ones by absolute path. `copy=True/False` overrides.
 
@@ -117,7 +123,7 @@ There is no way to log a chart spec. Presentation belongs to dashboards.
 run.finish(status: Literal["finished", "failed"] = "finished") -> None
 ```
 
-Flushes and fsyncs all streams, writes the final `summary.json`, sets `status` and `ended_at`,
+Flushes and fsyncs all streams, writes the final `_run_card.json`, sets `status` and `ended_at`,
 stops capture and the heartbeat. Calling it twice is a no-op.
 
 ## Lifecycle and exit handling
@@ -126,13 +132,13 @@ stops capture and the heartbeat. Calling it twice is a no-op.
 |---|---|---|
 | `finish()` or context manager exits cleanly | direct call | `finished` |
 | Script ends without `finish()` | `atexit` | `finished` |
-| Unhandled exception | `sys.excepthook` chain, or context manager | `failed`, traceback in `events.jsonl` |
-| `SIGTERM` (SLURM timeout, preemption, `scancel`) | signal handler | `killed` |
+| Unhandled exception | `sys.excepthook` chain, or context manager | `failed`, traceback in `_events.jsonl`, last line in the card's `error` |
+| `SIGTERM` (scheduler timeout, preemption, job cancelled) | signal handler | `killed` |
 | `Ctrl-C` | `KeyboardInterrupt` | `killed`, reason `interrupted` |
 | `SIGKILL`, OOM kill, node crash | nothing, the process is gone | `lost`, derived from the stale heartbeat |
 
 Signal handlers are installed only in the main thread and **chain** to any previous handler, so
-frameworks that install their own (e.g. Lightning's SLURM auto-requeue) keep working.
+frameworks that install their own (e.g. Lightning's auto-requeue on SLURM) keep working.
 
 ## Output capture
 
@@ -140,21 +146,21 @@ Always on. The SDK captures at the **file-descriptor** level, not by replacing `
 output from C extensions, CUDA, NCCL and subprocesses is caught too.
 
 - File descriptors 1 and 2 are redirected into a pipe; a reader thread copies everything both to
-  the original destination and to the log. Nothing disappears from the terminal or the SLURM output
+  the original destination and to the log. Nothing disappears from the terminal or the scheduler's output
   file.
 - When the original stream is a terminal, a pseudo-terminal is used instead of a pipe, so
   `isatty()` stays true and progress bars keep rendering.
 - Bytes are stored as written, including `\r` from progress bars; readers collapse them.
 
-Size cap (default 10 MB): the first half goes to `output.log`. After that, output goes to
-`output.tail.log`; when it reaches a quarter of the cap, it is renamed to `output.tail.prev.log`
-and a new one begins. Readers show `output.log`, a truncation marker, then the two tail files.
+Size cap (default 10 MB): the first half goes to `_output.log`. After that, output goes to
+`_output.tail.log`; when it reaches a quarter of the cap, it is renamed to `_output.tail.prev.log`
+and a new one begins. Readers show `_output.log`, a truncation marker, then the two tail files.
 The head and at least the last 2.5 MB always survive.
 
 ## Heartbeat
 
-A daemon thread wakes every 30 s. It replaces `heartbeat` with the current time, flushes the
-buffered streams, and every second wake writes `summary.json`. All writes share one lock with
+A daemon thread wakes every 30 s. It replaces `_heartbeat` with the current time, flushes the
+buffered streams, and every second wake writes `_run_card.json`. All writes share one lock with
 `log()`; the lock is uncontended almost always, so the hot loop doesn't notice.
 
 ## Resume
@@ -165,7 +171,7 @@ There are two modes:
 - **Continue** (`resume=<run id>`): continue that run, wherever it is below the log dir. An unknown
   id raises in `init`, since that is misuse, not I/O trouble.
 
-Resuming appends an attempt to `run.json`, sets status back to `running`, and continues the step
+Resuming appends an attempt to `_run.json`, sets status back to `running`, and continues the step
 counter after the last logged step unless `step` is passed. A config that differs from the stored
 one is logged as an event with the diff and not applied.
 
@@ -173,10 +179,22 @@ one is logged as an event with the diff and not applied.
 
 Written once at `init`:
 
-- `run.json`: host, user, Python, command line, working directory, SLURM variables, git commit,
-  branch, dirty flag, remote.
-- `env/git.diff`: uncommitted changes to tracked files (capped at 1 MB).
-- `env/packages.txt`: installed distributions from `importlib.metadata`, no subprocess.
+- `_run.json`: host, user, Python, command line, working directory, git commit, branch, dirty
+  flag, remote, and the job scheduler if one is detected.
+- `_env/git.diff`: uncommitted changes to tracked files (capped at 1 MB).
+- `_env/packages.txt`: installed distributions from `importlib.metadata`, no subprocess.
+
+Scheduler detection checks a few environment variables and fills the `scheduler` field of
+`_run.json` with `kind` plus whatever the scheduler exposes. Nothing else in the SDK depends on it.
+
+| `kind` | Detected by | Common fields |
+|---|---|---|
+| `slurm` | `SLURM_JOB_ID` | `job_id`, `array_job_id`, `array_task_id`, `partition`, `nodes` |
+| `pbs` | `PBS_JOBID` | `job_id`, `array_index`, `queue`, `nodes` |
+| `lsf` | `LSB_JOBID` | `job_id`, `array_index`, `queue`, `nodes` |
+| `kubernetes` | `KUBERNETES_SERVICE_HOST` | `pod`, `namespace` |
+
+Adding a scheduler means adding one row and its variable mapping.
 
 ## Distributed training
 
@@ -187,21 +205,22 @@ every one of these variables it can see is `0` or unset. This works before any p
 so `init` can decide at once.
 
 - **Rank 0** gets a real `Run` and writes everything, as for a single process.
-- **Other ranks** get a `NullRun`: `log`, `summary`, `event` and the rest do nothing, so code doesn't
+- **Other ranks** get a `NullRun`: `log`, `card`, `event` and the rest do nothing, so code doesn't
   need `if rank == 0` around every call. Their output is still captured, into
-  `output.rank<N>.log` in rank 0's run directory, because a crash often happens on another rank.
+  `_output.rank<N>.log` in rank 0's run directory, because a crash often happens on another rank.
   Each file has exactly one writer, its rank.
 
 A non-zero rank finds rank 0's run directory in one of two ways:
 
 1. **Inherited environment.** Rank 0 sets `BEAMTIME_RUN_DIR` in its own environment at `init`.
    Processes it starts afterwards inherit it: Lightning's subprocess launcher, `mp.spawn`, fork.
-2. **Shared job key**, for processes started independently (srun, torchrun): `SLURM_JOB_ID` plus
-   `SLURM_ARRAY_TASK_ID` under SLURM, `TORCHELASTIC_RUN_ID` under torchrun. The rank waits up to
-   2 minutes for a running `run.json` with that key in the same folder.
+2. **Shared job key**, for processes started independently (torchrun, a scheduler's launcher such
+   as `srun`): `TORCHELASTIC_RUN_ID` under torchrun, otherwise the scheduler's job id and array
+   index. The rank waits up to 2 minutes for a running `_run.json` with that key in the same
+   folder.
 
 If neither works, the rank prints a warning and is not captured. Per-rank files use the same size
-cap and rotation as `output.log`.
+cap and rotation as `_output.log`.
 
 ## PyTorch Lightning
 
@@ -212,7 +231,7 @@ dependency of Beamtime.
 ```python
 from beamtime.lightning import BeamtimeLogger
 
-logger = BeamtimeLogger(dir="scaling/lr-sweep", hypothesis="hypotheses/warmup.yaml")
+logger = BeamtimeLogger(dir="scaling/lr-sweep", proposal="proposals/warmup.yaml")
 trainer = Trainer(logger=logger, callbacks=[LearningRateMonitor()])
 trainer.fit(model, datamodule)
 trainer.test(model, datamodule)
@@ -230,7 +249,7 @@ output from model setup and data loading before `fit` is captured too.
 | `experiment` | the `Run` (a `NullRun` on other ranks) |
 | `log_metrics(metrics, step)` | `run.log(metrics, step=step)`; `step` is `trainer.global_step` |
 | `log_hyperparams(params)` | `run.config.update(params)`, including `save_hyperparameters()` |
-| `after_save_checkpoint(cb)` | checkpoint paths and the monitored score go to `artifacts.jsonl` |
+| `after_save_checkpoint(cb)` | checkpoint paths and the monitored score go to `_artifacts.jsonl` |
 | `finalize(status)` | flush only; a `failed` status is recorded as an event |
 | `save_dir`, `name`, `version` | point at the run directory, so checkpoints land in `<run>/checkpoints/` |
 
@@ -243,7 +262,7 @@ Details that matter:
   `global_step`; equal steps are allowed, only decreasing ones are dropped.
 - **Checkpointing follows Lightning's rules.** Without a `dirpath`, `ModelCheckpoint` saves to
   `<run>/checkpoints/`, as with Lightning's own loggers; an explicit `dirpath` wins. Either way the
-  checkpoints are listed by reference in `artifacts.jsonl` and excluded from sync.
+  checkpoints are listed by reference in `_artifacts.jsonl` and excluded from sync.
 - **SLURM requeue keeps working on Lightning's side.** `SLURMEnvironment(auto_requeue=True)`
   handles `SIGUSR1`, saves an HPC checkpoint and requeues the job. Lightning composes its signal
   handlers with existing ones, so Beamtime's handlers stay active: `SIGUSR1` is recorded as a
@@ -260,7 +279,7 @@ src/beamtime/
   __init__.py      # init, current, data wrappers
   run.py           # Run, NullRun
   paths.py         # root and log dir resolution, ids
-  env.py           # host, SLURM, git, packages
+  env.py           # host, scheduler, git, packages
   capture.py       # output tee and rotation
   data.py          # Table, Image, Text, Histogram, Figure
   files.py         # atomic replace, JSONL appender
@@ -272,21 +291,21 @@ src/beamtime/
 - Integrations with other frameworks (Hugging Face Trainer, Accelerate tracker). They are thin
   adapters like the Lightning logger and come later.
 - Writing notes from the SDK. That belongs to the annotation API, which is designed
-  together with hypotheses.
+  together with proposals.
 
 ## Decisions
 
 - All logging goes through the `Run` object. There is no module-level `beamtime.log`; deep code
   uses `beamtime.current()`.
 - Two resume modes: new (default) and continue (`resume=<run id>`).
-- Rank 0 writes the run; other ranks capture their output into `output.rank<N>.log`.
+- Rank 0 writes the run; other ranks capture their output into `_output.rank<N>.log`.
 - PyTorch Lightning is supported natively through `BeamtimeLogger`.
 - The SDK logs data, never charts: `Histogram` and `Figure` convert to a table and an image.
 
 
 ## Later
 
-- **Auto resume.** A third mode that continues a matching run by itself, so that a requeued SLURM
-  job or a Lightning restart from a checkpoint continues its run without passing an id. Matching
-  on the SLURM job id alone is not enough: one job may train several models one after another.
+- **Auto resume.** A third mode that continues a matching run by itself, so that a requeued
+  scheduler job or a Lightning restart from a checkpoint continues its run without passing an id.
+  Matching on the job id alone is not enough: one job may train several models one after another.
   Candidates are an explicit run `key`, or a checkpoint path inside a run directory.
