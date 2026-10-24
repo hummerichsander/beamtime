@@ -13,7 +13,7 @@ The SDK is what training code imports. It writes the storage format from
 2. **Cheap in the hot loop.** `log()` of a dict of scalars costs microseconds: one `json.dumps` and
    a buffered write. No threads hand-off, no queue.
 3. **Light to import.** The SDK depends only on the standard library and PyYAML. NumPy, Pillow,
-   PyArrow and Matplotlib are imported lazily, only when a media type needs them. Server, UI and MCP
+   PyArrow and Matplotlib are imported lazily, only when a data wrapper needs them. Server, UI and MCP
    dependencies live in extras (`beamtime[serve]`).
 4. **The file format is the API for everything that isn't Python.** A Julia simulation or a shell
    script can write `run.json` and `metrics.jsonl` itself. The SDK is a convenience, not a gate.
@@ -29,7 +29,7 @@ run = beamtime.init(
     tags=["resnet18"],
     config=cfg,                      # dict, dataclass, Pydantic model, Namespace, OmegaConf
     hypothesis="Warmup removes the loss spike.",  # str, dict, path to a YAML file, or None
-    resume="auto",                   # "auto" | "never" | a run id
+    resume=None,                     # None: new run; a run id: continue that run
 )
 
 for step, batch in enumerate(loader):
@@ -54,7 +54,7 @@ run or `None`.
 
 1. Resolve the log dir (`BEAMTIME_LOGDIR`, else `logdirs[0]` from `beamtime.yaml`, else
    `<root>/beamtime`) and the run folder `dir` below it. An absolute `dir` is used as is.
-2. Resume an existing run or create a new run directory with a fresh id (see
+2. Create a new run directory with a fresh id, or continue the run given by `resume` (see
    [Resume](#resume)).
 3. Write `run.json`, `config.json`, `hypothesis.yaml` and the `env/` files.
 4. Freeze every unfrozen group hypothesis between the run folder and the log dir by creating its
@@ -73,24 +73,33 @@ run.log(values: dict[str, Any], step: int | None = None) -> None
 ```
 
 - Scalars (`int`, `float`, `bool`, NumPy scalars, 0-d tensors via `.item()`) go to
-  `metrics.jsonl`. Media wrappers go to `media.jsonl` and `media/`.
+  `metrics.jsonl`. Data wrappers go to `media.jsonl` and `media/`.
 - Without `step`, the step increments by one per call. With `step`, it must not decrease within an
   attempt; a decreasing step is dropped with a warning (once per key).
 - The first `log` call freezes the run's hypothesis.
-- Anything that is neither a scalar nor a media wrapper is dropped with a warning.
+- Anything that is neither a scalar nor a data wrapper is dropped with a warning.
 
 `.item()` on a GPU tensor forces a device sync. That is the user's cost and the docs say so; the SDK
 does not try to be clever about it.
 
-### Media wrappers
+### Data wrappers
 
-| Wrapper | Accepts | Stored as |
+Three wrappers map to the three non-scalar kinds of [layer 1](01-storage.md#mediajsonl-and-media):
+
+| Wrapper | Accepts | Kind |
 |---|---|---|
-| `Image(data, caption=None)` | NumPy array, PIL image, path | PNG |
-| `Histogram(values, bins=64)` or `Histogram(bins=, counts=)` | array-like | inline in `media.jsonl` |
-| `Table(data)` | DataFrame, dict of columns, list of rows | Parquet |
-| `Figure(fig)` | Matplotlib figure, Vega-Lite dict | PDF + PNG, or JSON |
-| `Text(text)` | str | `.txt` |
+| `Table(data)` | DataFrame, dict of columns, list of row dicts | `table` |
+| `Image(data, caption=None)` | NumPy array, PIL image, path | `image` |
+| `Text(text)` | str | `text` |
+
+Two conveniences convert at log time and add no kind of their own:
+
+| Convenience | Becomes |
+|---|---|
+| `Histogram(values, bins=64)` or `Histogram(bins=, counts=)` | a `table` with `bin_start`, `bin_end`, `count` |
+| `Figure(fig)` | an `image` rendered from a Matplotlib figure |
+
+There is no way to log a chart spec. Presentation belongs to dashboards.
 
 ### `summary`, `config`, `event`, `artifact`
 
@@ -150,13 +159,11 @@ buffered streams, and every second wake writes `summary.json`. All writes share 
 
 ## Resume
 
-A run resumes instead of starting fresh when:
+There are two modes:
 
-- `resume=<run id>`: that run, wherever it is below the log dir.
-- `resume="auto"` (default): a run in the same folder with the same `SLURM_JOB_ID` and
-  `SLURM_ARRAY_TASK_ID` exists. This covers SLURM requeue, which keeps the job id. Outside SLURM,
-  `"auto"` never resumes.
-- `resume="never"`: always a new run.
+- **New** (`resume=None`, the default): always a new run with a fresh id.
+- **Continue** (`resume=<run id>`): continue that run, wherever it is below the log dir. An unknown
+  id raises in `init`, since that is misuse, not I/O trouble.
 
 Resuming appends an attempt to `run.json`, sets status back to `running`, and continues the step
 counter after the last logged step unless `step` is passed. A config that differs from the stored
@@ -173,8 +180,11 @@ Written once at `init`:
 
 ## Distributed training
 
-In distributed training every GPU runs its own process with a number, its rank. `init` reads it
-from `RANK` (torchrun, Accelerate) or `SLURM_PROCID`.
+In distributed training every GPU runs its own process with a number, its rank. Launchers expose
+it through different variables: `RANK` (torchrun, Accelerate), `SLURM_PROCID` (srun), and
+`LOCAL_RANK` plus `NODE_RANK` (Lightning's subprocess launcher). A process is rank 0 if and only if
+every one of these variables it can see is `0` or unset. This works before any process group exists,
+so `init` can decide at once.
 
 - **Rank 0** gets a real `Run` and writes everything, as for a single process.
 - **Other ranks** get a `NullRun`: `log`, `summary`, `event` and the rest do nothing, so code doesn't
@@ -182,29 +192,85 @@ from `RANK` (torchrun, Accelerate) or `SLURM_PROCID`.
   `output.rank<N>.log` in rank 0's run directory, because a crash often happens on another rank.
   Each file has exactly one writer, its rank.
 
-The SDK has no channel between processes, so a non-zero rank finds rank 0's run through a shared
-job key: `SLURM_JOB_ID` plus `SLURM_ARRAY_TASK_ID` under SLURM, `TORCHELASTIC_RUN_ID` under
-torchrun. It waits up to 2 minutes for a running `run.json` with that key in the same folder, then
-starts capturing. Without a job key, or if the wait times out, the rank prints a warning and is not
-captured. Per-rank files use the same size cap and rotation as `output.log`.
+A non-zero rank finds rank 0's run directory in one of two ways:
+
+1. **Inherited environment.** Rank 0 sets `BEAMTIME_RUN_DIR` in its own environment at `init`.
+   Processes it starts afterwards inherit it: Lightning's subprocess launcher, `mp.spawn`, fork.
+2. **Shared job key**, for processes started independently (srun, torchrun): `SLURM_JOB_ID` plus
+   `SLURM_ARRAY_TASK_ID` under SLURM, `TORCHELASTIC_RUN_ID` under torchrun. The rank waits up to
+   2 minutes for a running `run.json` with that key in the same folder.
+
+If neither works, the rank prints a warning and is not captured. Per-rank files use the same size
+cap and rotation as `output.log`.
+
+## PyTorch Lightning
+
+Lightning is supported natively through `beamtime.lightning.BeamtimeLogger`, a regular Lightning
+`Logger`. It imports `lightning.pytorch`, falling back to `pytorch_lightning`; Lightning is not a
+dependency of Beamtime.
+
+```python
+from beamtime.lightning import BeamtimeLogger
+
+logger = BeamtimeLogger(dir="scaling/lr-sweep", hypothesis="hypotheses/warmup.yaml")
+trainer = Trainer(logger=logger, callbacks=[LearningRateMonitor()])
+trainer.fit(model, datamodule)
+trainer.test(model, datamodule)
+
+logger.experiment.log({"samples": beamtime.Image(grid)})   # the Run, for non-scalar data
+```
+
+`BeamtimeLogger` takes the same arguments as `beamtime.init` and calls it in its constructor.
+Thanks to the rank rule above, this is safe on every rank: rank 0 creates the run, other ranks get
+a `NullRun` and start capturing their output. Creating the run eagerly, not on first use, means
+output from model setup and data loading before `fit` is captured too.
+
+| Lightning hook | Beamtime |
+|---|---|
+| `experiment` | the `Run` (a `NullRun` on other ranks) |
+| `log_metrics(metrics, step)` | `run.log(metrics, step=step)`; `step` is `trainer.global_step` |
+| `log_hyperparams(params)` | `run.config.update(params)`, including `save_hyperparameters()` |
+| `after_save_checkpoint(cb)` | checkpoint paths and the monitored score go to `artifacts.jsonl` |
+| `finalize(status)` | flush only; a `failed` status is recorded as an event |
+| `save_dir`, `name`, `version` | point at the run directory, so checkpoints land in `<run>/checkpoints/` |
+
+Details that matter:
+
+- **`finalize` does not finish the run.** Lightning calls it at the end of every `fit`, `validate`
+  and `test`, and code often calls `test` after `fit`. The run is finished by the exit hooks, as
+  for plain scripts.
+- **Validation and training metrics share steps.** Lightning logs validation at the current
+  `global_step`; equal steps are allowed, only decreasing ones are dropped.
+- **Checkpointing follows Lightning's rules.** Without a `dirpath`, `ModelCheckpoint` saves to
+  `<run>/checkpoints/`, as with Lightning's own loggers; an explicit `dirpath` wins. Either way the
+  checkpoints are listed by reference in `artifacts.jsonl` and excluded from sync.
+- **SLURM requeue keeps working on Lightning's side.** `SLURMEnvironment(auto_requeue=True)`
+  handles `SIGUSR1`, saves an HPC checkpoint and requeues the job. Lightning composes its signal
+  handlers with existing ones, so Beamtime's handlers stay active: `SIGUSR1` is recorded as a
+  `requeue_requested` event and the following `SIGTERM` sets `killed`. Without an auto mode, the
+  requeued job starts a new run (see [Later](#later)). (Verify the handler composition against the
+  Lightning version we target before implementing.)
+- **Tables, images and text** go through `logger.experiment.log(...)`, since Lightning's logger
+  interface only knows scalars.
 
 ## Module layout
 
 ```
 src/beamtime/
-  __init__.py      # init, current, media wrappers
+  __init__.py      # init, current, data wrappers
   run.py           # Run, NullRun
   paths.py         # root and log dir resolution, ids
   env.py           # host, SLURM, git, packages
   capture.py       # output tee and rotation
-  media.py         # Image, Histogram, Table, Figure, Text
+  media.py         # Table, Image, Text, Histogram, Figure
   files.py         # atomic replace, JSONL appender
+  lightning.py     # BeamtimeLogger
 ```
 
 ## Out of scope for v1
 
-- Framework integrations (Lightning logger, Hugging Face callback). They are thin adapters on top
-  of `log` and come later.
+- Integrations with other frameworks (Hugging Face Trainer, Accelerate tracker). They are thin
+  adapters like the Lightning logger and come later.
 - Writing notes from the SDK. That belongs to the annotation API, which is designed
   together with hypotheses.
 
@@ -212,5 +278,15 @@ src/beamtime/
 
 - All logging goes through the `Run` object. There is no module-level `beamtime.log`; deep code
   uses `beamtime.current()`.
-- `resume="auto"` is the default, so a requeued SLURM job continues its run.
+- Two resume modes: new (default) and continue (`resume=<run id>`).
 - Rank 0 writes the run; other ranks capture their output into `output.rank<N>.log`.
+- PyTorch Lightning is supported natively through `BeamtimeLogger`.
+- The SDK logs data, never charts: `Histogram` and `Figure` convert to a table and an image.
+
+
+## Later
+
+- **Auto resume.** A third mode that continues a matching run by itself, so that a requeued SLURM
+  job or a Lightning restart from a checkpoint continues its run without passing an id. Matching
+  on the SLURM job id alone is not enough: one job may train several models one after another.
+  Candidates are an explicit run `key`, or a checkpoint path inside a run directory.

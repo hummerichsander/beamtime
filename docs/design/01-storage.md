@@ -100,7 +100,8 @@ Agents build dashboards from Beamtime's widgets (layer 5). Every folder shows ex
 
 1. its own dashboard, if it has one;
 2. otherwise the dashboard of the nearest ancestor group that has one;
-3. otherwise Beamtime's built-in default (hypothesis with check, run table, main metric curves).
+3. otherwise Beamtime's built-in default: hypothesis with check, run table, main metric curves, and
+   every logged table, image and text, so nothing a run logs is ever invisible.
 
 A dashboard is **rendered for the folder being viewed**, not for the folder that defines it. Queries
 are relative to the viewed folder: `runs: .` means all runs below it. One dashboard in `scaling/`
@@ -123,8 +124,11 @@ Widgets get their data in one of two ways:
    Derived values that can be computed from the query result (aggregates, regression fits,
    smoothing, densities) are computed in the widget with Vega-Lite transforms, so they follow the
    viewed folder too. This is the preferred way to show analysis.
-2. **Data files**, for analysis that transforms cannot express (e.g. a fit done in SciPy). The agent
-   saves them with the dashboard into `dashboard/data/<sha8>-<name>.parquet` (or `.csv`, `.json`).
+   Tables, images and text logged by runs are queried the same way
+   (`{runs: ., table: val/per_class, step: last}`).
+2. **Data files**, for analysis that transforms cannot express (e.g. a fit done in SciPy). They are
+   tables like the ones runs log, so widgets treat both alike. The agent saves them with the
+   dashboard into `dashboard/data/<sha8>-<name>.parquet` (or `.csv`, `.json`).
    They are named by content hash, so they are immutable and an older dashboard version keeps
    showing the data it was built with. A data file describes the folder that defines the dashboard,
    not the viewed folder: when the dashboard is inherited, widgets using it carry a label such as
@@ -154,8 +158,8 @@ Provenance of a data file (the script or notebook that made it) is recorded in a
   hypothesis.yaml           # what we expect and why                 [run, frozen]
   heartbeat                 # last-alive timestamp                   [run, replaced]
   metrics.jsonl             # scalar stream                          [run, append]
-  media.jsonl               # index of non-scalar values             [run, append]
-  media/<key>/<step>.<ext>  # images, tables, figures                [run, create]
+  media.jsonl               # tables, images, text                   [run, append]
+  media/<key>/<step>.<ext>  # files for large tables and images      [run, create]
   events.jsonl              # lifecycle events for the timeline      [run, append]
   output.log                # captured stdout/stderr                 [run, append]
   output.rank<N>.log        # output of other ranks (layer 2)        [rank N, append]
@@ -201,7 +205,7 @@ Provenance of a data file (the script or notebook that made it) is recorded in a
 timeout or preemption). An extra value is derived when reading, never written: a `running` run whose
 heartbeat is older than a threshold (default 5 min) is shown as `lost`.
 
-**Attempts** support SLURM requeue and manual resume: a resumed run keeps its id, adds an attempt,
+**Attempts** support continuing a run (layer 2): a resumed run keeps its id, adds an attempt,
 and keeps appending to the same streams.
 
 ### `config.json`
@@ -231,16 +235,24 @@ incrementally; the index reads from the last byte offset it has seen.
 
 ### `media.jsonl` and `media/`
 
-Non-scalar values are files, indexed by a JSONL line:
+**Runs record data; dashboards present it.** A run logs four kinds of data: scalars (in
+`metrics.jsonl`) and the three non-scalar kinds below, each indexed by one line in `media.jsonl`.
+Nothing a run logs is a chart; charts are built only in dashboards (layer 5).
+
+| Kind | Stored as | Typical use |
+|---|---|---|
+| `table` | inline `columns` up to 1000 cells, else `media/<key>/<step>.parquet` | per-class metrics, predictions, distributions |
+| `image` | `media/<key>/<step>.png` | generated samples, attention maps, plots only the run can draw |
+| `text` | inline up to 4 KB, else `media/<key>/<step>.txt` | generated text, prompts |
 
 ```json
-{"_step": 500, "_t": 1761301022.0, "key": "samples", "type": "image", "path": "media/samples/500.png"}
-{"_step": 500, "_t": 1761301022.0, "key": "val/conf", "type": "table", "path": "media/val__conf/500.parquet"}
-{"_step": 500, "_t": 1761301022.0, "key": "grad_norm_hist", "type": "histogram", "bins": [...], "counts": [...]}
+{"_step": 500, "_t": 1761301022.0, "key": "samples", "kind": "image", "path": "media/samples/500.png"}
+{"_step": 500, "_t": 1761301022.0, "key": "val/per_class", "kind": "table", "path": "media/val__per_class/500.parquet"}
+{"_step": 500, "_t": 1761301022.0, "key": "grads/layer3", "kind": "table", "columns": {"bin_start": [...], "bin_end": [...], "count": [...]}}
 ```
 
-Types: `image`, `histogram` (inline, it is small), `table` (parquet), `figure` (Vega-Lite JSON or a
-matplotlib-rendered PDF/PNG), `text`.
+A histogram is a table with `bin_start`, `bin_end` and `count`, so a series of histograms over
+steps is just a table logged at many steps. `/` in keys becomes `__` in file paths.
 
 ### `events.jsonl`
 
@@ -270,7 +282,8 @@ one small file.
 ```
 
 Small files are copied into `artifacts/`. Large ones are stored by reference (`uri`) and never
-copied or synced; the reference records where they live.
+copied or synced; the reference records where they live. Checkpoints written by Lightning land in `checkpoints/`
+inside the run directory (layer 2); they are listed by reference too and excluded from sync.
 
 ## Hypotheses
 
@@ -418,7 +431,8 @@ old runs. Unknown fields are kept, never dropped.
 - Hypotheses carry machine-checkable predictions; the index computes a check, the verdict of record
   is a note with a verdict.
 - `output.log` is always captured; there is no switch to turn it off.
-- Media types: `image`, `histogram`, `table`, `figure`, `text`.
+- Runs record data, dashboards present it. Runs log scalars, tables, images and text; histograms
+  are tables, and charts exist only in dashboards.
 - Beamtime records experiments and never runs them.
 - `trend` predictions take an optional `tolerance`; group predictions can average over seeds.
 

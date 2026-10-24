@@ -194,6 +194,8 @@ before implementation. Do not implement a layer whose design is not settled.
   dirs (default `beamtime/`) and are found by their `run.json`. Folders are the only hierarchy:
   directions and sweeps are just groups of runs.
 - **`output.log` is always captured**; there is no off switch.
+- **Runs record data, dashboards present it.** Runs log scalars, tables, images and text; charts
+  exist only in dashboards.
 - **Every run has a hypothesis**, possibly blank, with optional machine-checkable predictions. It
   freezes once the first metric is logged; notes (a note with a verdict is a result) can be
   added at any time.
