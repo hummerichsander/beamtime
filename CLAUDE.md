@@ -2,7 +2,7 @@
 
 Agents-first experiment logging, an alternative to W&B and TensorBoard. ML researchers and their coding
 agents log runs (each with a hypothesis and a result) from local machines and HPC clusters, and
-agents build custom report pages from Beamtime's widget library.
+agents build custom dashboards from Beamtime's widget library.
 
 - **Python**: 3.11
 - **Package manager**: `uv`
@@ -186,7 +186,7 @@ before implementation. Do not implement a layer whose design is not settled.
   in sync.
 - **Files are the source of truth.** A run is a plain directory (see `docs/design/01-storage.md`).
   The SQLite index is a derived cache that can be rebuilt from the files at any time.
-- **Every file has exactly one writer.** State that several parties change (results, notes) is
+- **Every file has exactly one writer.** State that several parties change (notes, dashboards) is
   stored as new immutable files, latest wins. Sync is a union of files.
 - **Beamtime records experiments, it never runs them.** No job launching, sweep scheduling or
   hyperparameter search.
@@ -195,17 +195,19 @@ before implementation. Do not implement a layer whose design is not settled.
   directions and sweeps are just groups of runs.
 - **`output.log` is always captured**; there is no off switch.
 - **Every run has a hypothesis**, possibly blank, with optional machine-checkable predictions. It
-  freezes once the first metric is logged; results and notes can be added at any time.
+  freezes once the first metric is logged; notes (a note with a verdict is a result) can be
+  added at any time.
 - **Local and HPC are equally supported.** Runs write files only; compute nodes need no network.
   `beamtime serve` pulls configured remotes via rsync over ssh from the login node and merges them
   with local runs. SLURM metadata (job id, array index, node) is captured from the environment, and
   a heartbeat file lets runs that died silently show up as `lost`.
 - **Never put SQLite on cluster filesystems** (Lustre/GPFS). The index cache lives in
   `~/.cache/beamtime/`, never in the repo or a log dir.
-- **Report pages are YAML widget trees**, not markdown. Prose is limited to short `note`, `callout`
-  and `caption` fields. Widgets reference data through queries (runs, sweeps, `derived/` tables)
-  rather than embedding values. Widgets are Pydantic models, which give schema, validation and the
-  JSON schema served to agents.
+- **Dashboards are YAML widget trees**, not markdown, built by agents. Every folder shows one: its
+  own or the nearest ancestor's, rendered relative to the viewed folder. Prose is limited to short
+  `note`, `callout` and `caption` fields. Widgets reference data through queries (runs, groups,
+  data files next to the dashboard) rather than embedding values. Widgets are Pydantic models, which give schema,
+  validation and the JSON schema served to agents.
 - **Charts render with Vega-Lite** in the browser, using Beamtime's theme. The matplotlib/scienceplots
   rules above apply to static figure export, not to the web UI.
 - **Frontends share one core library:** Python SDK, CLI, MCP server, web UI. MCP outputs must be

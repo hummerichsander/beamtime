@@ -23,9 +23,9 @@ only reads what the environment exposes (e.g. SLURM variables) and stores what t
    This makes concurrent HPC jobs safe without locks and turns sync into a plain union of files.
 4. **Append or replace, never edit in place.** Streams are append-only JSONL. Whole-file state is
    written to a temp file and renamed, so readers never see a half-written file.
-5. **Machine-written files are JSON, human- or agent-authored files are YAML.** Config values come
-   from Python dicts and must round-trip exactly; hypotheses, results and notes are written by
-   people and agents and should be pleasant to read and edit.
+5. **Machine-written files are JSON, human- or agent-authored files are YAML or Markdown.** Config
+   values come from Python dicts and must round-trip exactly. Hypotheses and dashboards are
+   structured and written as YAML; notes are text and written as Markdown with YAML frontmatter.
 
 ## Root and log dirs
 
@@ -62,11 +62,11 @@ groups:
 beamtime/
   scaling/                          # group: a research direction
     hypothesis.yaml
+    dashboard/                      # shown here and inherited by everything below
     notes/
     lr-sweep/                       # group: a sweep
       hypothesis.yaml
-      report.page.yaml              # a page about this sweep
-      lr_fit.parquet                # data the page uses
+      dashboard/                    # overrides the inherited one for this sweep
       20261024-101532-k3m9xq2a/     # run
       20261024-101533-p2x8fq1c/     # run
   tokenizer/
@@ -78,8 +78,8 @@ Every folder, run or group, can carry the same three kinds of annotations:
 | File | Meaning |
 |---|---|
 | `hypothesis.yaml` | What is expected for the runs in this folder, and why. |
-| `results/<ts>-<rand>.yaml` | Verdicts on the hypothesis; the newest is current. |
-| `notes/<ts>-<rand>.yaml` | Free comments, decisions, dead ends. |
+| `notes/<ts>-<rand>.md` | Comments, decisions, dead ends, and verdicts on the hypothesis. |
+| `dashboard/<ts>-<rand>.yaml` | The folder's dashboard; the newest version is shown. |
 
 This replaces the earlier separate concepts:
 
@@ -87,12 +87,50 @@ This replaces the earlier separate concepts:
 - **Sweeps** are groups whose runs come from one launch. There is no `sweep.yaml`; the SLURM array
   id is recorded per run.
 - **The journal** is the notes on a group, or on the log dir itself for project-wide entries.
-- **Pages** are `*.page.yaml` files in the folder they report on (layer 5).
-- **Derived data** is any data file next to the page that uses it; a page refers to it by relative
-  path. Provenance is written in a note or the page itself, not in a separate format.
+- **Pages** are dashboards, one per folder (see [Dashboards](#dashboards)).
+- **Derived data** is any data file next to the dashboard that uses it. Provenance is written in a
+  note or the dashboard itself, not in a separate format.
 
-The **timeline** is not stored. The index builds it from run events, results and notes across all
+The **timeline** is not stored. The index builds it from run events and notes across all
 folders.
+
+## Dashboards
+
+Agents build dashboards from Beamtime's widgets (layer 5). Every folder shows exactly one:
+
+1. its own dashboard, if it has one;
+2. otherwise the dashboard of the nearest ancestor group that has one;
+3. otherwise Beamtime's built-in default (hypothesis with check, run table, main metric curves).
+
+A dashboard is **rendered for the folder being viewed**, not for the folder that defines it. Queries
+are relative to the viewed folder: `runs: .` means all runs below it. One dashboard in `scaling/`
+therefore shows all scaling runs when viewing `scaling/`, only the sweep's runs when viewing
+`scaling/lr-sweep/`, and a single run when viewing a run. A subgroup or run that needs something
+different defines its own dashboard, which in turn is inherited further down.
+
+Each save of a dashboard is a new file in `dashboard/`, and the newest one is shown. This keeps the
+one-writer rule when agents on the laptop and on the cluster both revise it, and keeps the history
+of how a report evolved. `beamtime dashboard edit` hides the versioning from agents.
+
+### Dashboard data
+
+Widgets get their data in one of two ways:
+
+1. **Queries on run data**, the normal case. A widget names what it wants
+   (`{runs: ., y: val/loss, color: config.lr}`) and contains no values. The index answers from
+   `metrics.jsonl`, `summary.json` and `config.json` and downsamples long curves. Queries follow the
+   viewed folder, so they stay correct when a dashboard is inherited, and update while runs go on.
+   Derived values that can be computed from the query result (aggregates, regression fits,
+   smoothing, densities) are computed in the widget with Vega-Lite transforms, so they follow the
+   viewed folder too. This is the preferred way to show analysis.
+2. **Data files**, for analysis that transforms cannot express (e.g. a fit done in SciPy). The agent
+   saves them with the dashboard into `dashboard/data/<sha8>-<name>.parquet` (or `.csv`, `.json`).
+   They are named by content hash, so they are immutable and an older dashboard version keeps
+   showing the data it was built with. A data file describes the folder that defines the dashboard,
+   not the viewed folder: when the dashboard is inherited, widgets using it carry a label such as
+   "data from `scaling/`".
+
+Provenance of a data file (the script or notebook that made it) is recorded in a note.
 
 ## Runs
 
@@ -120,11 +158,12 @@ folders.
   media/<key>/<step>.<ext>  # images, tables, figures                [run, create]
   events.jsonl              # lifecycle events for the timeline      [run, append]
   output.log                # captured stdout/stderr                 [run, append]
+  output.rank<N>.log        # output of other ranks (layer 2)        [rank N, append]
   summary.json              # final and user-set summary values      [run, replaced]
   artifacts.jsonl           # files produced, by copy or reference   [run, append]
   env/                      # git.diff, requirements.txt             [run, create]
-  results/                  # verdicts                               [annotation, create]
   notes/                    # comments                               [annotation, create]
+  dashboard/                # overrides the inherited dashboard      [annotation, create]
 ```
 
 - **Run-owned** files are written only by the training process and stop changing once it ends.
@@ -280,7 +319,7 @@ A prediction is a claim about one number that can be checked against the logged 
 
 | Field | Meaning |
 |---|---|
-| `name` | Optional label, shown in the UI and in results. |
+| `name` | Optional label, shown in the UI and in verdict notes. |
 | `metric` | Scalar key from `metrics.jsonl` or `summary.json`. |
 | `stat` | How to reduce the series to one number: `last`, `min`, `max`, `mean`. |
 | `steps` | Optional `[start, end]` window (inclusive) before reducing. |
@@ -314,24 +353,42 @@ or reference run missing). The combined **check** is `pass` if all predictions p
 fails once the runs have ended, and `pending` otherwise.
 
 The check is computed by the index and never stored, because it follows deterministically from the
-frozen hypothesis and the data. It is a proposal: the verdict of record is a result written by a
-human or agent, which may disagree with the check and say why.
+frozen hypothesis and the data. It is a proposal: the verdict of record is a note with a verdict,
+written by a human or agent, which may disagree with the check and say why.
 
-## Results and notes
+## Notes
 
-```yaml
-# results/20261024-142210-p8d2.yaml
-verdict: confirmed            # confirmed | refuted | inconclusive
-summary: No spike with warmup; val/acc peaks at 0.931.
+Notes are the running record of a folder: comments, decisions, dead ends, and verdicts. They follow
+the format of Claude Code's memory files: Markdown with a YAML frontmatter, one note per file.
+
+```markdown
+---
+description: Warmup removes the loss spike; val/acc peaks at 0.931.
+type: verdict
+verdict: confirmed
 evidence:
-  - metric: val/acc
-    stat: max
-    value: 0.931
+  - {metric: val/acc, stat: max, value: 0.931}
 author: claude-opus-5-5
+---
+
+No spike in any of the 5 seeds. The baseline [[20261020-091204-a7c2kd9e]] spikes at step 120 in
+every seed. Next: check whether 200 warmup steps suffice, see [[scaling/warmup-length]].
 ```
 
-The newest result is the current verdict; older ones remain as history. Notes have the same shape
-minus `verdict` and `evidence`.
+| Field | Meaning |
+|---|---|
+| `description` | One line, required. Shown in the timeline and listings, and what agents read to decide whether the body is worth loading. |
+| `type` | `observation`, `decision`, `idea` or `verdict`. |
+| `verdict` | Only for `type: verdict`: `confirmed`, `refuted` or `inconclusive`. |
+| `evidence` | Optional, for verdicts: the numbers the verdict rests on. |
+| `author` | A person or a model id. |
+
+- The body is optional and short. Most notes are a description plus a few lines.
+- `[[...]]` links to a run id, a folder path below the log dir, or another note's file name. The
+  index resolves links, so the UI can show backlinks.
+- The newest `verdict` note is the folder's current verdict; older ones remain as history.
+- Unlike memory files, notes are never edited or deleted. A correction is a new note, which keeps
+  the one-writer rule and the history.
 
 ## Write protocol
 
@@ -352,16 +409,20 @@ old runs. Unknown fields are kept, never dropped.
 - The root is the user's repo; runs live in user-chosen folders under log dirs, found by
   `run.json`.
 - Folders are the only hierarchy. Projects, sweeps and journal are groups and their notes.
-- Every folder can carry a hypothesis, results and notes.
+- Every folder can carry a hypothesis, notes and a dashboard. Notes are Markdown with frontmatter,
+  like Claude Code memory files; a note of type `verdict` is a result.
+- Dashboards are inherited by subgroups and runs and rendered relative to the viewed folder; any
+  folder can override. Each save is a new version.
+- Dashboard data comes from relative queries plus Vega-Lite transforms; data files are the
+  exception, immutable and tied to the defining folder.
 - Hypotheses carry machine-checkable predictions; the index computes a check, the verdict of record
-  stays a written result.
+  is a note with a verdict.
 - `output.log` is always captured; there is no switch to turn it off.
 - Media types: `image`, `histogram`, `table`, `figure`, `text`.
 - Beamtime records experiments and never runs them.
-
 - `trend` predictions take an optional `tolerance`; group predictions can average over seeds.
 
 ## To revisit
 
-- **Hypotheses, predictions, results and notes** get a thorough design pass of their own later. The
+- **Hypotheses, predictions and notes** get a thorough design pass of their own later. The
   sections above fix where these files live and how they freeze; their contents are provisional.
