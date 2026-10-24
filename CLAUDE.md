@@ -182,16 +182,26 @@ before implementation. Do not implement a layer whose design is not settled.
 
 ### Decisions so far
 
-- **Files are the source of truth.** A run is a plain directory (`meta.json`, `config.yaml`,
-  `hypothesis.md`, append-only `metrics.jsonl`, `result.md`, `artifacts/`). The SQLite index is a
-  derived cache that can be rebuilt from the files at any time.
-- **Every run has a hypothesis**, possibly blank. It freezes once the first metric is logged; results
-  and notes stay editable.
+- **Design docs live in `docs/design/`**, one file per layer. They are the spec; keep code and docs
+  in sync.
+- **Files are the source of truth.** A run is a plain directory (see `docs/design/01-storage.md`).
+  The SQLite index is a derived cache that can be rebuilt from the files at any time.
+- **Every file has exactly one writer.** State that several parties change (results, notes) is
+  stored as new immutable files, latest wins. Sync is a union of files.
+- **Beamtime records experiments, it never runs them.** No job launching, sweep scheduling or
+  hyperparameter search.
+- **The root is the user's repo**, like TensorBoard. Runs live in user-chosen folders under log
+  dirs (default `beamtime/`) and are found by their `run.json`. Folders are the only hierarchy:
+  directions and sweeps are just groups of runs.
+- **`output.log` is always captured**; there is no off switch.
+- **Every run has a hypothesis**, possibly blank, with optional machine-checkable predictions. It
+  freezes once the first metric is logged; results and notes can be added at any time.
 - **Local and HPC are equally supported.** Runs write files only; compute nodes need no network.
   `beamtime serve` pulls configured remotes via rsync over ssh from the login node and merges them
   with local runs. SLURM metadata (job id, array index, node) is captured from the environment, and
-  a heartbeat in `meta.json` lets killed jobs show up as `killed`.
-- **Never put SQLite on cluster filesystems** (Lustre/GPFS). The index only lives where `serve` runs.
+  a heartbeat file lets runs that died silently show up as `lost`.
+- **Never put SQLite on cluster filesystems** (Lustre/GPFS). The index cache lives in
+  `~/.cache/beamtime/`, never in the repo or a log dir.
 - **Report pages are YAML widget trees**, not markdown. Prose is limited to short `note`, `callout`
   and `caption` fields. Widgets reference data through queries (runs, sweeps, `derived/` tables)
   rather than embedding values. Widgets are Pydantic models, which give schema, validation and the
