@@ -39,7 +39,7 @@ optional file to it:
 
 ```
 my-repo/
-  beamtime.yaml        # optional: all configuration (log dirs, remotes)
+  beamtime.yaml        # optional: project settings (log dirs, remotes, packages, theme)
   src/ …
   beamtime/            # default log dir, gitignored
 ```
@@ -55,6 +55,39 @@ remotes:                                 # layer 4
 
 - The root is the nearest directory with `beamtime.yaml`, else the git root, else the working
   directory.
+
+### Settings
+
+Settings work like VS Code's: user settings are the default for every project, and a project's
+`beamtime.yaml` overrides them.
+
+| Level | File | Typical contents |
+|---|---|---|
+| built-in | – | Beamtime's defaults |
+| user | `~/.config/beamtime/settings.yaml` | remotes you use everywhere (host, command, cache), personal packages, theme |
+| project | `beamtime.yaml` in the root | log dirs, the project's remote paths, project packages, the project's default theme |
+| session | command-line flags and environment variables | one-off overrides |
+
+- Each level overrides the one above it. Mappings merge key by key, so a user-level remote can
+  define `host`, `command` and `cache` once, and each project adds only its `path`:
+
+  ```yaml
+  # ~/.config/beamtime/settings.yaml
+  remotes:
+    cluster: {host: cluster, command: ~/venvs/bt/bin/beamtime, cache: /local/scratch/{user}/bt}
+  ```
+  ```yaml
+  # beamtime.yaml
+  remotes:
+    cluster: {path: /scratch/{user}/proj/beamtime}
+  ```
+
+- Package lists combine both levels; a project entry replaces a user entry for the same package.
+- Both files have the same schema. A few keys only make sense in one of them, e.g. `logdirs` in the
+  project; a key in the wrong file is reported.
+- `beamtime settings` shows the effective settings and, for each value, which level it came from.
+- The theme a viewer picks in the UI is stored in their browser and wins over both files for that
+  viewer.
 - `BEAMTIME_LOGDIR` overrides where new runs go, e.g. scratch space on a cluster.
 - The index cache lives outside the repo in `~/.cache/beamtime/<root-hash>/`, so nothing
   machine-specific ends up in the repo and SQLite never touches a cluster filesystem.

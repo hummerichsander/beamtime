@@ -213,6 +213,9 @@ before implementation. Do not implement a layer whose design is not settled.
   `docs/design/03-index.md`). `beamtime serve` (headless with `--no-ui`) is the daemon that keeps it
   fresh; CLI and MCP never depend on it and catch up within a time budget. Agents check it with
   `beamtime status`. Keep NumPy and other heavy imports off the CLI's hot path.
+- **Settings have two levels, like VS Code**: user settings in `~/.config/beamtime/settings.yaml`
+  are the default for every project; the project's `beamtime.yaml` overrides them key by key;
+  command-line flags override both.
 - **Never put SQLite on cluster filesystems** (Lustre/GPFS). The index cache lives in
   `~/.cache/beamtime/`, never in the repo or a log dir.
 - **Views are YAML trees of building blocks**, not markdown, built by agents. Every folder shows
@@ -222,6 +225,8 @@ before implementation. Do not implement a layer whose design is not settled.
   (with placeholders for interaction), never embedded values. `view_validate` renders every draft
   headless in several scopes before it is saved. Reusable blocks form a library in `blocks/`
   folders; views are pinned to block versions and upgraded deliberately with `view upgrade`.
+  Themes and block libraries are packages installed pi-style (`beamtime install git:…`/`npm:…`,
+  personal by default, `-l` for the project); nothing runs at install time.
   Queries and widgets are msgspec structs, which give validation and the JSON schema served to
   agents at a fraction of Pydantic's import cost.
 - **Agent instructions come from `beamtime guide`**, which marks its defaults as defaults (e.g.

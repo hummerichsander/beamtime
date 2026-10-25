@@ -446,6 +446,111 @@ The same tokens are available as CSS variables (`--bt-fg`, `--bt-accent`, …) f
 | `bt.lib.uplot` | uPlot, for dense interactive time series |
 | `bt.lib.katex` | KaTeX, for formulas |
 
+## Theme
+
+Beamtime owns the look of every view. A theme defines it; views never contain colors, fonts or
+sizes, so the same view renders correctly in any theme. Like VS Code, Beamtime ships a clean default
+and lets users install or write other themes.
+
+### Tokens
+
+Everything visual is expressed through **semantic tokens**. The web UI, the frame, the built-in
+blocks, the generated Vega-Lite `config` and the CSS variables for custom blocks all read the same
+tokens.
+
+| Group | Tokens |
+|---|---|
+| Surfaces | `bg`, `surface`, `surface-raised`, `border`, `grid` |
+| Text | `fg`, `muted`, `subtle`, `link` |
+| Accent and state | `accent`, `selection`, `dim` (opacity for de-emphasized runs) |
+| Status | `good`, `bad`, `warn`, `info`, and per run status: `running`, `finished`, `failed`, `killed`, `lost` |
+| Data | `categorical` (10–12 colors for runs and groups), `sequential` and `diverging` scales, `baseline` (color and dash for baseline runs) |
+| Type | `font-sans`, `font-mono`, a size scale (`xs` … `xl`), tabular figures for numbers |
+| Shape | spacing scale, `radius`, line width, point size |
+
+Custom blocks see them as `bt.theme.tokens` and as CSS variables (`--bt-fg`, `--bt-categorical-3`,
+…). Vega-Lite charts get a `config` generated from them; `bt.theme.uplot()` returns matching uPlot
+options.
+
+### Theme files
+
+A theme is a JSON file:
+
+```json
+{
+  "name": "Beamtime Light",
+  "type": "light",
+  "extends": null,
+  "colors": {
+    "bg": "#ffffff", "surface": "#f6f8fa", "border": "#d0d7de", "grid": "#eaeef2",
+    "fg": "#1f2328", "muted": "#59636e", "accent": "#0969da",
+    "good": "#1a7f37", "bad": "#cf222e", "warn": "#9a6700"
+  },
+  "data": {
+    "categorical": ["#0969da", "#d1242f", "#1a7f37", "#bf8700", "#8250df", "#bc4c00", "#1b7c83", "#bf3989", "#59636e", "#2da44e"],
+    "sequential": ["#ddf4ff", "#0969da", "#0a3069"],
+    "diverging": ["#cf222e", "#f6f8fa", "#0969da"],
+    "baseline": {"color": "#59636e", "dash": [4, 3]}
+  },
+  "fonts": {"sans": "system-ui, -apple-system, 'Segoe UI', sans-serif", "mono": "ui-monospace, 'SF Mono', Menlo, monospace"}
+}
+```
+
+- **`type`** is `light` or `dark`. Themes come in **pairs** (`Beamtime Light` and `Beamtime Dark`);
+  by default the viewer's system preference picks the variant.
+- **`extends`** names another theme; only the tokens that differ need to be listed. Missing tokens
+  fall back to the default theme, so a minimal theme can be a dozen colors.
+- Fonts default to the system font stack, so nothing has to be downloaded and views work offline.
+
+### The default theme
+
+**Beamtime Light** and **Beamtime Dark** are clean and quiet, in the spirit of GitHub's and VS Code's
+default themes: neutral grays, one blue accent, the system font, thin grid lines, no shadows or
+gradients. Color is reserved for data and status, so it carries meaning wherever it appears.
+
+- The categorical palette is colorblind-safe and tuned separately for light and dark backgrounds.
+- A **high-contrast** pair is built in for accessibility.
+- A **print** theme is used for static export (PDF, paper figures): white background, black text,
+  and the same data colors, matching the scienceplots style used for matplotlib figures.
+
+### Custom themes
+
+- **Choosing a theme**: `theme: atom-one` in the user settings sets a personal default, in a
+  project's `beamtime.yaml` the project's default ([settings](01-storage.md#settings)). Each viewer
+  can switch theme and light or dark in the UI, stored in their browser; that choice wins for the
+  viewer.
+- **Where themes come from**: the built-in themes, installed packages
+  (`beamtime install git:github.com/someone/beamtime-theme-atom-one`, see [Packages](#packages)), files in
+  `~/.config/beamtime/themes/`, and paths in `beamtime.yaml` for project themes.
+- **Importing VS Code themes**: `beamtime theme import <vscode-theme.json>` converts a VS Code color
+  theme. Workbench colors map to surfaces, text and accent (`editor.background` to `bg`,
+  `editor.foreground` to `fg`, `focusBorder` to `accent`, …), and the terminal's ANSI colors become
+  the categorical palette. That opens the large ecosystem of VS Code themes (Atom One, Dracula,
+  Solarized, Nord, …). The importer fills gaps from the default theme and validates the result.
+- **`beamtime theme validate`** checks a theme: all required tokens present after inheritance, text
+  contrast of at least 4.5:1, data colors at least 3:1 against the background, categorical colors
+  distinguishable from each other, including under simulated color blindness. A theme failing these
+  checks is reported with the offending tokens; imported themes often need a tweak to their palette.
+
+### Colors for runs and groups
+
+- **Runs** get a stable color: a hash of the run id picks a preferred slot in the categorical
+  palette. Within a view, collisions are resolved by moving later runs (in id order) to the next free
+  slot. A run therefore keeps its color across blocks and views as long as it doesn't collide, and
+  runs shown together never share a color. More runs than palette colors is the case for `color`,
+  `group` or `facet` anyway (see [Many runs in one chart](#many-runs-in-one-chart)).
+- **Groups colored by a field** take their colors from the field's type: a categorical field (an
+  optimizer name) uses the categorical palette in sorted value order; a numeric field (a learning
+  rate) uses the sequential scale, ordered by value, so the colors themselves say "small to large".
+- **Baseline runs** always use the theme's `baseline` style.
+- **Selection** dims other runs with `dim`, rather than recoloring the selected ones.
+
+### Themes and validation
+
+`view_validate` runs its layout and design checks in the light and the dark variant of the default
+theme, so a custom block that hard-codes a color, or only works on white, is caught. Colors in custom
+code that don't come from the theme are reported as warnings.
+
 ## Block library
 
 Custom blocks that prove useful become **library blocks**: named, described and parameterized, and
@@ -496,7 +601,8 @@ A view uses it like any widget:
 - `blocks/` is a reserved folder name, like `notes/` and `view/`.
 - Blocks live in the same source as the views using them, so a view on a remote finds its blocks on
   the remote ([layer 4](04-remotes.md)).
-- `beamtime block export` and `beamtime block import` move blocks between projects or into git.
+- `beamtime block export` writes blocks as a package; packages are shared and installed as described
+  in [Packages](#packages).
 
 ### Creating and reusing blocks
 
@@ -563,6 +669,119 @@ from elsewhere.
 `block_save` tests only the block itself: its example parameter sets, the scopes, and the
 generalization checks above.
 
+## Packages
+
+Themes and block libraries can be shared as **packages** and installed from the command line. The
+design follows pi's package manager (`pi install`): source prefixes, conventions instead of required
+manifests, personal and project scope, per-package filters, and failures that degrade instead of
+blocking.
+
+```sh
+beamtime install git:github.com/someone/beamtime-theme-atom-one        # a theme, latest
+beamtime install git:github.com/lab/beamtime-physics-blocks@v1.2 -l    # a block library, into the project
+beamtime install npm:@lab/beamtime-physics-blocks@1.2.0                 # the same from npm
+beamtime install ./my-blocks                                            # a local folder
+beamtime serve --with git:github.com/someone/beamtime-theme-nord        # try once, nothing saved
+```
+
+### Sources
+
+| Prefix | Source | Pinning |
+|---|---|---|
+| `git:` | a git repository, optionally a subfolder (`git:github.com/lab/repo/tools/blocks@main`); plain `https://` URLs are treated as git | tags and commits stay fixed; branches are recorded with their commit |
+| `npm:` | an npm package, fetched from the registry over HTTP; no Node.js needed | versioned specs stay fixed |
+| a path | a local folder, used in place without copying; relative paths resolve from the file that declares them | none |
+
+### Package contents
+
+A package provides **themes** and **blocks** from conventional folders:
+
+```
+beamtime-physics-blocks/
+  themes/*.json
+  blocks/<name>/…          # the layout of a project's block library
+```
+
+No manifest is needed for that. A manifest declares other locations or metadata, either as
+`beamtime-package.yaml` or, for npm packages, under a `beamtime` key in `package.json`:
+
+```json
+{
+  "name": "@lab/beamtime-physics-blocks",
+  "version": "1.2.0",
+  "keywords": ["beamtime-package"],
+  "beamtime": {"requires": {"beamtime": ">=1.0", "kit": 1}, "blocks": ["./src/blocks/*"], "themes": []}
+}
+```
+
+The `beamtime-package` keyword makes npm packages findable, so npm's search serves as the gallery
+(`beamtime search` queries it) without a registry of Beamtime's own. `beamtime block export` writes
+a project's blocks as a package.
+
+### Personal and project scope
+
+- **Personal** (default): recorded in the user settings, `~/.config/beamtime/settings.yaml`
+  ([settings](01-storage.md#settings)), available in every project. The natural place for themes.
+- **Project** (`-l`, `--local`): recorded under `packages` in the project's `beamtime.yaml`, so every
+  machine running Beamtime for the project (a laptop, a remote, a server) installs the same packages
+  from the same pins into its cache on demand.
+- **Views must be reproducible**, so `view_save` warns when a view uses a block from a personal
+  package and offers to add the package to the project (`beamtime install -l`).
+- A project entry replaces a personal entry for the same package. Packages are identified by npm
+  name, by repository URL without the ref, or by absolute path, so the same package never loads
+  twice.
+- **Vendoring** (`--vendor`) copies a package into the log dir, for machines without network access;
+  vendored packages travel with the views.
+
+```yaml
+# beamtime.yaml
+packages:
+  - git:github.com/lab/beamtime-physics-blocks@v1.2
+  - source: npm:@someone/beamtime-themes
+    themes: [themes/nord*.json]       # only these
+    blocks: []                        # none
+```
+
+### Filtering
+
+Like pi, each package entry can narrow what it loads, per kind: omit the key for everything, `[]` for
+nothing, globs to select, `!pattern` to exclude. Filters only narrow what the package offers.
+
+### Names
+
+- Package blocks are used with the package name as prefix, so they never clash with built-in or
+  project blocks: `- physics-blocks/phase-map: {...}`. A short alias can be set in the entry.
+- Package themes are selected by name: `theme: atom-one`.
+- `guide` lists installed package blocks alongside built-in and project blocks, so agents find them.
+
+### Failures
+
+If a package cannot be installed (no network, a removed tag), Beamtime warns, skips it and retries
+next time; views using its blocks show error panels for those blocks only. `beamtime install` and
+`beamtime update` exit with an error, so scripts notice.
+
+### Safety
+
+- **Nothing runs at install time.** Packages contain data (themes, YAML) and block code, and that
+  code only ever runs in the sandbox of [Custom blocks](#sandbox), without network access. There
+  are no install scripts and no dependencies that execute.
+- **Integrity**: installs are verified against the recorded commit or content hash.
+- **Validation on install**: themes are checked with `beamtime theme validate`, blocks render their
+  `examples` once. A package with errors is reported and not activated.
+- **Project packages are confirmed once.** The first time Beamtime meets packages declared by a
+  project (for instance after cloning a repository), it lists them and asks before installing.
+
+### Commands
+
+| Command | Does |
+|---|---|
+| `beamtime install <source> [-l] [--vendor]` | install and record a package |
+| `beamtime serve --with <source>` | use a package for one session without recording it |
+| `beamtime remove <source>` | remove it; refuses while project views pin its blocks, unless `--force` |
+| `beamtime update` | reconcile installations with the recorded entries; fixed refs don't move |
+| `beamtime list` | installed packages with scope, source, version and pin |
+| `beamtime search <words>` | packages with the `beamtime-package` keyword on npm |
+
 ## Many runs in one chart
 
 A chart shows every run in its scope, one curve per run, each in its stable run color. Beyond about
@@ -615,6 +834,23 @@ baseline:                                                # matching baselines fo
   picker, a value filter). Custom blocks can already build such controls with placeholder queries;
   for widgets, params are deferred until the renderer and the screenshot loop are stable.
 - **Free runtime queries** in custom blocks, if agents need patterns placeholders cannot express.
+- **Community gallery in the UI** (post-v1). Settings → Appearance → *Browse community themes* and
+  Settings → Blocks → *Browse community blocks*, backed by a central, curated index of community
+  packages, as Obsidian does for its plugins and themes:
+  - **The index** is a public git repository (`beamtime-community`) with `themes.json` and
+    `blocks.json`, each entry naming a package source, author, description and screenshots.
+    Contributions arrive as pull requests and are reviewed.
+  - **Automated checks on every submission**: the package installs, themes pass
+    `beamtime theme validate`, blocks render their `examples` in the sandbox, and screenshots are
+    present.
+  - **Previews before installing**: themes are data, so the UI can apply one to a sample view live;
+    blocks render their examples on synthetic data in the sandbox.
+  - **Installing from the UI** does exactly what `beamtime install` does (personal by default,
+    project on request), and `beamtime search` queries the same index.
+
+  v1 prepares for it: the package format and the install logic live in the core library, and
+  `serve` exposes install, remove and list in its API ([layer 4](04-remotes.md#protocol)), so the UI
+  can call them later. Until the index exists, npm's `beamtime-package` keyword serves as the gallery.
 
 ## Agent loop
 
@@ -728,6 +964,14 @@ empirically, such as examples versus rules, or whether a second screenshot round
 - The built-in catalog has about 25 blocks, each usable in YAML and as a kit component with the same
   props, including `importance` (correlation and η² per config field).
 - Blocks are linked through one shared run selection per view, in v1.
+- Themes are token sets in JSON files with light and dark pairs and inheritance; the default is
+  clean and quiet (GitHub/VS Code style); VS Code themes can be imported; the viewer's choice wins
+  over the project default.
+- Run colors are stable by hash with collision resolution within a view; numeric fields color by a
+  sequential scale.
+- Themes and block libraries are packages, installed pi-style with `beamtime install` from `git:`,
+  `npm:` or local paths, personal by default and per project with `-l`. Nothing runs at install
+  time; npm's `beamtime-package` keyword is the gallery.
 - Reusable blocks form a project library in `blocks/` folders, inherited down the tree and used like
   widgets. Built-in widgets are the built-in library on the same kit.
 - Views are pinned to block versions (`uses`, written on save). Upgrades are deliberate, per view

@@ -130,7 +130,7 @@ which are unique across sources, so `[[20261024-101532-k3m9xq2a]]` works whateve
 ## Configuration
 
 ```yaml
-# beamtime.yaml: the only configuration file
+# beamtime.yaml (project settings)
 remotes:
   cluster:
     host: cluster                        # an ssh host alias from ~/.ssh/config
@@ -139,9 +139,13 @@ remotes:
     cache: /local/scratch/{user}/beamtime-cache   # optional persistent index; default: in memory
 ```
 
-- **One file holds all configuration.** Whether it is committed is the user's choice. Placeholders
-  keep it shareable: `{user}` is the ssh user, and `${VAR}` expands an environment variable on the
-  remote (e.g. `${SCRATCH}/proj/beamtime`), so one entry fits everyone on the team.
+- **Settings have two levels**, like VS Code ([layer 1](01-storage.md#settings)): user settings in
+  `~/.config/beamtime/settings.yaml` are the default for every project, and the project's
+  `beamtime.yaml` overrides them key by key. A remote's `host`, `command` and `cache` usually live in
+  the user settings, its `path` in the project.
+- **Whether `beamtime.yaml` is committed is the user's choice.** Placeholders keep it shareable:
+  `{user}` is the ssh user, and `${VAR}` expands an environment variable on the remote (e.g.
+  `${SCRATCH}/proj/beamtime`), so one entry fits everyone on the team.
 - **`cache` must be on a local disk.** The remote checks it: on NFS, Lustre or GPFS it falls back to
   memory, and `beamtime status` says why. With several login nodes behind one host name, a
   node-local cache exists per node; pointing `host` at one fixed node keeps it warm.
@@ -206,5 +210,5 @@ changes only. A mismatch is reported at `hello` with both versions and the upgra
 - The remote process exits when its ssh connection closes.
 - The remote index lives in memory by default; a persistent `cache` on a local disk can be
   configured per remote. Run cards and previews make most requests independent of any index.
-- All configuration lives in one `beamtime.yaml`, with `{user}` and `${VAR}` placeholders; the
-  command line overrides it per session. No credentials are stored.
+- Remotes are configured in user settings and the project's `beamtime.yaml`, merged key by key,
+  with `{user}` and `${VAR}` placeholders; the command line overrides both per session. No credentials are stored.
