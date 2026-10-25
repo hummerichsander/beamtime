@@ -1,79 +1,81 @@
 # Layer 4: Remotes
 
-Status: **draft, under discussion**
+Status: **reviewed; v1 scope per the [overview](00-overview.md#scope)**
 
 Runs often execute on a cluster while the researcher and their agents work on a laptop. This layer
 defines how the laptop sees and annotates runs whose files live elsewhere.
 
 ## Principles
 
-1. **The remote is the source of truth.** Run files, notes, proposals and views of a remote folder
-   live on the remote and nowhere else. There is no second writable copy.
+1. **The remote is the source of truth.** Run files, notes, proposals, views, blocks and memory of a
+   remote folder live on the remote and nowhere else. There is no second writable copy.
 2. **Data flows one way.** Answers and pulled snapshots travel from the remote to the laptop. Writes
    to a remote folder are executed by Beamtime on the remote, so nothing is ever synced back.
-3. **Only what is asked for travels.** A query moves its answer (rows, ~1000 points per curve), not
-   the run files. The size of the remote log dir doesn't matter.
-4. **One server, two transports.** The same `beamtime serve` code runs locally and remotely. It
-   speaks one API, over HTTP for browsers and over stdio for ssh. That makes the three modes below
-   compatible without extra work.
+3. **Only what is asked for travels.** A query moves its answer (rows, about 1000 points per curve),
+   not the run files. The size of the remote log dir doesn't matter.
+4. **One server, two transports.** The same `beamtime serve` code runs locally and remotely and
+   speaks one API, over HTTP for browsers and over stdio for ssh.
 
 ## Prior art
 
 | Tool | Remote approach | Writes |
 |---|---|---|
-| TensorBoard | run it on the remote, forward the port (`ssh -L`); or read `gs://`/`s3://` directly | read-only |
+| TensorBoard | run it on the remote and forward the port; or read `gs://`/`s3://` directly | read-only |
 | W&B, MLflow, Aim server | one central server holds the data; runs send to it | go to the server |
 | VS Code Remote-SSH, Jupyter | a server process on the remote, local UI over ssh | on the remote |
-| raw log copies (rsync) | rare; offline and archive use | two copies, conflicts |
+| raw log copies (rsync) | offline and archive use | two copies, conflicts |
 
-Beamtime follows the common pattern: data stays where it is produced, questions and answers travel.
+Beamtime follows the common pattern: data stays where it is produced; questions and answers travel.
 
 ## Three modes
 
 | Mode | What runs where | Use |
 |---|---|---|
-| **1. Remote query** | `beamtime serve` on the laptop starts `beamtime serve --stdio` on the remote over ssh and merges its answers with local runs | the default: local UI and agents see local and remote runs together |
-| **2. Port forwarding** | `beamtime serve` on the login node, its web UI reached through `ssh -L` | TensorBoard style: nothing installed or running on the laptop |
-| **3. Pull** | `beamtime pull` copies selected groups to the laptop as a read-only snapshot | offline work, archives |
+| **1. Remote query** | the laptop's `serve` starts `beamtime serve --stdio` on the remote over ssh and merges its answers with local runs | the default: the local UI and agents see local and remote runs together |
+| **2. Port forwarding** | `beamtime serve` on the login node, its web UI reached through `ssh -L` | TensorBoard style: nothing needed on the laptop |
+| **3. Pull** | `beamtime pull` copies a folder to the laptop as a read-only snapshot | offline work, archives |
 
 ### Mode 1: remote query
 
 ```sh
-beamtime serve                                   # local runs + all remotes from beamtime.yaml
+beamtime serve                                   # local runs + all remotes from the settings
 beamtime serve cluster                           # only this remote (plus local runs)
 beamtime serve cluster:scaling                   # narrowed to a group of the remote's log dir
-beamtime serve login.hpc.de:/scratch/me/beamtime # ad hoc, no config needed
+beamtime serve login.hpc.de:/scratch/me/beamtime # ad hoc, no settings needed
 ```
 
-- The local `serve` opens one long-lived ssh connection per remote and runs `beamtime serve --stdio`
-  there. Requests and answers are newline-delimited JSON on that connection. No port is opened on
-  the cluster, nothing passes a firewall, and with ssh `ControlMaster` a 2FA login is needed only
-  once.
-- The remote process indexes its own log dir (layer 3) **in memory** by default, lazily: a folder
-  is indexed when it is first queried, so connecting to a large log dir does not trigger a full
-  rebuild. Running runs are then polled as in the local daemon. Most requests need no index at all:
-  run tables come from run cards and overview charts from the runs' previews
-  ([layer 1](01-storage.md#_previewjson)); only zooms and exact statistics build index data, parsed
-  from `_metrics.jsonl` on first use and kept for the session.
-- **A persistent index** is used only where one is configured (`cache` below). Login nodes often
-  have a small, shared, regularly purged `/tmp`, several nodes behind one host name, and home
-  directories on NFS, where SQLite is unsafe. So nothing is written unless the user names a
-  suitable disk.
-- **Federation.** The local `serve`, CLI and MCP send each query to every source (local log dirs and
-  connected remotes) and merge the answers. Run ids are unique across machines, so merging rows and
-  curves is a concatenation; sorting and limits are applied after merging.
-- **Writes** (notes, views, proposals) to a remote folder are sent to the remote process, which
-  writes the file there with the usual rules (new files, freezing, one writer). If the remote is not
-  connected, the write fails with a clear message; nothing is queued.
-- **Status is computed where the files are.** The remote judges heartbeats against its own clock, so
-  a slow network never turns healthy runs into `lost`. If the connection drops, the laptop shows the
-  remote as "unreachable since 14:02" instead of guessing run states.
-- **The remote process exits as soon as its ssh connection closes.** It keeps nothing running on the
-  login node between sessions. With a configured `cache`, the next connection only catches up on
-  what changed; without one, it starts from the run cards and previews again.
-- **One-shot CLI calls** go through the local `serve` when it runs, reusing its open connections.
-  Without it, each call opens its own ssh connection and remote process, which costs a few hundred
-  milliseconds; `beamtime status` points this out.
+- **One connection per remote.** The local `serve` opens a long-lived ssh connection and runs
+  `beamtime serve --stdio` there. No port is opened on the cluster, nothing passes a firewall, and
+  with ssh `ControlMaster` a two-factor login is needed only once.
+- **The remote indexes in memory** by default, lazily: a folder is indexed when it is first queried.
+  Most requests need no index at all, since run tables come from run cards and overview charts from
+  previews; only zooms and exact statistics build index data, kept for the session.
+- **A persistent index** is used only where one is configured (`cache` below). Login nodes often have
+  a small, purged `/tmp`, several nodes behind one host name, and home directories on NFS, where
+  SQLite is unsafe; so nothing is written unless the user names a suitable disk. If two remote
+  processes share a cache, the second falls back to memory.
+- **Writes** (notes, proposals, view versions, blocks, memory) to a remote folder are executed by the
+  remote process under the usual rules. Without a connection the write fails with a clear message;
+  nothing is queued.
+- **Status is computed where the files are.** The remote judges heartbeats against its own clock. If
+  the connection drops, the laptop shows the remote as "unreachable since 14:02" instead of guessing
+  run states.
+- **The remote process exits when its ssh connection closes.** With a configured `cache`, the next
+  connection catches up on what changed; without one, it starts again from cards and previews.
+- **One-shot CLI calls** go through the local `serve` when it runs, reusing its connections. Without
+  it, each call opens its own ssh connection, which costs a few hundred milliseconds;
+  `beamtime status` says so.
+
+### Federation
+
+The local `serve`, CLI and MCP send each query to every source in scope and combine the answers:
+
+- **Listings are merged**: run rows, curves, logged data, timeline entries, folders. Run ids are unique
+  across machines, so merging is concatenation. Sorting is applied after merging; for `limit`, each
+  source returns its top `limit` rows by the same sort, so the merged top rows are exact.
+- **Aggregates are computed per source**: group and seed means, `importance`, value ranges in `keys`,
+  and prediction checks. A proposal belongs to a folder and a folder to one source, so checks never
+  span sources. A query over several sources returns aggregates per source, labelled.
 
 ### Mode 2: port forwarding
 
@@ -82,16 +84,13 @@ ssh -L 8080:localhost:8080 cluster
 beamtime serve --port 8080                       # on the login node
 ```
 
-- This is the same `serve` as everywhere; its web UI simply runs on the login node.
+- This is the same `serve` as everywhere; its web UI runs on the login node.
 - **A token is required.** Other users on a shared login node can reach its `localhost` ports, so
-  `serve` generates a random token and prints the URL with it, as Jupyter does. Requests without the
-  token are refused.
-- Agents on the laptop can use the same remote without a local Beamtime by registering
-  `ssh cluster beamtime mcp` as their MCP server command; MCP's stdio transport works over ssh as
-  is.
-- A local `serve` can also use a forwarded server as a source (`http://localhost:8080` plus token)
-  instead of starting its own ssh process. That is how modes 1 and 2 combine: both talk to the same
-  API.
+  `serve` generates a random token and prints the URL with it, as Jupyter does. Static library files
+  (the bundled JavaScript) are public and served without the token, so sandboxed custom blocks can
+  load them ([layer 7](07-web-ui.md#security)).
+- Agents on the laptop can use the remote without a local Beamtime by registering
+  `ssh cluster beamtime mcp` as their MCP server command.
 
 ### Mode 3: pull
 
@@ -99,61 +98,60 @@ beamtime serve --port 8080                       # on the login node
 beamtime pull cluster:scaling/lr-sweep
 ```
 
-- Copies the group's run files, notes, proposals and views into a local snapshot, incrementally:
-  appended files transfer only their new bytes. Checkpoints and other large artifacts stay
-  references, as everywhere.
-- Snapshots are **read-only** and live in the cache (`~/.cache/beamtime/<root-hash>/pulled/`), not in
-  the user's log dir, so they never mix with local runs. They appear in queries as their remote,
-  marked with the time of the snapshot.
-- A snapshot can be refreshed by pulling again and removed with `beamtime pull --drop`. Writing to a
-  pulled folder is refused; writes need the remote.
-- The transfer uses the same stdio protocol (list files, read from an offset), so pulling needs no
-  rsync, which differs between platforms (macOS ships `openrsync`).
+- Copies **every file of the folder** and below, plus the `view/`, `blocks/` and `memory/` folders of
+  its ancestors, so inherited views and their blocks keep working. Large data stays behind:
+  `_data/` files above a size limit, `artifacts/` and `checkpoints/`.
+- Copies incrementally: appended files transfer only their new bytes.
+- Snapshots are **read-only** and live in the cache (`~/.cache/beamtime/<root-hash>/pulled/`), never in
+  the user's log dir. They appear in queries as their remote, marked with the snapshot's time; run
+  status is judged relative to that time.
+- `beamtime pull` again refreshes; `beamtime pull --drop` removes the snapshot. Writing to a pulled
+  folder is refused.
+- The transfer uses the same API (`files`: list, and read from an offset), so it needs no rsync.
 
 ## Naming remote folders
 
 Every source is mounted under its own prefix in queries, the UI and links:
 
 ```yaml
-from: .                     # everything: local and all remotes
+from: .                     # everything: local and all connected remotes
 from: scaling/lr-sweep      # local
 from: "@cluster/scaling"    # the remote "cluster"
 ```
 
-Sources are separate trees, even if their folder names match. A folder that exists both locally and
-on the cluster is two folders, each with its own proposal, notes and view. The prefix makes clear
-where data lives and where a write will go, and no file ever has to be reconciled between sources.
-Inheritance of views stays within a source: a remote folder inherits views from its remote
-ancestors. Links between notes use run ids,
-which are unique across sources, so `[[20261024-101532-k3m9xq2a]]` works whatever side the run is on.
+Sources are separate trees, even if their folder names match: a folder that exists locally and on the
+cluster is two folders, each with its own proposal, notes and view. Inheritance of views and blocks
+stays within a source. Run ids are unique across sources, so links like `[[20261024-101532-k3m9xq2a]]`
+work wherever the run is. In URLs, the local source is called `local` (`/f/local/scaling`).
 
 ## Configuration
 
 ```yaml
-# beamtime.yaml (project settings)
+# user settings, ~/.config/beamtime/settings.yaml
 remotes:
   cluster:
-    host: cluster                        # an ssh host alias from ~/.ssh/config
-    path: /scratch/{user}/proj/beamtime  # the remote log dir; {user} is the ssh user
-    command: beamtime                    # how to start Beamtime there, e.g. a venv path
-    cache: /local/scratch/{user}/beamtime-cache   # optional persistent index; default: in memory
+    host: cluster                                  # an ssh host alias from ~/.ssh/config
+    command: ~/venvs/bt/bin/beamtime               # how to start Beamtime there
+    cache: /local/scratch/{user}/beamtime-cache    # optional persistent index; default: in memory
+```
+```yaml
+# project settings, beamtime.yaml
+remotes:
+  cluster:
+    path: ${SCRATCH}/proj/beamtime                 # the remote log dir
 ```
 
-- **Settings have two levels**, like VS Code ([layer 1](01-storage.md#settings)): user settings in
-  `~/.config/beamtime/settings.yaml` are the default for every project, and the project's
-  `beamtime.yaml` overrides them key by key. A remote's `host`, `command` and `cache` usually live in
-  the user settings, its `path` in the project.
-- **Whether `beamtime.yaml` is committed is the user's choice.** Placeholders keep it shareable:
-  `{user}` is the ssh user, and `${VAR}` expands an environment variable on the remote (e.g.
-  `${SCRATCH}/proj/beamtime`), so one entry fits everyone on the team.
-- **`cache` must be on a local disk.** The remote checks it: on NFS, Lustre or GPFS it falls back to
-  memory, and `beamtime status` says why. With several login nodes behind one host name, a
-  node-local cache exists per node; pointing `host` at one fixed node keeps it warm.
-- **The command line overrides the file** for one session. `beamtime serve cluster:scaling`
-  narrows the configured remote to a group, `--cache <dir>` sets the persistent index, and
-  `beamtime serve host:/abs/path` defines an ad-hoc remote. A name that matches a configured remote
-  means that remote; anything else is an ssh host.
-- Beamtime stores no credentials. Authentication is entirely the user's ssh configuration.
+- **Two levels**, merged key by key ([layer 1](01-storage.md#settings)): a remote's `host`, `command`
+  and `cache` usually live in the user settings, its `path` in the project.
+- **Placeholders** keep `beamtime.yaml` shareable: `{user}` is the ssh user, and `${VAR}` expands an
+  environment variable on the remote.
+- **`cache` must be on a local disk.** On NFS, Lustre or GPFS the remote falls back to memory, and
+  `beamtime status` says why. With several login nodes behind one host name, pointing `host` at one
+  fixed node keeps the cache warm.
+- **The command line overrides the settings** for one session: `beamtime serve cluster:scaling`,
+  `--cache <dir>`, or an ad-hoc `host:/abs/path`. A name that matches a configured remote means that
+  remote; anything else is an ssh host.
+- Beamtime stores no credentials; authentication is the user's ssh configuration.
 
 ## Protocol
 
@@ -163,52 +161,37 @@ One API, two transports:
   requests can be in flight on one connection.
 - **HTTP** for browsers and forwarded servers: `POST /api/<method>` with the same JSON.
 
+The API's methods are **the operations of [layer 8](08-cli-mcp.md#operations)**, one method per
+operation: every read (`keys`, `runs`, `series`, `card`, `notes`, `memory_show`, `check`, …), every
+write (`note_add`, `proposal_set`, `memory_update`, `view_save`, `block_save`, …) and every view tool
+(`view_validate`, `view_render`, …). CLI, MCP and the web UI are frontends of this one operation set.
+Three methods exist only in the API:
+
 | Method | Purpose |
 |---|---|
-| `hello` | version handshake; refuses incompatible major versions with a clear message |
-| `status` | indexer state, running runs, last change |
-| `query` | any query of layer 3 in its object form |
-| `write` | create a note, save a view version, set a proposal |
-| `subscribe` | push notifications when runs or folders change, for live views |
-| `files` | list files and read them from an offset, for `pull` |
+| `hello` | version handshake; refuses incompatible major versions with both versions and the upgrade command |
+| `subscribe` | notifications when runs or folders change, for live views ([layer 7](07-web-ui.md#live-updates)) |
+| `files` | list files, and read a file from a byte offset, for `pull` |
 
-**Hooks for the server ([layer 6](06-server.md#what-v1-must-provide)).** Every request carries the
-root it targets and an auth context; in v1 there is one root and the context is the local user, who
-may do everything. The `files` operations are specified with offsets (`read(path, offset)` now,
-`append(path, offset, bytes)`, `put` and `create` reserved), so the same protocol serves uploads to a
-server later. Besides stdio and HTTP for the API, MCP is offered over both stdio and HTTP.
-
-The remote's Beamtime version must be compatible: same protocol major version, additive minor
-changes only. A mismatch is reported at `hello` with both versions and the upgrade command.
-
-## Consequences for earlier layers
-
-- **Layer 3:** the parked question about sync and indexing is resolved. Each machine indexes its own
-  files; status, including `lost`, is computed where the files are.
-- **Layer 1:** no file is ever synced back, so the earlier "sync is a union of files" is gone. The
-  one-writer rule stays essential, because agents on the cluster and writes sent from the laptop
-  both create files there.
+Compatibility: the same protocol major version on both sides; minor versions only add.
 
 ## Risks
 
 - **Login node policies.** Some clusters kill long-running processes on login nodes. The remote
-  process lives only as long as its ssh connection and is idle most of the time, but a site may
-  still object; mode 3 is the fallback.
-- **Remote startup.** Python started from a cluster filesystem can take a second or more. The local
+  process lives only as long as its ssh connection and is mostly idle; where a site still objects,
+  mode 3 is the fallback.
+- **Remote startup.** Python started from a cluster filesystem can take a second or more; the local
   `serve` keeps connections open, so this is paid once per session.
-- **Offline.** Without a connection, remote runs are invisible unless pulled. A small local cache of
-  remote run cards for an offline overview is a possible later addition.
+- **Offline.** Without a connection, remote runs are invisible unless pulled.
 
 ## Decisions
 
-- The remote is the source of truth; data flows one way, and writes to remote folders are executed
-  on the remote.
+- The remote is the source of truth; data flows one way; writes to remote folders run on the remote.
 - Three modes on one server and one API: remote query over ssh stdio, port forwarding with a token,
-  and read-only pulls.
-- Each source is its own tree under a prefix (`@cluster/...`). A folder, its proposal, notes and view
-  live in exactly one place; `from: .` covers all sources.
-- The remote process exits when its ssh connection closes.
-- The remote index lives in memory by default; a persistent `cache` on a local disk can be
-  configured per remote. Run cards and previews make most requests independent of any index.
-- Remotes are configured in user settings and the project's `beamtime.yaml`, merged key by key,
-  with `{user}` and `${VAR}` placeholders; the command line overrides both per session. No credentials are stored.
+  and read-only pulls of whole folders.
+- Listings are federated across sources; aggregates are computed per source.
+- Each source is its own tree under a prefix (`@cluster/...`).
+- The remote process exits when its ssh connection closes; its index lives in memory unless a
+  `cache` on a local disk is configured.
+- The API's methods are the operations of layer 8, plus `hello`, `subscribe` and `files`.
+- Remotes are configured in user and project settings, with placeholders; no credentials are stored.

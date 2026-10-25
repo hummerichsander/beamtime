@@ -1,7 +1,8 @@
 # Layer 3: Index and query
 
-Status: **draft, under discussion.** Part 1 covers the metric store, the most performance-critical
-piece. Part 2 covers the query language that views, CLI and MCP share.
+Status: **reviewed; v1 scope per the [overview](00-overview.md#scope).** Part 1 covers the metric
+store, the most performance-critical piece. Part 2 covers the query language that views, CLI and MCP
+share.
 
 The index sits between the files ([layer 1](01-storage.md)) and everything that displays them:
 views, CLI, MCP. It is a cache in `~/.cache/beamtime/<root-hash>/`, rebuildable from the files at
@@ -106,78 +107,90 @@ Further findings:
 
 ## Recommendation
 
-**Candidate B: SQLite for metadata, raw column files for metrics.** It is the simplest design and
-meets every target. Ingest only appends bytes, every window and aggregate is exact, and no
-precomputed structure needs maintaining.
+**SQLite for metadata, raw column files for metrics (candidate B), read by one pure-Python
+implementation.** It is the simplest design and meets every target. Ingest only appends bytes, every
+window and aggregate is exact, and no precomputed structure needs maintaining.
 
 ```
 ~/.cache/beamtime/<root-hash>/
   index.sqlite                     # runs, config, run cards, notes, links, events, file offsets
   series/<run-id>/<metric>.steps   # int64, appended
   series/<run-id>/<metric>.values  # float64, appended
-  series/<run-id>/_manifest.json   # committed length per metric, source byte offset
+  series/<run-id>/_manifest.json   # committed length per metric, source byte offset, attempts
+  serve.json, serve.lock           # the daemon's status and its lock
 ```
 
-- **Ingest** reads each `_metrics.jsonl` from the last byte offset recorded in the manifest,
-  appends to the column files, then publishes the new lengths by replacing the manifest. Readers
-  never read past the manifest; after a crash, column files are truncated to it.
+- **Ingest** reads each `_metrics.jsonl` from the last byte offset recorded in the manifest, appends
+  to the column files, then publishes the new lengths by replacing the manifest. Readers never read
+  past the manifest; after a crash, column files are truncated to it.
+- **Attempts.** When ingest meets an `attempt_started` event with a resume step, it truncates each
+  column of that run to the points before the resume step (a binary search) and continues appending.
+  Steps therefore stay sorted, and the newer attempt wins ([layer 1](01-storage.md#_metricsjsonl)).
 - **One indexer at a time**, chosen by a file lock. Whoever needs fresh data takes the lock and
-  catches up only on the runs it queries, which costs 15–30 ms per run.
-- **Readers** map the column files and need no lock. Steps are sorted, so a step window is a binary
-  search.
+  catches up only on the runs it queries, at 15–30 ms per run.
+- **Readers** map the column files and need no lock. A step window is a binary search.
+- **One read path.** Downsampling, windows and aggregates have exactly one implementation, in pure
+  Python over `mmap` and `array`, with `math.fsum` for sums, used by the CLI, MCP and `serve` alike.
+  The CLI, the UI and prediction checks can therefore never disagree, not even in the last bit. The
+  benchmark puts it at 55–90 ms for a 50-run chart. A NumPy path may be added later for long zooms in
+  `serve`, tested against this reference.
 - **Charts** split the requested window into buckets and send min and max per bucket, like W&B's
-  full fidelity. Bucket edges are fixed per zoom level, so live curves don't jitter. The total
-  point budget per chart is capped (around 30k) to stay within what Vega-Lite draws smoothly.
-- **Two read paths with identical results:** the long-running `beamtime serve` uses NumPy; one-shot
-  CLI and MCP calls use a pure-Python reader over `mmap` and `array`, keeping the whole process
-  around 60–100 ms. NumPy is never imported on the CLI's hot path.
+  full fidelity. Bucket edges are fixed per zoom level, so live curves don't jitter. **Each chart**
+  has a point budget of about 30k, what Vega-Lite draws smoothly.
 - **Values stay float64**, so exact aggregates are exact.
 
 ### What we don't do
 
-- **No precomputed levels for now** (candidate A). They give the fastest long-range charts but are
-  the most code and still need B's raw files for exact queries. They can be added later as a cache
-  on top of B if long-range charts over very long runs become slow.
-- **No DuckDB or PyArrow as dependencies.** Their imports alone exceed the CLI budget, and DuckDB's
-  locking conflicts with concurrent readers. Either can be offered later as an optional extra for
-  ad-hoc analysis over the same files.
-- **No Rust for now.** Downsampling in NumPy is within 2× of Rust. The one place Rust would pay off
-  is a full rebuild, and parallel ingest plus optional `orjson` get it to a few seconds per 10^8
+- **No precomputed levels for now** (candidate A). They can be added later as a cache on top of the
+  raw files if long-range charts over very long runs become slow.
+- **No DuckDB, PyArrow or NumPy as dependencies of the CLI path.** Their imports alone exceed the CLI
+  budget, and DuckDB's locking conflicts with concurrent readers.
+- **No Rust.** Parallel ingest plus optional `orjson` bring a full rebuild to a few seconds per 10^8
   points without a native extension.
+
+## Discovery
+
+The index must learn about new, moved and deleted runs without walking the whole log dir on every
+call, which on a cluster filesystem would cost seconds and load the metadata server.
+
+- **A query walks only its own subtree** (`from`), and skips folders whose modification time hasn't
+  changed since the last walk.
+- **`serve` walks the whole log dir once at start**, then re-walks changed folders as it polls.
+- **Runs whose folder has vanished** (deleted, moved, trashed) are dropped from the index when a walk
+  no longer finds them; a moved run is found again under its new path, with the same id.
 
 ## Freshness: the daemon
 
 The cache only learns about new lines when a process reads them in. Beamtime has one long-running
 process for that, `beamtime serve`:
 
-- **`beamtime serve`** runs the web UI, the indexer and the connections to remotes (layer 4) for
-  one root.
-  `beamtime serve --no-ui` runs the same without the web UI, as a pure daemon.
-- **While it runs**, it polls running runs for new lines (stat calls every few seconds, only for
-  runs whose status is `running`, since every stat loads a cluster filesystem's metadata server)
-  and indexes them. Finished runs are indexed once and not polled again.
-- **The CLI and MCP never depend on it for correctness.** Without a running daemon, each call
-  catches up on the runs it queries within a time budget (default 200 ms), then answers. If the
-  budget was not enough, the answer says so: "3 runs are up to 4 min behind". With the daemon
-  running, the catch-up is almost always empty.
-- **Run tables and overviews stay fresh either way**: the run card and the preview
-  (`_preview.json`) are rewritten by the run every 60 s and are small enough to read directly.
-- **Overview charts are answered from previews** when the requested window and point budget fit
-  the preview's buckets; zooms and exact statistics use the column files. The answer's meta says
-  which source was used.
+- **`beamtime serve`** runs the web UI, the indexer and the connections to remotes
+  ([layer 4](04-remotes.md)) for one root. `beamtime serve --no-ui` runs it as a pure daemon.
+- **One daemon per root.** `serve` holds `serve.lock` in the cache; a second `serve` for the same root
+  refuses to start and points to the running one. CLI calls, MCP servers and the headless renderer
+  ([layer 7](07-web-ui.md#screenshots-and-the-headless-renderer)) are clients: they read the index and
+  never start a daemon.
+- **While it runs**, it polls running runs for new lines (the modification time of `_metrics.jsonl`
+  every few seconds, only for runs whose status is `running`) and indexes them. Finished runs are
+  indexed once.
+- **The CLI and MCP never depend on it for correctness.** Without a running daemon, each call catches
+  up on the runs it queries within a time budget (default 200 ms), then answers. If the budget was
+  not enough, the answer says so: "3 runs are up to 4 min behind".
+- **Run tables and overviews stay fresh either way**: card and preview are rewritten by the run every
+  3 minutes and are small enough to read directly.
+- **Overview charts are answered from previews** when the requested window and point budget fit the
+  preview's buckets; zooms and exact statistics use the column files. The answer's meta says which.
 
 ### Daemon status for agents
 
-The daemon writes `~/.cache/beamtime/<root-hash>/serve.json` with its pid, port, version, start time
-and a heartbeat. From that:
+`serve.json` holds the daemon's pid, port, version, start time and a heartbeat. From that:
 
-- `beamtime status` reports whether the daemon runs for this root, since when, with which version,
-  and which remotes are connected or unreachable. MCP exposes the same as a tool.
-- Every CLI and MCP answer carries a short freshness line: `live (daemon running)` or
+- `beamtime status` (and the MCP tool `status`) reports whether the daemon runs, since when, with
+  which version, and which remotes are connected or unreachable.
+- Every CLI and MCP answer carries a freshness line: `live (daemon running)` or
   `catch-up only (daemon not running)`.
-- Agents are instructed (layer 8) to check the status before working with live runs and, if the
-  daemon is not running, to ask the user to start `beamtime serve --no-ui` rather than starting a
-  long-running process themselves.
+- Agents check the status before working with live runs and, if the daemon isn't running, ask the
+  user to start `beamtime serve --no-ui` ([layer 8](08-cli-mcp.md#policy)).
 
 ## Query language
 
@@ -200,11 +213,11 @@ Every value a query can filter, sort or show is a **field**, a dotted path with 
 
 | Namespace | Example | Source |
 |---|---|---|
-| `run.` | `run.name`, `run.status`, `run.created_at`, `run.duration_s`, `run.steps`, `run.tags`, `run.path` | `_run.json`, run card |
+| `run.` | `run.id`, `run.name`, `run.status`, `run.created_at`, `run.duration_s`, `run.steps`, `run.tags`, `run.path` | `_run.json`, run card |
 | `config.` | `config.optimizer.lr` | `_config.json` |
 | `metric.` | `metric.val/acc.max`, `metric.train/loss.ema_last` | run card statistics |
 | `value.` | `value.test/acc` | explicit run card values |
-| `proposal.` | `proposal.check`, `proposal.verdict` | index (layer 1 evaluation) |
+| `proposal.` | `proposal.status`, `proposal.check`, `proposal.progress`, `proposal.verdict` | the check and the notes ([research record](09-research-record.md#the-check)) |
 
 For `metric.`, the last segment is always the statistic and everything between is the metric key,
 so keys containing dots (`metric.layer.0.grad.max`) stay unambiguous. The statistics are the run
@@ -213,8 +226,10 @@ card's: `first`, `last`, `ema_last`, `min`, `min_step`, `max`, `max_step`, `mean
 `config["a.b"]`.
 
 **Windowed statistics** are computed exactly from the column files, with a step window appended:
-`metric.val/acc.mean[1000:2000]`. This is the same reduction as a prediction's
-`reduce: {metric, stat, steps}`; predictions and queries share one implementation.
+`metric.val/acc.mean[1000:2000]`. They support `first`, `last`, `min`, `max`, `mean` and `count`.
+This is the same reduction as a prediction's `reduce: {metric, stat, steps}`
+([research record](09-research-record.md#predictions)); predictions and queries share one
+implementation.
 
 ### Selecting runs
 
@@ -234,16 +249,20 @@ where:
 ```
 
 - **Paths.** In a view, `from` is relative to the viewed folder (`.`, `..`, `lr-sweep`). In the CLI
-  and MCP, it is relative to the log dir; `.` is the whole log dir.
+  and MCP, it is relative to the log dir; `.` covers the local log dir and all connected remotes, and
+  `@cluster/scaling` names a remote folder ([layer 4](04-remotes.md#naming-remote-folders)).
 - **Filters** are a mapping from field to condition, combined with AND. A plain value means
   equality. Operators: `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in`, `nin`, `has` (list contains),
   `exists`, `glob` (string pattern). `any` and `not` combine conditions.
 - **Seeds** (`seeds: config.seed`) merge runs whose configs differ only in that key, exactly as in
   predictions. Values then come as mean, standard deviation and count.
+- **Across sources**, listings (rows, curves, data, timeline entries) are merged; aggregates (groups,
+  seeds, importance, `keys` value ranges) are computed per source and labelled with it
+  ([layer 4](04-remotes.md#federation)).
 
 ### Query kinds
 
-There are seven kinds of queries. All share the selection above.
+There are eight kinds of queries. All share the selection above.
 
 **`keys`**: what exists in a selection. This is the first call an agent makes in an unfamiliar
 folder.
@@ -286,10 +305,10 @@ series:
   which.
 - A metric as `x` pairs each point with that metric's most recent value at or before the same step.
 - With `group: [fields]`, curves of each group come back aggregated per bucket: mean, a band
-  (`band: minmax | std | stderr`) and the number of contributing runs. `seeds: config.seed` is the
-  shorthand for grouping by every config key except the seed.
-- Each view has a total point budget (around 30k); `points` per curve shrinks when many curves are
-  requested.
+  (`band: minmax | std | stderr | none`) and the number of contributing runs. `seeds: config.seed` is
+  the shorthand for grouping by every config key except the seed.
+- Each chart has a point budget of about 30k; `points` per curve shrinks when a chart requests many
+  curves.
 
 **`data`**: logged tables, images and text.
 
@@ -314,7 +333,8 @@ bodies are loaded only when asked for.
 folders: {from: ., depth: 2}
 ```
 
-Returns each group with its proposal statement, check, current verdict and run counts by status.
+Returns each group with its research status, proposal statement, check, plan progress, current
+verdict and run counts by status.
 
 **`importance`**: how strongly config fields relate to a target metric.
 
@@ -326,10 +346,20 @@ Returns, per field, the Spearman rank correlation with the target (numeric field
 the target's variance explained by grouping on the field (η², numeric fields in quantile bins), plus
 the number of runs. Without `fields`, every config key that varies in scope is used.
 
+**`file`**: a data file stored with a view ([layer 1](01-storage.md#views-in-storage)).
+
+```yaml
+file: {path: data/3f9a21c0-fit.parquet}
+```
+
+The path is relative to the `view/` folder of the view that declares the query, not to the viewed
+folder. Returns the table as columns, labelled with the folder it belongs to.
+
 ### Answers
 
 - **One JSON shape per kind**, columnar for tables and curves (`{"columns": [...], "rows": [...]}`,
-  `{"x": [...], "min": [...], "max": [...], "last": [...]}`), so large answers stay compact.
+  `{"x": [...], "min": [...], "max": [...], "last": [...]}`), so large answers stay compact. The `bt`
+  kit reshapes them for code ([layer 5](05-views.md#data)).
 - **Every answer carries meta**: freshness (see [Freshness](#freshness-the-daemon)), whether curves
   were downsampled, how many runs matched, and whether `limit` cut the answer.
 - **Defaults depend on the caller.** Views get up to 1000 rows and full point budgets. MCP answers
@@ -352,38 +382,32 @@ beamtime query query.yaml          # or --json '{...}': the object form directly
 Condition strings use `= != < <= > >=`, `~` for glob, and `in` with a comma list. Output is a
 readable table by default, `--json` gives the canonical answer.
 
-MCP has one tool per kind (`keys`, `runs`, `series`, `data`, `timeline`, `folders`, `importance`),
-each taking the object form. Separate tools give agents a small, precise schema for each.
+MCP has one tool per kind (`keys`, `runs`, `series`, `data`, `timeline`, `folders`, `importance`,
+`file`) plus `query` for the object form of any kind ([layer 8](08-cli-mcp.md)).
 
 ## Decisions
 
 - Metric store: SQLite for metadata, raw column files per (run, metric) for curves, read with mmap.
+- One pure-Python read path with `math.fsum`, used everywhere; NumPy is not a dependency of the CLI.
 - Plain formats in v1: int64 steps and float64 values, no compression.
-- `beamtime serve` is the daemon (web UI, indexer, remote connections); `--no-ui` runs it headless. The CLI and
-  MCP catch up within a time budget when it isn't running.
-- Agents can check the daemon with `beamtime status` and ask the user to start it.
-- One-shot CLI and MCP calls use a pure-Python reader; NumPy is used only by `serve`.
+- Resumed attempts truncate the columns at the resume step; steps stay sorted.
+- Discovery walks only the queried subtree, pruned by modification time; vanished runs are dropped.
+- One `beamtime serve` per root, guarded by a lock; everything else is a client. The CLI and MCP
+  catch up within a time budget when no daemon runs.
 - Queries are validated with msgspec structs, which also produce the JSON schema. Measured on the
-  M3: Pydantic costs 65–81 ms to import plus about 2.5 ms per model, together 110–150 ms per CLI
-  call; msgspec costs about 25 ms to import and almost nothing per model.
+  M3: Pydantic costs 65–81 ms to import plus about 2.5 ms per model; msgspec about 25 ms in total.
 - Views write conditions in the object form only. In a blind test (20 tasks, Sonnet and Haiku, two
   repetitions each; `bench/query-forms/`) agents got all 160 answers right in both the object and
-  the string form, at nearly the same length, so there is no reason for a second syntax and a
-  second parser. The CLI keeps its compact `--where` strings.
+  the string form, so there is no reason for a second syntax. The CLI keeps compact `--where`
+  strings.
 - The validator converts numeric strings on numeric fields to numbers, because PyYAML reads `1e-3`
   as a string.
+- Across sources, listings are merged and aggregates are computed per source.
 
 ## Later
 
 - **Smaller cache.** Encode steps as runs of constant stride (saves about half the cache). float32
   values stay excluded: they would make prediction checks disagree with the logged data.
-- **Auto-started daemon.** The first CLI call starts `serve --no-ui` in the background, one per root
-  (guarded by a lock file), exiting after a period without queries or running runs, as watchman or
-  `dmypy` do. This changes only who starts the daemon, not the design.
-- **Precomputed levels** on top of the raw files, if long-range charts over very long runs become
-  slow.
-
-## Open questions
-
-None for this layer. The earlier question about sync and indexing is resolved by layer 4: each
-machine indexes its own files, and status, including `lost`, is computed where the files are.
+- **Auto-started daemon.** The first CLI call starts `serve --no-ui` in the background, exiting
+  after a period without queries or running runs.
+- **Precomputed levels** or a tested NumPy path for long zooms, if needed.

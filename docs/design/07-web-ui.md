@@ -1,6 +1,6 @@
 # Layer 7: Web UI
 
-Status: **draft, under discussion**
+Status: **reviewed; v1 scope per the [overview](00-overview.md#scope)**
 
 The web UI is what `beamtime serve` shows in a browser: locally, on a remote reached by port
 forwarding ([layer 4](04-remotes.md)), and later on a self-hosted server ([layer 6](06-server.md)).
@@ -75,11 +75,11 @@ These qualities are made concrete as budgets and rules, and checked like correct
 
 ### Keeping it that way
 
-- **Budgets are tested**: bundle sizes and the timing budgets are measured in CI with Playwright, on
-  log dirs from the evaluation harness generator ([layer 5](05-views.md#evaluation-harness)). A
-  change that breaks a budget fails.
-- **Visual regression**: screenshots of the shell and the example views in light and dark are
-  compared on every change.
+- **Deterministic budgets are tested in CI**: the bundle sizes, and the import time of the CLI
+  ([overview](00-overview.md#testing-strategy)). A change that breaks one fails.
+- **Timing budgets are measured before each release**, on log dirs from the evaluation harness
+  generator ([layer 5](05-views.md#evaluation-harness)), because timings on shared CI machines are too
+  noisy to gate on.
 - **A UI review checklist** for every UI change: does it add chrome, a click, a spinner, a dialog or
   a dependency? Each needs a reason.
 
@@ -89,8 +89,8 @@ These qualities are made concrete as budgets and rules, and checked like correct
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ top bar:   project · search (⌘K) · sources · theme · settings                │
 ├──────────────┬─────────────────────────────────────────────┬─────────────────┤
-│ sidebar      │ frame:  breadcrumb · proposal and check ·   │ context drawer  │
-│              │         verdict · run status · finding      │ (toggle)        │
+│ sidebar      │ frame:  breadcrumb · status · proposal ·    │ context drawer  │
+│              │         verdict · runs · finding            │ (toggle)        │
 │ folder tree  ├─────────────────────────────────────────────┤                 │
 │ per source:  │                                             │ selected runs:  │
 │  local       │ view body                                   │ run card,       │
@@ -108,9 +108,14 @@ These qualities are made concrete as budgets and rules, and checked like correct
   unreachable remotes), a light/dark/theme switch, settings.
 - **Sidebar**: the folder tree, one top-level entry per source ([layer 4](04-remotes.md#naming-remote-folders)),
   with run counts and status dots (running, failed, lost). It loads lazily and can be filtered.
-- **Frame** ([layer 1](01-storage.md#structure)): breadcrumb, the proposal with a badge per
-  prediction, the current verdict, run counts by status, and the view's `finding`. Below it, small
-  view metadata: author, when saved, outdated block pins.
+- **Frame**, owned by Beamtime and identical on every view, in two or three lines:
+  - the breadcrumb and the folder's research status (`open`, `proposed`, `running`, `evaluable`,
+    `concluded`; [research record](09-research-record.md#folder-status));
+  - the proposal's statement with a badge per prediction and the plan's progress, and the current
+    verdict;
+  - run counts by status, and the view's `finding`.
+
+  Below it, small view metadata: author, when saved, outdated block pins.
 - **View body**: the folder's view, inherited or its own.
 - **Context drawer**, opened on demand: for selected runs their run card, config, latest notes and
   output tail; with no selection, the folder's notes and timeline.
@@ -128,12 +133,12 @@ the frame and the view.
 | `/r/<run-id>` | a run, by id; redirects to its folder URL, so links survive moves |
 | `/f/...?v=<version>` | a specific saved version of the folder's view |
 | `/f/.../history` | the view's version list; any two versions side by side with their YAML diff and screenshots |
-| `/compare?runs=<a>,<b>` | two runs or groups side by side (the `compare` block, full page) |
+| `/compare?runs=<a>,<b>` | two runs side by side: config diff, card values, curves (v1.1 with the `compare` block) |
 | `/search?q=…` | folders, runs, notes and blocks matching the query |
-| `/settings/...` | appearance (themes), blocks and packages, remotes, about |
+| `/settings/...` | appearance (themes), blocks, remotes, about |
 
-Selections live in the URL (`?sel=<ids>`), as defined for linked blocks
-([layer 5](05-views.md#linking-blocks)). `beamtime status` and the CLI print these URLs, so agents
+Selections live in the URL (`?sel=<ids>`) once linked blocks arrive
+([layer 5](05-views.md#linking-blocks-wave-2)). `beamtime status` and the CLI print these URLs, so agents
 can hand users a link to exactly the view or run they talk about.
 
 ## Navigation
@@ -157,38 +162,33 @@ can hand users a link to exactly the view or run they talk about.
 
 **Backend**
 
-- `serve` uses **Starlette on uvicorn**: small, asynchronous, with streaming responses for live
-  updates and for MCP over HTTP. Validation and serialization use msgspec, so no FastAPI is needed.
+- `serve` uses **Starlette on uvicorn**: small and asynchronous, with streaming responses for live
+  updates. Validation and serialization use msgspec, so no FastAPI is needed.
   These dependencies live in `beamtime[serve]`, not in the SDK.
 - The browser talks to the same API as remotes and agents ([layer 4](04-remotes.md#protocol)):
-  `POST /api/<method>`.
+  `POST /api/<method>`, the operations of [layer 8](08-cli-mcp.md#operations).
 - Static assets (the bundled frontend, Vega, D3, uPlot, KaTeX, Preact) are served from the installed
   package.
 
 ## Live updates
 
-Nothing is reloaded when data changes, neither the page nor the view. Updates are granular down to
-single DOM elements and chart data points:
+Nothing is reloaded when data changes, neither the page nor the view:
 
 1. **The page subscribes** to the queries of its visible blocks over **server-sent events**
-   (`/api/subscribe`), a one-way stream that is simpler than WebSockets and passes proxies easily.
-2. **The server sends only affected queries.** When new lines arrive in a run's files, `serve`
-   determines which subscribed queries depend on that run and notifies only those.
-3. **Updates are deltas.** Run files are append-only and downsampled curves have fixed bucket edges
-   ([layer 1](01-storage.md#_previewjson), [layer 3](03-index.md#recommendation)), so for a running
-   run only the last bucket changes and new buckets are appended. The server sends just these, with a
-   cursor; run tables receive changed rows keyed by run id.
+   (`/api/subscribe`), a one-way stream that passes proxies easily.
+2. **The server names only affected queries.** When a run's files change, `serve` determines which
+   subscribed queries depend on that run and sends their ids, at most once per second per query.
+3. **The page refetches those queries.** Answers come from previews, cards and the index and are small.
 4. **Only the affected blocks re-render.** `bt.useData` re-renders the one component that uses the
    query, and Preact patches only the DOM elements whose content changed.
 5. **Charts update in place.** Vega-Lite views receive new data through Vega's data API
    (`view.change`), uPlot through `setData`, so zoom, hover and selection are kept.
-6. **Custom blocks** receive deltas over the `postMessage` bridge; their iframe is never reloaded, so
-   their own state (an open detail panel, a selected run) survives.
+6. **Custom blocks** receive the new results over the `postMessage` bridge; their iframe is never
+   reloaded, so their own state survives.
 
-For the reader, scroll position, selection, open tabs and zoom stay where they are, blocks keep their
-size so the layout doesn't jump, and a running curve simply grows. Updates are coalesced to at most
-one per second per block. A **pause** switch in the status bar freezes the page while reading;
-resuming applies the accumulated deltas. Values of running runs are marked as still changing.
+For the reader, scroll position, selection and zoom stay where they are, blocks keep their size, and a
+running curve simply grows. A **pause** switch in the status bar stops refetching while reading.
+Values of running runs are marked as still changing.
 
 ## Theme in the UI
 
@@ -214,67 +214,72 @@ colors still produces a consistent shell.
 ## Screenshots and the headless renderer
 
 `view_render` and the render stage of `view_validate` ([layer 5](05-views.md#validation)) load the
-same frontend in headless Chromium through Playwright, pointed at a local `serve` (started in-process
-if none runs). A small pool of browser pages is kept warm, so repeated renders in the agent loop
+same frontend in headless Chromium through Playwright. The renderer is a client
+([layer 3](03-index.md#freshness-the-daemon)): it uses the running `serve` if there is one, and
+otherwise serves the frontend and the needed query answers itself for the duration of the render,
+without indexing or watching anything. A small pool of browser pages is kept warm, so repeated renders in the agent loop
 take a second or two, not a browser start each time. Playwright and its Chromium are part of
-`beamtime[serve]`; the browser is downloaded on first use.
+`beamtime[serve]`; the browser is downloaded on first use. Where Chromium cannot run (login nodes
+often lack its system libraries), rendering reports that it was skipped and validation stays static.
 
 ## Static export
 
 ```sh
-beamtime export scaling/lr-sweep --html out/        # a self-contained HTML snapshot
+beamtime export scaling/lr-sweep --html out/                # a self-contained HTML snapshot
 beamtime export scaling/lr-sweep --html out/ --points all   # with exact, full-resolution curves
-beamtime export scaling/lr-sweep --pdf report.pdf   # a printable report
-beamtime export scaling/lr-sweep --figures figs/    # one figure per block
+beamtime export scaling/lr-sweep --figures figs/            # one figure per block
 ```
 
 - **HTML**: one folder with an `index.html`, the frontend, libraries, and every block's query results
-  frozen as JSON. It opens without a server, keeps interaction within blocks (selection, hover,
-  click-to-detail over the frozen data) and states when it was taken. Placeholder queries are
-  answered for the values present in the snapshot.
+  frozen as JSON. It opens from disk without a server, keeps interaction within blocks over the
+  frozen data, and states when it was taken. Placeholder queries are answered for the values present
+  in the snapshot. Browsers don't load ES modules from `file://`, so the export bundles each custom
+  block as a classic script inlined into its iframe (`srcdoc`).
 - **`--points`** sets how many points per curve the export stores: a number of buckets (default
-  1000, as in the browser), or `all` for every logged point. Downsampled exports stay small;
-  `--points all` keeps exact numbers at the cost of size. The export states which it used.
-- **PDF**: the view rendered with the **print** theme ([layer 5](05-views.md#the-default-theme)) in
-  headless Chromium, with page breaks between sections and interactive blocks in their default
-  state.
+  1000), or `all` for every logged point. The export states which it used.
 - **Figures**: each block on its own at paper sizes (3.3 × 2.5 in single-column, 6.9 × 2.5 in
-  double-column) in the print theme. Vega-Lite blocks export as vector PDF or SVG; custom blocks as
+  double-column) in the light theme. Vega-Lite blocks export as vector PDF or SVG; custom blocks as
   SVG if they draw SVG, otherwise as high-resolution PNG.
+
+A PDF report and a dedicated print theme come later.
 
 ## Security
 
 - On a shared machine the UI requires the token of [layer 4](04-remotes.md#mode-2-port-forwarding);
-  locally it binds to `localhost` only.
+  locally it binds to `localhost` only. The bundled static JavaScript is public and served without
+  the token, so sandboxed custom blocks, which have no origin, can load it; data and everything
+  else require the token.
 - A strict content security policy on every page: scripts and styles only from `serve`, no outside
-  requests. Custom blocks are additionally sandboxed.
+  requests. Custom blocks are additionally sandboxed, and Vega-Lite runs without URL loading
+  ([layer 5](05-views.md#vega-lite-security)).
 
 ## Accessibility
 
-Keyboard navigation everywhere, visible focus rings (`focus` token), contrast guaranteed by
-`beamtime theme validate`, the high-contrast theme pair, and reduced motion when the system asks
-for it.
+Keyboard navigation everywhere, visible focus rings (`focus` token), the default theme's contrast,
+and reduced motion when the system asks for it. Theme validation and a high-contrast pair come later.
 
 ## Later
 
 - Rearrangeable panels (dockview), if users need side-by-side work beyond the context drawer and
   `compare`.
+- PDF export and a print theme.
 - Packages contributing panels or pages, like VS Code extensions.
 - The community gallery pages in settings ([layer 5](05-views.md#later)).
 
 ## Decisions
 
-- The UI must feel seamless, light and concise, with tested budgets: shell ≤ 120 KB, first view
-  < 300 ms, navigation < 100 ms, interactions < 50 ms, no layout shift, no spinners under 300 ms.
+- The UI must feel seamless, light and concise, with budgets: shell ≤ 120 KB, first view < 300 ms,
+  navigation < 100 ms, interactions < 50 ms, no layout shift, no spinners under 300 ms. Bundle size
+  is tested in CI; timings are measured before releases.
 - A fixed shell: top bar, sidebar with the folder tree per source, frame and view, a context drawer,
-  a status bar. View layouts stay agent-authored.
+  a status bar. The frame is defined here.
 - The theme colors the whole app; shell tokens follow VS Code's workbench colors.
-- Every state has a URL, including view versions and selections.
+- Every state has a URL, including view versions.
 - Preact with `htm` and the `bt` kit in the browser, built with esbuild at release; Starlette on
-  uvicorn behind `serve`; live updates over server-sent events.
-- One renderer for the browser, screenshots and exports, run headless through Playwright.
-- Static export as self-contained HTML, PDF in the print theme, and per-block figures at paper sizes;
-  `--points` sets the curve resolution of an export, up to `all`.
-- View history is a version list with YAML diff and screenshots of two versions.
-- Live updates are granular: affected queries only, deltas with a cursor, in-place chart updates, no
+  uvicorn behind `serve`.
+- Live updates: server-sent notifications of affected queries, refetch, in-place chart updates, no
   reloads.
+- One renderer for the browser, screenshots and exports, run headless through Playwright; it is a
+  client and degrades to static validation without Chromium.
+- Static export as self-contained HTML and per-block figures; `--points` sets the curve resolution.
+- View history is a version list with YAML diff and screenshots of two versions.

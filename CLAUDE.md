@@ -4,7 +4,7 @@ Agents-first experiment logging, an alternative to W&B and TensorBoard. ML resea
 agents log runs (each with a proposal and a verdict) from local machines and HPC clusters, and
 agents build custom views from Beamtime's building blocks.
 
-- **Python**: 3.11
+- **Python**: 3.11 for the CLI and `serve`; 3.10+ for the SDK modules
 - **Package manager**: `uv`
 - **Linter/formatter**: `ruff` (configured in `pyproject.toml`)
 
@@ -182,78 +182,55 @@ before implementation. Do not implement a layer whose design is not settled.
 
 ### Decisions so far
 
-- **Design docs live in `docs/design/`**, one file per layer. They are the spec; keep code and docs
-  in sync.
-- **Files are the source of truth.** A run is a plain directory (see `docs/design/01-storage.md`).
-  The SQLite index is a derived cache that can be rebuilt from the files at any time.
-- **Every file has exactly one writer.** State that several parties change (notes, views) is
-  stored as new immutable files, latest wins.
-- **Beamtime records experiments, it never runs them.** No job launching, sweep scheduling or
-  hyperparameter search.
-- **The root is the user's repo**, like TensorBoard. Runs live in user-chosen folders under log
-  dirs (default `beamtime/`) and are found by their `_run.json`. Folders are the only hierarchy:
-  directions and sweeps are just groups of runs.
-- **Machine-written files start with `_`** (`_run.json`, `_metrics.jsonl`); authored files
-  (`proposal/`, `notes/`, `view/`, `memory/`) don't.
-- **`_output.log` is always captured**; there is no off switch.
-- **Runs record data, views present it.** Runs log scalars, tables, images and text; charts exist
-  only in views. The run card (`_run_card.json`) is each run's compact summary, and
-  `_preview.json` holds downsampled curves, so tables and overviews need no index.
-- **The research record** (see `docs/design/09-research-record.md`): proposals are versioned and
-  frozen before data exists, with an optional plan and named predictions checked by a 95 % bootstrap
-  over seeds by default; notes are immutable (observations, decisions, ideas, questions, verdicts per
-  prediction); a versioned `memory/` compresses the notes for people and agents. Folders have a
-  derived research status (`open`, `proposed`, `running`, `evaluable`, `concluded`).
-- **Local and HPC are equally supported.** Runs write files only; compute nodes need no network.
-  Remotes are the source of truth for their data, and data flows one way (see
-  `docs/design/04-remotes.md`): the local `serve` queries a remote `serve --stdio` over ssh and
-  merges the answers, a remote `serve` can be reached by port forwarding, and `beamtime pull` makes
-  read-only offline snapshots. Writes to remote folders are executed on the remote. The remote
-  index lives in memory unless a persistent `cache` on a local disk is configured. Job scheduler metadata (SLURM, PBS, …) is captured if present, but nothing
-  depends on it. A heartbeat file lets runs that died silently show up as `lost`.
-- **The index is SQLite for metadata plus raw column files per (run, metric)** (see
-  `docs/design/03-index.md`). `beamtime serve` (headless with `--no-ui`) is the daemon that keeps it
-  fresh; CLI and MCP never depend on it and catch up within a time budget. Agents check it with
-  `beamtime status`. Keep NumPy and other heavy imports off the CLI's hot path.
-- **Settings have two levels, like VS Code**: user settings in `~/.config/beamtime/settings.yaml`
-  are the default for every project; the project's `beamtime.yaml` overrides them key by key;
-  command-line flags override both.
-- **Never put SQLite on cluster filesystems** (Lustre/GPFS). The index cache lives in
-  `~/.cache/beamtime/`, never in the repo or a log dir.
-- **Views are YAML trees of building blocks**, not markdown, built by agents. Every folder shows
-  one: its own or the nearest ancestor's, rendered relative to the viewed folder. Beamtime owns a
-  fixed frame; the body is built freely from declarative widgets and custom code blocks (ES modules
-  in a sandboxed iframe, on the `bt` kit with Preact/htm). All data comes through declared queries
-  (with placeholders for interaction), never embedded values. `view_validate` renders every draft
-  headless in several scopes before it is saved. Reusable blocks form a library in `blocks/`
-  folders; views are pinned to block versions and upgraded deliberately with `view upgrade`.
-  Themes and block libraries are packages installed pi-style (`beamtime install git:…`/`npm:…`,
-  personal by default, `-l` for the project); nothing runs at install time.
-  Queries and widgets are msgspec structs, which give validation and the JSON schema served to
-  agents at a fraction of Pydantic's import cost.
-- **Agent instructions come from `beamtime guide`**, which marks its defaults as defaults (e.g.
-  custom blocks may be used without asking). Users override them in their own instruction
-  files (`CLAUDE.md`, `AGENTS.md`, global files); Beamtime has no instruction file of its own.
-- **The web UI is a fixed shell** (see `docs/design/07-web-ui.md`): top bar, folder tree per source,
-  frame and view, context drawer, status bar. Every state has a URL. Preact/htm frontend built with
-  esbuild at release, Starlette on uvicorn behind `serve`, live updates over server-sent events.
-  Browser, screenshots and exports share one renderer (headless Chromium via Playwright).
-  **The UI must feel seamless, light and concise**: budgets (shell ≤ 120 KB, first view < 300 ms,
-  navigation < 100 ms, interactions < 50 ms, no layout shift) are tested in CI; every added piece of
-  chrome, click, spinner, dialog or dependency needs a reason.
-- **Charts render with Vega-Lite** in the browser, using Beamtime's theme. The
-  matplotlib/scienceplots rules above apply to static figure export, not to the web UI.
-- **A self-hosted server is a post-v1 feature, designed for now** (see `docs/design/06-server.md`):
-  the same `serve` as a team hub over remotes and as central storage that runs upload to. v1 must
-  keep its hooks: no network code in the SDK, offset-based file operations, an auth context and a
-  root on every API request, `author` and `user` on authored files, MCP over HTTP, and a sandbox
-  built for untrusted views.
-- **CLI and MCP mirror each other** (see `docs/design/08-cli-mcp.md`): same names, parameters and
-  answers; compact text output by default, `--json` for the canonical answer; small MCP tools with
-  token budgets; agent writes are additive only. Agents never install packages, change settings,
-  start `serve` or move runs; they hand the user the command.
-- **Frontends share one core library:** Python SDK, CLI, MCP server, web UI. MCP outputs must be
-  token-efficient (summaries, downsampled curves, diffs).
+Start with `docs/design/00-overview.md`: canonical names, the v1 scope, platform and dependencies,
+cross-cutting rules and the testing strategy. The layer documents are the spec; keep code and docs in
+sync.
+
+- **Files are the source of truth; every file has one writer.** A run is a plain directory
+  (`docs/design/01-storage.md`); the SQLite index is a cache. State that several parties change
+  (notes, views, proposals, memory) is stored as new immutable files; the newest counts.
+- **Beamtime records experiments, it never runs them.**
+- **The root is the user's repo**, like TensorBoard; runs live in user-chosen folders under one log
+  dir (default `beamtime/`) and are found by their `_run.json`. Folders are the only hierarchy.
+- **Machine-written files start with `_`**; authored files live in `proposal/`, `notes/`, `view/`,
+  `memory/` and `blocks/`. Every file carries `schema`; readers accept every version forever; there
+  is no migration.
+- **The SDK** (`docs/design/02-sdk.md`) needs Python 3.10+, the standard library and PyYAML, runs on
+  Linux, macOS and Windows, never breaks or blocks training, records proposal membership in
+  `_run.json`, and captures output through a bounded pipe. CLI and `serve` need Python 3.11+.
+- **Runs record data, views present it.** The run card and `_preview.json` make run tables and
+  overviews cheap without an index.
+- **The research record** (`docs/design/09-research-record.md`): versioned proposals frozen once a run
+  records them, optional plans, named predictions (`each`, `compare`) checked with t-intervals,
+  immutable typed notes with per-prediction verdicts, a derived folder status, and a versioned
+  compressed memory.
+- **The index** (`docs/design/03-index.md`): SQLite for metadata plus raw column files, one pure-Python
+  read path with `math.fsum` everywhere, discovery by walking only the queried subtree, one
+  `beamtime serve` per root. Keep NumPy and other heavy imports off the CLI path; the import time is
+  checked in CI.
+- **Remotes** (`docs/design/04-remotes.md`): the remote is the source of truth and data flows one way.
+  The local `serve` queries `serve --stdio` over ssh; listings are federated, aggregates computed per
+  source. Port forwarding with a token and read-only pulls are the other modes.
+- **Settings have two levels, like VS Code**: `~/.config/beamtime/settings.yaml`, then the project's
+  `beamtime.yaml`, then command-line flags.
+- **Never put SQLite on cluster filesystems.** The index cache lives in `~/.cache/beamtime/`.
+- **Views** (`docs/design/05-views.md`) are YAML trees built by agents from declarative widgets and
+  custom code blocks (ES modules in sandboxed iframes on the `bt` kit with Preact/htm). All data comes
+  through declared queries. Validation is static, plus one headless render where Chromium exists.
+  Library blocks in `blocks/` are pinned by views. Themes are token files. Queries and widgets are
+  msgspec structs.
+- **Agent instructions come from `beamtime guide`**, which marks its defaults as defaults; users
+  override them in their own instruction files.
+- **The web UI** (`docs/design/07-web-ui.md`) is a fixed shell that must feel seamless, light and
+  concise; every state has a URL; live updates are server-sent notifications plus refetch; browser,
+  screenshots and exports share one renderer.
+- **Charts render with Vega-Lite** using Beamtime's theme. The matplotlib/scienceplots rules above
+  apply to code that produces figures with matplotlib, not to the web UI.
+- **CLI and MCP** (`docs/design/08-cli-mcp.md`) are frontends of one operation set; MCP tool names
+  follow the CLI path (`beamtime note add` ↔ `note_add`). Agent writes are additive; agents never run
+  user-only commands (setup, serving, settings, moving, deleting) and hand the user the command.
+- **The self-hosted server is post-v1** (`docs/design/06-server.md`); v1 keeps only its hooks: no
+  network code in the SDK, `author` and `user` on authored files, a sandbox built for untrusted views.
 
 ### Layout
 

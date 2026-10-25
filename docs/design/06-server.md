@@ -1,6 +1,6 @@
 # Layer 6: Self-hosted server
 
-Status: **draft. A post-v1 feature; the hooks it needs are part of v1** (see
+Status: **reviewed; post-v1.** The few hooks it needs are part of v1 (see
 [What v1 must provide](#what-v1-must-provide)).
 
 Besides running locally and querying remotes, Beamtime can run as a self-hosted server for a team,
@@ -38,8 +38,8 @@ server can play both at once: some projects stored on it, others federated from 
 
 - **Accounts with API tokens** first; single sign-on (OIDC) later.
 - **Permissions per project**: read, write (notes, views, blocks, proposals), admin.
-- **Every write carries an identity.** Notes, views and blocks record the user and, if an agent wrote
-  them, the agent ([layer 1](01-storage.md#notes)).
+- **Every write carries an identity.** Authored files record `user` and `author`
+  ([research record](09-research-record.md#fields)); on the server, `user` comes from the token.
 - **Agents connect over MCP via HTTP** with a user's token and act with that user's permissions.
 
 ## Upload path (storage role)
@@ -54,6 +54,7 @@ idempotent:
 | Operation | For | Rule |
 |---|---|---|
 | `append(path, offset, bytes)` | `_metrics.jsonl`, `_output.log`, other streams | accepted only if the file on the server is exactly `offset` bytes long; a retry after a lost response is harmless, a gap is rejected |
+| `rotate(path, to)` | `_output.tail.log` | mirrors the rotation of the tail segment ([layer 1](01-storage.md#write-protocol)) |
 | `put(path, bytes)` | `_run.json`, `_run_card.json`, `_preview.json` | replaces the file atomically |
 | `create(path, bytes)` | data files, notes, view versions | fails if the file exists |
 
@@ -85,20 +86,16 @@ Two ways to connect:
 
 ## What v1 must provide
 
-v1 ships without the server, but nothing in it may block the server later:
+v1 ships without the server. Only the hooks that would be hard to add later are part of v1:
 
 1. **No network code in the SDK.** Runs write only files; the uploader is a separate component that
    tails them ([layer 2](02-sdk.md)).
-2. **Idempotent file operations in the API.** The `files` method of [layer 4](04-remotes.md#protocol)
-   is specified with offsets, so the same operations serve pulling now and uploading later.
-3. **An auth context on every API request.** In v1 it is the local user and permits everything;
-   the server later fills it from a token. Mode 2's token ([layer 4](04-remotes.md#mode-2-port-forwarding))
-   is the first instance.
-4. **An identity on every authored file.** Notes, views and blocks carry `author` (a person or
-   agent) and `user` (the account it acted for) from v1 on.
-5. **Projects as an explicit concept in the API.** Every request names its root; v1 has exactly one.
-6. **MCP over HTTP** as a transport next to stdio, so agents can later talk to a server unchanged.
-7. **The sandbox designed for untrusted views** from the start, not tightened later.
+2. **An identity on every authored file.** Proposals, notes, views, blocks and memory carry `author`
+   (a person or model id) and `user` (the account) from v1 on.
+3. **The sandbox designed for untrusted views** from the start ([layer 5](05-views.md#sandbox)).
+
+Everything else is added with the server: an auth context and a project on every API request, the
+upload operations of the `files` method, and MCP over HTTP.
 
 ## Open questions
 
