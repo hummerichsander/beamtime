@@ -104,6 +104,7 @@ body:
   - custom:
       id: grokking-map
       code: grokking-map.js
+      kit: 1
       queries:
         runs:   {runs: {select: [run.id, config.weight_decay, config.n_params, metric.val/acc.max]}}
         detail: {series: {from: $run, y: [train/acc, val/acc]}}
@@ -176,7 +177,8 @@ export default function render(root) {
 
 ### The `bt` kit
 
-Every custom block gets a global `bt`:
+Every custom block gets a global `bt`. This is an overview; the full API is in
+[The `bt` kit API](#the-bt-kit-api).
 
 | Part | Contents |
 |---|---|
@@ -205,6 +207,245 @@ Every custom block gets a global `bt`:
 - Data, images from runs and size changes travel over a `postMessage` bridge, which `bt` wraps.
 - This also protects readers from views that someone else committed to a shared repository.
 
+## Built-in blocks
+
+The built-in blocks are Beamtime's own block library, written on the `bt` kit. Each is usable in
+two forms with the same name and the same props: as a YAML block in a view, and as a kit component
+in custom code (`line` in YAML, `bt.chart.Line` in code).
+
+### Common props
+
+Every block accepts:
+
+| Prop | Meaning |
+|---|---|
+| `id` | address for validation errors, screenshots and edits |
+| `title` | short heading; optional, since many blocks are self-explanatory |
+| `caption` | one or two sentences on what the block shows; required on charts |
+| `span` | width in a grid: `1` (default), `2` or `full` |
+| `from`, `where` | narrow or shift the block's scope relative to the view's; rarely needed |
+
+Fields follow the query language of [layer 3](03-index.md#fields). Two kinds of reference appear in
+props:
+
+- **Metric keys** (`val/loss`) where a block plots a series over steps.
+- **Fields** (`config.lr`, `metric.val/acc.max`, `run.status`) where a block works with one value per
+  run.
+
+### Catalog
+
+**Layout.** These exist in YAML and as kit components; `repeat` only in YAML.
+
+| Block | Purpose |
+|---|---|
+| `section` | titled group of blocks, collapsible |
+| `row` | blocks side by side, wrapping on narrow screens |
+| `grid` | auto-fitting grid (`min_width`, or fixed `columns`) |
+| `tabs` | alternative contents under one heading; not nested |
+| `repeat` | a block of widgets once per value of a field or per subfolder |
+
+**Curves over steps.**
+
+| Block | Purpose | Key props |
+|---|---|---|
+| `line` | metric curves over steps, time or another metric | `y` (keys), `x`, `color`, `facet`, `group`, `band`, `seeds`, `smooth`, `scale`, `steps`, `highlight` |
+| `histogram` | logged distributions over steps (tables with `bin_start`, `bin_end`, `count`) | `key`, `step` (`last`, a step, or `all` as a step-by-bin heatmap) |
+
+**One value per run.**
+
+| Block | Purpose | Key props |
+|---|---|---|
+| `scatter` | two fields against each other, e.g. learning rate against final accuracy | `x`, `y`, `color`, `size`, `x_scale`, `y_scale`, `fit` (`linear`, `log`, `power`), `seeds` |
+| `bar` | a field per category, e.g. accuracy per optimizer | `x` (category), `y`, `group`, `error` (`std`, `stderr`, `minmax`), `sort` |
+| `heatmap` | a value over two config axes | `x`, `y`, `value`, `aggregate` (`mean`, `max`, `min`) |
+| `parallel` | many config fields and one or two metrics at once | `fields`, `color` |
+| `stat` | one number, with delta against the baseline | `field`, `aggregate` (`best`, `mean`, `last`, `count`), `delta` |
+| `table` | runs as rows, fields as columns | `columns`, `sort`, `limit`, `highlight_best`, `sparkline` (a metric drawn per row from previews) |
+| `compare` | two runs or two groups side by side: config diff and metric deltas | `a`, `b` (run ids or filters), `fields` |
+| `importance` | how strongly each config field relates to a target metric, as a sorted bar chart | `target`, `fields` (default: every config key that varies in scope) |
+
+**Logged data.**
+
+| Block | Purpose | Key props |
+|---|---|---|
+| `data_table` | a table logged by runs | `key`, `step` |
+| `images` | logged images, per run or over steps | `key`, `step` (`last`, a step, `slider`) |
+| `text` | logged text samples | `key`, `step` |
+
+**Research context.**
+
+| Block | Purpose | Key props |
+|---|---|---|
+| `proposal` | the folder's proposal: statement, each prediction with its check, current verdict | `of` (default `.`) |
+| `folders` | the child groups with proposal, check, verdict, run counts and a chosen field | `field`, `depth` |
+| `timeline` | notes and run events in time order | `types`, `limit` |
+| `note` | a short text, optionally as a callout (`info`, `warning`, `success`) | `text`, `kind` |
+| `output` | the tail of a run's captured output, for failed runs | `run`, `lines`, `stream` (`main`, a rank) |
+
+**Code.**
+
+| Block | Purpose |
+|---|---|
+| `vega` | a Vega-Lite spec whose named datasets are declared queries; the theme is applied |
+| `custom` | a custom block (see [Custom blocks](#custom-blocks)) |
+
+### Hyperparameter importance
+
+`importance` answers "which hyperparameters matter for this metric?" over the runs in scope. It
+compiles to the `importance` query of [layer 3](03-index.md#query-kinds), so agents get the same
+numbers over MCP. For each field it shows:
+
+- **Correlation**: Spearman rank correlation with the target, signed, for numeric fields.
+- **Importance**: the share of the target's variance explained by grouping runs on the field
+  (the correlation ratio η²), which works for numeric fields (in quantile bins) and categorical
+  ones alike.
+
+Both measures look at one field at a time and miss interactions between fields; the block says so in
+its caption and shows how many runs it rests on. Below about ten runs it shows a notice instead of
+bars. A model-based importance that captures interactions (e.g. a random forest, as W&B uses) can
+follow later.
+
+### Linking blocks
+
+A selection in one block highlights the same runs in every other block of the view: click a run in
+the table and its curve stands out in every chart, its point in the scatter plot, its row in other
+tables.
+
+- **One shared selection per view**: a set of run ids, held by the page, not by any block.
+- **Interactive built-in blocks** (`table`, `scatter`, `heatmap`, `parallel`, `line`, `bar`) write to
+  it on click and read it to highlight.
+- **Each block decides how to react** with `on_selection`: `highlight` (default; others are dimmed),
+  `filter` (show only the selected runs), or `ignore`.
+- **Custom blocks** take part through `bt.useSelection()`; the page relays the selection between the
+  sandboxed iframes.
+- **Clearing**: Escape or a click on empty space. The selection is kept in the URL, so a link
+  reproduces it.
+
+### Behavior with one run, many runs and no data
+
+Views are inherited down to single runs and into folders their author never saw, so every block
+defines what it does in those cases:
+
+| Situation | Behavior |
+|---|---|
+| no run in scope logs the field or key | one-line notice naming what is missing |
+| a single run | curve blocks, `stat`, `table`, logged-data and context blocks render normally; `scatter`, `bar`, `heatmap` and `parallel` show a notice that they compare runs |
+| more than about eight curves | rendered, plus a `validate` lint suggesting `color`, `facet`, `group` or `seeds` |
+| more rows than `limit` | the first rows, plus a count of the rest |
+| a running run | rendered from current data; values that can still change are marked |
+
+### Schema and descriptions
+
+Every block is a msgspec struct; together they form one tagged union, and the JSON schema served to
+agents is generated from it. Each block's schema carries a description written for agents:
+
+```yaml
+line:
+  description: >
+    Curves of one or more metrics over steps (or time, or another metric such as epoch), one per
+    run. Use for training dynamics: convergence, instabilities, comparing settings over time.
+    Not for one value per run (use scatter or bar) or for more than about eight runs without
+    color, facet, group or seeds.
+```
+
+### What a block compiles to
+
+YAML blocks are not rendered directly. Each compiles to declared queries ([layer 3](03-index.md))
+plus a kit component; for example, `line: {y: val/loss, color: config.lr}` becomes a `series` query
+for `val/loss` over the block's scope and a `bt.chart.Line` with `color: "config.lr"`. That is why the
+YAML form and the kit form behave identically, and why `validate` can check a YAML block exactly like
+custom code.
+
+## The `bt` kit API
+
+The kit is a small, versioned JavaScript API. A custom block declares the major version it was
+written for (`kit: 1` next to `code:`); Beamtime keeps serving older majors as long as blocks use
+them.
+
+### Entry point
+
+```js
+export default function render(root) { ... }
+```
+
+`render` is called once with the block's root element. Re-rendering on data changes is handled by
+the kit's hooks and component handles, not by calling `render` again.
+
+### Data
+
+| Function | Returns |
+|---|---|
+| `bt.useData(name, values?)` | Preact hook: the result of a declared query; with `values` for placeholder queries. Re-renders on live updates. |
+| `bt.data(name)` | the current result of a prefetched query, synchronously |
+| `bt.fetch(name, values)` | a promise for a placeholder query, for plain DOM code |
+| `bt.subscribe(name, callback)` | calls `callback(result)` on every update; returns an unsubscribe function |
+
+Every result has the shape of its query kind in [layer 3](03-index.md#answers) plus `status`
+(`ready`, `loading` for placeholder queries in flight, `error`) and `meta` (freshness, downsampled or
+not, truncated or not). Runs results come as `{columns, rows}` with rows as objects keyed by field;
+series results as a list of curves `{run, key, group, x, y}` or, when aggregated or downsampled,
+`{x, min, max, last, mean, count}`.
+
+### Components
+
+`bt.ui` (layout and tables) and `bt.chart` (charts) contain every built-in block as a Preact
+component with the same props as its YAML form; component names are PascalCase (`bt.ui.Table`,
+`bt.chart.Line`). Instead of a declared query generated from YAML, components take their data as a
+prop:
+
+```js
+html`<${bt.chart.Line} data=${bt.useData("curves")} y="val/loss" color="config.lr" />`
+```
+
+Interactive components report events: `onSelect(row)` for tables, scatter, heatmap and parallel
+coordinates; `onHover(item)` for charts. They also take part in the view's shared selection (see
+[Linking blocks](#linking-blocks)), which custom code reads and sets with
+`const [selected, setSelected] = bt.useSelection()` (a set of run ids).
+
+For code without Preact, every component also exists as a function returning a handle:
+
+```js
+const table = bt.ui.table(el, {data: bt.data("runs"), columns: ["run.name", "config.lr"]});
+table.update({sort: ["-config.lr"]});
+table.destroy();
+```
+
+### Theme and formatting
+
+| Function | Purpose |
+|---|---|
+| `bt.theme.tokens` | semantic colors (`fg`, `muted`, `bg`, `surface`, `grid`, `accent`, `good`, `bad`, `warn`), font sizes and spacing |
+| `bt.theme.runColor(id)` | the run's color, identical in every block and view |
+| `bt.theme.groupColor(field, value)` | a stable color for a group value |
+| `bt.theme.scale(kind)` | color scales: `sequential`, `diverging`, `categorical` |
+| `bt.theme.mode`, `bt.theme.onChange(cb)` | light or dark, and a callback when it switches |
+| `bt.fmt.value(field, v)` | a value formatted with the view's `metrics` config (unit, precision) |
+| `bt.fmt.delta(field, v)` | a signed difference, colored by `higher_is_better` |
+| `bt.fmt.step(n)`, `bt.fmt.duration(s)` | steps and durations in readable form |
+| `bt.label(field)` | the display label of a field or metric key |
+
+The same tokens are available as CSS variables (`--bt-fg`, `--bt-accent`, …) for plain HTML and SVG.
+
+### Vega-Lite, navigation and size
+
+| Function | Purpose |
+|---|---|
+| `bt.plot(el, spec, {data})` | renders a Vega-Lite spec with the theme's `config` merged in; `data` maps dataset names to query results |
+| `bt.link.run(id)`, `bt.link.folder(path)` | URLs for links to runs and folders, opened in the main window |
+| `bt.useSize()`, `bt.size` | the block's current width; the iframe's height follows its content |
+| `bt.warn(message)` | a warning shown in `validate` results and, in the UI, on the block |
+| `bt.useSelection()`, `bt.selection` | the view's shared run selection, as a hook and as `{get, set, subscribe}` |
+
+### Libraries
+
+| Name | Contents |
+|---|---|
+| `bt.preact` | `h`, `render`, `html` (htm), hooks (`useState`, `useMemo`, `useEffect`, …) |
+| `bt.lib.vega`, `bt.lib.vegaLite` | Vega and Vega-Lite |
+| `bt.lib.d3` | D3 |
+| `bt.lib.uplot` | uPlot, for dense interactive time series |
+| `bt.lib.katex` | KaTeX, for formulas |
+
 ## Block library
 
 Custom blocks that prove useful become **library blocks**: named, described and parameterized, and
@@ -231,6 +472,7 @@ queries:
   runs:   {runs: {select: [run.id, $x, $y, $value]}}
   detail: {series: {from: $run, y: $curves}}      # $run remains a runtime placeholder
 code: code/3f9a21c0-phase-map.js
+kit: 1
 derived_from: null                         # set when forked from another block
 ```
 
@@ -413,7 +655,8 @@ like every write.
      folders their author never saw.
 
    In each scope: no exceptions, no console errors, rendering within a time limit, no blank blocks,
-   and placeholder queries exercised once with example values from the folder. The most dangerous
+   placeholder queries exercised once with example values from the folder, and the shared
+   selection set once to a run from the folder, so highlighting code runs too. The most dangerous
    failure of free code is working exactly where it was written and breaking elsewhere; this stage
    targets it.
 3. **Layout and design checks**, measured in the browser without a model: content overflowing its
@@ -482,6 +725,9 @@ empirically, such as examples versus rules, or whether a second screenshot round
 - `repeat` for blocks and `facet`, `color`, `group`, `seeds` for charts are in v1; params come later.
 - Views are nested trees with optional ids.
 - Baselines are first-class, with optional matching.
+- The built-in catalog has about 25 blocks, each usable in YAML and as a kit component with the same
+  props, including `importance` (correlation and η² per config field).
+- Blocks are linked through one shared run selection per view, in v1.
 - Reusable blocks form a project library in `blocks/` folders, inherited down the tree and used like
   widgets. Built-in widgets are the built-in library on the same kit.
 - Views are pinned to block versions (`uses`, written on save). Upgrades are deliberate, per view

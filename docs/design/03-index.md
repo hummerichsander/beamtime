@@ -243,7 +243,7 @@ where:
 
 ### Query kinds
 
-There are six kinds of queries. All share the selection above.
+There are seven kinds of queries. All share the selection above.
 
 **`keys`**: what exists in a selection. This is the first call an agent makes in an unfamiliar
 folder.
@@ -316,6 +316,16 @@ folders: {from: ., depth: 2}
 
 Returns each group with its proposal statement, check, current verdict and run counts by status.
 
+**`importance`**: how strongly config fields relate to a target metric.
+
+```yaml
+importance: {from: scaling/lr-sweep, target: metric.val/acc.max, fields: [config.lr, config.warmup]}
+```
+
+Returns, per field, the Spearman rank correlation with the target (numeric fields) and the share of
+the target's variance explained by grouping on the field (η², numeric fields in quantile bins), plus
+the number of runs. Without `fields`, every config key that varies in scope is used.
+
 ### Answers
 
 - **One JSON shape per kind**, columnar for tables and curves (`{"columns": [...], "rows": [...]}`,
@@ -342,8 +352,8 @@ beamtime query query.yaml          # or --json '{...}': the object form directly
 Condition strings use `= != < <= > >=`, `~` for glob, and `in` with a comma list. Output is a
 readable table by default, `--json` gives the canonical answer.
 
-MCP has one tool per kind (`keys`, `runs`, `series`, `data`, `timeline`, `folders`), each taking
-the object form. Separate tools give agents a small, precise schema for each.
+MCP has one tool per kind (`keys`, `runs`, `series`, `data`, `timeline`, `folders`, `importance`),
+each taking the object form. Separate tools give agents a small, precise schema for each.
 
 ## Decisions
 
