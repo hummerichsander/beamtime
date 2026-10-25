@@ -3,7 +3,7 @@
 Status: **draft, under discussion**
 
 The storage format is the contract every other layer builds on. The SDK writes it, the index reads
-it, sync copies it, and agents `cat` and `grep` it directly. It has to work on a laptop, a
+it, remotes serve it (layer 4), and agents `cat` and `grep` it directly. It has to work on a laptop, a
 workstation and a cluster filesystem (Lustre, GPFS, NFS) without a server or database.
 
 ## Scope
@@ -20,7 +20,8 @@ pick hyperparameters or talk to job schedulers. Beamtime only reads what the env
    and can be rebuilt with `beamtime reindex`.
 3. **Every file has exactly one writer.** No two processes or machines ever modify the same file.
    State that several parties change is stored as new, immutable files, and the latest one wins.
-   This makes concurrent jobs safe without locks and turns sync into a plain union of files.
+   This makes concurrent jobs safe without locks, and lets agents on the cluster and writes sent
+   from the laptop (layer 4) create files side by side without conflicts.
 4. **Append or replace, never edit in place.** Streams are append-only JSONL. Whole-file state is
    written to a temp file and renamed, so readers never see a half-written file.
 5. **Machine-written files start with `_`; authored files don't.** Everything Beamtime writes is
@@ -47,9 +48,13 @@ my-repo/
 # beamtime.yaml
 logdirs: [beamtime]                      # scanned recursively for runs, default [beamtime]
 remotes:                                 # layer 4
-  cluster: user@login.cluster.de:/scratch/me/my-repo/beamtime
+  cluster:
+    host: cluster                        # ssh host alias
+    path: /scratch/{user}/my-repo/beamtime
 ```
 
+- `beamtime.local.yaml` next to it (gitignored, same schema) holds personal overrides such as
+  remote paths.
 - The root is the nearest directory with `beamtime.yaml`, else the git root, else the working
   directory.
 - `BEAMTIME_LOGDIR` overrides where new runs go, e.g. scratch space on a cluster.
@@ -261,7 +266,7 @@ One JSON object per `log()` call:
 - Each line is written with a single `write()` and flushed periodically. A reader ignores a trailing
   line without newline (the writer is mid-write or was killed).
 
-Size check: 100k steps × 30 keys is about 50 MB of JSONL. That is fine to append, sync and parse
+Size check: 100k steps × 30 keys is about 50 MB of JSONL. That is fine to append, transfer and parse
 incrementally; the index reads from the last byte offset it has seen.
 
 ### `_data.jsonl` and `_data/`
@@ -346,9 +351,9 @@ add them when they show a card (layer 3).
 ```
 
 Small files are copied into `artifacts/`. Large ones are stored by reference (`uri`) and never
-copied or synced; the reference records where they live. Checkpoints written by Lightning land in
+copied or pulled; the reference records where they live. Checkpoints written by Lightning land in
 `checkpoints/` inside the run directory (layer 2); they are listed by reference too and excluded
-from sync.
+from pulls.
 
 ## Proposals
 

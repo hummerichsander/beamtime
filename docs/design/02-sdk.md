@@ -262,7 +262,7 @@ Details that matter:
   `global_step`; equal steps are allowed, only decreasing ones are dropped.
 - **Checkpointing follows Lightning's rules.** Without a `dirpath`, `ModelCheckpoint` saves to
   `<run>/checkpoints/`, as with Lightning's own loggers; an explicit `dirpath` wins. Either way the
-  checkpoints are listed by reference in `_artifacts.jsonl` and excluded from sync.
+  checkpoints are listed by reference in `_artifacts.jsonl` and excluded from pulls.
 - **SLURM requeue keeps working on Lightning's side.** `SLURMEnvironment(auto_requeue=True)`
   handles `SIGUSR1`, saves an HPC checkpoint and requeues the job. Lightning composes its signal
   handlers with existing ones, so Beamtime's handlers stay active: `SIGUSR1` is recorded as a

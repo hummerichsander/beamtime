@@ -150,7 +150,8 @@ precomputed structure needs maintaining.
 The cache only learns about new lines when a process reads them in. Beamtime has one long-running
 process for that, `beamtime serve`:
 
-- **`beamtime serve`** runs the web UI, the indexer and sync (layer 4) for one root.
+- **`beamtime serve`** runs the web UI, the indexer and the connections to remotes (layer 4) for
+  one root.
   `beamtime serve --no-ui` runs the same without the web UI, as a pure daemon.
 - **While it runs**, it polls running runs for new lines (stat calls every few seconds, only for
   runs whose status is `running`, since every stat loads a cluster filesystem's metadata server)
@@ -168,7 +169,7 @@ The daemon writes `~/.cache/beamtime/<root-hash>/serve.json` with its pid, port,
 and a heartbeat. From that:
 
 - `beamtime status` reports whether the daemon runs for this root, since when, with which version,
-  and when each remote last synced. MCP exposes the same as a tool.
+  and which remotes are connected or unreachable. MCP exposes the same as a tool.
 - Every CLI and MCP answer carries a short freshness line: `live (daemon running)` or
   `catch-up only (daemon not running)`.
 - Agents are instructed (layer 7) to check the status before working with live runs and, if the
@@ -343,7 +344,7 @@ the object form. Separate tools give agents a small, precise schema for each.
 
 - Metric store: SQLite for metadata, raw column files per (run, metric) for curves, read with mmap.
 - Plain formats in v1: int64 steps and float64 values, no compression.
-- `beamtime serve` is the daemon (web UI, indexer, sync); `--no-ui` runs it headless. The CLI and
+- `beamtime serve` is the daemon (web UI, indexer, remote connections); `--no-ui` runs it headless. The CLI and
   MCP catch up within a time budget when it isn't running.
 - Agents can check the daemon with `beamtime status` and ask the user to start it.
 - One-shot CLI and MCP calls use a pure-Python reader; NumPy is used only by `serve`.
@@ -369,8 +370,5 @@ the object form. Separate tools give agents a small, precise schema for each.
 
 ## Open questions
 
-1. **Sync and indexing.** The daemon owns both pulling remotes and indexing, so it can index the
-   runs rsync reports as changed right after each pull. The `lost` status of remote runs then needs
-   to be measured against the last successful sync of their remote, not against the current time,
-   so a stalled sync shows "unknown, last synced 20 min ago" instead of marking healthy runs as
-   lost. Settle with layer 4?
+None for this layer. The earlier question about sync and indexing is resolved by layer 4: each
+machine indexes its own files, and status, including `lost`, is computed where the files are.
