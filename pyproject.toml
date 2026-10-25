@@ -1,8 +1,10 @@
 [project]
 name = "beamtime"
 version = "0.0.1"
-description = "Agents-first experiment logging: runs with hypotheses, results and agent-built report pages."
+description = "Agents-first experiment logging: runs with proposals and verdicts, and views built by agents."
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [
     { name = "hummerichsander", email = "sander.hummerich@gmx.de" }
 ]
