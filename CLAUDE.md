@@ -194,14 +194,16 @@ before implementation. Do not implement a layer whose design is not settled.
   dirs (default `beamtime/`) and are found by their `_run.json`. Folders are the only hierarchy:
   directions and sweeps are just groups of runs.
 - **Machine-written files start with `_`** (`_run.json`, `_metrics.jsonl`); authored files
-  (`proposal.yaml`, `notes/`, `view/`) don't.
+  (`proposal/`, `notes/`, `view/`, `memory/`) don't.
 - **`_output.log` is always captured**; there is no off switch.
 - **Runs record data, views present it.** Runs log scalars, tables, images and text; charts exist
   only in views. The run card (`_run_card.json`) is each run's compact summary, and
   `_preview.json` holds downsampled curves, so tables and overviews need no index.
-- **Every run has a proposal**, possibly blank, with optional machine-checkable predictions. It
-  freezes once the first metric is logged; notes (a note with a verdict is a result) can be
-  added at any time.
+- **The research record** (see `docs/design/09-research-record.md`): proposals are versioned and
+  frozen before data exists, with an optional plan and named predictions checked by a 95 % bootstrap
+  over seeds by default; notes are immutable (observations, decisions, ideas, questions, verdicts per
+  prediction); a versioned `memory/` compresses the notes for people and agents. Folders have a
+  derived research status (`open`, `proposed`, `running`, `evaluable`, `concluded`).
 - **Local and HPC are equally supported.** Runs write files only; compute nodes need no network.
   Remotes are the source of truth for their data, and data flows one way (see
   `docs/design/04-remotes.md`): the local `serve` queries a remote `serve --stdio` over ssh and

@@ -26,7 +26,7 @@ pick hyperparameters or talk to job schedulers. Beamtime only reads what the env
    written to a temp file and renamed, so readers never see a half-written file.
 5. **Machine-written files start with `_`; authored files don't.** Everything Beamtime writes is
    prefixed (`_run.json`, `_metrics.jsonl`) and must not be edited by hand. Everything people and
-   agents write (`proposal.yaml`, `notes/`, `view/`) has no prefix. This matches the reserved
+   agents write (`proposal/`, `notes/`, `view/`, `memory/`) has no prefix. This matches the reserved
    `_step` and `_t` keys inside the files.
 6. **Machine-written files are JSON, authored files are YAML or Markdown.** Config values come from
    Python dicts and must round-trip exactly. Proposals and views are structured and written as YAML;
@@ -101,11 +101,12 @@ groups:
 ```
 beamtime/
   scaling/                          # group: a research direction
-    proposal.yaml
+    proposal/                       # versions of the direction's proposal
     view/                           # shown here and inherited by everything below
     notes/
+    memory/                         # compressed summary of the direction
     lr-sweep/                       # group: a sweep
-      proposal.yaml
+      proposal/
       view/                         # overrides the inherited one for this sweep
       20261024-101532-k3m9xq2a/     # run
       20261024-101533-p2x8fq1c/     # run
@@ -113,13 +114,16 @@ beamtime/
     bpe-vs-unigram/ …
 ```
 
-Every folder, run or group, can carry the same three kinds of authored files:
+Every folder, run or group, can carry the same kinds of authored files:
 
 | File | Meaning |
 |---|---|
-| `proposal.yaml` | What is expected for the runs in this folder, and why. |
-| `notes/<ts>-<rand>.md` | Comments, decisions, dead ends, and verdicts on the proposal. |
+| `proposal/<ts>-<rand>.yaml` | What is expected for the runs in this folder, and why; versioned, frozen once runs start. |
+| `notes/<ts>-<rand>.md` | Observations, decisions, ideas, questions and verdicts. |
 | `view/<ts>-<rand>.yaml` | The folder's view; the newest version is shown. |
+| `memory/<ts>-<rand>.md` | A compressed summary of the folder's notes (groups only). |
+
+Their content and semantics are specified in [the research record](09-research-record.md).
 
 This covers what other tools model as separate concepts:
 
@@ -129,7 +133,8 @@ This covers what other tools model as separate concepts:
 - **The journal** is the notes on a group, or on the log dir itself for project-wide entries.
 - **Reports and dashboards** are views, one per folder (see [Views](#views)).
 - **Reusable view blocks** live in `blocks/` folders, inherited down the tree like views (layer 5).
-  `notes/`, `view/` and `blocks/` are reserved folder names and never count as groups.
+  `proposal/`, `notes/`, `view/`, `memory/`, `blocks/` and `_frozen/` are reserved folder names and
+  never count as groups.
 - **Derived data** is any data file stored with the view that uses it.
 
 The **timeline** is not stored. The index builds it from run events and notes across all folders.
@@ -223,7 +228,7 @@ data file (the script or notebook that made it) is recorded in a note.
   _output.rank<N>.log       # output of other ranks (layer 2)        [rank N, append]
   _artifacts.jsonl          # files produced, by copy or reference   [run, append]
   _env/                     # git.diff, packages.txt                 [run, create]
-  proposal.yaml             # what we expect and why                 [authored, frozen]
+  proposal/                 # what we expect and why, versioned      [authored, create, frozen]
   notes/                    # comments and verdicts                  [authored, create]
   view/                     # overrides the inherited view           [authored, create]
 ```
@@ -232,7 +237,7 @@ data file (the script or notebook that made it) is recorded in a note.
   ends.
 - **Authored** files are written by humans or agents, from any machine. Notes and views are new
   files with unique names, so files written on the laptop and on the cluster never conflict. A
-  run's `proposal.yaml` is written at `init` and frozen at the first logged metric.
+  run's first proposal version is written at `init` and frozen at the first logged metric.
 - Directories written by other tools (e.g. Lightning's `checkpoints/`) keep their own names.
 
 ### `_run.json`
@@ -250,8 +255,6 @@ data file (the script or notebook that made it) is recorded in a note.
   "attempts": [
     {"started_at": "2026-10-24T10:15:32Z", "host": "gpu042", "scheduler_job_id": "8812345"}
   ],
-  "proposal_frozen_at": "2026-10-24T10:15:41Z",
-  "proposal_sha256": "9f2c…",
   "host": {"hostname": "gpu042", "user": "ada", "os": "Linux", "python": "3.11.9"},
   "scheduler": {"kind": "slurm", "job_id": "8812345", "array_job_id": "8812300",
                 "array_task_id": "45", "partition": "gpu", "nodes": "gpu042"},
@@ -413,142 +416,20 @@ copied or pulled; the reference records where they live. Checkpoints written by 
 `checkpoints/` inside the run directory (layer 2); they are listed by reference too and excluded
 from pulls.
 
-## Proposals
+## Proposals, notes and memory
 
-A proposal states what a folder's runs are expected to show, and why. It can sit on a run or on a
-group; on a group it covers all runs below it.
+Proposals, the automatic check, notes and memory form the research record, specified in
+[09-research-record.md](09-research-record.md). In short:
 
-```yaml
-statement: Warmup over 500 steps removes the loss spike at lr=3e-4.
-rationale: The spike at step 120 matches the Adam second-moment estimate still warming up.
-predictions:
-  - name: no-spike
-    reduce: {metric: train/loss, stat: max, steps: [100, 300]}
-    op: "<"
-    value: 2.5
-  - name: beats-baseline
-    reduce: {metric: val/acc, stat: max}
-    op: ">"
-    ref: {run: 20261020-091204-a7c2kd9e}
-    margin: 0.005
-```
-
-A blank proposal is `statement: ""` with no predictions. Every run has one; groups have one only if
-someone writes it.
-
-### Freezing
-
-A proposal can be edited until data exists that it makes claims about. Then it is frozen, and its
-predictions with it, so they cannot be adjusted after seeing results.
-
-- **Run:** frozen when the run logs its first metric. The SDK records time and SHA-256 in
-  `_run.json`.
-- **Group:** frozen when the next run below it starts. That run's SDK creates `_frozen.json` next to
-  the proposal (exclusive create, so concurrent jobs don't clash) with time and SHA-256.
-
-A group proposal written after some of its runs already exist is only checked against runs that
-started after the freeze. Claims about data that was already visible are not predictions.
-
-Any later edit shows up as a hash mismatch.
-
-### Predictions
-
-Every prediction is evaluated in the same four steps:
-
-1. **Select** the runs it is about: all runs below the folder that started after the freeze,
-   optionally narrowed by `select` (status, tags, config values). On a run, this is the run itself.
-2. **Reduce** each run to one number: `reduce: {metric, stat, steps}` takes the metric's series,
-   restricts it to the optional `steps: [start, end]` window, and reduces it with `stat` (`last`,
-   `min`, `max`, `mean`).
-3. **Merge seeds** (groups only, optional): with `seeds: config.seed`, runs whose configs are
-   identical except for that key are merged into one point, the mean of their numbers. One lucky
-   seed then cannot confirm a claim.
-4. **Test** the resulting points with one of four tests:
-
-| `test` | Claim | Fields |
-|---|---|---|
-| `each` (default) | every point satisfies the comparison | `op` (`<`, `<=`, `>`, `>=`), and `value` or `ref` + optional `margin` |
-| `trend` | the points rise or fall when ordered by a config key | `over: config.<key>`, `direction: increasing \| decreasing`, optional `tolerance` (allowed violation between neighbours) |
-| `best` | the best point has a given config | `best: max \| min`, `where: {config.<key>: value}` |
-| `compare` | subset `a` beats subset `b` | `a` and `b` (config filters), `op`, optional `margin`; compares the means of the two subsets |
-
-`ref: {run: <id>}` compares against another run's number, reduced the same way. On a run, only
-`each` makes sense, so `test` is omitted.
-
-A group example with the full pipeline:
-
-```yaml
-statement: Warmup improves peak validation accuracy across model sizes.
-predictions:
-  - name: warmup-helps
-    select: {status: finished}
-    reduce: {metric: val/acc, stat: max}
-    seeds: config.seed
-    test: compare
-    a: {config.warmup: 500}
-    b: {config.warmup: 0}
-    op: ">"
-    margin: 0.005
-  - name: bigger-is-better
-    reduce: {metric: val/loss, stat: last}
-    seeds: config.seed
-    test: trend
-    over: config.n_params
-    direction: decreasing
-    tolerance: 0.01
-```
-
-### Evaluation
-
-Each prediction evaluates to `pass`, `fail` or `pending`:
-
-- `pending` while any selected run is still going, a metric is not logged yet, or a `ref` run is
-  missing.
-- Selected runs that `failed`, were `killed` or are `lost` are left out of the test and reported
-  next to the result, so a claim cannot pass silently by losing its counterexamples.
-- The combined **check** of a proposal is `pass` if all predictions pass, `fail` if any fails, and
-  `pending` otherwise.
-
-The check is computed by the index and never stored, because it follows deterministically from the
-frozen proposal and the data. It is a proposal of its own: the verdict of record is a note with a
-verdict, written by a human or agent, which may disagree with the check and say why.
-
-## Notes
-
-Notes are the running record of a folder: comments, decisions, dead ends, and verdicts. They follow
-the format of Claude Code's memory files: Markdown with a YAML frontmatter, one note per file.
-
-```markdown
----
-description: Warmup removes the loss spike; val/acc peaks at 0.931.
-type: verdict
-verdict: confirmed
-evidence:
-  - {metric: val/acc, stat: max, value: 0.931}
-author: claude-opus-5-5
-user: ada
----
-
-No spike in any of the 5 seeds. The baseline [[20261020-091204-a7c2kd9e]] spikes at step 120 in
-every seed. Next: check whether 200 warmup steps suffice, see [[scaling/warmup-length]].
-```
-
-| Field | Meaning |
-|---|---|
-| `description` | One line, required. Shown in the timeline and listings, and what agents read to decide whether the body is worth loading. |
-| `type` | `observation`, `decision`, `idea` or `verdict`. |
-| `verdict` | Only for `type: verdict`: `confirmed`, `refuted` or `inconclusive`. |
-| `evidence` | Optional, for verdicts: the numbers the verdict rests on. |
-| `author` | Who wrote it: a person or a model id. |
-| `user` | The account it was written for: the local user in v1, the authenticated user on a server (layer 6). Views and library blocks carry `author` and `user` as well. |
-
-- The body is optional and short. Most notes are a description plus a few lines.
-- `[[...]]` links to a run id, a folder path below the log dir, or another note's file name. The
-  index resolves links, so the UI can show backlinks.
-- The newest `verdict` note is the folder's current verdict on its proposal; older ones remain as
-  history.
-- Unlike memory files, notes are never edited or deleted. A correction is a new note, which keeps
-  the one-writer rule and the history.
+- **Proposals** are versioned files in `proposal/`, on groups and runs. A version freezes when the
+  next run below the folder starts (on a run: at its first metric); the freezing run writes
+  `_frozen/<version>.json`. A frozen version is superseded by a new one with a reason, never edited.
+- **Predictions** are named and either automatic (select, reduce, merge seeds, test, with a 95 %
+  bootstrap over seeds by default) or manual.
+- **The check** is computed by the index and never stored.
+- **Notes** are immutable Markdown files with frontmatter in `notes/`: observations, decisions, ideas,
+  questions and verdicts, linked to runs, folders, notes, predictions and view versions.
+- **Memory** is a versioned, compressed summary in `memory/`, with links to the notes it condenses.
 
 ## Write protocol
 
@@ -569,17 +450,16 @@ old runs. Unknown fields are kept, never dropped.
 - The root is the user's repo; runs live in user-chosen folders under log dirs, found by
   `_run.json`.
 - Folders are the only hierarchy. Projects, sweeps and the journal are groups and their notes.
-- Machine-written files start with `_`; authored files (`proposal.yaml`, `notes/`, `view/`) don't.
+- Machine-written files start with `_`; authored files (`proposal/`, `notes/`, `view/`, `memory/`)
+  don't.
 - Beamtime is not tied to a job scheduler; scheduler details are one optional `scheduler` field.
-- Every folder can carry a proposal, notes and a view. Notes are Markdown with frontmatter, like
-  Claude Code memory files; a note of type `verdict` is a result.
+- Every folder can carry proposal versions, notes and a view; groups can carry a memory. Their
+  semantics are specified in [the research record](09-research-record.md).
 - Views are inherited by subgroups and runs and rendered relative to the viewed folder; any folder
   can override. Each save is a new version. A fixed frame is owned by Beamtime; the body is free,
   built from declarative widgets and sandboxed custom code blocks.
 - View data comes from relative queries plus Vega-Lite transforms; data files are the exception,
   immutable and tied to the defining folder.
-- Proposals carry machine-checkable predictions, evaluated as select, reduce, merge seeds, test. The
-  index computes a check; the verdict of record is a note with a verdict.
 - The run card (`_run_card.json`) is a compact summary of each run for agents and run tables.
 - The preview (`_preview.json`) holds 256–512 min/max/last/mean buckets per metric, written by the
   run, so overview charts need no index.
@@ -588,11 +468,3 @@ old runs. Unknown fields are kept, never dropped.
 - Runs record data, views present it. Runs log scalars, tables, images and text; histograms are
   tables, and charts exist only in views.
 - Beamtime records experiments and never runs them.
-
-## To revisit
-
-- **Proposals, predictions and notes** get a thorough design pass of their own later. The sections
-  above fix where these files live, how they freeze and how predictions are evaluated; field names
-  are provisional.
-- **Agent instructions for views** (design rules, preferred libraries, the validate-and-screenshot
-  loop) are designed with layer 5.

@@ -274,7 +274,8 @@ props:
 
 | Block | Purpose | Key props |
 |---|---|---|
-| `proposal` | the folder's proposal: statement, each prediction with its check, current verdict | `of` (default `.`) |
+| `proposal` | the folder's proposal: statement, each prediction with result, effect and interval, plan progress, research status, current verdict, superseded versions | `of` (default `.`) |
+| `memory` | the folder's memory, rendered with its links | `of` (default `.`) |
 | `folders` | the child groups with proposal, check, verdict, run counts and a chosen field | `field`, `depth` |
 | `timeline` | notes and run events in time order | `types`, `limit` |
 | `note` | a short text, optionally as a callout (`info`, `warning`, `success`) | `text`, `kind` |

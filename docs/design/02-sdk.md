@@ -59,13 +59,15 @@ run or `None`.
    `<root>/beamtime`) and the run folder `dir` below it. An absolute `dir` is used as is.
 2. Create a new run directory with a fresh id, or continue the run given by `resume` (see
    [Resume](#resume)).
-3. Write `_run.json`, `_config.json`, `proposal.yaml` and the `_env/` files.
-4. Freeze every unfrozen group proposal between the run folder and the log dir by creating its
-   `_frozen.json`.
+3. Write `_run.json`, `_config.json`, the run's first proposal version (`proposal/<ts>.yaml`) and
+   the `_env/` files.
+4. Freeze the newest unfrozen proposal version of every group between the run folder and the log dir
+   by creating `_frozen/<version>.json` (exclusive create; see
+   [the research record](09-research-record.md#versions)).
 5. Start output capture and the heartbeat thread, install exit and signal hooks.
 
-The `proposal` argument accepts a plain string (taken as the statement), a dict in the
-`proposal.yaml` shape, or a path to such a YAML file, which lets an agent write the proposal before
+The `proposal` argument accepts a plain string (taken as the statement), a dict in the proposal
+shape, or a path to such a YAML file, which lets an agent write the proposal before
 launching a job. `BEAMTIME_PROPOSAL` can point to that file as well, for jobs launched by scripts.
 `None` writes a blank proposal.
 
@@ -79,7 +81,7 @@ run.log(values: dict[str, Any], step: int | None = None) -> None
   `_metrics.jsonl`. Data wrappers go to `_data.jsonl` and `_data/`.
 - Without `step`, the step increments by one per call. With `step`, it must not decrease within an
   attempt; a decreasing step is dropped with a warning (once per key).
-- The first `log` call freezes the run's proposal.
+- The first `log` call freezes the run's proposal version (`_frozen/<version>.json`).
 - Anything that is neither a scalar nor a data wrapper is dropped with a warning.
 
 `.item()` on a GPU tensor forces a device sync. That is the user's cost and the docs say so; the SDK

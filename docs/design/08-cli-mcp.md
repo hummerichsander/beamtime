@@ -54,7 +54,8 @@ everything one can do, the other can too, with the exceptions listed under [Poli
 | `beamtime output <run>` | captured output: `--tail`, `--grep`, `--rank` |
 | `beamtime folders <folder>` | the folder tree with proposals, checks, verdicts and run counts |
 | `beamtime timeline <folder>` | notes and events in time order: `--types`, `--since` |
-| `beamtime notes <folder>` | notes with descriptions; `--full` adds bodies |
+| `beamtime notes <folder>` | notes with descriptions; `--open` for open questions, `--full` adds bodies |
+| `beamtime memory <folder>` | the memory of the folder and every folder above it, with a staleness hint |
 | `beamtime check <folder>` | the proposal's predictions and their current results |
 | `beamtime importance <folder> --target <field>` | hyperparameter importance |
 | `beamtime query <file>` / `--json '{…}'` | any query in its object form ([layer 3](03-index.md#query-language)) |
@@ -63,8 +64,9 @@ everything one can do, the other can too, with the exceptions listed under [Poli
 
 | Command | Does |
 |---|---|
-| `beamtime note <folder>` | adds a note: `--type`, `--description`, `--verdict`, body from stdin |
-| `beamtime proposal <folder> [file]` | shows or sets a proposal; refuses once frozen |
+| `beamtime note <folder>` | adds a note: `--type`, `--description`, `--resolves`, `--supersedes`, `--completes`; verdicts take `--verdict <prediction>=<verdict>` and snapshot the check; body from stdin |
+| `beamtime proposal <folder> [file]` | shows the current proposal version or saves a new one; a frozen version requires `--supersedes-reason` |
+| `beamtime memory update <folder> [file]` | saves a new memory version |
 | `beamtime mv <run> <folder>` | moves a run between folders |
 
 ### Views and blocks
@@ -133,9 +135,9 @@ everything one can do, the other can too, with the exceptions listed under [Poli
 
 | Group | Tools |
 |---|---|
-| Orientation | `status`, `guide`, `keys`, `folders` |
+| Orientation | `status`, `guide`, `memory`, `keys`, `folders` |
 | Reading | `runs`, `card`, `series`, `data`, `output`, `timeline`, `notes`, `check`, `importance` |
-| Writing | `note_add`, `proposal_set` |
+| Writing | `note_add`, `proposal_set`, `memory_update` |
 | Views | `view_new`, `view_validate`, `view_render`, `view_save`, `view_show`, `view_outdated`, `view_upgrade` |
 | Blocks | `block_list`, `block_promote`, `block_fork`, `block_validate`, `block_save` |
 | Export | `export` |
@@ -162,6 +164,7 @@ tools:
 | `verdict` | evaluate a proposal against its runs and write a verdict note |
 | `compare` | compare two runs, groups or folders: config differences, metric deltas, and a temporary comparison view if it helps |
 | `report` | summarize a folder for others, e.g. a group meeting: findings, verdicts, open questions, as a view or a PDF export |
+| `memory` | update and compact a folder's memory from the notes added since it was last written |
 
 ### Token budgets
 
@@ -209,5 +212,5 @@ own agent instructions:
   tools, prompts as slash commands, and token budgets with cursors.
 - Agents never install packages, change settings, start servers or move runs, neither through MCP
   nor through their shell; they give the user the command to enter. Every agent write is additive.
-- Seven prompts: `view`, `proposal`, `review`, `debug`, `verdict`, `compare`, `report`.
+- Eight prompts: `view`, `proposal`, `review`, `debug`, `verdict`, `compare`, `report`, `memory`.
 - `beamtime init` and `beamtime mcp install` set up projects and agent clients.
