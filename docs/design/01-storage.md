@@ -493,6 +493,7 @@ verdict: confirmed
 evidence:
   - {metric: val/acc, stat: max, value: 0.931}
 author: claude-opus-5-5
+user: ada
 ---
 
 No spike in any of the 5 seeds. The baseline [[20261020-091204-a7c2kd9e]] spikes at step 120 in
@@ -505,7 +506,8 @@ every seed. Next: check whether 200 warmup steps suffice, see [[scaling/warmup-l
 | `type` | `observation`, `decision`, `idea` or `verdict`. |
 | `verdict` | Only for `type: verdict`: `confirmed`, `refuted` or `inconclusive`. |
 | `evidence` | Optional, for verdicts: the numbers the verdict rests on. |
-| `author` | A person or a model id. |
+| `author` | Who wrote it: a person or a model id. |
+| `user` | The account it was written for: the local user in v1, the authenticated user on a server (layer 6). Views and library blocks carry `author` and `user` as well. |
 
 - The body is optional and short. Most notes are a description plus a few lines.
 - `[[...]]` links to a run id, a folder path below the log dir, or another note's file name. The

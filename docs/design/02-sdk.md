@@ -15,7 +15,10 @@ The SDK is what training code imports. It writes the storage format from
 3. **Light to import.** The SDK depends only on the standard library and PyYAML. NumPy, Pillow,
    PyArrow and Matplotlib are imported lazily, only when a data wrapper needs them. Server, UI and MCP
    dependencies live in extras (`beamtime[serve]`).
-4. **The file format is the API for everything that isn't Python.** A Julia simulation or a shell
+4. **No network code.** Runs only ever write local files. Uploading to a self-hosted server
+   ([layer 6](06-server.md)) is a separate component that tails those files, so a run never
+   depends on the network.
+5. **The file format is the API for everything that isn't Python.** A Julia simulation or a shell
    script can write `_run.json` and `_metrics.jsonl` itself. The SDK is a convenience, not a gate.
 
 ## API

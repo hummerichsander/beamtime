@@ -175,7 +175,7 @@ and a heartbeat. From that:
   and which remotes are connected or unreachable. MCP exposes the same as a tool.
 - Every CLI and MCP answer carries a short freshness line: `live (daemon running)` or
   `catch-up only (daemon not running)`.
-- Agents are instructed (layer 7) to check the status before working with live runs and, if the
+- Agents are instructed (layer 8) to check the status before working with live runs and, if the
   daemon is not running, to ask the user to start `beamtime serve --no-ui` rather than starting a
   long-running process themselves.
 

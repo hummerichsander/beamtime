@@ -168,6 +168,12 @@ One API, two transports:
 | `subscribe` | push notifications when runs or folders change, for live views |
 | `files` | list files and read them from an offset, for `pull` |
 
+**Hooks for the server ([layer 6](06-server.md#what-v1-must-provide)).** Every request carries the
+root it targets and an auth context; in v1 there is one root and the context is the local user, who
+may do everything. The `files` operations are specified with offsets (`read(path, offset)` now,
+`append(path, offset, bytes)`, `put` and `create` reserved), so the same protocol serves uploads to a
+server later. Besides stdio and HTTP for the API, MCP is offered over both stdio and HTTP.
+
 The remote's Beamtime version must be compatible: same protocol major version, additive minor
 changes only. A mismatch is reported at `hello` with both versions and the upgrade command.
 

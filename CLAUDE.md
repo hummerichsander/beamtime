@@ -229,6 +229,11 @@ before implementation. Do not implement a layer whose design is not settled.
   files (`CLAUDE.md`, `AGENTS.md`, global files); Beamtime has no instruction file of its own.
 - **Charts render with Vega-Lite** in the browser, using Beamtime's theme. The
   matplotlib/scienceplots rules above apply to static figure export, not to the web UI.
+- **A self-hosted server is a post-v1 feature, designed for now** (see `docs/design/06-server.md`):
+  the same `serve` as a team hub over remotes and as central storage that runs upload to. v1 must
+  keep its hooks: no network code in the SDK, offset-based file operations, an auth context and a
+  root on every API request, `author` and `user` on authored files, MCP over HTTP, and a sandbox
+  built for untrusted views.
 - **Frontends share one core library:** Python SDK, CLI, MCP server, web UI. MCP outputs must be
   token-efficient (summaries, downsampled curves, diffs).
 
