@@ -120,18 +120,14 @@ A view has a fixed frame and a free body:
 
 - **Frame**, owned by Beamtime and identical on every view: folder, proposal with its check, current
   verdict, run status. An agent cannot break it, and every view starts the same way.
-- **Body**, written by the agent: a layout of building blocks, from most to least structured:
-  1. **Widgets**: layout (row, grid, tabs, section) and content (charts, tables, images, stats,
-     notes).
-  2. **Vega-Lite specs** with Beamtime's theme applied, for charts no widget covers.
-  3. **Custom HTML widgets**, sandboxed in an iframe without network access, for anything else.
-     Beamtime injects their data through the same queries and offers a curated set of preferred
-     libraries (Vega-Lite first; others such as uPlot or KaTeX), served locally so views work
-     offline on a cluster login node.
+- **Body**, built freely by the agent from two kinds of blocks, mixed as needed:
+  1. **Widgets**: declarative layout (row, grid, tabs, section) and content (charts, tables,
+     images, stats, notes).
+  2. **Custom blocks**: the agent's own code (an ES module), sandboxed in an iframe without network
+     access, built on Beamtime's `bt` kit with Preact, Vega-Lite and other bundled libraries.
 
-A shared theme keeps the visual language common across all three levels: colors, fonts, and the
-same color for the same run in every chart. The design rules, the preferred libraries and the
-agent instructions are designed in layer 5.
+All data comes through declared queries, and one theme keeps the visual language common: colors,
+fonts, and the same color for the same run everywhere. The details are designed in layer 5.
 
 ### Versions
 
@@ -157,7 +153,7 @@ Building blocks get their data in one of two ways:
    file describes the folder that defines the view, not the viewed folder: when the view is
    inherited, building blocks using it carry a label such as "data from `scaling/`".
 
-Custom HTML widgets are stored the same way, as `view/html/<sha8>-<name>.html`. Provenance of a
+Custom block code is stored the same way, as `view/code/<sha8>-<name>.js`. Provenance of a
 data file (the script or notebook that made it) is recorded in a note.
 
 ## Runs
@@ -542,7 +538,7 @@ old runs. Unknown fields are kept, never dropped.
   Claude Code memory files; a note of type `verdict` is a result.
 - Views are inherited by subgroups and runs and rendered relative to the viewed folder; any folder
   can override. Each save is a new version. A fixed frame is owned by Beamtime; the body is free,
-  from widgets over Vega-Lite to sandboxed custom HTML with preferred libraries.
+  built from declarative widgets and sandboxed custom code blocks.
 - View data comes from relative queries plus Vega-Lite transforms; data files are the exception,
   immutable and tied to the defining folder.
 - Proposals carry machine-checkable predictions, evaluated as select, reduce, merge seeds, test. The

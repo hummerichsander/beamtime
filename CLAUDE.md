@@ -217,13 +217,14 @@ before implementation. Do not implement a layer whose design is not settled.
   `~/.cache/beamtime/`, never in the repo or a log dir.
 - **Views are YAML trees of building blocks**, not markdown, built by agents. Every folder shows
   one: its own or the nearest ancestor's, rendered relative to the viewed folder. Beamtime owns a
-  fixed frame; the body is free, from widgets over Vega-Lite to sandboxed custom HTML with
-  preferred libraries. Building blocks reference data through queries (runs, groups, data files
-  stored with the view) rather than embedding values. Queries and widgets are msgspec
+  fixed frame; the body is built freely from declarative widgets and custom code blocks (ES modules
+  in a sandboxed iframe, on the `bt` kit with Preact/htm). All data comes through declared queries
+  (with placeholders for interaction), never embedded values. `view_validate` renders every draft
+  headless in several scopes before it is saved. Queries and widgets are msgspec
   structs, which give validation and the JSON schema served to agents at a fraction of Pydantic's
   import cost.
-- **Agent instructions come from `beamtime guide`**, which marks its defaults as defaults (e.g. ask
-  the user before using Vega-Lite or HTML widgets). Users override them in their own instruction
+- **Agent instructions come from `beamtime guide`**, which marks its defaults as defaults (e.g.
+  custom blocks may be used without asking). Users override them in their own instruction
   files (`CLAUDE.md`, `AGENTS.md`, global files); Beamtime has no instruction file of its own.
 - **Charts render with Vega-Lite** in the browser, using Beamtime's theme. The
   matplotlib/scienceplots rules above apply to static figure export, not to the web UI.

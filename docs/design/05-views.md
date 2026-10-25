@@ -1,10 +1,11 @@
 # Layer 5: Views
 
-Status: **draft, under discussion.** This part collects prior art and derives principles and a
-first sketch of the view format. Widget catalog, theme, escape hatches, rendering and agent
-instructions follow in later parts.
+Status: **draft, under discussion.** This part covers prior art, principles, the view format,
+custom blocks and the agent loop. The widget catalog, the `bt` kit's API and the theme follow in
+later parts.
 
-A view is what a folder shows: a page built mostly by agents from Beamtime's building blocks.
+A view is what a folder shows: a page that agents build freely, from declarative widgets and from
+their own code.
 [Layer 1](01-storage.md#views) fixes where views live, how they are inherited and versioned, and that
 they get data only through queries ([layer 3](03-index.md#query-language)).
 
@@ -55,38 +56,35 @@ they get data only through queries ([layer 3](03-index.md#query-language)).
 
 ## Principles
 
-1. **The view owns the data context; widgets name fields.** A view's scope is the viewed folder plus
-   view-level filters, so most widgets need no `from` or `where`.
-2. **Widgets express intent; Beamtime produces the chart.** The agent picks a widget and binds
-   fields (`line: {y: val/loss, color: config.lr}`); Beamtime generates the Vega-Lite with correct
-   defaults: step on x, consistent run colors, overplotting control, log scales where requested.
-3. **A small catalog with descriptions.** About 15 widgets, each a msgspec struct in one
-   discriminated union (`type`), no unknown keys, enums for every presentation choice, and a
-   "when to use / when not to use" text in the JSON schema.
-4. **Beamtime owns the look.** No colors, fonts or pixel sizes in a view. Runs keep their color
-   across every widget and page. The same tokens drive widgets, the Vega-Lite `config` and CSS
-   variables for HTML widgets.
-5. **Few layout primitives, no coordinates.** Section, row, auto-fitting grid, tabs (not nested),
-   and repeat. Agents can predict flow layouts without a screenshot; absolute grids cause overlaps
-   and noisy diffs.
-6. **Freedom needs the user's consent.** Widgets are the default. Before using a Vega-Lite or HTML
-   widget, the agent asks the user, saying what it wants to show and why no widget fits. Users can
-   change this default in their own agent instructions (see
-   [Agent instructions](#agent-instructions)). `validate` lists every escape-hatch widget in its
-   summary, so a view's use of them is always visible.
-7. **Strict, deterministic validation before any screenshot.** Errors carry the widget id and a
-   suggested fix. Screenshot critique is a short, checklist-driven second stage.
-8. **Everything addressable.** Every node can carry an `id`, used by validation errors, screenshots
-   and targeted edits.
-9. **Inherited views must degrade gracefully.** A widget whose data doesn't exist in the viewed
-   folder collapses into a one-line notice instead of an empty chart.
+1. **Agents build views freely; robustness comes from contracts, building blocks and tests.** Custom
+   code is a first-class part of a view, not an escape hatch. What keeps views correct and
+   consistent is the data contract (declared queries), Beamtime's kit and theme, the sandbox, and a
+   validation pipeline that renders every view before it is saved.
+2. **The view owns the data context.** A view's scope is the viewed folder plus view-level filters.
+   All data, for widgets and custom code alike, comes through declared queries relative to that
+   scope, so inheritance and live updates work everywhere.
+3. **Two ways to build, freely mixed.** Declarative widgets are the fast path for standard views:
+   the agent states intent (`line: {y: val/loss, color: config.lr}`) and Beamtime produces the chart
+   with correct defaults. Custom blocks are code for everything else. A view may be all widgets, all
+   custom, or both.
+4. **Beamtime owns the look.** One theme drives widgets, the kit, Vega-Lite's `config` and CSS
+   variables. Runs keep their color across every widget, custom block and page. Views contain no
+   colors, fonts or pixel sizes; custom code takes them from the theme.
+5. **Few layout primitives, no coordinates** in the YAML tree: section, row, auto-fitting grid, tabs
+   (not nested) and repeat. Inside a custom block, layout is the agent's.
+6. **Strict, deterministic validation before any screenshot.** Errors carry the block id, the
+   location and a suggested fix.
+7. **Everything addressable.** Every node can carry an `id`, used by validation errors, screenshots
+   and edits.
+8. **Degrade, never break.** A block without data in the viewed folder shows a one-line notice; a
+   custom block that throws shows an error panel; the frame and every other block stay intact.
 
-## A first sketch
+## The view format
 
 ```yaml
 version: 1
-title: Learning-rate sweep
-finding: Warmup removes the loss spike for every learning rate above 1e-4.
+title: Grokking under weight decay
+finding: Generalization jumps once weight decay exceeds 0.1, independent of model size.
 
 filters:
   run.status: {ne: failed}
@@ -96,44 +94,114 @@ metrics:
   train/loss: {label: Training loss, scale: log}
 
 baseline:
-  where: {config.warmup: 0}
-  match: [config.lr, config.seed]
+  where: {config.weight_decay: 0}
+  match: [config.n_params, config.seed]
 
 body:
   - row:
       - stat: {id: best-acc, field: metric.val/acc.max, best: true}
       - stat: {id: runs, field: count}
-  - section:
-      title: Curves
-      body:
-        - line: {id: loss, y: train/loss, color: config.lr, smooth: 0.6,
-                 caption: Training loss per learning rate.}
-        - line: {id: by-optimizer, y: val/loss, group: [config.optimizer.name], band: std,
-                 caption: Validation loss per optimizer, mean and spread over runs.}
+  - custom:
+      id: grokking-map
+      code: grokking-map.js
+      queries:
+        runs:   {runs: {select: [run.id, config.weight_decay, config.n_params, metric.val/acc.max]}}
+        detail: {series: {from: $run, y: [train/acc, val/acc]}}
+  - line: {id: by-wd, y: val/acc, group: [config.weight_decay], band: std,
+           caption: Validation accuracy per weight decay, mean and spread over runs.}
   - repeat:
-      over: config.optimizer.name
+      over: config.n_params
       body:
-        - stat: {field: metric.val/acc.max, best: true, caption: Best run with $value.}
-        - line: {y: val/acc, color: config.lr}
-  - table:
-      id: runs-table
-      columns: [run.name, config.lr, config.warmup, metric.val/acc.max]
-      sort: [-metric.val/acc.max]
+        - stat: {field: metric.val/acc.max, best: true, caption: Best run with $value parameters.}
+        - line: {y: val/acc, color: config.weight_decay}
 ```
 
-- **The view is a nested tree.** Layout nodes contain widgets; any node may carry an `id`, which
-  validation errors, screenshots and references use. A flat list of elements plus a separate layout
-  (A2UI, Grafana v2) helps streaming generators, but Beamtime's agents write and edit a file with
-  ordinary tools, where a nested tree reads better. If deep views turn out hard to edit,
-  `beamtime view edit` can gain operations by id without changing the format.
+- **The view is a nested tree.** Layout nodes contain blocks; any node may carry an `id`. A flat list
+  of elements plus a separate layout (A2UI, Grafana v2) helps streaming generators, but Beamtime's
+  agents write and edit a file with ordinary tools, where a nested tree reads better.
 - **`finding`**: the one-sentence key result, shown under the frame.
 - **`filters`** and **`metrics`** are inherited together with the view; `metrics` gives labels,
-  units, scales and `higher_is_better`, so stat tiles, tables and axes agree.
+  units, scales and `higher_is_better`, so widgets, the kit and axes agree.
 - **`baseline`** marks reference runs (see [Baselines](#baselines)).
 - **`repeat`** repeats a block of widgets once per value of a field, or per subfolder. Each copy's
-  scope is narrowed to the runs with that value; the widgets inside don't change, and `$value`
-  names the current value in captions. A view written once thereby covers values that appear
-  later. For a single chart split by a field, `facet` is better (shared axes).
+  scope is narrowed to the runs with that value; `$value` names the value in captions. For a single
+  chart split by a field, `facet` is better (shared axes).
+- **`custom`** is a block of agent code (see [Custom blocks](#custom-blocks)).
+
+The widget catalog (charts, tables, stat tiles, images, notes, proposal, timeline) is specified in a
+later part. Each widget is a msgspec struct with a "when to use / when not to use" description in
+its JSON schema.
+
+## Custom blocks
+
+A custom block is an ES module written by the agent, stored with the view as
+`view/code/<sha8>-<name>.js` (immutable, named by content hash, like data files).
+
+```js
+// grokking-map.js
+const {html, useState} = bt.preact;
+
+function GrokkingMap() {
+  const runs = bt.useData("runs");
+  const [selected, setSelected] = useState(runs.rows[0]?.["run.id"]);
+  const detail = bt.useData("detail", {run: selected});
+  return html`
+    <${bt.ui.Grid} columns=${2}>
+      <${bt.ui.Heatmap} data=${runs} x="config.weight_decay" y="config.n_params"
+                        value="metric.val/acc.max" onSelect=${r => setSelected(r["run.id"])} />
+      <${bt.chart.Line} data=${detail} y=${["train/acc", "val/acc"]}
+                        caption="Train and validation accuracy of the selected run." />
+    <//>`;
+}
+
+export default function render(root) {
+  bt.preact.render(html`<${GrokkingMap} />`, root);
+}
+```
+
+### Data: declared queries
+
+- Every query a block uses is **declared in the YAML**, in the object form of
+  [layer 3](03-index.md#query-language), relative to the viewed folder.
+- Queries without placeholders are **prefetched** before the code runs and kept live: when runs
+  change, Beamtime re-runs exactly the affected queries and the block re-renders.
+- Queries may contain **placeholders** (`$run`, `$start`, `$end`). Their shape is fixed and validated
+  statically; only values are supplied at runtime (`bt.useData("detail", {run: id})`), checked
+  against the placeholder's type. This covers interaction such as clicking into a run, step-window
+  sliders and selections, while every field a block can touch is known before it runs.
+- There is no free query API. Code cannot read files, call the network or query anything it hasn't
+  declared.
+
+### The `bt` kit
+
+Every custom block gets a global `bt`:
+
+| Part | Contents |
+|---|---|
+| `bt.useData`, `bt.data`, `bt.subscribe` | declared query results, as a Preact hook, a plain getter and a change callback |
+| `bt.ui` | layout and content components matching the YAML widgets: `Grid`, `Row`, `Tabs`, `Section`, `Stat`, `Table`, `Heatmap`, `Note`, `Image`, … |
+| `bt.chart` | chart components producing themed Vega-Lite: `Line`, `Scatter`, `Bar`, … with the same options as the widgets (`color`, `facet`, `group`, `band`, `baseline`) |
+| `bt.plot(spec)` | renders a raw Vega-Lite spec with the theme applied |
+| `bt.theme` | tokens, `runColor(id)`, `groupColor(value)`, light/dark |
+| `bt.fmt` | number and metric formatting using the view's `metrics` (units, precision) |
+| `bt.preact` | Preact with hooks and `htm` (`html` tagged templates, JSX-like without a build step) |
+| `bt.lib` | bundled libraries: Vega and Vega-Lite, D3, uPlot, KaTeX |
+
+- **Preact with `htm`** is the recommended way to write blocks: agents write React-style components
+  fluently, and state (selections, toggles, detail panels) stays a few lines instead of manual DOM
+  updates. Plain DOM code is allowed for simple static blocks; every kit component also exists as a
+  plain function (`bt.ui.stat(root, {...})`).
+- **Kit first, raw libraries second.** The design guide recommends kit components and `bt.chart`, and
+  raw Vega-Lite, D3 or uPlot for what they don't cover. Colors always come from `bt.theme`.
+- All libraries are served locally by Beamtime, so views work offline and on a cluster login node.
+
+### Sandbox
+
+- Each custom block runs in its own iframe with `sandbox="allow-scripts"` (no same-origin access) and
+  a content security policy that allows scripts only from Beamtime's bundled libraries and no
+  network requests.
+- Data, images from runs and size changes travel over a `postMessage` bridge, which `bt` wraps.
+- This also protects readers from views that someone else committed to a shared repository.
 
 ## Many runs in one chart
 
@@ -183,49 +251,89 @@ baseline:                                                # matching baselines fo
 
 ## Later
 
-- **Params**: typed variables the reader can change in the UI (a metric picker, a value filter),
-  referenced as `$name` in widgets, with unset params dropping their clauses. Deferred until the
-  renderer and the screenshot loop are stable, because a screenshot only shows the default value,
-  so agents cannot check the other states.
+- **Params**: typed variables the reader can change in the UI for declarative widgets (a metric
+  picker, a value filter). Custom blocks can already build such controls with placeholder queries;
+  for widgets, params are deferred until the renderer and the screenshot loop are stable.
+- **Free runtime queries** in custom blocks, if agents need patterns placeholders cannot express.
 
-## Agent workflow (outline)
+## Agent loop
 
-1. `beamtime keys` for what exists in the folder.
-2. Write the view, guided by a short design guide (400–800 tokens), 3–5 complete example views, the
-   widget JSON schema and a list of anti-patterns.
-3. `beamtime view validate`, in order: schema, queries parse and return data, fields exist with
-   compatible types, generated Vega-Lite compiles, lint rules (too many series, log scale over
-   non-positive values, missing captions or units, empty widgets), HTML widget sandbox and library
-   list.
-4. `beamtime view render --screenshot`: one image of the page and one per widget, answered against a
-   fixed checklist (clipped labels, readable legend, distinguishable runs, title matches content,
-   no empty panels). At most two rounds.
-5. `beamtime view save` writes the new version.
+The same loop is available as MCP tools and as CLI commands:
+
+| MCP tool | CLI | Does |
+|---|---|---|
+| `keys`, `guide` | `beamtime keys`, `beamtime guide` | what exists in the folder; the design guide, examples and defaults |
+| `view_validate` | `beamtime view validate` | checks a draft (see below) and returns structured findings: error or warning, block id, location, suggested fix |
+| `view_render` | `beamtime view render` | screenshots of the page and of each block, optionally per scope; MCP returns images directly, the CLI writes PNGs |
+| `view_save` | `beamtime view save` | writes the draft as a new version into `view/` |
+
+1. Read `keys` and `guide`.
+2. Write a draft: the view YAML, custom code, data files.
+3. `view_validate` and fix until no errors remain.
+4. `view_render`, look at the screenshots, answer the checklist, improve; one or two rounds.
+5. `view_save`.
+
+**Drafts** live outside `view/` (in the cache, or a path the agent chooses), so iterating creates no
+versions; only `save` does, and the history holds intended states only.
+
+**Rendering runs where the agent works**, usually on the laptop, with a headless browser
+(Playwright with Chromium, part of the `serve` install). For a remote folder, the renderer gets its
+data through remote queries ([layer 4](04-remotes.md)) and `save` sends the version to the remote,
+like every write.
+
+### Validation
+
+`view_validate` runs three stages and stops at the first that has errors:
+
+1. **Static.** View schema; every query parses, its fields exist and placeholder types are sound;
+   custom code parses and exports `render`; no imports outside `bt`; no network APIs; code size
+   below a limit; no inline numeric data beyond a small limit, so numbers come from queries.
+2. **Rendered, in several scopes.** The view is rendered headless in:
+   - the folder it is defined for;
+   - a single run below it, because views are inherited down to runs;
+   - a folder where its data is missing (an empty or synthetic scope), because inherited views meet
+     folders their author never saw.
+
+   In each scope: no exceptions, no console errors, rendering within a time limit, no blank blocks,
+   and placeholder queries exercised once with example values from the folder. The most dangerous
+   failure of free code is working exactly where it was written and breaking elsewhere; this stage
+   targets it.
+3. **Layout and design checks**, measured in the browser without a model: content overflowing its
+   block, clipped text, overlapping elements, insufficient contrast, colors that don't come from the
+   theme, charts with more than about eight curves.
+
+Screenshot critique with the checklist (clipped labels, readable legend, distinguishable runs, title
+matches content, no empty areas) is the agent's own step after validation passes.
+
+### At display time
+
+If a custom block throws in a reader's browser anyway, only that block is replaced by an error panel
+naming it; the frame and every other block stay intact. The panel links to the block's code and the
+error, so an agent can fix it.
 
 ## Agent instructions
 
 Agents get Beamtime's instructions from `beamtime guide` in the CLI and the `guide` tool in MCP: the
-design guide, example views, anti-patterns and default behavior.
+design guide, example views (with custom blocks), the kit reference, anti-patterns and default
+behavior.
 
 **Users override defaults where they already keep agent instructions**, not in a Beamtime-specific
 file: a repo's `CLAUDE.md` or `AGENTS.md`, a global instruction file, or a nested file in a
 subfolder. Agents load these files themselves and weigh them above tool output, so an override
 needs no mechanism in Beamtime. For that to work, the guide:
 
-- **marks its defaults as defaults**, e.g. "default: ask the user before using a Vega-Lite or HTML
-  widget", so an agent can tell which statements a user may change;
+- **marks its defaults as defaults**, e.g. "default: custom blocks may be used without asking", so an
+  agent can tell which statements a user may change;
 - **says that the user's own instructions take precedence** over these defaults.
 
-Beamtime's documentation offers a short snippet to paste into an instruction file:
+By default, agents use widgets and custom blocks freely. Beamtime's documentation offers a short
+snippet for users who want something else:
 
 ```markdown
 ## Beamtime
-- Vega-Lite widgets are fine without asking; HTML widgets still need my confirmation.
+- Ask me before adding custom blocks to a view.
 - In beamtime/scaling/, plot every result against config.n_params on log-log axes.
 ```
-
-These are instructions, not enforcement. Beamtime cannot know whether the user was asked; it makes
-the result visible instead (the `validate` summary, and a marker on escape-hatch widgets in the UI).
 
 If Beamtime later starts agents itself, e.g. from a button in the web UI, those agents won't see the
 user's instruction files. A setting in `beamtime.yaml` pointing to them can solve that then.
@@ -239,9 +347,16 @@ empirically, such as examples versus rules, or whether a second screenshot round
 
 ## Decisions
 
-- Escape-hatch widgets (Vega-Lite, HTML) need the user's consent by default; users override the
-  default in their own agent instructions.
-- `repeat` for blocks and `facet`, `color`, `group`, `seeds` for single charts are in v1; params
-  come later.
+- Agents build views freely: declarative widgets and custom code blocks are both first-class, and
+  custom blocks need no user consent by default; users can restrict this in their own instructions.
+- Custom blocks are ES modules in a sandboxed iframe, built on the `bt` kit with Preact and `htm`;
+  bundled libraries are Vega and Vega-Lite, D3, uPlot and KaTeX, all served locally.
+- All data comes through declared queries; placeholders supply values at runtime. There is no free
+  query API.
+- `view_validate` renders every draft headless in several scopes (its folder, a single run, missing
+  data) before layout checks and screenshots.
+- Drafts live outside `view/`; only `view_save` creates a version. Rendering runs where the agent
+  works.
+- `repeat` for blocks and `facet`, `color`, `group`, `seeds` for charts are in v1; params come later.
 - Views are nested trees with optional ids.
 - Baselines are first-class, with optional matching.
