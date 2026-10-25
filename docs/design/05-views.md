@@ -126,7 +126,9 @@ body:
 - **`repeat`** repeats a block of widgets once per value of a field, or per subfolder. Each copy's
   scope is narrowed to the runs with that value; `$value` names the value in captions. For a single
   chart split by a field, `facet` is better (shared axes).
-- **`custom`** is a block of agent code (see [Custom blocks](#custom-blocks)).
+- **`custom`** is a block of agent code (see [Custom blocks](#custom-blocks)). Reusable blocks from
+  the project's library are used by name, like widgets (see [Block library](#block-library)).
+- **`uses`** is written by `view_save`: the library block versions the view was validated with.
 
 The widget catalog (charts, tables, stat tiles, images, notes, proposal, timeline) is specified in a
 later part. Each widget is a msgspec struct with a "when to use / when not to use" description in
@@ -202,6 +204,107 @@ Every custom block gets a global `bt`:
   network requests.
 - Data, images from runs and size changes travel over a `postMessage` bridge, which `bt` wraps.
 - This also protects readers from views that someone else committed to a shared repository.
+
+## Block library
+
+Custom blocks that prove useful become **library blocks**: named, described and parameterized, and
+usable in any view exactly like a built-in widget. The library grows with the project, so agents
+reuse and adapt working blocks instead of starting from scratch.
+
+### Definition
+
+```yaml
+# beamtime/blocks/phase-map/20261025-101532-k3m9.yaml
+name: phase-map
+description: >
+  Heatmap of a final metric over two config axes; click a cell to see that run's curves.
+  Use for sweeps over two hyperparameters. Not for more than two axes or for single runs.
+params:
+  x:      {kind: field}
+  y:      {kind: field}
+  value:  {kind: field}
+  curves: {kind: metrics, default: [train/acc, val/acc]}
+examples:                                  # parameter sets used for testing the block
+  - {x: config.weight_decay, y: config.n_params, value: metric.val/acc.max}
+  - {x: config.lr, y: config.batch_size, value: metric.val/loss.min}
+queries:
+  runs:   {runs: {select: [run.id, $x, $y, $value]}}
+  detail: {series: {from: $run, y: $curves}}      # $run remains a runtime placeholder
+code: code/3f9a21c0-phase-map.js
+derived_from: null                         # set when forked from another block
+```
+
+A view uses it like any widget:
+
+```yaml
+- phase-map: {x: config.weight_decay, y: config.n_params, value: metric.val/acc.max}
+```
+
+- **Params** are fixed when the view is written; **placeholders** (`$run`) stay runtime values.
+- The block's JSON schema is generated from `params`, so a use of the block is validated like a
+  built-in widget, and `guide` lists library blocks with their descriptions.
+- **The built-in widgets are the built-in block library**, written on the same `bt` kit. Built-in
+  and project blocks behave identically.
+
+### Location
+
+- Library blocks live in a `blocks/` folder: at the log dir root for the whole project, or in any
+  group for that group and below. A block further down overrides one of the same name further up,
+  like views. Built-in block names cannot be overridden.
+- `blocks/` is a reserved folder name, like `notes/` and `view/`.
+- Blocks live in the same source as the views using them, so a view on a remote finds its blocks on
+  the remote ([layer 4](04-remotes.md)).
+- `beamtime block export` and `beamtime block import` move blocks between projects or into git.
+
+### Creating and reusing blocks
+
+| Command (MCP tool) | Does |
+|---|---|
+| `beamtime block list` (`guide`, `keys`) | blocks available in a folder, with descriptions |
+| `beamtime block promote <view> <block-id> <name>` | turns a view's working custom block into a library block |
+| `beamtime block fork <name> <new-name>` | copies a block as a starting point; records `derived_from` |
+| `beamtime block validate` / `block_save` | checks and saves a new block version (see below) |
+
+`block_save` checks what "generalized" means, mechanically:
+
+- **No hard-coded fields**: string literals in the code that match existing metric or config keys
+  are flagged ("`val/acc` is hard-coded; make it a param").
+- **A description** with when to use and when not to use is required.
+- **Several parameter sets**: the block is rendered with each of its `examples` (at least two) and
+  in the usual scopes (its folder, a single run, missing data).
+- **No duplicates**: a block with a very similar description or the same queries is pointed out,
+  with a suggestion to fork or extend it instead.
+
+### Updates, compatibility and migrations
+
+Views use the **newest version** of a block, so improvements reach every view. To keep that safe:
+
+- **Views record which block versions they were validated with.** `view_save` writes the resolved
+  versions into the view (`uses: {phase-map: 20261025-101532-k3m9}`), like a lockfile.
+- **A block version can carry a migration** for its params, declared in its file:
+
+  ```yaml
+  migrations:
+    - from: 20261025-101532-k3m9
+      rename: {value: metric}
+      add: {band: std}
+      map: {curves: "[...value, 'train/loss']"}   # small expressions over the old params
+  ```
+
+  Migrations chain, so a view several versions behind is brought forward step by step.
+- **`block_save` runs a downstream compatibility test** over every view in the same source that uses
+  the block:
+  1. apply the migration chain to the view's params;
+  2. validate the view statically and render it in all its scopes;
+  3. render the view before and after the update and compare the screenshots, so changes are
+     visible and can be reviewed as intended or accidental.
+- **All or nothing.** Only if every dependent view passes does `block_save` write the new block
+  version together with new versions of all migrated views (each with the updated `uses` entry and
+  a note saying which block update changed it). Otherwise nothing is written, and the report lists
+  each failing view with its error and screenshots.
+- **An explicit way out:** `--pin-failing` saves the update anyway and pins the failing views to the
+  previous block version (`phase-map@20261025-101532-k3m9`), recorded in a note on each, so they
+  can be fixed later.
 
 ## Many runs in one chart
 
@@ -324,6 +427,10 @@ needs no mechanism in Beamtime. For that to work, the guide:
 
 - **marks its defaults as defaults**, e.g. "default: custom blocks may be used without asking", so an
   agent can tell which statements a user may change;
+- **asks agents to reuse first and generalize second** (default): check the library before writing a
+  block, fork the closest block if none fits, and save a generalized version of any new block that
+  solves a problem likely to recur (fields as params, working for one run and many, degrading on
+  missing data); one-off blocks stay in their view;
 - **says that the user's own instructions take precedence** over these defaults.
 
 By default, agents use widgets and custom blocks freely. Beamtime's documentation offers a short
@@ -360,3 +467,9 @@ empirically, such as examples versus rules, or whether a second screenshot round
 - `repeat` for blocks and `facet`, `color`, `group`, `seeds` for charts are in v1; params come later.
 - Views are nested trees with optional ids.
 - Baselines are first-class, with optional matching.
+- Reusable blocks form a project library in `blocks/` folders, inherited down the tree and used like
+  widgets. Built-in widgets are the built-in library on the same kit.
+- Views follow the newest block version. `block_save` migrates dependent views and tests them
+  (validation, rendering in all scopes, before/after screenshots); it writes everything or nothing.
+- Agents are instructed to reuse library blocks first and to save generalized versions of new
+  blocks.

@@ -95,6 +95,8 @@ This covers what other tools model as separate concepts:
   information is recorded per run.
 - **The journal** is the notes on a group, or on the log dir itself for project-wide entries.
 - **Reports and dashboards** are views, one per folder (see [Views](#views)).
+- **Reusable view blocks** live in `blocks/` folders, inherited down the tree like views (layer 5).
+  `notes/`, `view/` and `blocks/` are reserved folder names and never count as groups.
 - **Derived data** is any data file stored with the view that uses it.
 
 The **timeline** is not stored. The index builds it from run events and notes across all folders.

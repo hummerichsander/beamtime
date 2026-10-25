@@ -220,7 +220,8 @@ before implementation. Do not implement a layer whose design is not settled.
   fixed frame; the body is built freely from declarative widgets and custom code blocks (ES modules
   in a sandboxed iframe, on the `bt` kit with Preact/htm). All data comes through declared queries
   (with placeholders for interaction), never embedded values. `view_validate` renders every draft
-  headless in several scopes before it is saved. Queries and widgets are msgspec
+  headless in several scopes before it is saved. Reusable blocks form a library in `blocks/`
+  folders; `block_save` migrates and tests every dependent view, all or nothing. Queries and widgets are msgspec
   structs, which give validation and the JSON schema served to agents at a fraction of Pydantic's
   import cost.
 - **Agent instructions come from `beamtime guide`**, which marks its defaults as defaults (e.g.
