@@ -246,6 +246,10 @@ before implementation. Do not implement a layer whose design is not settled.
   keep its hooks: no network code in the SDK, offset-based file operations, an auth context and a
   root on every API request, `author` and `user` on authored files, MCP over HTTP, and a sandbox
   built for untrusted views.
+- **CLI and MCP mirror each other** (see `docs/design/08-cli-mcp.md`): same names, parameters and
+  answers; compact text output by default, `--json` for the canonical answer; small MCP tools with
+  token budgets; agent writes are additive only. Agents never install packages, change settings,
+  start `serve` or move runs; they hand the user the command.
 - **Frontends share one core library:** Python SDK, CLI, MCP server, web UI. MCP outputs must be
   token-efficient (summaries, downsampled curves, diffs).
 

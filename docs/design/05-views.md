@@ -981,6 +981,9 @@ override (see [Agent instructions](#agent-instructions)):
 - At most two screenshot rounds per draft.
 - Ask the user to start `beamtime serve --no-ui` when live data is needed and the daemon isn't
   running.
+- Never run commands that change the project or the machine (installing packages, changing settings,
+  starting `serve`, moving runs); give the user the exact command to enter instead
+  ([layer 8](08-cli-mcp.md#policy)).
 
 ### Examples
 
