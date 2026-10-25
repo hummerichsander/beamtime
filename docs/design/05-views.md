@@ -1,8 +1,6 @@
 # Layer 5: Views
 
-Status: **draft, under discussion.** This part covers prior art, principles, the view format,
-custom blocks and the agent loop. The widget catalog, the `bt` kit's API and the theme follow in
-later parts.
+Status: **draft, under discussion.**
 
 A view is what a folder shows: a page that agents build freely, from declarative widgets and from
 their own code.
@@ -908,6 +906,123 @@ If a custom block throws in a reader's browser anyway, only that block is replac
 naming it; the frame and every other block stay intact. The panel links to the block's code and the
 error, so an agent can fix it.
 
+## The agent guide
+
+`beamtime guide` (CLI) and the `guide` tool (MCP) give agents everything they need to build views.
+The research behind it says: short design guidance at the right level, a few complete examples,
+deterministic checks, and a fixed checklist for screenshots work better than long rule lists.
+
+### Progressive disclosure
+
+The guide is not one long document. `guide` returns a short overview, and agents load the parts they
+need, so a quick task costs few tokens and a complex one can go deep:
+
+| Call | Returns | Size |
+|---|---|---|
+| `guide` | the workflow, the design principles, the defaults, and an index of the other parts | ~1.5k tokens |
+| `guide examples [name]` | the list of example views, or one complete example with commentary | ~1k each |
+| `guide blocks [name]` | the catalog with one line per block, or one block's schema and description | ~1.5k / ~300 |
+| `guide kit` | the `bt` kit API for custom blocks | ~2k |
+| `guide queries` | the query language | ~1.5k |
+| `guide checklist` | the screenshot checklist | ~300 |
+| `guide anti-patterns` | the list of common mistakes with fixes | ~800 |
+
+`guide <folder>` additionally lists what that folder offers: library and package blocks with their
+descriptions, the inherited view and its pins, and outdated pins.
+
+### Workflow
+
+The overview opens with the loop of [Agent loop](#agent-loop), stated as steps:
+
+1. Look at the folder: `keys`, its proposal and notes, the inherited view.
+2. Check the library for blocks that fit (default: reuse first).
+3. Write a draft: the question the view answers decides the blocks.
+4. `view_validate` until it passes; `view_render` and the checklist, at most two rounds.
+5. `view_save`; save generalized versions of new reusable blocks to the library.
+
+### Design principles
+
+Stated briefly, at the level of decisions rather than pixels; the theme owns the pixels.
+
+- **Lead with the finding.** `finding` states the result in one sentence; the first blocks support
+  it, details follow. Overview, then evidence, then detail.
+- **One block, one question.** A chart that answers two questions is two charts.
+- **Choose the block by the question**:
+
+  | Question | Block |
+  |---|---|
+  | How did training go? | `line` over steps |
+  | Which setting is best? | `table` sorted by the metric, `stat` for the best |
+  | How does a metric depend on one hyperparameter? | `scatter`, with `seeds` and a fit if it helps |
+  | How do two hyperparameters interact? | `heatmap` |
+  | Which hyperparameters matter? | `importance`, then `parallel` |
+  | Does a change help? | `bar` or `table` against a `baseline` with `match` |
+  | What does the model produce? | `images`, `text`, `data_table` |
+  | Where does the research stand? | `proposal`, `folders`, `timeline` |
+
+- **Tame many runs** with `color`, `facet`, `group` or `seeds`, chosen by the question.
+- **State the setup in captions**: what was varied, what was held fixed, how many runs.
+- **Units, labels and scales** go into the view's `metrics` once, not into each block.
+- **Don't overclaim.** A finding the data doesn't support is worse than none. If the proposal's check
+  is pending or failed, the finding says so; verdicts belong in notes.
+- **Interactive only when it helps**: linked selection and detail-on-click for exploration, not for
+  decoration.
+
+### Defaults
+
+The guide lists its defaults explicitly, marked as defaults that the user's own instructions may
+override (see [Agent instructions](#agent-instructions)):
+
+- Custom blocks may be used without asking.
+- Reuse library blocks first; fork the closest one before writing from scratch.
+- Save generalized versions of new reusable blocks to the library; keep one-off blocks in their view.
+- When editing a view, check `outdated` and offer to upgrade pinned blocks.
+- At most two screenshot rounds per draft.
+- Ask the user to start `beamtime serve --no-ui` when live data is needed and the daemon isn't
+  running.
+
+### Examples
+
+Five complete example views ship with Beamtime, each with a short commentary on why it is built that
+way. They double as templates (`beamtime view new --from <example>`):
+
+| Example | Shows |
+|---|---|
+| `sweep` | a learning-rate sweep: finding, best-run stat, curves colored by the swept field, accuracy against learning rate with seeds merged, run table |
+| `ablation` | matching baselines, delta table, grouped bars with error bars, proposal with its predictions |
+| `run` | a view written to be inherited by single runs: curves of all logged metrics, output tail when failed, logged samples |
+| `direction` | a research direction: `folders` overview of its sweeps, `timeline` of decisions and verdicts, the proposal |
+| `custom` | a custom block: a phase map with click-to-detail, linked selection, theme colors and graceful degradation |
+
+### Screenshot checklist
+
+The agent answers each item for every block in the screenshots of `view_render`, yes or no:
+
+1. Is every label, tick and legend entry fully visible?
+2. Can the runs or groups in each chart be told apart?
+3. Does each title or caption match what the block shows?
+4. Is any block empty or showing only a notice where data was expected?
+5. Do axes use sensible scales (log for quantities spanning orders of magnitude)?
+6. Does the first screen show the finding and the evidence for it?
+7. Is anything decorative that carries no information?
+
+### Anti-patterns
+
+The guide's list of mistakes, each with its fix; `validate` detects those marked ✓:
+
+| Mistake | Fix |
+|---|---|
+| ✓ more than about eight curves in one chart | `color`, `facet`, `group` or `seeds` |
+| ✓ grouping runs that differ in more than noise | add the varying key to `facet` or to the group |
+| ✓ colors, fonts or sizes in custom code | `bt.theme`, `bt.fmt`, CSS variables |
+| ✓ numbers written into code | declare a query |
+| ✓ a block that breaks in a single run or without data | handle `status` and empty results |
+| ✓ log scale over values that can be zero or negative | linear scale, or a symlog transform in Vega-Lite |
+| strong smoothing that hides spikes | lower `smooth`, or show raw and smoothed |
+| comparing runs of different length without saying so | `steps` window, or a note in the caption |
+| a finding stronger than the check | state what the check says |
+| a chart where a table or a single number would do | `table` or `stat` |
+
 ## Agent instructions
 
 Agents get Beamtime's instructions from `beamtime guide` in the CLI and the `guide` tool in MCP: the
@@ -939,12 +1054,61 @@ snippet for users who want something else:
 If Beamtime later starts agents itself, e.g. from a button in the web UI, those agents won't see the
 user's instruction files. A setting in `beamtime.yaml` pointing to them can solve that then.
 
-## Evaluation (outline)
+## Evaluation harness
 
-A harness like the query-form experiment, with tasks from realistic log dirs. Layers: validation
-pass rate and rounds, data fidelity of the queries, a per-task checklist judged on screenshots, and
-occasional human pairwise preference to calibrate the judge. It also answers open design questions
-empirically, such as examples versus rules, or whether a second screenshot round pays off.
+A harness measures how well agents build views with the guide, the kit and the tools, and catches
+regressions when any of them changes. It lives in `bench/views/` and follows the pattern of the
+query-form experiment and of ArtifactsBench (render, screenshot, judge against a per-task checklist).
+
+### Tasks
+
+- **Synthetic log dirs with known truth.** A generator builds realistic log dirs from a seed: sweeps,
+  ablations, scaling series, diverging and killed runs, logged samples, proposals and notes. The
+  effects in the data are planted, so the correct finding is known: warmup helps above a learning
+  rate, one run diverged at step 1200, accuracy follows a power law in parameters. The same
+  generator provides demo data and test fixtures.
+- **40–60 tasks** across categories: overview of a sweep, an ablation against baselines, debugging a
+  failed run, a scaling law with a custom fit, a view inherited by single runs, a research-direction
+  summary, a view over local and remote sources.
+- **Each task has**: a log dir, a prompt in the words a researcher would use, the facts the view must
+  get right (the true finding, the runs and metrics that matter), and a checklist of 5–10 concrete
+  items ("the diverged run is visible and identified").
+
+### Running
+
+Each task is given to an agent (model configurable) with Beamtime's MCP tools and nothing else. The
+harness records the trajectory: tool calls, validation rounds, screenshot rounds, tokens and time.
+
+### Scoring
+
+| Layer | Measures | How |
+|---|---|---|
+| Validity | does the saved view pass `validate`; how many rounds it took | deterministic |
+| Fidelity | do the queries cover the required runs and metrics; does `finding` state the planted truth without overclaiming | deterministic for queries; a model judge compares the finding with the known facts |
+| Checklist | the task's items, each yes or no | a vision model on the screenshots, item by item |
+| Robustness | does the view render in its other scopes (a single run, a subfolder, missing data) | deterministic |
+| Preference | which of two views a researcher prefers | humans, occasionally, on a sample, to calibrate the model judge |
+
+Item-by-item judging is used because vision models agree with experts on concrete questions but
+not on overall aesthetics.
+
+### Experiments it answers
+
+- Do the examples help, and how many? (guide with and without examples)
+- How large should the overview be? (guide variants)
+- Is a second screenshot round worth its tokens? (0, 1 or 2 rounds)
+- How do models compare? (Opus, Sonnet, Haiku)
+- Do custom blocks improve results over widgets only, and at what failure rate?
+
+### Use in development
+
+A fixed subset of about ten tasks runs whenever the guide, the kit or the built-in blocks change, and
+the full suite before releases. Results are tracked over time, so a change that makes views worse is
+seen before it ships.
+
+**Timing.** The generator and the task definitions are built early, alongside the implementation,
+where they also serve as fixtures and demo data. Scoring follows once a first renderer, the MCP tools
+and the kit exist.
 
 ## Decisions
 
@@ -964,6 +1128,12 @@ empirically, such as examples versus rules, or whether a second screenshot round
 - The built-in catalog has about 25 blocks, each usable in YAML and as a kit component with the same
   props, including `importance` (correlation and η² per config field).
 - Blocks are linked through one shared run selection per view, in v1.
+- The agent guide is disclosed progressively: a short overview with workflow, principles and
+  defaults, and parts loaded on demand (examples, blocks, kit, queries, checklist, anti-patterns).
+- Five example views ship as references and templates: `sweep`, `ablation`, `run`, `direction`,
+  `custom`.
+- An evaluation harness with synthetic log dirs of planted truth scores validity, fidelity, a
+  per-task checklist, robustness and occasional human preference.
 - Themes are token sets in JSON files with light and dark pairs and inheritance; the default is
   clean and quiet (GitHub/VS Code style); VS Code themes can be imported; the viewer's choice wins
   over the project default.
