@@ -232,6 +232,13 @@ before implementation. Do not implement a layer whose design is not settled.
 - **Agent instructions come from `beamtime guide`**, which marks its defaults as defaults (e.g.
   custom blocks may be used without asking). Users override them in their own instruction
   files (`CLAUDE.md`, `AGENTS.md`, global files); Beamtime has no instruction file of its own.
+- **The web UI is a fixed shell** (see `docs/design/07-web-ui.md`): top bar, folder tree per source,
+  frame and view, context drawer, status bar. Every state has a URL. Preact/htm frontend built with
+  esbuild at release, Starlette on uvicorn behind `serve`, live updates over server-sent events.
+  Browser, screenshots and exports share one renderer (headless Chromium via Playwright).
+  **The UI must feel seamless, light and concise**: budgets (shell ≤ 120 KB, first view < 300 ms,
+  navigation < 100 ms, interactions < 50 ms, no layout shift) are tested in CI; every added piece of
+  chrome, click, spinner, dialog or dependency needs a reason.
 - **Charts render with Vega-Lite** in the browser, using Beamtime's theme. The
   matplotlib/scienceplots rules above apply to static figure export, not to the web UI.
 - **A self-hosted server is a post-v1 feature, designed for now** (see `docs/design/06-server.md`):

@@ -465,6 +465,7 @@ tokens.
 | Data | `categorical` (10–12 colors for runs and groups), `sequential` and `diverging` scales, `baseline` (color and dash for baseline runs) |
 | Type | `font-sans`, `font-mono`, a size scale (`xs` … `xl`), tabular figures for numbers |
 | Shape | spacing scale, `radius`, line width, point size |
+| Shell | sidebar, top bar, status bar, lists, inputs, buttons, badges, focus, tooltips, scrollbars ([layer 7](07-web-ui.md#theme-in-the-ui)) |
 
 Custom blocks see them as `bt.theme.tokens` and as CSS variables (`--bt-fg`, `--bt-categorical-3`,
 …). Vega-Lite charts get a `config` generated from them; `bt.theme.uplot()` returns matching uPlot
