@@ -285,7 +285,9 @@ series:
   **downsampled** as min, max and last per bucket, with the bucket edges. The answer always says
   which.
 - A metric as `x` pairs each point with that metric's most recent value at or before the same step.
-- With `seeds`, curves of merged runs come back as mean with a min/max band per bucket.
+- With `group: [fields]`, curves of each group come back aggregated per bucket: mean, a band
+  (`band: minmax | std | stderr`) and the number of contributing runs. `seeds: config.seed` is the
+  shorthand for grouping by every config key except the seed.
 - Each view has a total point budget (around 30k); `points` per curve shrinks when many curves are
   requested.
 

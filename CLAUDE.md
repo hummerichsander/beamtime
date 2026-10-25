@@ -222,6 +222,9 @@ before implementation. Do not implement a layer whose design is not settled.
   stored with the view) rather than embedding values. Queries and widgets are msgspec
   structs, which give validation and the JSON schema served to agents at a fraction of Pydantic's
   import cost.
+- **Agent instructions come from `beamtime guide`**, which marks its defaults as defaults (e.g. ask
+  the user before using Vega-Lite or HTML widgets). Users override them in their own instruction
+  files (`CLAUDE.md`, `AGENTS.md`, global files); Beamtime has no instruction file of its own.
 - **Charts render with Vega-Lite** in the browser, using Beamtime's theme. The
   matplotlib/scienceplots rules above apply to static figure export, not to the web UI.
 - **Frontends share one core library:** Python SDK, CLI, MCP server, web UI. MCP outputs must be
