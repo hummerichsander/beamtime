@@ -197,7 +197,8 @@ before implementation. Do not implement a layer whose design is not settled.
   (`proposal.yaml`, `notes/`, `view/`) don't.
 - **`_output.log` is always captured**; there is no off switch.
 - **Runs record data, views present it.** Runs log scalars, tables, images and text; charts exist
-  only in views. The run card (`_run_card.json`) is each run's compact summary.
+  only in views. The run card (`_run_card.json`) is each run's compact summary, and
+  `_preview.json` holds downsampled curves, so tables and overviews need no index.
 - **Every run has a proposal**, possibly blank, with optional machine-checkable predictions. It
   freezes once the first metric is logged; notes (a note with a verdict is a result) can be
   added at any time.
@@ -205,7 +206,8 @@ before implementation. Do not implement a layer whose design is not settled.
   Remotes are the source of truth for their data, and data flows one way (see
   `docs/design/04-remotes.md`): the local `serve` queries a remote `serve --stdio` over ssh and
   merges the answers, a remote `serve` can be reached by port forwarding, and `beamtime pull` makes
-  read-only offline snapshots. Writes to remote folders are executed on the remote. Job scheduler metadata (SLURM, PBS, …) is captured if present, but nothing
+  read-only offline snapshots. Writes to remote folders are executed on the remote. The remote
+  index lives in memory unless a persistent `cache` on a local disk is configured. Job scheduler metadata (SLURM, PBS, …) is captured if present, but nothing
   depends on it. A heartbeat file lets runs that died silently show up as `lost`.
 - **The index is SQLite for metadata plus raw column files per (run, metric)** (see
   `docs/design/03-index.md`). `beamtime serve` (headless with `--no-ui`) is the daemon that keeps it

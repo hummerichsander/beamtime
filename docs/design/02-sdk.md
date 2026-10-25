@@ -106,9 +106,11 @@ There is no way to log a chart spec. Presentation belongs to views.
 - The SDK maintains the run card ([layer 1](01-storage.md#_run_cardjson)) in memory and writes
   `_run_card.json` every 60 s and at the end. All statistics are streaming with constant memory per
   metric: first, last, min, max with their steps, sum and count for the mean, a non-finite counter
-  and an exponential moving average. For `slope_last10pct` it keeps a small buffer of bucket means
-  (200 buckets that merge pairwise as the run grows) and fits a line to the buckets in the last
-  10% of steps.
+  and an exponential moving average.
+- In the same pass it maintains the preview buckets of `_preview.json` (min, max, last, sum and
+  count per bucket; at most 512 buckets per metric, merged pairwise as the run grows) and writes
+  them together with the card. `slope_last10pct` is a line fitted to the preview's bucket means in
+  the last 10% of steps, so no extra buffer is needed.
 - `run.card` is a dict-like for explicit values (`run.card["test/acc"] = 0.931`), stored under
   `values`.
 - `run.config.update()` adds keys; overwriting an existing key with a different value warns and is
@@ -123,7 +125,7 @@ There is no way to log a chart spec. Presentation belongs to views.
 run.finish(status: Literal["finished", "failed"] = "finished") -> None
 ```
 
-Flushes and fsyncs all streams, writes the final `_run_card.json`, sets `status` and `ended_at`,
+Flushes and fsyncs all streams, writes the final `_run_card.json` and `_preview.json`, sets `status` and `ended_at`,
 stops capture and the heartbeat. Calling it twice is a no-op.
 
 ## Lifecycle and exit handling
@@ -160,7 +162,7 @@ The head and at least the last 2.5 MB always survive.
 ## Heartbeat
 
 A daemon thread wakes every 30 s. It replaces `_heartbeat` with the current time, flushes the
-buffered streams, and every second wake writes `_run_card.json`. All writes share one lock with
+buffered streams, and every second wake writes `_run_card.json` and `_preview.json`. All writes share one lock with
 `log()`; the lock is uncontended almost always, so the hot loop doesn't notice.
 
 ## Resume

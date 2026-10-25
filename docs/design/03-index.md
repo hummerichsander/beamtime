@@ -160,8 +160,11 @@ process for that, `beamtime serve`:
   catches up on the runs it queries within a time budget (default 200 ms), then answers. If the
   budget was not enough, the answer says so: "3 runs are up to 4 min behind". With the daemon
   running, the catch-up is almost always empty.
-- **Run tables stay fresh either way**: the run card is rewritten by the run every 60 s and is
-  small enough to read directly.
+- **Run tables and overviews stay fresh either way**: the run card and the preview
+  (`_preview.json`) are rewritten by the run every 60 s and are small enough to read directly.
+- **Overview charts are answered from previews** when the requested window and point budget fit
+  the preview's buckets; zooms and exact statistics use the column files. The answer's meta says
+  which source was used.
 
 ### Daemon status for agents
 

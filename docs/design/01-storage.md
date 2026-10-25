@@ -39,7 +39,7 @@ optional file to it:
 
 ```
 my-repo/
-  beamtime.yaml        # optional: log dirs and remotes, committed with the code
+  beamtime.yaml        # optional: all configuration (log dirs, remotes)
   src/ …
   beamtime/            # default log dir, gitignored
 ```
@@ -53,8 +53,6 @@ remotes:                                 # layer 4
     path: /scratch/{user}/my-repo/beamtime
 ```
 
-- `beamtime.local.yaml` next to it (gitignored, same schema) holds personal overrides such as
-  remote paths.
 - The root is the nearest directory with `beamtime.yaml`, else the git root, else the working
   directory.
 - `BEAMTIME_LOGDIR` overrides where new runs go, e.g. scratch space on a cluster.
@@ -184,6 +182,7 @@ data file (the script or notebook that made it) is recorded in a note.
   _run.json                 # identity, environment, status          [run, replaced]
   _config.json              # hyperparameters                        [run, replaced]
   _run_card.json            # compact summary for agents and tables  [run, replaced]
+  _preview.json             # downsampled curves of every metric     [run, replaced]
   _heartbeat                # last-alive timestamp                   [run, replaced]
   _metrics.jsonl            # scalar stream                          [run, append]
   _data.jsonl               # tables, images, text                   [run, append]
@@ -342,6 +341,34 @@ on and at its end.
 
 Proposal checks and verdicts are not part of the card, since the run doesn't know them. CLI and MCP
 add them when they show a card (layer 3).
+
+### `_preview.json`
+
+A downsampled copy of every metric's curve, written by the run itself next to the run card. With
+the card and the preview, run tables and overview charts need no index, which matters most on
+remotes, where the index lives in memory (layer 4).
+
+```json
+{
+  "bucket_width": 64,
+  "metrics": {
+    "train/loss": {
+      "first_bucket": 0,
+      "min": [2.31, 1.92, ...], "max": [2.48, 2.05, ...], "last": [2.29, 1.95, ...],
+      "mean": [2.37, 1.99, ...], "count": [64, 64, ...]
+    }
+  }
+}
+```
+
+- Bucket `i` covers steps `[i * bucket_width, (i + 1) * bucket_width)`. The width is a power of two
+  and doubles, merging neighbouring buckets, whenever a metric would exceed 512 buckets, so every
+  metric has between 256 and 512 buckets once it is long enough. Edges stay fixed between rewrites,
+  so live curves don't jitter.
+- Min and max per bucket keep spikes visible; mean and count allow exact means over whole buckets.
+- Empty buckets of sparse metrics are `null`.
+- The size is a few hundred KB at most (20 metrics × 512 buckets × 5 values). It is rewritten with
+  the run card, every 60 s and at the end.
 
 ### `_artifacts.jsonl`
 
@@ -521,6 +548,8 @@ old runs. Unknown fields are kept, never dropped.
 - Proposals carry machine-checkable predictions, evaluated as select, reduce, merge seeds, test. The
   index computes a check; the verdict of record is a note with a verdict.
 - The run card (`_run_card.json`) is a compact summary of each run for agents and run tables.
+- The preview (`_preview.json`) holds 256–512 min/max/last/mean buckets per metric, written by the
+  run, so overview charts need no index.
 - Generated run names use high-energy physics vocabulary (`boosted-kaon-42`).
 - `_output.log` is always captured; there is no switch to turn it off.
 - Runs record data, views present it. Runs log scalars, tables, images and text; histograms are

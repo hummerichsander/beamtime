@@ -49,10 +49,16 @@ beamtime serve login.hpc.de:/scratch/me/beamtime # ad hoc, no config needed
   there. Requests and answers are newline-delimited JSON on that connection. No port is opened on
   the cluster, nothing passes a firewall, and with ssh `ControlMaster` a 2FA login is needed only
   once.
-- The remote process indexes its own log dir (layer 3) in a cache on the login node's local disk,
-  never on the cluster filesystem. It indexes lazily: a folder is indexed when it is first queried,
-  so connecting to a large log dir does not trigger a full rebuild. Running runs are then polled as
-  in the local daemon.
+- The remote process indexes its own log dir (layer 3) **in memory** by default, lazily: a folder
+  is indexed when it is first queried, so connecting to a large log dir does not trigger a full
+  rebuild. Running runs are then polled as in the local daemon. Most requests need no index at all:
+  run tables come from run cards and overview charts from the runs' previews
+  ([layer 1](01-storage.md#_previewjson)); only zooms and exact statistics build index data, parsed
+  from `_metrics.jsonl` on first use and kept for the session.
+- **A persistent index** is used only where one is configured (`cache` below). Login nodes often
+  have a small, shared, regularly purged `/tmp`, several nodes behind one host name, and home
+  directories on NFS, where SQLite is unsafe. So nothing is written unless the user names a
+  suitable disk.
 - **Federation.** The local `serve`, CLI and MCP send each query to every source (local log dirs and
   connected remotes) and merge the answers. Run ids are unique across machines, so merging rows and
   curves is a concatenation; sorting and limits are applied after merging.
@@ -63,8 +69,8 @@ beamtime serve login.hpc.de:/scratch/me/beamtime # ad hoc, no config needed
   a slow network never turns healthy runs into `lost`. If the connection drops, the laptop shows the
   remote as "unreachable since 14:02" instead of guessing run states.
 - **The remote process exits as soon as its ssh connection closes.** It keeps nothing running on the
-  login node between sessions; its index cache stays on disk, so the next connection only catches
-  up on what changed.
+  login node between sessions. With a configured `cache`, the next connection only catches up on
+  what changed; without one, it starts from the run cards and previews again.
 - **One-shot CLI calls** go through the local `serve` when it runs, reusing its open connections.
   Without it, each call opens its own ssh connection and remote process, which costs a few hundred
   milliseconds; `beamtime status` points this out.
@@ -116,26 +122,33 @@ from: "@cluster/scaling"    # the remote "cluster"
 
 Sources are separate trees, even if their folder names match. A folder that exists both locally and
 on the cluster is two folders, each with its own proposal, notes and view. The prefix makes clear
-where data lives and where a write will go, and no file ever has to be reconciled between sources. Inheritance of views stays within
-a source: a remote folder inherits views from its remote ancestors. Links between notes use run ids,
+where data lives and where a write will go, and no file ever has to be reconciled between sources.
+Inheritance of views stays within a source: a remote folder inherits views from its remote
+ancestors. Links between notes use run ids,
 which are unique across sources, so `[[20261024-101532-k3m9xq2a]]` works whatever side the run is on.
 
 ## Configuration
 
 ```yaml
-# beamtime.yaml (committed, shared with the team)
+# beamtime.yaml: the only configuration file
 remotes:
   cluster:
     host: cluster                        # an ssh host alias from ~/.ssh/config
     path: /scratch/{user}/proj/beamtime  # the remote log dir; {user} is the ssh user
     command: beamtime                    # how to start Beamtime there, e.g. a venv path
+    cache: /local/scratch/{user}/beamtime-cache   # optional persistent index; default: in memory
 ```
 
-- **Personal overrides** go into `beamtime.local.yaml` next to it, gitignored, with the same schema.
-  It merges over `beamtime.yaml`, e.g. to set another path or command.
-- **The command line overrides both.** `beamtime serve cluster:scaling` narrows the configured
-  remote to a group; `beamtime serve host:/abs/path` defines an ad-hoc remote. A name that matches a
-  configured remote means that remote; anything else is an ssh host.
+- **One file holds all configuration.** Whether it is committed is the user's choice. Placeholders
+  keep it shareable: `{user}` is the ssh user, and `${VAR}` expands an environment variable on the
+  remote (e.g. `${SCRATCH}/proj/beamtime`), so one entry fits everyone on the team.
+- **`cache` must be on a local disk.** The remote checks it: on NFS, Lustre or GPFS it falls back to
+  memory, and `beamtime status` says why. With several login nodes behind one host name, a
+  node-local cache exists per node; pointing `host` at one fixed node keeps it warm.
+- **The command line overrides the file** for one session. `beamtime serve cluster:scaling`
+  narrows the configured remote to a group, `--cache <dir>` sets the persistent index, and
+  `beamtime serve host:/abs/path` defines an ad-hoc remote. A name that matches a configured remote
+  means that remote; anything else is an ssh host.
 - Beamtime stores no credentials. Authentication is entirely the user's ssh configuration.
 
 ## Protocol
@@ -184,6 +197,8 @@ changes only. A mismatch is reported at `hello` with both versions and the upgra
   and read-only pulls.
 - Each source is its own tree under a prefix (`@cluster/...`). A folder, its proposal, notes and view
   live in exactly one place; `from: .` covers all sources.
-- The remote process exits when its ssh connection closes; its index cache stays on disk.
-- Remotes are configured in `beamtime.yaml`, overridden by `beamtime.local.yaml` and the command
-  line. No credentials are stored.
+- The remote process exits when its ssh connection closes.
+- The remote index lives in memory by default; a persistent `cache` on a local disk can be
+  configured per remote. Run cards and previews make most requests independent of any index.
+- All configuration lives in one `beamtime.yaml`, with `{user}` and `${VAR}` placeholders; the
+  command line overrides it per session. No credentials are stored.
