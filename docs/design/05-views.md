@@ -128,7 +128,7 @@ body:
   chart split by a field, `facet` is better (shared axes).
 - **`custom`** is a block of agent code (see [Custom blocks](#custom-blocks)). Reusable blocks from
   the project's library are used by name, like widgets (see [Block library](#block-library)).
-- **`uses`** is written by `view_save`: the library block versions the view was validated with.
+- **`uses`** is written by `view_save`: the library block versions the view is pinned to.
 
 The widget catalog (charts, tables, stat tiles, images, notes, proposal, timeline) is specified in a
 later part. Each widget is a msgspec struct with a "when to use / when not to use" description in
@@ -275,13 +275,36 @@ A view uses it like any widget:
 - **No duplicates**: a block with a very similar description or the same queries is pointed out,
   with a suggestion to fork or extend it instead.
 
-### Updates, compatibility and migrations
+### Pinning, upgrades and migrations
 
-Views use the **newest version** of a block, so improvements reach every view. To keep that safe:
+Views are **pinned** to the block versions they were saved with. A view is part of the research
+record: it should look tomorrow as it does today, unless someone decides to change it. Pinning also
+keeps a block update cheap (one save, not a test run over every view) and works for blocks imported
+from elsewhere.
 
-- **Views record which block versions they were validated with.** `view_save` writes the resolved
-  versions into the view (`uses: {phase-map: 20261025-101532-k3m9}`), like a lockfile.
-- **A block version can carry a migration** for its params, declared in its file:
+- **Pins are written automatically.** `view_save` records the resolved block versions, including
+  where each block lives, like a lockfile:
+
+  ```yaml
+  uses:
+    phase-map: blocks/phase-map@20261025-101532-k3m9
+  ```
+
+  The view's body just writes `- phase-map: {...}`; the pin lives only in `uses`.
+- **Referenced block versions are never deleted.** Block files are immutable anyway; cleanup skips
+  every version a view still pins.
+- **Upgrading is a deliberate step per view:**
+
+  ```sh
+  beamtime view outdated [folder]                  # views pinned to older block versions
+  beamtime view upgrade <view> [--block phase-map] # upgrade one view
+  beamtime view upgrade --all --dry-run            # overview, writes nothing
+  ```
+
+  `upgrade` applies the migration chain to that view's params, validates the view, renders it in all
+  its scopes and shows screenshots before and after. Only if all of this passes does it save a new
+  view version with the updated pin. The same is available as MCP tools.
+- **A block version can carry a migration** for its params, used by `upgrade`:
 
   ```yaml
   migrations:
@@ -292,19 +315,11 @@ Views use the **newest version** of a block, so improvements reach every view. T
   ```
 
   Migrations chain, so a view several versions behind is brought forward step by step.
-- **`block_save` runs a downstream compatibility test** over every view in the same source that uses
-  the block:
-  1. apply the migration chain to the view's params;
-  2. validate the view statically and render it in all its scopes;
-  3. render the view before and after the update and compare the screenshots, so changes are
-     visible and can be reviewed as intended or accidental.
-- **All or nothing.** Only if every dependent view passes does `block_save` write the new block
-  version together with new versions of all migrated views (each with the updated `uses` entry and
-  a note saying which block update changed it). Otherwise nothing is written, and the report lists
-  each failing view with its error and screenshots.
-- **An explicit way out:** `--pin-failing` saves the update anyway and pins the failing views to the
-  previous block version (`phase-map@20261025-101532-k3m9`), recorded in a note on each, so they
-  can be fixed later.
+- **Outdated pins are visible.** The UI marks views whose blocks have newer versions, and the guide
+  asks agents (default) to check `outdated` when they edit a view anyway and to offer an upgrade.
+
+`block_save` tests only the block itself: its example parameter sets, the scopes, and the
+generalization checks above.
 
 ## Many runs in one chart
 
@@ -469,7 +484,8 @@ empirically, such as examples versus rules, or whether a second screenshot round
 - Baselines are first-class, with optional matching.
 - Reusable blocks form a project library in `blocks/` folders, inherited down the tree and used like
   widgets. Built-in widgets are the built-in library on the same kit.
-- Views follow the newest block version. `block_save` migrates dependent views and tests them
-  (validation, rendering in all scopes, before/after screenshots); it writes everything or nothing.
+- Views are pinned to block versions (`uses`, written on save). Upgrades are deliberate, per view
+  (`view upgrade`), with migrations, validation, rendering in all scopes and before/after
+  screenshots.
 - Agents are instructed to reuse library blocks first and to save generalized versions of new
   blocks.
