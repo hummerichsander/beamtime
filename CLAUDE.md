@@ -177,8 +177,8 @@ and say why.
 
 # Project specifics
 
-**Status: implementation.** M0 (foundations) and M1 (SDK) are done; milestones follow
-`docs/implementation-plan.md`.
+**Status: implementation.** M0 (foundations), M1 (SDK) and M2 (index and queries) are done;
+milestones follow `docs/implementation-plan.md`.
 Each milestone implements the design sections it names; a deviation is decided and written back into
 the design before the code lands.
 
@@ -245,6 +245,10 @@ sync.
   (`tests/test_boundaries.py`)
 - `src/beamtime/sdk/`: the SDK; tests that call `init` run scripts in subprocesses (`script` fixture in
   `tests/sdk/conftest.py`), so hooks and fd capture never touch pytest
+- `src/beamtime/index/`: the cache (SQLite + column files), ingest, discovery, locks, the daemon loop
+- `src/beamtime/query/`: the query language; `beamtime.query.run(query, logdir=...)` answers any kind;
+  `read.py` is the one read path every number goes through
+- Tests never touch `~/.cache`: `tests/conftest.py` points `BEAMTIME_CACHE` at a temporary directory
 - `examples/`: toy training script and SLURM job for checking the SDK by hand
 - `tests/golden/schema1/`: frozen, byte-exact reader fixtures; never regenerate or reformat them
 - `.github/workflows/ci.yml`: lint, tests on 3.11–3.13 and macOS, SDK tests on 3.10 and Windows, budgets

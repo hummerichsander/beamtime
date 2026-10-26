@@ -1,0 +1,320 @@
+import json
+import math
+from datetime import datetime, timezone
+from pathlib import Path
+from statistics import mean
+
+import pytest
+
+from beamtime.index.index import Index
+from beamtime.query import QueryError, run
+from beamtime.synth import generate
+
+
+@pytest.fixture(scope="module")
+def logdir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A synthetic log dir whose heartbeats are judged against the real clock.
+
+    :param tmp_path_factory: Pytest's temporary directory factory.
+    :return: The log dir."""
+    out = tmp_path_factory.mktemp("q") / "beamtime"
+    generate(out, seed=0, now=datetime.now(timezone.utc))
+    view = out / "scaling" / "view" / "data"
+    view.mkdir(parents=True)
+    (view / "3f9a21c0-fit.csv").write_text("lr,acc\n0.001,0.9\n0.003,0.85\n")
+    (view / "aa11bb22-fit.json").write_text(json.dumps({"columns": {"a": [1, 2]}}))
+    return out
+
+
+@pytest.fixture(scope="module")
+def roles(logdir: Path) -> dict[str, str]:
+    """The generator's runs by role.
+
+    :param logdir: The log dir.
+    :return: Role to run id."""
+    return json.loads((logdir / "_synth.json").read_text())["roles"]
+
+
+@pytest.fixture(scope="module")
+def ask(logdir: Path, tmp_path_factory: pytest.TempPathFactory):
+    """Answer queries against the log dir with a shared index.
+
+    :param logdir: The log dir.
+    :param tmp_path_factory: Pytest's temporary directory factory.
+    :return: A function from query to answer."""
+    index = Index(logdir=logdir, cache=tmp_path_factory.mktemp("cache"))
+    index.catch_up(".", budget_s=float("inf"))
+
+    def answer(query: dict, **kwargs) -> dict:
+        return run(query, logdir=logdir, index=index, **kwargs)
+
+    yield answer
+    index.close()
+
+
+def table(answer: dict) -> list[dict]:
+    """Turn a columnar answer into row dicts.
+
+    :param answer: A ``runs`` or ``folders`` answer.
+    :return: One dict per row."""
+    return [dict(zip(answer["columns"], row, strict=True)) for row in answer["rows"]]
+
+
+def test_runs_finds_the_planted_best_lr(ask) -> None:
+    """Sorting by final accuracy puts lr 3e-4 runs first; the answer is JSON-ready."""
+    a = ask(
+        {
+            "runs": {
+                "from": "scaling/lr-sweep",
+                "where": {"run.status": "finished"},
+                "select": ["config.lr", "metric.val/acc.last"],
+                "sort": ["-metric.val/acc.last"],
+                "limit": 3,
+            }
+        }
+    )
+    rows = table(a)
+    assert [r["config.lr"] for r in rows] == [3e-4] * 3
+    assert a["meta"]["matched"] == 15 and a["meta"]["cut"]
+    assert json.loads(json.dumps(a)) == a
+
+
+def test_seeds_group_runs(ask) -> None:
+    """seeds merges runs that differ only in the seed: five lrs of three seeds."""
+    a = ask(
+        {
+            "runs": {
+                "from": "scaling/lr-sweep",
+                "where": {"run.status": "finished"},
+                "seeds": "config.seed",
+                "select": ["config.lr", "metric.val/acc.last"],
+                "sort": ["-metric.val/acc.last"],
+            }
+        }
+    )
+    rows = table(a)
+    assert len(rows) == 5 and all(len(r["runs"]) == 3 for r in rows)
+    assert rows[0]["config.lr"] == 3e-4
+    assert rows[0]["metric.val/acc.last"]["n"] == 3
+
+
+def test_where_operators_and_numeric_strings(ask) -> None:
+    """Conditions combine; YAML-style numeric strings compare as numbers."""
+    a = ask(
+        {
+            "runs": {
+                "from": ".",
+                "where": {
+                    "config.lr": {"lt": "1e-3", "ge": "1e-4"},
+                    "run.tags": {"has": "resnet18"},
+                    "not": {"config.seed": 0},
+                    "any": [{"run.status": "finished"}, {"run.status": "killed"}],
+                },
+                "select": ["config.lr", "config.seed", "run.status"],
+                "limit": 100,
+            }
+        }
+    )
+    rows = table(a)
+    assert rows and all(1e-4 <= r["config.lr"] < 1e-3 and r["config.seed"] != 0 for r in rows)
+    assert {r["run.status"] for r in rows} <= {"finished", "killed"}
+    # the killed run (seed 3) has no tags, so the has condition drops it.
+    assert {r["config.seed"] for r in rows} == {1, 2}
+
+
+def test_derived_lost_status_and_globs(ask, roles) -> None:
+    """A running run with a stale heartbeat is lost; glob matches names."""
+    lost = ask({"runs": {"from": ".", "where": {"run.status": "lost"}, "select": ["run.id"]}})
+    assert [r["run.id"] for r in table(lost)] == [roles["lost"]]
+    some = ask({"runs": {"from": ".", "where": {"run.path": {"glob": "tokenizer/*"}}}})
+    assert some["meta"]["matched"] == 6
+
+
+def test_windowed_statistics(ask, roles) -> None:
+    """Windowed fields come from the columns and match a brute-force mean."""
+    a = ask(
+        {
+            "runs": {
+                "from": roles["resumed"],
+                "select": ["metric.train/loss.mean[0:999]", "metric.train/loss.count[1000:]"],
+            }
+        }
+    )
+    ((_, m, n),) = a["rows"]
+    assert n == 1000 and 0 < m < 3
+
+
+def test_keys(ask) -> None:
+    """keys lists metrics, config keys, data keys, tags and statuses."""
+    a = ask({"keys": {"from": "."}})
+    metrics = {r[0]: r for r in a["metrics"]["rows"]}
+    assert metrics["train/loss"][1] == 26 and metrics["val/ppl"][1] == 6
+    config = {r[0]: r for r in a["config"]["rows"]}
+    assert config["config.tokenizer"][2] == ["bpe", "unigram"]
+    assert {r[0] for r in a["data"]["rows"]} == {
+        "val/per_class",
+        "grads/layer3",
+        "samples",
+        "samples/text",
+    }
+    assert a["tags"]["resnet18"] == 15 and a["status"]["lost"] == 1
+
+
+def test_series_raw_downsampled_and_from_preview(ask, roles) -> None:
+    """Finished runs answer overview curves from previews; zooms use the columns."""
+    overview = ask({"series": {"from": "scaling/lr-sweep", "y": ["train/loss"], "points": 50}})
+    assert overview["meta"]["downsampled"]
+    assert overview["meta"]["from_preview"] == overview["meta"]["curves"]
+    zoom = ask(
+        {"series": {"from": roles["killed"], "y": ["train/loss"], "steps": [100, 119]}}
+    )
+    (curve,) = zoom["curves"]
+    assert curve["raw"] and curve["x"] == list(range(100, 120)) and curve["source"] == "columns"
+
+
+def test_series_x_axes_and_smoothing(ask, roles) -> None:
+    """x by wall time, elapsed time or another metric; EMA smoothing narrows the band."""
+    base = {"from": roles["resumed"], "y": ["train/loss"], "points": 10}
+    elapsed = ask({"series": base | {"x": "_elapsed"}})["curves"][0]
+    assert elapsed["x"][0] == 0.0 and elapsed["x"] == sorted(elapsed["x"])
+    raw = ask({"series": base})["curves"][0]
+    smooth = ask({"series": base | {"smooth": {"ema": 0.99}}})["curves"][0]
+    spread = lambda c: mean(b - a for a, b in zip(c["min"], c["max"]))  # noqa: E731
+    assert spread(smooth) < spread(raw)
+    by_lr = ask({"series": {"from": "scaling/lr-sweep", "y": ["val/acc"], "x": "lr", "points": 5}})
+    assert all(x is None or x <= 0.01 for c in by_lr["curves"] for x in c["x"])
+
+
+def test_grouped_series_show_the_tokenizer_gap(ask) -> None:
+    """Grouped curves average seeds per bucket; unigram ends lower than BPE."""
+    a = ask(
+        {
+            "series": {
+                "from": "tokenizer",
+                "y": ["val/ppl"],
+                "group": ["config.tokenizer"],
+                "band": "stderr",
+                "points": 8,
+            }
+        }
+    )
+    final = {c["group"]["config.tokenizer"]: c["mean"][-1] for c in a["curves"]}
+    assert 0.2 < final["bpe"] - final["unigram"] < 0.6
+    assert all(n == 3 for c in a["curves"] for n in c["n"])
+    seeded = ask({"series": {"from": "tokenizer", "y": ["val/ppl"], "seeds": "config.seed"}})
+    assert len(seeded["curves"]) == 2
+
+
+def test_point_budget_shrinks_points_per_curve(ask) -> None:
+    """Many curves share a chart budget of about 30k points."""
+    a = ask({"series": {"from": ".", "y": ["train/loss"], "points": 5000}}, caller="view")
+    assert a["meta"]["points"] * a["meta"]["curves"] <= 30_000 + a["meta"]["curves"]
+
+
+def test_data_kinds(ask) -> None:
+    """Tables come as columns, images and text as references and inline text."""
+    a = ask({"data": {"from": "scaling/lr-sweep", "key": "val/per_class", "limit": 100}})
+    assert len(a["entries"]) == 15 and len(a["entries"][0]["columns"]["acc"]) == 10
+    images = ask({"data": {"from": "scaling/lr-sweep", "key": "samples", "step": "all"}})
+    assert all(Path(e["file"]).is_file() for e in images["entries"])
+    text = ask({"data": {"from": "tokenizer", "key": "samples/text"}})
+    assert all(e["text"] for e in text["entries"])
+    window = ask({"data": {"from": "scaling", "key": "grads/layer3", "step": [0, 0], "limit": 100}})
+    assert {e["step"] for e in window["entries"]} == {0}
+
+
+def test_timeline(ask, roles) -> None:
+    """Notes and events in time order, filtered by type; bodies on request."""
+    a = ask({"timeline": {"from": "scaling/lr-sweep", "types": ["failed", "observation"], "full": True}})
+    kinds = [(e["kind"], e["type"]) for e in a["entries"]]
+    assert ("event", "failed") in kinds and ("note", "observation") in kinds
+    note = next(e for e in a["entries"] if e["kind"] == "note")
+    assert roles["diverging"] in note["body"]
+    failed = next(e for e in a["entries"] if e["type"] == "failed")
+    assert failed["description"].startswith("failed: FloatingPointError")
+    times = [e["t"] for e in a["entries"]]
+    assert times == sorted(times)
+    later = ask({"timeline": {"from": ".", "since": "2030-01-01"}})
+    assert later["entries"] == []
+
+
+def test_folders(ask) -> None:
+    """Folders carry proposal statements and run counts by status."""
+    rows = {r["path"]: r for r in table(ask({"folders": {"from": "."}}))}
+    sweep = rows["scaling/lr-sweep"]
+    assert sweep["proposal"].startswith("lr 0.0003") and sweep["runs"] == 17
+    assert sweep["failed"] == 1 and sweep["killed"] == 1
+    assert rows["."]["runs"] == 26 and rows["scaling"]["direct"] == 0
+    shallow = ask({"folders": {"from": ".", "depth": 1}})
+    assert {r[0] for r in shallow["rows"]} == {".", "scaling", "tokenizer"}
+
+
+def test_file(ask) -> None:
+    """View data files come back as tables."""
+    a = ask({"file": {"path": "data/3f9a21c0-fit.csv", "view": "scaling"}})
+    assert a["columns"] == ["lr", "acc"] and a["rows"][1] == [0.003, 0.85]
+    b = ask({"file": {"path": "data/aa11bb22-fit.json", "view": "scaling"}})
+    assert b["rows"] == [[1], [2]]
+    with pytest.raises(QueryError):
+        ask({"file": {"path": "../../_synth.json", "view": "scaling"}})
+
+
+@pytest.mark.parametrize(
+    "query, code, text",
+    [
+        ({"runs": {"from": "scalng"}}, "not_found", "Did you mean 'scaling'"),
+        ({"runs": {"select": ["metric.val/accc.max"]}}, "not_found", "'val/acc'"),
+        ({"runs": {"select": ["config.lrr"]}}, "not_found", "'lr'"),
+        ({"data": {"from": ".", "key": "sample"}}, "not_found", "'samples'"),
+        ({"runs": {"from": "@cluster/x"}}, "invalid", "M8"),
+        ({"runs": {"where": {"proposal.check": "pass"}}}, "invalid", "M4"),
+        ({"importance": {"target": "metric.val/acc.max"}}, "invalid", "v1.1"),
+        ({"runs": {"from": "../.."}}, "invalid", "leaves the log dir"),
+        ({"runs": {"where": {"config.lr": {"less": 1}}}}, "invalid", "operators"),
+        ({"series": {"y": ["train/loss"], "steps": [1]}}, "invalid", "steps"),
+    ],
+)
+def test_helpful_errors(ask, query: dict, code: str, text: str) -> None:
+    """Errors say what is wrong, suggest the closest names and carry an exit code."""
+    with pytest.raises(QueryError) as e:
+        ask(query)
+    assert e.value.code == code and text in str(e.value)
+
+
+def test_caller_defaults(ask) -> None:
+    """MCP answers default to 50 rows; views get up to 1000."""
+    assert ask({"runs": {}}, caller="mcp")["meta"]["shown"] == 26
+    assert ask({"runs": {"limit": 2}}, caller="view")["meta"]["shown"] == 2
+
+
+def test_nonfinite_values_are_json_safe(ask, roles) -> None:
+    """Raw curves turn NaN and Infinity into null, so answers stay valid JSON."""
+    a = ask({"series": {"from": roles["diverging"], "y": ["train/loss"], "steps": [640, 700]}})
+    ys = a["curves"][0]["y"]
+    assert None in ys and all(y is None or math.isfinite(y) for y in ys)
+    json.dumps(a, allow_nan=False)
+
+
+@pytest.mark.parametrize(
+    "where",
+    [
+        {"config.lr": {"lt": "1e-3"}},
+        {"config.lr": {"ge": 1e-4, "le": 1e-3}},
+        {"config.lr": "3e-4"},
+        {"config.tokenizer": "bpe"},
+        {"config.tokenizer": {"lt": "c"}},
+        {"config.tokenizer": {"gt": "1e-3"}},
+        {"config.model": {"gt": 5}},
+        {"config.seed": {"gt": "0"}, "run.status": "finished"},
+        {"run.status": "lost"},
+        {"run.status": {"eq": "running"}},
+        {"metric.val/acc.last": {"gt": 0.9}},
+        {"value.test/acc": {"ge": "0.92"}},
+    ],
+)
+def test_sql_prefilter_never_changes_answers(ask, monkeypatch, where: dict) -> None:
+    """The SQL prefilter returns exactly what the Python evaluator alone returns."""
+    query = {"runs": {"where": where, "select": ["run.id"], "limit": 1000}}
+    with_sql = {r[0] for r in ask(query)["rows"]}
+    monkeypatch.setattr("beamtime.query.kinds.prefilter", lambda where, exprs: ("", []))
+    assert {r[0] for r in ask(query)["rows"]} == with_sql

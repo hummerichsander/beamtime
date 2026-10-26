@@ -25,7 +25,7 @@ canonical names that every layer uses, the scope of v1, and the cross-cutting ru
 |---|---|
 | project settings | `beamtime.yaml` in the root; user settings in `~/.config/beamtime/settings.yaml` |
 | default log dir | `beamtime/` in the root |
-| index cache | `~/.cache/beamtime/<root-hash>/` |
+| index cache | `~/.cache/beamtime/<logdir-hash>/` |
 | run id | `YYYYMMDD-HHMMSS-<8 base32>`, e.g. `20261024-101532-k3m9xq2a` |
 | version id of authored files | `YYYYMMDD-HHMMSS-<4 base32>`, e.g. `20261025-091200-x8k2`; the file is `<id>.<ext>` |
 | machine-written files | start with `_`: `_run.json`, `_config.json`, `_run_card.json`, `_preview.json`, `_metrics.jsonl`, `_data.jsonl`, `_data/`, `_events.jsonl`, `_artifacts.jsonl`, `_output.log` (+ tail and rank files), `_env/` |

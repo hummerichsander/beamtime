@@ -53,8 +53,10 @@ my-repo/
   directory is recorded as a warning event in the run.
 - **The log dir** is `beamtime/` in the root, or `logdir` in the settings. `BEAMTIME_LOGDIR` overrides
   it for new runs, e.g. scratch space on a cluster; this is the documented cluster recipe.
-- **The index cache** lives outside the repo in `~/.cache/beamtime/<root-hash>/`, so nothing
-  machine-specific ends up in the repo and SQLite never touches a cluster filesystem.
+- **The index cache** lives outside the repo in `~/.cache/beamtime/<logdir-hash>/`, so nothing
+  machine-specific ends up in the repo and SQLite never touches a cluster filesystem. The hash is
+  of the resolved log dir, so a `BEAMTIME_LOGDIR` on scratch space gets its own cache.
+  `BEAMTIME_CACHE` (or `XDG_CACHE_HOME`) moves the cache, e.g. to a local disk on a login node.
 
 ### Settings
 

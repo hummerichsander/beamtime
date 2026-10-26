@@ -5,7 +5,7 @@ store, the most performance-critical piece. Part 2 covers the query language tha
 share.
 
 The index sits between the files ([layer 1](01-storage.md)) and everything that displays them:
-views, CLI, MCP. It is a cache in `~/.cache/beamtime/<root-hash>/`, rebuildable from the files at
+views, CLI, MCP. It is a cache in `~/.cache/beamtime/<logdir-hash>/`, rebuildable from the files at
 any time.
 
 ## Requirements
@@ -112,12 +112,13 @@ implementation.** It is the simplest design and meets every target. Ingest only 
 window and aggregate is exact, and no precomputed structure needs maintaining.
 
 ```
-~/.cache/beamtime/<root-hash>/
-  index.sqlite                     # runs, config, run cards, notes, links, events, file offsets
-  series/<run-id>/<metric>.steps   # int64, appended
-  series/<run-id>/<metric>.values  # float64, appended
-  series/<run-id>/_manifest.json   # committed length per metric, source byte offset, attempts
-  serve.json, serve.lock           # the daemon's status and its lock
+~/.cache/beamtime/<logdir-hash>/
+  index.sqlite                           # runs, config, run cards, notes, events, data entries
+  series/<run-id>/<key>.<gen>.steps      # int64, appended; <key> percent-encoded
+  series/<run-id>/<key>.<gen>.values     # float64, appended
+  series/<run-id>/_manifest.json         # committed length per key, source offset, attempts
+  index.lock                             # held by whoever is ingesting
+  serve.json, serve.lock                 # the daemon's status and its lock
 ```
 
 - **Ingest** reads each `_metrics.jsonl` from the last byte offset recorded in the manifest, appends
@@ -384,6 +385,46 @@ readable table by default, `--json` gives the canonical answer.
 
 MCP has one tool per kind (`keys`, `runs`, `series`, `data`, `timeline`, `folders`, `importance`,
 `file`) plus `query` for the object form of any kind ([layer 8](08-cli-mcp.md)).
+
+## Implementation notes
+
+Decided while building the index and the queries (milestone M2):
+
+- **Cache location.** `BEAMTIME_CACHE`, else `XDG_CACHE_HOME/beamtime`, else `~/.cache/beamtime`, then
+  a directory per resolved log dir.
+- **Column files** are named by the percent-encoded key and a generation number. Truncating for a
+  resumed attempt writes the next generation and switches the manifest to it, so a reader that has
+  the old files mapped is never cut short (shrinking a mapped file crashes readers). Wall time is
+  stored as a column `_t` per run, so `x: _t` and `_elapsed` need no extra pass.
+- **Ingest** always indexes the small files (`_run.json`, config, card, notes), so run tables are
+  complete even when the time budget runs out; metric, event and data streams are indexed while the
+  budget lasts. Finished runs are re-checked only when `_run.json` or their `notes/` change. Lines
+  are parsed with msgspec, falling back to Python's parser for lines with `NaN` or `Infinity`.
+- **A decreasing step without an `attempt_started` event** waits for the event while the run is
+  running (the SDK may have written the metrics before the event); in a run that has ended, it is
+  treated as a resume at that step.
+- **Filters** fetch only the referenced fields with SQLite's `json_extract`, then evaluate conditions,
+  windowed statistics and `any`/`not` in one small Python evaluator. Simple top-level comparisons are
+  also sent to SQL as a prefilter, guarded by the value's type so it agrees exactly with the
+  evaluator (numbers compare as numbers, strings as strings). Key checks stop at the first run that
+  has the key; the full key list is built only to suggest names after a miss.
+- **Freshness checks** cost one `stat` of `_run.json` and one of `notes/` per run in scope when no
+  daemon runs (about 7 µs per run); finished runs are re-read only when those change.
+- **Downsampling** covers finite values only, like the card and the preview. Buckets have the
+  smallest power-of-two width that gives at most `points` buckets; edges sit at multiples of the
+  width. A downsampled curve carries `x` (bucket start), `first` (first step with data), `min`,
+  `max`, `last` and `count`; a raw curve carries `x` and `y`, with `null` for non-finite values so
+  answers stay valid JSON.
+- **Previews answer** full-range curves on `_step` without smoothing for runs that are not running,
+  whenever the preview pins down the same bucket width; the answer is then identical to the one from
+  the column files, and needs no ingest of the run's metrics.
+- **Defaults per caller**: CLI and MCP 50 rows, 100 points per curve, 30 entries; views 1000 rows,
+  1000 points, 200 entries. Run tables always start with `run.id`.
+- **Concurrency.** Schema creation re-checks the version inside an immediate transaction, so two
+  processes opening a new cache at once don't rebuild it under each other; switching to WAL retries
+  while another process holds the lock.
+- **Not yet**: `proposal.*` fields resolve to `null` and refuse to filter until the research record
+  (M4); remote sources (`@name/…`) wait for M8; `importance` for v1.1.
 
 ## Decisions
 

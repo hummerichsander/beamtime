@@ -89,7 +89,7 @@ POSIX on macOS, Python 3.10 and 3.11, Lightning 2.6); the run on a cluster with
 *Done when*: a real training script, locally and on a cluster under SLURM, produces correct folders,
 including a preempted and requeued job and a killed run that shows as `lost`.
 
-### M2: Index and queries (1.5–2 weeks)
+### M2: Index and queries (1.5–2 weeks) — done
 
 Implements [layer 3](design/03-index.md).
 
@@ -104,6 +104,9 @@ Implements [layer 3](design/03-index.md).
 - Re-run the index benchmark on the generator's data to confirm the budgets.
 
 *Done when*: queries over the generator's scale-M log dir meet the targets of layer 3.
+
+Measured in `bench/index/RESULTS.md` (M2 section): every target is met except the 10k-run table
+without a daemon (112 ms; 36 ms with the daemon), where the per-run freshness check dominates.
 
 ### M3: Operations, CLI and MCP (1–1.5 weeks)
 

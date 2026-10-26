@@ -216,3 +216,32 @@ wins.
 - float32 value storage, delta/compressed steps and `np.frombuffer(mmap)` for B were not measured.
 - Generated data (about 2.3 GB) and all indexes were deleted after the run. Only the scripts,
   `results.jsonl` and this file remain.
+
+## M2: the implemented index (2026-10-26)
+
+`bench/index/m2.py` on the generator's scale m (495 runs, 9.9M lines), a 10k-run table of
+card-only copies and one run with 10M steps. Apple M3, 16 GB, SSD, Python 3.11. First call in a
+fresh index connection / warm median.
+
+| Workload | Size | Measured (first / warm) | Target |
+|---|---|---|---|
+| Full build, scale m | 9.9M lines, 495 runs | 14.5 s | ~1 min per 1e8 points |
+| Chart from previews | 52 runs × 1 metric | 40 / 26 ms | < 100 ms |
+| Chart from columns | 52 runs × 1 metric, 20k steps each | 81 / 49 ms | < 100 ms |
+| Exact windowed mean | 495 runs, 6000-step window | 0.38 / 0.10 s | < 1 s |
+| Live: 1000 new lines queryable | running run | 6 ms | < 1 s |
+| Run table, daemon running | 10k runs | 44 / 36 ms | < 50 ms |
+| Run table, no daemon (query + freshness check) | 10k runs | 134 / 112 ms | < 50 ms |
+| Run table, one-shot process | 10k runs | 170 ms | as low as possible |
+| Ingest one 10M-step run | 10M lines | 11.9 s | |
+| Zoom 1 % of 10M steps | 100k points → 1000 buckets | 20 / 4 ms | < 100 ms |
+| Full range of 10M steps from columns | 10M points → 1000 buckets | 611 / 248 ms | |
+| Zoom, one-shot process | | 63 ms | |
+
+- Ingest runs at about 700k lines/s (msgspec), so 1e8 points build in roughly two minutes
+  single-process; parallel ingest is the next lever if needed.
+- Without a daemon, every call checks each run in scope for changes (one `stat` of `_run.json`, one
+  of `notes/`), about 7 µs per run: 75 ms at 10k runs. The query itself stays at 36 ms. A running
+  `beamtime serve` removes the check; scopes are rarely 10k runs.
+- Full-range charts of very long runs come from the preview (finished runs) in milliseconds; from the
+  columns they take 0.25 s per 10M points, the case precomputed levels would address later.

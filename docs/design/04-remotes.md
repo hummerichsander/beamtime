@@ -102,7 +102,7 @@ beamtime pull cluster:scaling/lr-sweep
   its ancestors, so inherited views and their blocks keep working. Large data stays behind:
   `_data/` files above a size limit, `artifacts/` and `checkpoints/`.
 - Copies incrementally: appended files transfer only their new bytes.
-- Snapshots are **read-only** and live in the cache (`~/.cache/beamtime/<root-hash>/pulled/`), never in
+- Snapshots are **read-only** and live in the cache (`~/.cache/beamtime/<logdir-hash>/pulled/`), never in
   the user's log dir. They appear in queries as their remote, marked with the snapshot's time; run
   status is judged relative to that time.
 - `beamtime pull` again refreshes; `beamtime pull --drop` removes the snapshot. Writing to a pulled
