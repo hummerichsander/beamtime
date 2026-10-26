@@ -1,0 +1,4 @@
+{"_t":1761300932.1,"kind":"created"}
+{"_t":1761300932.1,"kind":"attempt_started","resume_step":null,"metrics_offset":0}
+{"_t":1761300936.0,"_step":4,"kind":"user","message":"lr decayed","factor":0.5}
+{"_t":1761300942.0,"_step":9,"kind":"finished"}

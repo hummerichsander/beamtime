@@ -8,11 +8,22 @@ license-files = ["LICENSE"]
 authors = [
     { name = "hummerichsander", email = "sander.hummerich@gmx.de" }
 ]
-requires-python = ">=3.11"
-dependencies = []
+requires-python = ">=3.10"
+dependencies = [
+    "msgspec>=0.22.0",
+    "pyyaml>=6.0.3",
+]
 
 [project.scripts]
 beamtime = "beamtime.cli:main"
+
+[project.optional-dependencies]
+serve = [
+    "mcp>=2.3.0",
+    "playwright>=1.64.1",
+    "starlette>=1.7.0",
+    "uvicorn>=0.54.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.9.8,<0.10.0"]
@@ -26,7 +37,7 @@ dev = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py310"
 extend-exclude = ["tests", "bench", "docs"]
 
 [tool.ruff.lint]

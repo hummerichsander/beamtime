@@ -1,0 +1,32 @@
+{
+ "schema": 1,
+ "id": "20261024-111500-r3s4m5d6",
+ "name": "prompt-photon-7",
+ "tags": [],
+ "status": "finished",
+ "created_at": "2026-10-24T11:15:00.000Z",
+ "ended_at": "2026-10-24T11:30:00.000Z",
+ "exit": null,
+ "attempts": [
+  {
+   "started_at": "2026-10-24T11:15:00Z",
+   "host": "gpu001",
+   "resume_step": null
+  },
+  {
+   "started_at": "2026-10-24T11:20:00Z",
+   "host": "gpu002",
+   "resume_step": 4
+  }
+ ],
+ "proposals": {
+  "scaling": "20261020-140000-q7w3"
+ },
+ "job_key": "slurm:8812400",
+ "host": {
+  "hostname": "gpu042",
+  "user": "ada",
+  "os": "Linux",
+  "python": "3.10.14"
+ }
+}

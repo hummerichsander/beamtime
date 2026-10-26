@@ -1,0 +1,5 @@
+schema: 1
+statement: Warmup removes the loss spike.
+supersedes: {version: 20261020-140000-q7w3, reason: "dropped the manual prediction"}
+author: ada
+user: ada

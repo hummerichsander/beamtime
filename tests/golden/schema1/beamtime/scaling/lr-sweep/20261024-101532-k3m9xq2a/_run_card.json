@@ -1,0 +1,29 @@
+{
+ "schema": 1,
+ "status": "finished",
+ "duration_s": 10.0,
+ "steps": 9,
+ "steps_per_s": 0.9,
+ "error": null,
+ "warnings": 0,
+ "metrics": {
+  "train/loss": {
+   "first": 2.31,
+   "last": 1.18,
+   "ema_last": 1.6,
+   "min": 1.18,
+   "min_step": 9,
+   "max": 2.31,
+   "max_step": 0,
+   "mean": 1.604,
+   "count": 10,
+   "last_step": 9,
+   "nonfinite": 0,
+   "slope_last10pct": null,
+   "future_field": 1
+  }
+ },
+ "values": {
+  "test/acc": 0.931
+ }
+}

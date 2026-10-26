@@ -177,8 +177,9 @@ and say why.
 
 # Project specifics
 
-**Status: design phase.** The architecture below is agreed on, but is being designed layer by layer
-before implementation. Do not implement a layer whose design is not settled.
+**Status: implementation.** M0 (foundations) is done; milestones follow `docs/implementation-plan.md`.
+Each milestone implements the design sections it names; a deviation is decided and written back into
+the design before the code lands.
 
 ### Decisions so far
 
@@ -234,6 +235,15 @@ sync.
 
 ### Layout
 
-- `src/beamtime/`: package (`cli.py` is the `beamtime` entry point)
-- `tests/`: pytest suite
+- `src/beamtime/`: one subpackage per layer (`docs/implementation-plan.md#package-layout`); `cli/` is the
+  `beamtime` entry point
+- `src/beamtime/format/`: file names, ids, the write protocol and readers for every file kind
+- `src/beamtime/synth/`: the seeded log-dir generator with planted effects; tests use it as fixture
+  source (`synth` fixture in `tests/conftest.py`)
+- `sdk/`, `format/` and `synth/` stay Python 3.10 with the standard library and PyYAML only
+  (`tests/test_boundaries.py`)
+- `tests/golden/schema1/`: frozen, byte-exact reader fixtures; never regenerate or reformat them
+- `.github/workflows/ci.yml`: lint, tests on 3.11–3.13 and macOS, SDK tests on 3.10 and Windows, budgets
 - Run checks with `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`
+- SDK side on 3.10, without touching `.venv`:
+  `UV_PROJECT_ENVIRONMENT=/tmp/bt-venv310 uv run --python 3.10 pytest -q tests/format tests/synth tests/test_boundaries.py tests/test_cli.py`

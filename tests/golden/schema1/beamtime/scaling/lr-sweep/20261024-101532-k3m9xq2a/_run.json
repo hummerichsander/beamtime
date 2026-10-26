@@ -1,0 +1,54 @@
+{
+ "schema": 1,
+ "id": "20261024-101532-k3m9xq2a",
+ "name": "boosted-kaon-42",
+ "tags": [
+  "resnet18",
+  "cifar10"
+ ],
+ "status": "finished",
+ "created_at": "2026-10-24T10:15:32.104Z",
+ "ended_at": "2026-10-24T10:15:42.000Z",
+ "exit": null,
+ "attempts": [
+  {
+   "started_at": "2026-10-24T10:15:32Z",
+   "host": "gpu042",
+   "resume_step": null
+  }
+ ],
+ "proposals": {
+  "scaling": "20261020-140000-q7w3"
+ },
+ "job_key": "slurm:8812300:45",
+ "host": {
+  "hostname": "gpu042",
+  "user": "ada",
+  "os": "Linux",
+  "python": "3.10.14"
+ },
+ "scheduler": {
+  "kind": "slurm",
+  "job_id": "8812345",
+  "array_job_id": "8812300",
+  "array_task_id": "45",
+  "partition": "gpu",
+  "nodes": "gpu042"
+ },
+ "git": {
+  "commit": "57878f1",
+  "branch": "master",
+  "dirty": true
+ },
+ "command": [
+  "python",
+  "train.py",
+  "--lr",
+  "3e-4"
+ ],
+ "cwd": "/home/ada/proj",
+ "beamtime_version": "0.1.0",
+ "added_in_a_later_minor": {
+  "ignored": true
+ }
+}

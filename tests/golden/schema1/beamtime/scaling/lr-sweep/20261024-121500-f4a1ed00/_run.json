@@ -1,0 +1,25 @@
+{
+ "schema": 1,
+ "id": "20261024-121500-f4a1ed00",
+ "name": "displaced-muon-13",
+ "tags": [],
+ "status": "failed",
+ "created_at": "2026-10-24T12:15:00.000Z",
+ "ended_at": "2026-10-24T12:15:05.000Z",
+ "exit": {
+  "code": 1
+ },
+ "attempts": [
+  {
+   "started_at": "2026-10-24T12:15:00Z",
+   "resume_step": null
+  }
+ ],
+ "proposals": {},
+ "host": {
+  "hostname": "gpu042",
+  "user": "ada",
+  "os": "Linux",
+  "python": "3.10.14"
+ }
+}

@@ -1,0 +1,2 @@
+{"name":"best.ckpt","path":"artifacts/best.ckpt","size":4,"kind":"checkpoint"}
+{"name":"final.ckpt","uri":"/scratch/me/ckpts/run42/final.ckpt","size":12000000000.0,"kind":"checkpoint"}

@@ -1,0 +1,3 @@
+{"_step":9,"_t":1761300941.0,"key":"val/per_class","kind":"table","columns":{"class":["cat","dog"],"acc":[0.9,0.8]}}
+{"_step":9,"_t":1761300941.0,"key":"samples","kind":"image","path":"_data/samples/9.png"}
+{"_step":9,"_t":1761300941.0,"key":"samples/text","kind":"text","text":"a beam of kaons"}

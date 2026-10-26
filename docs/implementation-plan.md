@@ -38,19 +38,20 @@ src/beamtime/
   cli/             # argparse frontend, text formatting
   mcp/             # MCP server (low-level SDK API), prompts
   serve/           # Starlette app, API, SSE, renderer (Playwright), static files
+  synth/           # synthetic log-dir generator with planted effects       (Python 3.10, stdlib + PyYAML)
 web/               # TypeScript: shell, bt kit, built-in blocks, sandbox bridge; esbuild → serve/static
 bench/             # benchmarks, query-form experiment, view evaluation harness
 tests/             # unit, property, crash, capture, golden-folder and end-to-end tests
 ```
 
-- `sdk/` and `format/` never import from the other packages, so the SDK runs on Python 3.10 in training
-  environments. `format/` is shared: the SDK writes with it, the index reads with it.
+- `sdk/`, `format/` and `synth/` never import from the other packages, so the SDK runs on Python 3.10
+  in training environments. `format/` is shared: the SDK writes with it, the index reads with it.
 - `ops/` is the single source of the operation set. CLI commands, MCP tools and API methods are thin
   adapters generated from or mapped onto it, so names and parameters cannot drift.
 
 ## Milestones
 
-### M0: Foundations (0.5–1 week)
+### M0: Foundations (0.5–1 week) — done
 
 - Package layout above; `pyproject.toml` with the base install (PyYAML, msgspec) and the
   `beamtime[serve]` extra (Starlette, uvicorn, MCP SDK, Playwright).
@@ -60,7 +61,9 @@ tests/             # unit, property, crash, capture, golden-folder and end-to-en
   `schema` handling.
 - **The synthetic log-dir generator, version 0**: writes valid run folders with planted effects
   (sweeps, seeds, a diverging run, a killed run, logged tables and images), driven by a seed. It
-  becomes the fixture source for everything after.
+  becomes the fixture source for everything after. It lives in `beamtime.synth`, since `beamtime demo`
+  uses it, and computes card and preview exactly from whole series: the reference for M1's property
+  tests.
 - Golden run folders for schema 1, checked in.
 
 *Done when*: CI runs on all jobs, the generator writes folders that `format/` reads back.

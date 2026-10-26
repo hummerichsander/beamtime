@@ -1,0 +1,11 @@
+schema: 1
+title: Warmup sweep
+finding: Warmup removes the loss spike.
+author: claude-opus-5-5
+user: ada
+filters:
+  run.status: {ne: failed}
+body:
+  - row:
+      - stat: {id: best-acc, field: metric.val/acc.max, aggregate: best}
+      - stat: {id: runs, aggregate: count}

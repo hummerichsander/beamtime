@@ -1,0 +1,39 @@
+{
+ "schema": 1,
+ "metrics": {
+  "val/acc": {
+   "bucket_width": 1,
+   "first_bucket": 0,
+   "min": [
+    0.1,
+    null,
+    null,
+    0.37
+   ],
+   "max": [
+    0.1,
+    null,
+    null,
+    0.37
+   ],
+   "last": [
+    0.1,
+    null,
+    null,
+    0.37
+   ],
+   "mean": [
+    0.1,
+    null,
+    null,
+    0.37
+   ],
+   "count": [
+    1,
+    null,
+    null,
+    1
+   ]
+  }
+ }
+}

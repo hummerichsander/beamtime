@@ -1,0 +1,13 @@
+schema: 1
+name: loss-panel
+description: Training loss of the runs in a folder.
+params:
+  y: {kind: metrics, default: [train/loss]}
+queries:
+  curves: {series: {from: ., y: $y}}
+code: code/0a1b2c3d-loss-panel.js
+kit: 1
+libs: []
+derived_from: null
+author: claude-opus-5-5
+user: ada

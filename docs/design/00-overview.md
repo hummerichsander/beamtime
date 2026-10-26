@@ -30,7 +30,7 @@ canonical names that every layer uses, the scope of v1, and the cross-cutting ru
 | version id of authored files | `YYYYMMDD-HHMMSS-<4 base32>`, e.g. `20261025-091200-x8k2`; the file is `<id>.<ext>` |
 | machine-written files | start with `_`: `_run.json`, `_config.json`, `_run_card.json`, `_preview.json`, `_metrics.jsonl`, `_data.jsonl`, `_data/`, `_events.jsonl`, `_artifacts.jsonl`, `_output.log` (+ tail and rank files), `_env/` |
 | authored folders (versioned) | `proposal/`, `notes/`, `view/`, `memory/`, `blocks/<name>/` |
-| reserved names in a log dir | the authored folders above, every name starting with `_`, `artifacts/`, `checkpoints/` |
+| reserved names in a log dir | the authored folders above, every name starting with `_` or `.`, `artifacts/`, `checkpoints/` |
 | schema version | a `schema` field in every JSON file and every YAML or frontmatter file |
 | identity on authored files | `author` (person or model id) and `user` (the account) |
 | remote folders | `@<source>/<path>`, e.g. `@cluster/scaling` |

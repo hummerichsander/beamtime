@@ -31,7 +31,8 @@ git, scheduler variables if any) and stores what the run logs.
    Python dicts and must round-trip exactly. Proposals and views are structured YAML; notes and
    memory are Markdown with YAML frontmatter.
 7. **Every file states its schema version** in a `schema` field, and readers accept every version
-   forever. Old runs are never rewritten.
+   forever. Old runs are never rewritten. JSON Lines streams carry no per-line `schema`; their lines
+   follow the schema of the run's `_run.json`.
 
 ## Root and log dir
 
@@ -134,7 +135,8 @@ This covers what other tools model as separate concepts:
 - **Reports and dashboards** are views, one per folder.
 
 **Reserved names** never count as groups: the authored folders above, every name starting with `_`
-(including `_trash/` in the log dir), and inside runs `artifacts/` and `checkpoints/`.
+(including `_trash/` in the log dir) or `.` (hidden folders such as `.ipynb_checkpoints/`), and inside
+runs `artifacts/` and `checkpoints/`.
 
 The **timeline** is not stored. The index builds it from run events and notes.
 
@@ -232,7 +234,7 @@ How views look and behave is [layer 5](05-views.md). For storage:
 - **`scheduler`** is absent when no job scheduler is detected. `kind` names it (`slurm`, `pbs`, `lsf`,
   `kubernetes`, …); the other fields are what it exposes, mapped to common names.
 - **Status** is `running`, `finished`, `failed` (exception) or `killed` (a signal: Ctrl-C, scheduler
-  timeout, preemption). **`lost`** is derived when reading: a `running` run whose heartbeat is older
+  timeout, preemption). `exit` says how it ended: `{"code": 1}` or `{"signal": "SIGTERM"}`. **`lost`** is derived when reading: a `running` run whose heartbeat is older
   than 5 minutes.
 - **Heartbeat.** The SDK updates the modification time of `_run.json` every 30 seconds (`os.utime`),
   which costs no rename on cluster filesystems. In a pulled snapshot, staleness is judged relative to
@@ -259,7 +261,8 @@ One JSON object per `log()` call:
 - Keys are sparse: each line holds only what was logged. `/` in keys forms groups (`train/loss`).
 - `NaN` and `Infinity` are written as Python's JSON literals; diverging runs must be recordable.
 - Each line is written with a single `write()` and flushed periodically. Readers ignore a trailing
-  line without a newline.
+  line without a newline until it is complete, and skip and count complete lines that don't parse
+  (a writer killed mid-line, followed by a resumed attempt).
 - **Attempts.** When a run resumes from step `s`, the new attempt's lines follow in the same file. For
   steps from `s` on, the newer attempt wins; the index marks attempt boundaries from `_events.jsonl`
   and drops the overlapped points of the older attempt, so steps stay sorted for every reader.
@@ -287,7 +290,14 @@ A histogram is a table with `bin_start`, `bin_end` and `count`. `/` in keys beco
 
 ### `_events.jsonl`
 
-Lifecycle and diagnostic events, which feed the timeline:
+Lifecycle and diagnostic events, which feed the timeline. Each line has the time `_t`, the step
+`_step` where one applies, the event `kind`, and the kind's fields:
+
+```json
+{"_t": 1761300932.1, "kind": "attempt_started", "resume_step": null, "metrics_offset": 0}
+{"_t": 1761300936.0, "_step": 4, "kind": "user", "message": "lr decayed", "factor": 0.5}
+{"_t": 1761300942.0, "_step": 9, "kind": "failed", "traceback": "Traceback (most recent call last): …"}
+```
 
 | Event | When |
 |---|---|
@@ -296,7 +306,7 @@ Lifecycle and diagnostic events, which feed the timeline:
 | `requeue_requested` | a scheduler asked to requeue (e.g. Lightning's `SIGUSR1`) |
 | `config_conflict` | a resumed run brought a different config; the diff is recorded, not applied |
 | `warning` | an SDK problem that was absorbed (a dropped step, a failed write, a root fallback) |
-| user events | `run.event("lr decayed")` |
+| `user` (with `message` and the event's data) | `run.event("lr decayed", factor=0.5)` |
 
 ### `_output.log`
 
@@ -339,10 +349,15 @@ is small (under about 10 KB) and rewritten every 3 minutes and at the end.
 | `warnings` | how many SDK warnings were recorded, so problems show without reading the log |
 | `metrics.<key>`: `first`, `last`, `min`, `max`, `mean`, `count` | the shape of every scalar |
 | `min_step`, `max_step`, `last_step` | where the extremes happened and how far the metric got |
-| `ema_last` | the exponentially smoothed last value |
+| `ema_last` | the exponentially smoothed last value: `ema = 0.9 · ema + 0.1 · x`, starting at the first value |
 | `nonfinite` | count of NaN and Inf values |
 | `slope_last10pct` | slope over the last 10 % of steps: is the metric still moving? |
 | `values` | values set explicitly (`run.card["test/acc"] = 0.931`) |
+
+All statistics cover finite values only; `count` counts them and `nonfinite` the rest. A metric that
+never had a finite value has only `count`, `nonfinite` and `last_step`. `slope_last10pct` is fitted to
+the preview's bucket means (at bucket centres) of buckets starting in the last 10 % of the metric's
+steps, and is `null` with fewer than two such buckets.
 
 Proposal checks and verdicts are not part of the card, since the run doesn't know them; CLI and MCP
 add them when they show a card ([layer 8](08-cli-mcp.md)).
@@ -370,8 +385,9 @@ schedule. With card and preview, run tables and overview charts need no index.
   `[i * bucket_width, (i + 1) * bucket_width)`. When a metric would exceed 512 buckets, neighbouring
   buckets merge and its width doubles, so a long metric has between 256 and 512 buckets and a short
   one has one bucket per logged step. Edges stay fixed between rewrites, so live curves don't jitter.
-- Min and max keep spikes visible; mean and count allow exact means over whole buckets. Empty buckets
-  of sparse metrics are `null`.
+- Min and max keep spikes visible; mean and count allow exact means over whole buckets. Like the card,
+  buckets cover finite values only. Empty buckets of sparse metrics are `null` in every list, `count`
+  included; a metric without any finite value has no preview entry.
 - The size is a few hundred KB at most.
 
 ### `_artifacts.jsonl`

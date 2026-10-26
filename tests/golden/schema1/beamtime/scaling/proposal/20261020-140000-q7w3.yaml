@@ -1,0 +1,18 @@
+schema: 1
+statement: Warmup removes the loss spike and improves peak accuracy at learning rates above 1e-4.
+rationale: The spike at step 120 matches the Adam second-moment estimate still warming up.
+confidence: 0.7
+plan:
+  grid: {config.lr: [3e-4, 1e-3], config.seed: [0, 1]}
+predictions:
+  - name: no-spike
+    where: {config.warmup: 500}
+    reduce: {metric: train/loss, stat: max, steps: [2, 6]}
+    seeds: config.seed
+    op: "<"
+    value: 2.5
+  - name: sharper-samples
+    kind: manual
+    description: Generated samples at the end of training look sharper with warmup.
+author: claude-opus-5-5
+user: ada

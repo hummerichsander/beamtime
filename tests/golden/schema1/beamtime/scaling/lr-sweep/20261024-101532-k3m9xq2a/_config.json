@@ -1,0 +1,10 @@
+{
+ "schema": 1,
+ "lr": 0.0003,
+ "seed": 0,
+ "warmup": 500,
+ "model": {
+  "name": "resnet18",
+  "width": 64
+ }
+}

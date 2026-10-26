@@ -1,0 +1,2 @@
+# golden folders are byte-exact fixtures (offsets, partial lines); never convert line endings.
+tests/golden/** -text
