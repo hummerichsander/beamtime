@@ -56,7 +56,9 @@ active run through `beamtime.current()`, which returns the run or `None`. There 
 
 1. **Find the root and log dir** as in [layer 1](01-storage.md#root-and-log-dir): an absolute `dir`,
    `BEAMTIME_LOGDIR`, `beamtime.yaml` above the working directory, then above the training script,
-   then the git root, then the working directory with a warning.
+   then the git root, then the working directory with a warning. An absolute `dir` below a log dir
+   keeps that log dir; anywhere else it becomes the log dir itself. A relative `dir` may not contain
+   `..`, reserved names or run ids.
 2. **Create the run directory** with a fresh id, or continue the run given by `resume`
    ([Resume](#resume)).
 3. **Write** `_run.json` (including `proposals`, the current proposal version of the run and of every
@@ -72,6 +74,9 @@ The `proposal` argument accepts a plain string (taken as the statement), a dict 
 shape, or a path to such a YAML file, so an agent can write the proposal before a job is launched.
 `BEAMTIME_PROPOSAL` can point to that file for jobs launched by scripts. `None` writes a blank
 proposal. A run's own proposal is frozen from the start, since the run references it at `init`.
+
+The config's top-level key `schema` is reserved (it marks `_config.json`'s version); `init` refuses
+it. Config values that aren't JSON types are stored as strings.
 
 ### `log`
 
@@ -90,8 +95,8 @@ run.log(values: dict[str, Any], step: int | None = None) -> None
 
 | Wrapper | Accepts | Kind ([layer 1](01-storage.md#_datajsonl-and-_data)) |
 |---|---|---|
-| `Table(data)` | DataFrame, dict of columns, list of row dicts | `table` |
-| `Image(data, caption=None)` | NumPy array, PIL image, path | `image` |
+| `Table(data)` | DataFrame, dict of columns, list of row dicts | `table`; above 1000 cells a Parquet file, or a JSON file without PyArrow |
+| `Image(data, caption=None)` | NumPy array or tensor (H×W, H×W×C, C×H×W), PIL image, path | `image`; arrays are encoded to PNG without Pillow |
 | `Text(text)` | str | `text` |
 | `Histogram(values, bins=64)` or `Histogram(bins=, counts=)` | array-like | a `table` with `bin_start`, `bin_end`, `count` |
 | `Figure(fig)` | a Matplotlib figure | an `image` |
@@ -108,8 +113,9 @@ There is no way to log a chart spec; presentation belongs to views.
 - `run.card` is a dict-like for explicit values (`run.card["test/acc"] = 0.931`).
 - `run.config.update()` adds keys; overwriting a key with a different value warns and is ignored.
 - `run.event(message, **data)` appends to `_events.jsonl`.
-- `run.artifact(path, kind=None, copy=None)` copies files below 100 MB into `artifacts/` and records
-  larger ones by absolute path; `copy` overrides.
+- `run.artifact(path, kind=None, copy=None, **data)` copies files below 100 MB into `artifacts/` and
+  records larger ones by absolute path; `copy` overrides; `data` adds fields such as a checkpoint's
+  monitored score.
 
 ### `finish`
 
@@ -159,17 +165,24 @@ CUDA, NCCL and subprocesses is caught too.
   still hold the pipe open.
 - `isatty()` is false while capturing; progress bars such as tqdm degrade to line output.
 - Bytes are stored as written, including `\r`; readers collapse carriage returns.
+- The buffer holds 4 MB. One reader thread per stream copies to the terminal and the buffer; one
+  writer thread empties the buffer into the files.
 - **Size cap** (default 10 MB): the first half goes to `_output.log`. Then output goes to
-  `_output.tail.log`; when that reaches a quarter of the cap, it is renamed to
-  `_output.tail.prev.log` and a new one begins. Readers show the head, a truncation marker, and the
-  two tail files, so at least the last 2.5 MB survive.
+  `_output.tail.log`, in segments that start with a `[beamtime: output segment N]` line; when a
+  segment reaches a quarter of the cap (headers not counted), it is renamed to
+  `_output.tail.prev.log` and a new one begins. Readers show the head, a marker naming the segments
+  that were not kept, and the two tail files, so at least the last 2.5 MB survive.
 - On Windows, capture uses the same pipe design.
 
 ## Heartbeat
 
-A daemon thread wakes every 30 seconds. It updates the modification time of `_run.json`, flushes the
-buffered streams, and every sixth wake writes the card and the preview. All writes share one lock
-with `log()`; it is almost always uncontended.
+`log()`, `event()` and the data wrappers only queue lines in memory; the training thread never
+touches a file after `init`. One daemon thread, the pump, wakes every 2 seconds (or once 1 MB is
+queued) and writes the queued lines, data files and artifact copies. Every 30 seconds it updates the
+modification time of `_run.json`, every 3 minutes it writes the card and the preview. A stalled
+filesystem stalls only the pump; beyond 64 MB queued, new lines are dropped with a warning. The queue
+shares one lock with `log()`; it is almost always uncontended. `finish()` writes and syncs
+everything on the calling thread.
 
 ## Resume
 
@@ -188,6 +201,11 @@ Continuing a run:
    statistics continue correctly;
 4. continues the step counter at the resume step: the step passed to the first `log`, or the last
    logged step plus one.
+
+Since the resume step is only known at the first `log`, steps 1 and 3 and the attempt's entry in
+`_run.json` happen then (or at `finish`, if nothing is logged). A partial last line in
+`_metrics.jsonl`, left by a killed writer, is ended with a newline first, so it can't merge with the
+new attempt's lines; readers count it as one damaged line.
 
 Steps from the resume step on belong to the new attempt; the index drops the older attempt's points
 for those steps ([layer 1](01-storage.md#_metricsjsonl)). A config that differs from the stored one
@@ -219,6 +237,8 @@ Every GPU runs its own process with a rank. Launchers expose it as `RANK` (torch
 if and only if every one of these variables it can see is `0` or unset.** This works before any
 process group exists.
 
+- **The rank** is `RANK`, else `SLURM_PROCID`, else `NODE_RANK × LOCAL_WORLD_SIZE + LOCAL_RANK`
+  (without `LOCAL_WORLD_SIZE`: `LOCAL_RANK`, or `1000 × NODE_RANK` for a node's first process).
 - **Rank 0** gets a real `Run`.
 - **Other ranks** get a `NullRun`, whose methods do nothing, so code needs no `if rank == 0`. Their
   output is still captured into `_output.rank<N>.log` in rank 0's run directory, because crashes
@@ -229,7 +249,8 @@ A non-zero rank finds rank 0's run directory:
 1. **through the inherited environment**: rank 0 sets `BEAMTIME_RUN_DIR` at `init`, and processes it
    starts later inherit it (Lightning's launcher, `mp.spawn`, fork);
 2. **through the job key**, for processes started independently (torchrun, `srun`): it waits up to 2
-   minutes for a running `_run.json` with the same `job_key` in the same folder.
+   minutes for a running `_run.json` with the same `job_key`, created in the last 10 minutes, in the
+   same folder. Output starts in the capture buffer meanwhile, so `init` doesn't wait.
 
 If neither works, the rank warns and is not captured.
 
@@ -274,17 +295,20 @@ rank; the rank rule makes that safe, and output before `fit` is captured too.
 
 ```
 src/beamtime/
-  __init__.py      # init, current, data wrappers (no other imports at module level)
-  run.py           # Run, NullRun
-  paths.py         # root and log dir resolution, ids
-  env.py           # host, scheduler, git, packages
-  capture.py       # output capture and rotation
-  data.py          # Table, Image, Text, Histogram, Figure
-  files.py         # atomic replace, JSONL appender
+  __init__.py      # init, current, data wrappers, loaded on first use
   lightning.py     # BeamtimeLogger
+  sdk/
+    run.py         # init, Run, NullRun, current, the pump, exit and signal hooks, resume
+    paths.py       # root and log dir resolution, finding runs
+    env.py         # host, scheduler, rank, job key, git, packages
+    capture.py     # output capture and rotation
+    stats.py       # card statistics and preview buckets in constant memory
+    data.py        # Table, Image, Text, Histogram, Figure
+  format/          # ids, the write protocol and the readers, shared with the index
 ```
 
-These modules use Python 3.10 syntax and never import from the CLI, index or server packages.
+These modules use Python 3.10 syntax and import only `sdk/` and `format/` at module level; optional
+libraries are imported inside the functions that need them.
 
 ## Decisions
 

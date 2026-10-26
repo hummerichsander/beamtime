@@ -277,7 +277,7 @@ and the three kinds below, each indexed by one line in `_data.jsonl`. Nothing a 
 
 | Kind | Stored as | Typical use |
 |---|---|---|
-| `table` | inline `columns` up to 1000 cells, else `_data/<key>/<step>.parquet` | per-class metrics, predictions, distributions |
+| `table` | inline `columns` up to 1000 cells, else `_data/<key>/<step>.parquet` (`.json` with `columns` when PyArrow is missing) | per-class metrics, predictions, distributions |
 | `image` | `_data/<key>/<step>.png` | generated samples, attention maps, plots only the run can draw |
 | `text` | inline up to 4 KB, else `_data/<key>/<step>.txt` | generated text, prompts |
 
@@ -287,6 +287,7 @@ and the three kinds below, each indexed by one line in `_data.jsonl`. Nothing a 
 ```
 
 A histogram is a table with `bin_start`, `bin_end` and `count`. `/` in keys becomes `__` in paths.
+Images may carry a `caption`. A second file for the same key and step gets a suffix (`500-1.png`).
 
 ### `_events.jsonl`
 
@@ -313,7 +314,8 @@ Lifecycle and diagnostic events, which feed the timeline. Each line has the time
 stdout and stderr as the process wrote them. Always captured, with no switch to turn it off: agents
 need it most when a run failed. Beyond a size cap (default 10 MB) the head stays in `_output.log` and
 the tail rotates between `_output.tail.log` and `_output.tail.prev.log`, so both the start and the
-moment of death survive ([layer 2](02-sdk.md#output-capture)). Ranks other than 0 write
+moment of death survive ([layer 2](02-sdk.md#output-capture)). Each tail segment starts with a
+`[beamtime: output segment N]` line, so readers can tell which segments were not kept. Ranks other than 0 write
 `_output.rank<N>.log` with the same scheme.
 
 ### `_run_card.json`
@@ -398,7 +400,8 @@ schedule. With card and preview, run tables and overview charts need no index.
 ```
 
 Small files are copied into `artifacts/`; large ones are recorded by reference (`uri`) and never
-copied or pulled. Lightning's `checkpoints/` are listed by reference as well.
+copied or pulled. Lightning's `checkpoints/` are listed by reference as well, with `monitor` and
+`score`; any extra fields passed to `run.artifact` are kept.
 
 ## Write protocol
 

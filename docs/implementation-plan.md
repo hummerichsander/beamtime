@@ -68,9 +68,11 @@ tests/             # unit, property, crash, capture, golden-folder and end-to-en
 
 *Done when*: CI runs on all jobs, the generator writes folders that `format/` reads back.
 
-### M1: SDK (2–3 weeks)
+### M1: SDK (2–3 weeks) — implemented; the SLURM check is pending
 
-Implements [layer 2](design/02-sdk.md).
+Implements [layer 2](design/02-sdk.md). Everything below is in place and tested locally (Linux-style
+POSIX on macOS, Python 3.10 and 3.11, Lightning 2.6); the run on a cluster with
+`examples/slurm_toy.sh` and the SLURM requeue with Lightning remain to be checked.
 
 - `init` with root and log dir resolution, ids and names, `_run.json` with `proposals` and `job_key`,
   `_config.json`, the run's proposal version, `_env/`.

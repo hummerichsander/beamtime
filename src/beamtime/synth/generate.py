@@ -3,8 +3,6 @@
 import math
 import os
 import random
-import struct
-import zlib
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -16,6 +14,7 @@ from beamtime.format import constants as c
 from beamtime.format.ids import new_run_id, new_version_id
 from beamtime.format.io import json_line, write_created, write_replaced
 from beamtime.format.names import random_name
+from beamtime.format.png import encode_png
 from beamtime.format.run import merge_attempts
 from beamtime.synth.summary import card_and_preview
 
@@ -88,26 +87,12 @@ def iso(t: datetime) -> str:
 
 
 def png(rng: random.Random, size: int = 16) -> bytes:
-    """Encode a small random grayscale image as PNG with the standard library.
+    """Make a small random grayscale PNG.
 
     :param rng: The random source.
     :param size: Width and height in pixels.
     :return: The PNG file."""
-
-    def chunk(kind: bytes, data: bytes) -> bytes:
-        body = kind + data
-        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
-
-    raw = b"".join(
-        b"\x00" + bytes(rng.randrange(256) for _ in range(size)) for _ in range(size)
-    )
-    header = struct.pack(">IIBBBBB", size, size, 8, 0, 0, 0, 0)
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", header)
-        + chunk(b"IDAT", zlib.compress(raw, 9))
-        + chunk(b"IEND", b"")
-    )
+    return encode_png(size, size, 1, bytes(rng.randrange(256) for _ in range(size**2)))
 
 
 class Generator:

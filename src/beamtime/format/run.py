@@ -1,5 +1,6 @@
 """Readers for the files of a run directory."""
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,8 @@ from beamtime.format import constants as c
 from beamtime.format.constants import DataKind, DerivedStatus, RunStatus
 from beamtime.format.io import Chunk, read_json, read_jsonl
 from beamtime.format.schema import SchemaError, schema_of
+
+SEGMENT = re.compile(r"\[beamtime: output segment (\d+)\]")
 
 
 @dataclass(kw_only=True, frozen=True)
@@ -343,14 +346,20 @@ def read_artifacts(run_dir: Path, *, schema: int = 1) -> list[Artifact]:
 def read_output(run_dir: Path, *, rank: int = 0) -> str:
     """Read a rank's captured output: the head, then the previous and current tail.
 
-    Where the writer dropped output it wrote a marker line itself.
+    Tail segments start with ``[beamtime: output segment N]``; if the first kept segment
+    is not the first one, a marker says which segments were not kept. Where the writer
+    dropped output, it wrote a marker line itself.
 
     :param run_dir: The run directory.
     :param rank: The rank; 0 is the main process.
     :return: The output text."""
     head, tail, prev = (run_dir / n for n in c.output_names(rank))
-    files = (head, prev, tail)
-    return "".join(p.read_text(errors="replace") for p in files if p.exists())
+    text = head.read_text(errors="replace") if head.exists() else ""
+    tails = [p.read_text(errors="replace") for p in (prev, tail) if p.exists()]
+    if tails and (m := SEGMENT.match(tails[0])) and (n := int(m[1])) > 1:
+        gap = "1" if n == 2 else f"1–{n - 1}"
+        text += f"[… beamtime: output segments {gap} not kept …]\n"
+    return text + "".join(tails)
 
 
 def merge_attempts(

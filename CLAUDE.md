@@ -177,7 +177,8 @@ and say why.
 
 # Project specifics
 
-**Status: implementation.** M0 (foundations) is done; milestones follow `docs/implementation-plan.md`.
+**Status: implementation.** M0 (foundations) and M1 (SDK) are done; milestones follow
+`docs/implementation-plan.md`.
 Each milestone implements the design sections it names; a deviation is decided and written back into
 the design before the code lands.
 
@@ -242,8 +243,13 @@ sync.
   source (`synth` fixture in `tests/conftest.py`)
 - `sdk/`, `format/` and `synth/` stay Python 3.10 with the standard library and PyYAML only
   (`tests/test_boundaries.py`)
+- `src/beamtime/sdk/`: the SDK; tests that call `init` run scripts in subprocesses (`script` fixture in
+  `tests/sdk/conftest.py`), so hooks and fd capture never touch pytest
+- `examples/`: toy training script and SLURM job for checking the SDK by hand
 - `tests/golden/schema1/`: frozen, byte-exact reader fixtures; never regenerate or reformat them
 - `.github/workflows/ci.yml`: lint, tests on 3.11–3.13 and macOS, SDK tests on 3.10 and Windows, budgets
 - Run checks with `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`
 - SDK side on 3.10, without touching `.venv`:
-  `UV_PROJECT_ENVIRONMENT=/tmp/bt-venv310 uv run --python 3.10 pytest -q tests/format tests/synth tests/test_boundaries.py tests/test_cli.py`
+  `UV_PROJECT_ENVIRONMENT=/tmp/bt-venv310 uv run --python 3.10 pytest -q tests/sdk tests/format tests/synth tests/test_boundaries.py tests/test_cli.py`
+- Lightning tests, in a throwaway env (downloads PyTorch):
+  `UV_PROJECT_ENVIRONMENT=/tmp/bt-venv-lightning uv run --with lightning --with torch pytest -q tests/sdk/test_lightning.py`
