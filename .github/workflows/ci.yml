@@ -31,7 +31,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python }}
-      - run: uv run pytest -q --deselect tests/test_budgets.py::test_cli_startup_budget
+      - run: uv run --extra serve pytest -q --ignore tests/test_budgets.py
 
   # the SDK and the readers must work in Python 3.10 training environments.
   sdk-py310:
@@ -63,8 +63,8 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.11"
-      - run: uv sync
-      - run: uv run pytest -q tests/test_budgets.py
+      - run: uv sync --extra serve
+      - run: uv run --extra serve pytest -q tests/test_budgets.py
 
   lightning:
     strategy:

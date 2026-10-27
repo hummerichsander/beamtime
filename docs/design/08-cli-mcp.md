@@ -46,7 +46,7 @@ wherever a folder does.
 | `beamtime proposal show <folder>` | `proposal_show` | the current proposal version, its earlier versions and their checks |
 | `beamtime check <folder>` | `check` | the predictions of the current proposal and their results |
 | `beamtime importance <folder> --target <field>` | `importance` | hyperparameter importance (v1.1) |
-| `beamtime query <file>` / `--json '{…}'` | `query` | any query in its object form ([layer 3](03-index.md#query-language)) |
+| `beamtime query <file or {…}>` | `query` | any query in its object form ([layer 3](03-index.md#query-language)) |
 
 ### Writing (CLI and MCP)
 
@@ -191,6 +191,34 @@ The guide states these as defaults ([layer 5](05-views.md#defaults)):
 - **Argument parsing with `argparse`**, with each command's module imported only when it runs.
 - **The MCP server** uses the official MCP Python SDK in `beamtime[serve]`, through its low-level
   server API, with tool schemas generated from the same msgspec structs as the CLI and the API.
+
+## Implementation notes
+
+Decided while building the CLI and MCP server (milestone M3):
+
+- **One registry** (`beamtime.ops.registry`) holds every operation: its CLI path, a msgspec parameter
+  struct, a one-line summary and whether it is user-only. CLI flags and MCP tool schemas are generated
+  from the same structs; implementations are imported only when an operation runs, which keeps
+  `beamtime runs` at about 100–120 ms.
+- **`beamtime query`** takes a file or an inline object as its argument (`beamtime query '{runs:
+  {from: .}}'`), since `--json` is the global flag for JSON output.
+- **Exit codes**: an invalid query or bad flag is wrong usage (2); a missing folder, run or key is 4.
+- **Text output** puts the run name first and the full run id last, so agents can copy ids; seed
+  groups show how many runs they have (`--json` lists them); curves are one line each with first,
+  min, max, last, a trend arrow and a sparkline.
+- **Runs can be named by a unique id suffix or by name** in `card`, `output`, `mv` and `rm`.
+- **Cursors** are offsets into the answer's items; answers above about 8k tokens (32k characters of
+  JSON) are cut at whole items with `meta.next`. `output` keeps the last lines instead.
+- **MCP answers** are the canonical answer as compact JSON, with `null` meta fields dropped; operation
+  errors are tool errors with the same message, so agents can correct themselves. Parameters that
+  agents can't guess (`where`, `select`, `sort`, `seeds`, `y`, `x`, `steps`, `query`) carry short
+  descriptions; all tool definitions together are about 2k tokens.
+- **Prompts in M3**: `review`, `debug` and `compare`, which need only reading; `view`, `proposal`,
+  `verdict`, `report` and `memory` follow with the milestones that add their tools.
+- **`mcp install`** registers `beamtime --root <project> mcp`, so a client that keeps one
+  user-wide config (Codex) still points at the right project. Claude Code uses
+  `claude mcp add --scope project`, Cursor `.cursor/mcp.json`.
+- **`gc` is a dry run** unless given `--yes`; `rm` and `mv` refuse runs whose heartbeat is fresh.
 
 ## Decisions
 

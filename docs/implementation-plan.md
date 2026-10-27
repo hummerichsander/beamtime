@@ -108,7 +108,7 @@ Implements [layer 3](design/03-index.md).
 Measured in `bench/index/RESULTS.md` (M2 section): every target is met except the 10k-run table
 without a daemon (112 ms; 36 ms with the daemon), where the per-run freshness check dominates.
 
-### M3: Operations, CLI and MCP (1–1.5 weeks)
+### M3: Operations, CLI and MCP (1–1.5 weeks) — done
 
 Implements [layer 8](design/08-cli-mcp.md) for reading.
 
@@ -116,6 +116,10 @@ Implements [layer 8](design/08-cli-mcp.md) for reading.
   over stdio with the reading tools and token budgets.
 - `init`, `mcp install`, `status`, `settings`, `doctor` (local checks), `reindex`, `mv`, `rm`, `gc`.
 - Settings with user and project levels.
+
+Not in M3, by design: the reading operations of the research record (`notes`, `proposal show`,
+`check`, `memory show`) come with M4, `guide` with M6, `serve` and `demo` with M5. MCP ships the
+`review`, `debug` and `compare` prompts.
 
 **Milestone A1, after about 5–7 weeks: first use.** Runs are recorded in real research; an agent can
 answer "how did last night's runs go?" through MCP.

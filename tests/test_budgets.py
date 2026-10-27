@@ -35,23 +35,22 @@ def test_cli_startup_budget() -> None:
     assert best < 0.150, f"beamtime --help took {best * 1000:.0f} ms"
 
 
-def test_one_shot_query_budget(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A fresh process imports the query layer and answers a run table within 150 ms."""
+def test_one_shot_runs_budget(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``beamtime runs`` answers a sorted run table within 150 ms (best of 5)."""
     from beamtime.query import run
     from beamtime.synth import generate
 
-    logdir = tmp_path / "beamtime"
-    generate(logdir, seed=0)
+    root = tmp_path / "proj"
+    (root / ".git").mkdir(parents=True)
+    generate(root / "beamtime", seed=0)
     monkeypatch.setenv("BEAMTIME_CACHE", str(tmp_path / "cache"))
-    env = dict(os.environ)
-    run({"runs": {}}, logdir=logdir, budget_s=60)
-    code = (
-        "from pathlib import Path; from beamtime.query import run; "
-        f"run({{'runs': {{'sort': ['-metric.val/acc.last'], 'limit': 5}}}}, logdir=Path({str(logdir)!r}))"
-    )
+    monkeypatch.delenv("BEAMTIME_LOGDIR", raising=False)
+    run({"runs": {}}, logdir=root / "beamtime", budget_s=60)
+    script = Path(sys.executable).parent / ("beamtime.exe" if sys.platform == "win32" else "beamtime")
+    args = [script, "runs", "--sort", "-metric.val/acc.last", "--limit", "5"]
     best = float("inf")
     for _ in range(5):
         t = time.perf_counter()
-        subprocess.run([sys.executable, "-c", code], env=env, check=True)
+        subprocess.run(args, cwd=root, env=dict(os.environ), check=True, capture_output=True)
         best = min(best, time.perf_counter() - t)
-    assert best < 0.150, f"one-shot query took {best * 1000:.0f} ms"
+    assert best < 0.150, f"beamtime runs took {best * 1000:.0f} ms"

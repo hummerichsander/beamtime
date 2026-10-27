@@ -177,8 +177,8 @@ and say why.
 
 # Project specifics
 
-**Status: implementation.** M0 (foundations), M1 (SDK) and M2 (index and queries) are done;
-milestones follow `docs/implementation-plan.md`.
+**Status: implementation.** M0 (foundations), M1 (SDK), M2 (index and queries) and M3 (CLI and
+MCP) are done; milestones follow `docs/implementation-plan.md`.
 Each milestone implements the design sections it names; a deviation is decided and written back into
 the design before the code lands.
 
@@ -248,6 +248,13 @@ sync.
 - `src/beamtime/index/`: the cache (SQLite + column files), ingest, discovery, locks, the daemon loop
 - `src/beamtime/query/`: the query language; `beamtime.query.run(query, logdir=...)` answers any kind;
   `read.py` is the one read path every number goes through
+- `src/beamtime/ops/`: the operation set; `registry.py` lists every operation (CLI path, msgspec
+  params, summary, user-only flag) and is the single source for CLI flags and MCP tools
+- `src/beamtime/cli/` (argparse, condition strings, text format) and `src/beamtime/mcp/` (stdio
+  server, prompts; needs the `serve` extra)
+- `src/beamtime/settings.py`: built-in, user and project settings with provenance
+- Keep the CLI path light: no module-level imports of PyYAML, NumPy or `importlib.metadata` in
+  modules a plain `beamtime runs` loads (`tests/test_budgets.py`)
 - Tests never touch `~/.cache`: `tests/conftest.py` points `BEAMTIME_CACHE` at a temporary directory
 - `examples/`: toy training script and SLURM job for checking the SDK by hand
 - `tests/golden/schema1/`: frozen, byte-exact reader fixtures; never regenerate or reformat them

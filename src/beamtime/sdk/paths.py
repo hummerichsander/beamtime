@@ -5,8 +5,6 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
-
 from beamtime.format.ids import is_run_id
 from beamtime.format.tree import is_reserved, iter_runs
 
@@ -57,6 +55,8 @@ def logdir_of(root: Path) -> Path:
     :return: The absolute log dir; ``beamtime/`` unless the settings name another."""
     name = DEFAULT_LOGDIR
     if (settings := root / SETTINGS).is_file():
+        import yaml
+
         data = yaml.safe_load(settings.read_text()) or {}
         name = data.get("logdir") or DEFAULT_LOGDIR
     return (root / Path(name).expanduser()).resolve()

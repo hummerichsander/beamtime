@@ -5,8 +5,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from beamtime.format.ids import is_version_id
 from beamtime.format.schema import SchemaError, schema_of
 
@@ -47,6 +45,8 @@ def read_yaml_doc(path: Path, *, kind: str) -> AuthoredDoc:
     :param path: The file.
     :param kind: ``proposal``, ``view`` or ``block``.
     :return: The document."""
+    import yaml
+
     return _doc(path, yaml.safe_load(path.read_text()), "", kind)
 
 
@@ -56,6 +56,8 @@ def read_markdown_doc(path: Path, *, kind: str) -> AuthoredDoc:
     :param path: The file.
     :param kind: ``note`` or ``memory``.
     :return: The document with its frontmatter as ``meta`` and the rest as ``body``."""
+    import yaml
+
     if (m := _FRONTMATTER.match(path.read_text())) is None:
         raise SchemaError(f"{path}: expected YAML frontmatter between '---' lines.")
     return _doc(path, yaml.safe_load(m["front"]), m["body"], kind)

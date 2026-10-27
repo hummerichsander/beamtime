@@ -410,6 +410,8 @@ Decided while building the index and the queries (milestone M2):
   has the key; the full key list is built only to suggest names after a miss.
 - **Freshness checks** cost one `stat` of `_run.json` and one of `notes/` per run in scope when no
   daemon runs (about 7 µs per run); finished runs are re-read only when those change.
+- **Curves** name their metric in `metric` (a raw curve's values are in `y`) and carry the run's
+  `name` next to its id.
 - **Downsampling** covers finite values only, like the card and the preview. Buckets have the
   smallest power-of-two width that gives at most `points` buckets; edges sit at multiples of the
   width. A downsampled curve carries `x` (bucket start), `first` (first step with data), `min`,

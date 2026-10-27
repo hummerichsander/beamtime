@@ -12,8 +12,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-import yaml
-
 from beamtime.format import constants as c
 from beamtime.format.authored import newest, read_markdown_doc
 from beamtime.format.ids import is_run_id
@@ -534,7 +532,8 @@ def series_kind(ctx: Context, q: m.Series) -> dict[str, Any]:
     :param q: The query.
     :return: ``{curves, meta}``."""
     group = list(q.group or [])
-    runs, _ = select_runs(ctx, q, [f"metric.{y}.count" for y in q.y] + group)
+    fields = ["run.name", *[f"metric.{y}.count" for y in q.y], *group]
+    runs, _ = select_runs(ctx, q, fields)
     if q.steps and len(q.steps) != 2:
         raise QueryError("series: steps is [first, last], e.g. [0, 5000]")
     window = (q.steps[0], q.steps[1]) if q.steps else (None, None)
@@ -599,7 +598,7 @@ def run_curve(
     :param points: The point budget of the curve.
     :param q: The query.
     :return: The curve, or ``None`` if the run has no such metric."""
-    head = {"run": run["_id"], "y": y}
+    head = {"run": run["_id"], "name": run.get("run.name"), "metric": y}
     status = ctx.index.store.run(run["_id"])["status"]
     plain = q.x == "_step" and window == (None, None) and q.smooth is None
     if plain and status != "running":
@@ -692,7 +691,11 @@ def grouped_curve(
                 )
                 continue
         cols.close()
-    out: dict[str, Any] = {"group": label, "runs": [r["_id"] for r in runs], "y": y}
+    out: dict[str, Any] = {
+        "group": label,
+        "runs": [r["_id"] for r in runs],
+        "metric": y,
+    }
     if not series:
         return out | {"x": [], "mean": [], "lo": [], "hi": [], "n": []}
     lo = min(s[4] for s in series)
@@ -949,6 +952,8 @@ def folders_kind(ctx: Context, q: m.Folders) -> dict[str, Any]:
     columns = ["path", "proposal", "status", "check", "verdict", "runs", "direct"]
     columns += ["running", "finished", "failed", "killed", "lost", "view", "notes"]
     rows = []
+    import yaml
+
     for path in sorted(paths):
         depth = 0 if path in (".", "") else path.count("/") + 1
         if path in run_paths or (q.depth != "all" and depth - base > int(q.depth)):
