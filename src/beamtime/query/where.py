@@ -30,8 +30,7 @@ def fields_of(where: dict[str, Any]) -> list[str]:
                     for op in cond:
                         if op not in OPS:
                             raise QueryError(
-                                f"unknown operator {op!r} on {key}; operators: "
-                                f"{', '.join(OPS)}"
+                                f"unknown operator {op!r} on {key}; operators: {', '.join(OPS)}"
                             )
                 out.append(key)
     return list(dict.fromkeys(out))
@@ -61,11 +60,7 @@ def compare(op: str, actual: Any, expected: Any) -> bool:
     :param expected: The condition's value.
     :return: Whether the condition holds."""
     if isinstance(actual, (int, float)) and not isinstance(actual, bool):
-        expected = (
-            [number(e) for e in expected]
-            if isinstance(expected, list)
-            else number(expected)
-        )
+        expected = [number(e) for e in expected] if isinstance(expected, list) else number(expected)
     match op:
         case "exists":
             return (actual is not None) == bool(expected)
@@ -76,15 +71,11 @@ def compare(op: str, actual: Any, expected: Any) -> bool:
         case "in":
             return actual in (expected if isinstance(expected, list) else [expected])
         case "nin":
-            return actual not in (
-                expected if isinstance(expected, list) else [expected]
-            )
+            return actual not in (expected if isinstance(expected, list) else [expected])
         case "has":
             return isinstance(actual, list) and expected in actual
         case "glob":
-            return isinstance(actual, str) and fnmatch.fnmatchcase(
-                actual, str(expected)
-            )
+            return isinstance(actual, str) and fnmatch.fnmatchcase(actual, str(expected))
         case "lt" | "le" | "gt" | "ge":
             if actual is None:
                 return False

@@ -15,8 +15,7 @@ def serve(root: str | Path | None = None) -> int:
         from beamtime.mcp.server import run
     except ImportError:
         print(
-            "beamtime: the MCP server needs the serve extra: "
-            "pip install 'beamtime[serve]'",
+            "beamtime: the MCP server needs the serve extra: pip install 'beamtime[serve]'",
             file=sys.stderr,
         )
         return 1

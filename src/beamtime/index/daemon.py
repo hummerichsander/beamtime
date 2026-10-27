@@ -15,9 +15,7 @@ POLL_S = 2.0
 class Daemon:
     """Keeps a log dir's index current; ``beamtime serve`` runs one per root."""
 
-    def __init__(
-        self, *, logdir: Path, cache: Path | None = None, port: int | None = None
-    ):
+    def __init__(self, *, logdir: Path, cache: Path | None = None, port: int | None = None):
         """Prepare the daemon; nothing runs before ``start``.
 
         :param logdir: The log dir.
@@ -28,9 +26,7 @@ class Daemon:
         self.port = port
         self.lock = FileLock(path=self.cache / SERVE_LOCK)
         self.stopping = threading.Event()
-        self.thread = threading.Thread(
-            target=self.loop, name="beamtime-index", daemon=True
-        )
+        self.thread = threading.Thread(target=self.loop, name="beamtime-index", daemon=True)
         self.started = time.time()
 
     def start(self) -> bool:

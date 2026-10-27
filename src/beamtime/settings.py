@@ -17,9 +17,7 @@ def user_settings_path() -> Path:
 
     :return: ``$XDG_CONFIG_HOME/beamtime/settings.yaml`` or ``~/.config/...``."""
     base = os.environ.get("XDG_CONFIG_HOME")
-    return (
-        (Path(base) if base else Path.home() / ".config") / "beamtime" / "settings.yaml"
-    )
+    return (Path(base) if base else Path.home() / ".config") / "beamtime" / "settings.yaml"
 
 
 @dataclass(kw_only=True)
@@ -78,13 +76,9 @@ def read_level(path: Path, level: Level, problems: list[str]) -> dict[str, Any]:
     data.pop("schema", None)
     for key in list(data):
         if key not in DEFAULTS:
-            problems.append(
-                f"{path}: unknown setting {key!r}; known: {', '.join(DEFAULTS)}"
-            )
+            problems.append(f"{path}: unknown setting {key!r}; known: {', '.join(DEFAULTS)}")
         elif level == "user" and key in PROJECT_ONLY:
-            problems.append(
-                f"{path}: {key!r} belongs in the project's beamtime.yaml; ignored"
-            )
+            problems.append(f"{path}: {key!r} belongs in the project's beamtime.yaml; ignored")
             del data[key]
     for name, remote in (data.get("remotes") or {}).items():
         if not isinstance(remote, dict):
@@ -151,9 +145,7 @@ def load(root: Path | None, flags: dict[str, Any] | None = None) -> Settings:
     levels: dict[str, Level] = {}
     values: dict[str, Any] = {}
     values = merge(values, DEFAULTS, "built-in", levels)
-    values = merge(
-        values, read_level(user_settings_path(), "user", problems), "user", levels
-    )
+    values = merge(values, read_level(user_settings_path(), "user", problems), "user", levels)
     if root is not None:
         project = read_level(root / "beamtime.yaml", "project", problems)
         values = merge(values, project, "project", levels)

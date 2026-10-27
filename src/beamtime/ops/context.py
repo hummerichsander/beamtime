@@ -33,9 +33,7 @@ class Context:
     caller: Caller = "cli"
 
     @classmethod
-    def make(
-        cls, *, root: str | Path | None = None, caller: Caller = "cli"
-    ) -> "Context":
+    def make(cls, *, root: str | Path | None = None, caller: Caller = "cli") -> "Context":
         """Resolve the project from ``--root`` or the working directory.
 
         :param root: An explicit root, or ``None`` to search like the SDK does.
@@ -51,9 +49,7 @@ class Context:
                 "working directory (no beamtime.yaml or git repository)"
                 if warnings
                 else (
-                    "beamtime.yaml"
-                    if (resolved / "beamtime.yaml").is_file()
-                    else "git repository"
+                    "beamtime.yaml" if (resolved / "beamtime.yaml").is_file() else "git repository"
                 )
             )
         settings = load(resolved)

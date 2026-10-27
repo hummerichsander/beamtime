@@ -89,9 +89,7 @@ class Index:
         if self.store.rebuilt:
             shutil.rmtree(self.series, ignore_errors=True)
         self.lock = FileLock(path=self.cache / INDEX_LOCK)
-        self.ingester = Ingester(
-            store=self.store, logdir=self.logdir, series=self.series
-        )
+        self.ingester = Ingester(store=self.store, logdir=self.logdir, series=self.series)
 
     def folder_path(self, rel: str) -> Path:
         """Turn a folder relative to the log dir into a path.
@@ -138,9 +136,7 @@ class Index:
                     for e in os.scandir(d)
                     if e.is_dir(follow_symlinks=True) and not is_reserved(e.name)
                 )
-                self.store.set_folder(
-                    rel, mtime=st.st_mtime, walked=now, children=children
-                )
+                self.store.set_folder(rel, mtime=st.st_mtime, walked=now, children=children)
             notes = mtime(os.path.join(d, c.NOTES))
             if row is None or row["notes_mtime"] != notes:
                 with self.store.transaction():
@@ -148,9 +144,7 @@ class Index:
                     entries = read_notes(folder, self.logdir) if notes else []
                     self.store.replace_notes(rel, None, entries)
                     self.store.set_folder(rel, notes_mtime=notes)
-            stack.extend(
-                name if rel in (".", "") else f"{rel}/{name}" for name in children
-            )
+            stack.extend(name if rel in (".", "") else f"{rel}/{name}" for name in children)
         return found
 
     def forget(self, run_id: str) -> None:
@@ -192,9 +186,7 @@ class Index:
             for rel, run_mtime in found:
                 run_id = rel.rsplit("/", 1)[-1]
                 try:
-                    meta, streams = self.ingester.stale(
-                        rel, run_mtime, rows.get(run_id)
-                    )
+                    meta, streams = self.ingester.stale(rel, run_mtime, rows.get(run_id))
                     if meta:
                         self.ingester.ingest_meta(self.logdir / rel)
                 except (OSError, ValueError) as e:

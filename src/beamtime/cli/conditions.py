@@ -4,9 +4,7 @@ import re
 from typing import Any
 
 OPS = {"=": "eq", "!=": "ne", "<": "lt", "<=": "le", ">": "gt", ">=": "ge", "~": "glob"}
-_CONDITION = re.compile(
-    r"^(?P<field>.+?)\s*(?P<op><=|>=|!=|=|<|>|~|\s+in\s+)\s*(?P<value>.*)$"
-)
+_CONDITION = re.compile(r"^(?P<field>.+?)\s*(?P<op><=|>=|!=|=|<|>|~|\s+in\s+)\s*(?P<value>.*)$")
 
 
 def value_of(text: str) -> Any:

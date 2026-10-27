@@ -73,10 +73,7 @@ def to_config(config: Any) -> dict[str, Any]:
     :return: The config as JSON-ready dict."""
     if config is None:
         out: Any = {}
-    elif (
-        isinstance(config, Mapping)
-        and type(config).__module__.split(".")[0] != "omegaconf"
-    ):
+    elif isinstance(config, Mapping) and type(config).__module__.split(".")[0] != "omegaconf":
         out = dict(config)
     elif dataclasses.is_dataclass(config) and not isinstance(config, type):
         out = dataclasses.asdict(config)
@@ -123,9 +120,7 @@ def to_proposal(proposal: str | Path | dict[str, Any] | None) -> dict[str, Any]:
         case dict():
             return dict(proposal)
         case _:
-            raise ValueError(
-                f"proposal must be a str, dict, path or None, not {proposal!r}"
-            )
+            raise ValueError(f"proposal must be a str, dict, path or None, not {proposal!r}")
 
 
 def scalar(value: Any) -> bool | int | float | None:
@@ -228,9 +223,7 @@ class Run:
         self.created = datetime.fromisoformat(info["created_at"].replace("Z", "+00:00"))
         self.wake = threading.Event()
         self.stopping = False
-        self.pump = threading.Thread(
-            target=self.pump_loop, name="beamtime-pump", daemon=True
-        )
+        self.pump = threading.Thread(target=self.pump_loop, name="beamtime-pump", daemon=True)
 
     @property
     def id(self) -> str:
@@ -288,9 +281,7 @@ class Run:
                 return
             self.warned.add(key)
             self.warnings += 1
-            self.queue(
-                c.EVENTS, {"_t": time.time(), "kind": "warning", "message": message}
-            )
+            self.queue(c.EVENTS, {"_t": time.time(), "kind": "warning", "message": message})
         try:
             sys.stderr.write(f"beamtime: warning: {message}\n")
         except Exception:
@@ -345,9 +336,7 @@ class Run:
             row: dict[str, Any] = {"_step": step, "_t": t}
             for key, value in values.items():
                 if not isinstance(key, str) or not key or key.startswith("_"):
-                    self.warn(
-                        f"key:{key}", f"key {key!r} is reserved or invalid; dropped"
-                    )
+                    self.warn(f"key:{key}", f"key {key!r} is reserved or invalid; dropped")
                 elif isinstance(value, Data):
                     self.log_data(key, step, t, value)
                 elif (x := scalar(value)) is not None:
@@ -474,9 +463,7 @@ class Run:
                 break
             for key, value in row.items():
                 if not key.startswith("_") and isinstance(value, (int, float)):
-                    self.stats.setdefault(key, MetricStats()).add(
-                        row["_step"], float(value)
-                    )
+                    self.stats.setdefault(key, MetricStats()).add(row["_step"], float(value))
         metrics = self.dir / c.METRICS
         offset = metrics.stat().st_size if metrics.exists() else 0
         self.info["attempts"].append(
@@ -518,9 +505,7 @@ class Run:
                     card = now
                     self.write_card()
             except Exception as e:
-                self.warn(
-                    f"pump:{type(e).__name__}", f"writing run files failed: {e!r}"
-                )
+                self.warn(f"pump:{type(e).__name__}", f"writing run files failed: {e!r}")
 
     def flush(self, *, sync: bool = False) -> None:
         """Write queued lines, files and config changes.
@@ -591,9 +576,7 @@ class Run:
 
         :param status: ``finished`` or ``failed``."""
         if status not in ("finished", "failed"):
-            self.warn(
-                "finish-status", f"finish status {status!r} is not allowed; finished"
-            )
+            self.warn("finish-status", f"finish status {status!r} is not allowed; finished")
             status = "finished"
         self.end(status)
 
@@ -655,9 +638,7 @@ class Run:
             self.write_info(sync=True)
         except Exception as e:
             try:
-                sys.stderr.write(
-                    f"beamtime: warning: finishing the run failed: {e!r}\n"
-                )
+                sys.stderr.write(f"beamtime: warning: finishing the run failed: {e!r}\n")
             except Exception:
                 pass
         finally:
@@ -762,9 +743,7 @@ def install_hooks() -> None:
     sys.excepthook = excepthook
     if hasattr(os, "register_at_fork"):
         os.register_at_fork(after_in_child=on_fork)
-    if threading.current_thread() is threading.main_thread() and hasattr(
-        signal, "SIGUSR1"
-    ):
+    if threading.current_thread() is threading.main_thread() and hasattr(signal, "SIGUSR1"):
         for sig in (signal.SIGTERM, signal.SIGUSR1):
             chain_signal(sig)
 
@@ -849,9 +828,7 @@ def rank_capture(rank: int, folder: Path, job_key: str | None) -> Capture:
                 return
             time.sleep(1.0)
         try:
-            sys.__stderr__.write(
-                f"beamtime: warning: rank {rank} found no run; not captured\n"
-            )
+            sys.__stderr__.write(f"beamtime: warning: rank {rank} found no run; not captured\n")
         except Exception:
             pass
 
@@ -875,11 +852,7 @@ def find_by_job_key(folder: Path, job_key: str) -> Path | None:
             continue
         created = datetime.fromisoformat(info["created_at"].replace("Z", "+00:00"))
         recent = time.time() - created.timestamp() < RANK_RECENT_S
-        if (
-            info.get("job_key") == job_key
-            and info.get("status") == "running"
-            and recent
-        ):
+        if info.get("job_key") == job_key and info.get("status") == "running" and recent:
             found.append(d)
     return max(found, default=None, key=lambda d: d.name)
 
@@ -937,16 +910,12 @@ def init(
     else:
         run = new_run(location, name, tags or [], cfg, to_proposal(proposal))
     notebook = in_notebook()
-    run.capture = Capture(
-        files=LogFiles(run_dir=run.dir), mode="stream" if notebook else "fd"
-    )
+    run.capture = Capture(files=LogFiles(run_dir=run.dir), mode="stream" if notebook else "fd")
     run.capture.start()
     for message in location.warnings:
         run.warn("root", message)
     if notebook:
-        run.warn(
-            "notebook", "in a notebook, end the run with run.finish() or a with block"
-        )
+        run.warn("notebook", "in a notebook, end the run with run.finish() or a with block")
     os.environ["BEAMTIME_RUN_DIR"] = str(run.dir)
     _current = run
     run.start()
@@ -977,9 +946,7 @@ def new_run(
         except FileExistsError:
             continue
     else:
-        raise RuntimeError(
-            f"could not create a unique run directory in {location.folder}"
-        )
+        raise RuntimeError(f"could not create a unique run directory in {location.folder}")
     now = time.time()
     user = env.user()
     own = new_version_id()
@@ -1002,9 +969,7 @@ def new_run(
         "created_at": iso(now),
         "ended_at": None,
         "exit": None,
-        "attempts": [
-            {"started_at": iso(now), "host": host["hostname"], "resume_step": None}
-        ],
+        "attempts": [{"started_at": iso(now), "host": host["hostname"], "resume_step": None}],
         "proposals": proposals_of(location.logdir, location.folder, own),
         "job_key": env.job_key(environ),
         "host": host,
@@ -1076,9 +1041,7 @@ def continue_run(logdir: Path, run_id: str, cfg: dict[str, Any]) -> Run:
             for k in sorted(stored.keys() | cfg.keys())
             if stored.get(k) != cfg.get(k)
         }
-        run.queue(
-            c.EVENTS, {"_t": time.time(), "kind": "config_conflict", "diff": diff}
-        )
+        run.queue(c.EVENTS, {"_t": time.time(), "kind": "config_conflict", "diff": diff})
     info.update(status="running", ended_at=None, exit=None)
     write_replaced(run_dir / c.RUN, info)
     return run

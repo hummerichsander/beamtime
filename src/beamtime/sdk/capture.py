@@ -24,9 +24,7 @@ def segment_header(n: int) -> bytes:
 class LogFiles:
     """Writes captured output into a head file and two rotating tail files."""
 
-    def __init__(
-        self, *, run_dir: Path, rank: int = 0, cap: int = c.OUTPUT_CAP
-    ) -> None:
+    def __init__(self, *, run_dir: Path, rank: int = 0, cap: int = c.OUTPUT_CAP) -> None:
         """Open a rank's log files, continuing existing ones after a resume.
 
         :param run_dir: The run directory.
@@ -134,9 +132,7 @@ class Buffer:
                     return b""
                 if not self.dropped:
                     return None
-                self.chunks.append(
-                    f"\n[beamtime: {self.dropped:,} bytes dropped]\n".encode()
-                )
+                self.chunks.append(f"\n[beamtime: {self.dropped:,} bytes dropped]\n".encode())
                 self.dropped = 0
             data = b"".join(self.chunks)
             self.chunks.clear()
@@ -203,9 +199,7 @@ class Capture:
         self.saved: dict[int, int] = {}
         self.streams: dict[str, Any] = {}
         self.readers: list[threading.Thread] = []
-        self.writer = threading.Thread(
-            target=self.write_loop, name="beamtime-output", daemon=True
-        )
+        self.writer = threading.Thread(target=self.write_loop, name="beamtime-output", daemon=True)
         self.lock = threading.Lock()
         self.active = False
 

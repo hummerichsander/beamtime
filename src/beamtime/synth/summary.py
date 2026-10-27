@@ -60,9 +60,7 @@ def metric_preview(points: list[tuple[int, float]]) -> dict[str, Any] | None:
     }
 
 
-def slope_last10pct(
-    preview: dict[str, Any], first_step: int, last_step: int
-) -> float | None:
+def slope_last10pct(preview: dict[str, Any], first_step: int, last_step: int) -> float | None:
     """Fit a line to the bucket means of the last 10 % of a metric's steps.
 
     :param preview: The metric's preview entry.

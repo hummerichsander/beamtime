@@ -124,9 +124,7 @@ class Store:
 
         :return: The version, or ``None`` for a new or foreign database."""
         try:
-            row = self.db.execute(
-                "SELECT value FROM meta WHERE key = 'schema'"
-            ).fetchone()
+            row = self.db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone()
         except sqlite3.OperationalError:
             return None
         return int(row[0]) if row else None
@@ -165,19 +163,14 @@ class Store:
         :param scope: The folder relative to the log dir.
         :return: The rows."""
         cond, params = in_scope("folder", scope)
-        return self.db.execute(
-            f"SELECT {STALE_COLUMNS} FROM runs WHERE {cond}", params
-        ).fetchall()
+        return self.db.execute(f"SELECT {STALE_COLUMNS} FROM runs WHERE {cond}", params).fetchall()
 
     def upsert_run(self, run_id: str, fields: dict[str, Any]) -> None:
         """Insert a run or update some of its fields.
 
         :param run_id: The run id.
         :param fields: Column to value; dicts and lists are stored as JSON."""
-        values = {
-            k: json.dumps(v) if isinstance(v, (dict, list)) else v
-            for k, v in fields.items()
-        }
+        values = {k: json.dumps(v) if isinstance(v, (dict, list)) else v for k, v in fields.items()}
         if self.run(run_id) is None:
             cols = ["id", *values]
             marks = ", ".join("?" * len(cols))
@@ -187,9 +180,7 @@ class Store:
             )
         elif values:
             sets = ", ".join(f"{k} = ?" for k in values)
-            self.db.execute(
-                f"UPDATE runs SET {sets} WHERE id = ?", [*values.values(), run_id]
-            )
+            self.db.execute(f"UPDATE runs SET {sets} WHERE id = ?", [*values.values(), run_id])
 
     def delete_run(self, run_id: str) -> None:
         """Forget a run and everything indexed from it.
@@ -204,9 +195,7 @@ class Store:
 
         :param path: The folder relative to the log dir.
         :return: The row, or ``None``."""
-        return self.db.execute(
-            "SELECT * FROM folders WHERE path = ?", (path,)
-        ).fetchone()
+        return self.db.execute("SELECT * FROM folders WHERE path = ?", (path,)).fetchone()
 
     def set_folder(self, path: str, **fields: Any) -> None:
         """Insert or update a folder's walk state.

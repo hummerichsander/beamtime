@@ -73,10 +73,7 @@ def add_field(parser: argparse.ArgumentParser, field: Any, positional: bool) -> 
     kw: dict[str, Any] = {"dest": dest, "required": required}
     if not required:
         default = field.default
-        if (
-            default is msgspec.NODEFAULT
-            and field.default_factory is not msgspec.NODEFAULT
-        ):
+        if default is msgspec.NODEFAULT and field.default_factory is not msgspec.NODEFAULT:
             default = field.default_factory()
         kw["default"] = default
     match name:
@@ -131,9 +128,7 @@ def build_parser() -> argparse.ArgumentParser:
     from beamtime.ops.registry import OPS
 
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument(
-        "--root", default=argparse.SUPPRESS, help="another project's root"
-    )
+    common.add_argument("--root", default=argparse.SUPPRESS, help="another project's root")
     common.add_argument(
         "--json",
         action="store_true",
@@ -149,9 +144,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action=Version, nargs=0, help="show the version")
     parser.add_argument("--root", default=None, help="another project's root")
-    parser.add_argument(
-        "--json", action="store_true", help="the canonical answer as JSON"
-    )
+    parser.add_argument("--json", action="store_true", help="the canonical answer as JSON")
     parser.add_argument("--quiet", action="store_true", help="print nothing on success")
     commands = parser.add_subparsers(dest="command", metavar="COMMAND")
     mcp = commands.add_parser(
@@ -161,18 +154,14 @@ def build_parser() -> argparse.ArgumentParser:
     for op in OPS:
         if op.name == "query":
             sub = commands.add_parser(op.name, parents=[common], help=op.summary)
-            sub.add_argument(
-                "query", metavar="FILE_OR_JSON", help="a YAML/JSON file or {…}"
-            )
+            sub.add_argument("query", metavar="FILE_OR_JSON", help="a YAML/JSON file or {…}")
             sub.add_argument("--cursor", default=None)
             sub.set_defaults(op=op.name)
             continue
         where = mcp_commands if op.name.startswith("mcp ") else commands
         name = op.name.split(" ", 1)[1] if op.name.startswith("mcp ") else op.name
         label = op.summary + (" (user only)" if op.user_only else "")
-        sub = where.add_parser(
-            name, parents=[common], help=label, description=op.summary
-        )
+        sub = where.add_parser(name, parents=[common], help=label, description=op.summary)
         for field in msgspec.structs.fields(op.params):
             add_field(sub, field, field.name in op.positional)
         sub.set_defaults(op=op.name)
@@ -216,11 +205,7 @@ def read_query(text: str) -> Any:
                 f"no query file {text!r}; pass a file or an object like {{runs: {{}}}}"
             )
         text = path.read_text()
-    return (
-        yaml.safe_load(text)
-        if not text.lstrip().startswith("{")
-        else json_or_yaml(text)
-    )
+    return yaml.safe_load(text) if not text.lstrip().startswith("{") else json_or_yaml(text)
 
 
 def json_or_yaml(text: str) -> Any:

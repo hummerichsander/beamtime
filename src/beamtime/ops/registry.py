@@ -40,9 +40,9 @@ class Page(Params, kw_only=True):
 class Selection(Page, kw_only=True):
     """Which runs an operation looks at."""
 
-    from_: Annotated[
-        str, msgspec.Meta(description="folder below the log dir, or a run id")
-    ] = msgspec.field(default=".", name="from")
+    from_: Annotated[str, msgspec.Meta(description="folder below the log dir, or a run id")] = (
+        msgspec.field(default=".", name="from")
+    )
     where: Where = msgspec.field(default_factory=dict)
     depth: Literal["all"] | int = "all"
 
@@ -59,9 +59,9 @@ class RunsParams(Selection, kw_only=True):
     """Parameters of ``runs``."""
 
     select: Fields = None
-    sort: Annotated[
-        list[str], msgspec.Meta(description="fields; a leading - sorts descending")
-    ] = msgspec.field(default_factory=list)
+    sort: Annotated[list[str], msgspec.Meta(description="fields; a leading - sorts descending")] = (
+        msgspec.field(default_factory=list)
+    )
     limit: int | None = None
     seeds: Annotated[
         str | None, msgspec.Meta(description="e.g. config.seed: average over seeds")
@@ -78,9 +78,7 @@ class SeriesParams(Selection, kw_only=True):
     """Parameters of ``series``."""
 
     y: Annotated[list[str], msgspec.Meta(description="metric keys, e.g. train/loss")]
-    x: Annotated[
-        str, msgspec.Meta(description="_step, _t, _elapsed or a metric key")
-    ] = "_step"
+    x: Annotated[str, msgspec.Meta(description="_step, _t, _elapsed or a metric key")] = "_step"
     steps: Annotated[
         list[int | None] | None, msgspec.Meta(description="[first, last] step window")
     ] = None
@@ -129,9 +127,7 @@ class QueryParams(Page, kw_only=True):
 
     query: Annotated[
         dict[str, Any],
-        msgspec.Meta(
-            description="one kind: keys, runs, series, data, timeline, folders, file"
-        ),
+        msgspec.Meta(description="one kind: keys, runs, series, data, timeline, folders, file"),
     ]
 
 

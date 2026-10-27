@@ -8,9 +8,7 @@ from typing import Any
 from beamtime.format.ids import is_version_id
 from beamtime.format.schema import SchemaError, schema_of
 
-_FRONTMATTER = re.compile(
-    r"---\r?\n(?P<front>.*?)\r?\n---[ \t]*(?:\r?\n|\Z)(?P<body>.*)", re.S
-)
+_FRONTMATTER = re.compile(r"---\r?\n(?P<front>.*?)\r?\n---[ \t]*(?:\r?\n|\Z)(?P<body>.*)", re.S)
 
 
 @dataclass(kw_only=True, frozen=True)

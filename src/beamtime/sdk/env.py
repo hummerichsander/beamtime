@@ -69,8 +69,7 @@ def git_info(cwd: Path) -> tuple[dict[str, Any] | None, str | None]:
         diff = diff[:GIT_DIFF_CAP] + "\n[beamtime: diff cut at 1 MB]\n"
     info = {
         "commit": commit.strip(),
-        "branch": (git(["rev-parse", "--abbrev-ref", "HEAD"], cwd) or "").strip()
-        or None,
+        "branch": (git(["rev-parse", "--abbrev-ref", "HEAD"], cwd) or "").strip() or None,
         "dirty": bool(diff),
         "remote": (git(["remote", "get-url", "origin"], cwd) or "").strip() or None,
     }

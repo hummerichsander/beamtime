@@ -63,10 +63,7 @@ def table(columns: list[str], rows: list[list[Any]]) -> list[str]:
     # seed groups list their run ids; in text, how many is enough.
     cells += [[count_or_num(columns[i], row[i]) for i in order] for row in rows]
     widths = [max(len(r[k]) for r in cells) for k in range(len(order))]
-    return [
-        "  ".join(c.ljust(w) for c, w in zip(r, widths, strict=True)).rstrip()
-        for r in cells
-    ]
+    return ["  ".join(c.ljust(w) for c, w in zip(r, widths, strict=True)).rstrip() for r in cells]
 
 
 def count_or_num(column: str, value: Any) -> str:
@@ -279,27 +276,18 @@ def render_card(answer: dict[str, Any]) -> str:
     if run.get("tags"):
         lines.append(f"tags        {', '.join(run['tags'])}")
     if run.get("warnings"):
-        lines.append(
-            f"warnings    {run['warnings']} (see `beamtime output` and the events)"
-        )
+        lines.append(f"warnings    {run['warnings']} (see `beamtime output` and the events)")
     if answer["config"]:
-        lines += ["", "config"] + [
-            f"  {k} = {num(v)}" for k, v in flat(answer["config"])
-        ]
+        lines += ["", "config"] + [f"  {k} = {num(v)}" for k, v in flat(answer["config"])]
     if answer["metrics"]:
         cols = ["metric", "first", "last", "min", "max", "mean", "count", "last_step"]
-        rows = [
-            [k, *[m.get(c) for c in cols[1:]]] for k, m in answer["metrics"].items()
-        ]
+        rows = [[k, *[m.get(c) for c in cols[1:]]] for k, m in answer["metrics"].items()]
         lines += ["", *table(cols, rows)]
     if answer["values"]:
-        lines += ["", "values"] + [
-            f"  {k} = {num(v)}" for k, v in answer["values"].items()
-        ]
+        lines += ["", "values"] + [f"  {k} = {num(v)}" for k, v in answer["values"].items()]
     if answer["events"]:
         lines += ["", "recent events"] + [
-            f"  {e['t'][:16].replace('T', ' ')}  {e['description']}"
-            for e in answer["events"]
+            f"  {e['t'][:16].replace('T', ' ')}  {e['description']}" for e in answer["events"]
         ]
     return "\n".join(lines)
 
@@ -342,11 +330,9 @@ def render_status(answer: dict[str, Any]) -> str:
     daemon = answer["daemon"]
     lines = [
         f"root      {answer['root']} (from {answer['root_from']})",
-        f"log dir   {answer['logdir']}"
-        + ("" if answer["logdir_exists"] else " (not created yet)"),
+        f"log dir   {answer['logdir']}" + ("" if answer["logdir_exists"] else " (not created yet)"),
         f"cache     {answer['cache']}",
-        "runs      "
-        + (", ".join(f"{k} {v}" for k, v in answer["runs"].items()) or "none"),
+        "runs      " + (", ".join(f"{k} {v}" for k, v in answer["runs"].items()) or "none"),
         "daemon    "
         + (
             f"running since pid {daemon.get('pid')}"
@@ -357,9 +343,7 @@ def render_status(answer: dict[str, Any]) -> str:
     if answer["web_ui"]:
         lines.append(f"web UI    {answer['web_ui']}")
     if answer["remotes"]:
-        lines.append(
-            f"remotes   {', '.join(answer['remotes'])} (connected from milestone M8)"
-        )
+        lines.append(f"remotes   {', '.join(answer['remotes'])} (connected from milestone M8)")
     if fresh := answer["meta"].get("freshness"):
         lines.append(fresh["text"])
     return "\n".join(lines)

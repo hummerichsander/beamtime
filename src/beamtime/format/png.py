@@ -25,13 +25,9 @@ def encode_png(width: int, height: int, channels: int, pixels: bytes) -> bytes:
     :param pixels: Row-major bytes, ``width * height * channels`` long.
     :return: The PNG file."""
     if len(pixels) != width * height * channels:
-        raise ValueError(
-            f"expected {width * height * channels} bytes, got {len(pixels)}"
-        )
+        raise ValueError(f"expected {width * height * channels} bytes, got {len(pixels)}")
     stride = width * channels
-    raw = b"".join(
-        b"\x00" + pixels[r * stride : (r + 1) * stride] for r in range(height)
-    )
+    raw = b"".join(b"\x00" + pixels[r * stride : (r + 1) * stride] for r in range(height))
     header = struct.pack(">IIBBBBB", width, height, 8, COLOR_TYPES[channels], 0, 0, 0)
     return (
         b"\x89PNG\r\n\x1a\n"

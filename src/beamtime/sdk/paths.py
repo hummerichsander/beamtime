@@ -76,8 +76,7 @@ def find_root(cwd: Path) -> tuple[Path, list[str]]:
         if start is not None and (root := find_up(start, ".git")) is not None:
             return root, []
     return cwd, [
-        f"no beamtime.yaml or git repository found; using the working directory {cwd} "
-        "as the root"
+        f"no beamtime.yaml or git repository found; using the working directory {cwd} as the root"
     ]
 
 

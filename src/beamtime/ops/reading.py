@@ -27,9 +27,7 @@ from beamtime.query.kinds import derived_status, describe_event, iso
 RECENT_EVENTS = 10
 
 
-def ask(
-    ctx: Context, query: dict[str, Any], cursor: str | None = None
-) -> dict[str, Any]:
+def ask(ctx: Context, query: dict[str, Any], cursor: str | None = None) -> dict[str, Any]:
     """Answer a query for the context's log dir, with the caller's defaults and budget.
 
     :param ctx: The operation context.
@@ -172,14 +170,10 @@ def find_run(ctx: Context, run_id: str) -> tuple[Index, Path]:
             path = ctx.logdir / hits[0][0]
         elif len(hits) > 1:
             index.close()
-            raise OpError(
-                f"{run_id!r} matches {len(hits)} runs; give the full run id", code=2
-            )
+            raise OpError(f"{run_id!r} matches {len(hits)} runs; give the full run id", code=2)
     if path is None:
         index.close()
-        raise OpError(
-            f"no run {run_id!r} below {ctx.logdir}; `beamtime runs` lists them", code=4
-        )
+        raise OpError(f"no run {run_id!r} below {ctx.logdir}; `beamtime runs` lists them", code=4)
     return index, path
 
 
@@ -195,9 +189,7 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
     finally:
         index.close()
     info = read_run_info(run_dir)
-    status = run_status(
-        info, heartbeat=(run_dir / c.RUN).stat().st_mtime, now=time.time()
-    )
+    status = run_status(info, heartbeat=(run_dir / c.RUN).stat().st_mtime, now=time.time())
     run_card = read_card(run_dir) if (run_dir / c.CARD).exists() else None
     events = read_events(run_dir)
     return {
@@ -254,12 +246,8 @@ def output(ctx: Context, p: r.OutputParams) -> dict[str, Any]:
         try:
             pattern = re.compile(p.grep)
         except re.error as e:
-            raise OpError(
-                f"grep: {p.grep!r} is not a regular expression: {e}", code=2
-            ) from None
-        lines = [
-            f"{i + 1}: {line}" for i, line in enumerate(lines) if pattern.search(line)
-        ]
+            raise OpError(f"grep: {p.grep!r} is not a regular expression: {e}", code=2) from None
+        lines = [f"{i + 1}: {line}" for i, line in enumerate(lines) if pattern.search(line)]
     shown = lines[-p.tail :] if p.tail else lines
     meta: dict[str, Any] = {
         "total_lines": total,
@@ -301,9 +289,7 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         now = time.time()
         counts = Counter(
             derived_status(status, heartbeat, now)
-            for status, heartbeat in index.store.db.execute(
-                "SELECT status, heartbeat FROM runs"
-            )
+            for status, heartbeat in index.store.db.execute("SELECT status, heartbeat FROM runs")
         )
         cache = index.cache
     finally:
@@ -318,9 +304,7 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         "cache": str(cache),
         "runs": dict(counts),
         "daemon": daemon,
-        "web_ui": f"http://localhost:{daemon['port']}"
-        if daemon and daemon.get("port")
-        else None,
+        "web_ui": f"http://localhost:{daemon['port']}" if daemon and daemon.get("port") else None,
         "remotes": sorted(ctx.settings.get("remotes") or {}),
         "meta": {"freshness": freshness.dump() if freshness else None},
     }

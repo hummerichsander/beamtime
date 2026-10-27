@@ -116,13 +116,10 @@ def parse_field(text: str) -> Field:
             key, _, stat = body.rpartition(".")
             if not key or stat not in STATS:
                 raise QueryError(
-                    f"{text!r}: a metric field is metric.<key>.<stat>; stats: "
-                    f"{', '.join(STATS)}"
+                    f"{text!r}: a metric field is metric.<key>.<stat>; stats: {', '.join(STATS)}"
                 )
             if window is not None and stat not in WINDOW_STATS:
-                raise QueryError(
-                    f"{text!r}: windowed statistics are {', '.join(WINDOW_STATS)}"
-                )
+                raise QueryError(f"{text!r}: windowed statistics are {', '.join(WINDOW_STATS)}")
             return Field(text=text, ns="metric", path=(key,), stat=stat, window=window)
         case "value":
             if not rest[1:]:
@@ -160,9 +157,7 @@ def sql(field: Field) -> str | None:
         case "metric":
             if field.window is not None:
                 return None
-            return (
-                f"json_extract(card, '{json_path(('metrics', field.key, field.stat))}')"
-            )
+            return f"json_extract(card, '{json_path(('metrics', field.key, field.stat))}')"
         case "value":
             return f"json_extract(card, '{json_path(('values', field.key))}')"
         case "proposal":

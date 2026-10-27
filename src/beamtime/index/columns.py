@@ -128,9 +128,7 @@ class ColumnWriter:
                 col.close()
                 continue
             generation = int(e.file.rsplit(".", 1)[1]) + 1
-            new = Entry(
-                file=file_stem(key, generation), length=keep, nonfinite=e.nonfinite
-            )
+            new = Entry(file=file_stem(key, generation), length=keep, nonfinite=e.nonfinite)
             for ext, view in (("steps", col.steps), ("values", col.values)):
                 (self.dir / f"{new.file}.{ext}").write_bytes(view[:keep].tobytes())
             col.close()
@@ -170,9 +168,7 @@ class ColumnWriter:
 class Column:
     """A read-only view of one key's published points."""
 
-    def __init__(
-        self, *, steps: memoryview, values: memoryview, maps: list, nonfinite: bool
-    ):
+    def __init__(self, *, steps: memoryview, values: memoryview, maps: list, nonfinite: bool):
         """Wrap mapped columns; use ``Column.open``.
 
         :param steps: The int64 steps.
@@ -200,9 +196,7 @@ class Column:
                 m = mmap.mmap(f.fileno(), entry.length * 8, access=mmap.ACCESS_READ)
             maps.append(m)
             views.append(memoryview(m).cast(fmt))
-        return cls(
-            steps=views[0], values=views[1], maps=maps, nonfinite=entry.nonfinite
-        )
+        return cls(steps=views[0], values=views[1], maps=maps, nonfinite=entry.nonfinite)
 
     def window(self, lo: int | None, hi: int | None) -> tuple[int, int]:
         """Find the index range of steps in ``[lo, hi]``.

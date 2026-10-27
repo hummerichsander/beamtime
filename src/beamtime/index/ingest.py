@@ -199,13 +199,9 @@ class Ingester:
             if (d := json.loads(raw)).get("resume_step") is not None:
                 attempts.append((d.get("metrics_offset", 0), d["resume_step"]))
         consumed = self.ingest_metrics(run_dir, row["status"], sorted(attempts))
-        self.store.upsert_run(
-            run_id, {"metrics_size": consumed, "indexed_at": time.time()}
-        )
+        self.store.upsert_run(run_id, {"metrics_size": consumed, "indexed_at": time.time()})
 
-    def ingest_metrics(
-        self, run_dir: Path, status: str, attempts: list[tuple[int, int]]
-    ) -> int:
+    def ingest_metrics(self, run_dir: Path, status: str, attempts: list[tuple[int, int]]) -> int:
         """Append new metric lines to the run's columns, applying resumed attempts.
 
         :param run_dir: The run directory.
@@ -215,9 +211,7 @@ class Ingester:
         writer = ColumnWriter(dir=self.series / run_dir.name)
         manifest = writer.manifest
         done = {tuple(a) for a in manifest.attempts}
-        pending = [
-            a for a in attempts if a not in done and a[0] >= manifest.source_offset
-        ]
+        pending = [a for a in attempts if a not in done and a[0] >= manifest.source_offset]
         path = run_dir / c.METRICS
         pos = manifest.source_offset
         last = manifest.last_step
@@ -240,9 +234,7 @@ class Ingester:
                         manifest.attempts.append([offset, resume])
                         last = None if resume == 0 else resume - 1
                     row = decode(chunk[start:end]) if end > start else None
-                    if isinstance(row, dict) and isinstance(
-                        step := row.get("_step"), int
-                    ):
+                    if isinstance(row, dict) and isinstance(step := row.get("_step"), int):
                         if last is not None and step < last:
                             if status == "running":
                                 # its attempt_started event is still on the way; wait.

@@ -33,9 +33,7 @@ def new_run_id(*, now: datetime | None = None, rng: random.Random | None = None)
     return _new_id(8, now=now, rng=rng)
 
 
-def new_version_id(
-    *, now: datetime | None = None, rng: random.Random | None = None
-) -> str:
+def new_version_id(*, now: datetime | None = None, rng: random.Random | None = None) -> str:
     """Make a version id for an authored file, such as ``20261025-091200-x8k2``.
 
     :param now: The save time; defaults to the current UTC time.

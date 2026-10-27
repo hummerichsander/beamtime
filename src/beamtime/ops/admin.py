@@ -48,9 +48,7 @@ def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
         settings.write_text(f"schema: 1\nlogdir: {logdir}\n")
         lines.append(f"created {settings}")
     elif p.logdir:
-        lines.append(
-            f"{settings} exists; set logdir: {p.logdir} there by hand if wanted"
-        )
+        lines.append(f"{settings} exists; set logdir: {p.logdir} there by hand if wanted")
     gitignore = ctx.root / ".gitignore"
     entry = f"{logdir.strip('/')}/"
     existing = gitignore.read_text().splitlines() if gitignore.exists() else []
@@ -123,13 +121,9 @@ def doctor(ctx: Context, p: r.NoParams) -> dict[str, Any]:
 
         check("serve extra", True, "MCP SDK installed")
     except ImportError:
-        check(
-            "serve extra", None, "not installed: pip install 'beamtime[serve]' for MCP"
-        )
+        check("serve extra", None, "not installed: pip install 'beamtime[serve]' for MCP")
     daemon = daemon_status(cache)
-    check(
-        "daemon", None, f"running, pid {daemon.get('pid')}" if daemon else "not running"
-    )
+    check("daemon", None, f"running, pid {daemon.get('pid')}" if daemon else "not running")
     for problem in ctx.settings.problems:
         check("settings", False, problem)
     check("chromium", None, "checked once views exist (milestone M6)")
@@ -193,17 +187,14 @@ def move(ctx: Context, p: r.MoveParams) -> dict[str, Any]:
         raise OpError(f"{p.folder!r} is outside the log dir {ctx.logdir}", code=2)
     rel = target.relative_to(ctx.logdir)
     if any(is_reserved(part) for part in rel.parts) or (target / c.RUN).exists():
-        raise OpError(
-            f"{p.folder!r} is a reserved folder or a run; choose a group", code=2
-        )
+        raise OpError(f"{p.folder!r} is a reserved folder or a run; choose a group", code=2)
     target.mkdir(parents=True, exist_ok=True)
     dest = target / run_dir.name
     shutil.move(str(run_dir), str(dest))
     return answer(
         "mv",
         [
-            f"moved {run_dir.relative_to(ctx.logdir)} "
-            f"to {dest.relative_to(ctx.logdir)}",
+            f"moved {run_dir.relative_to(ctx.logdir)} to {dest.relative_to(ctx.logdir)}",
             "its proposal membership stays as recorded at its start",
         ],
         path=dest.relative_to(ctx.logdir).as_posix(),
@@ -224,9 +215,7 @@ def remove(ctx: Context, p: r.RemoveParams) -> dict[str, Any]:
         refuse_running(run_dir, "remove")
     rel = target.relative_to(ctx.logdir)
     if rel.parts and rel.parts[0] == c.TRASH:
-        raise OpError(
-            "that is already in the trash; `beamtime gc --yes` empties it", code=2
-        )
+        raise OpError("that is already in the trash; `beamtime gc --yes` empties it", code=2)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     dest = ctx.logdir / c.TRASH / stamp / rel
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -268,8 +257,7 @@ def gc(ctx: Context, p: r.GcParams) -> dict[str, Any]:
             "gc",
             [
                 *lines,
-                f"would delete {len(doomed)} item(s); "
-                "run `beamtime gc --yes` to delete",
+                f"would delete {len(doomed)} item(s); run `beamtime gc --yes` to delete",
             ],
             deleted=[],
         )

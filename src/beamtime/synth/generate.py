@@ -134,9 +134,7 @@ class Generator:
                 "statement": f"lr {BEST_LR:g} gives the best final val/acc.",
                 "rationale": "Low rates underfit; high ones are unstable.",
                 "confidence": 0.6,
-                "plan": {
-                    "grid": {"config.lr": list(LRS), "config.seed": list(range(3))}
-                },
+                "plan": {"grid": {"config.lr": list(LRS), "config.seed": list(range(3))}},
                 "predictions": [
                     {
                         "name": "converges",
@@ -167,12 +165,8 @@ class Generator:
                 final = 0.93 - 0.04 * math.log10(lr / BEST_LR) ** 2
                 final += self.rng.gauss(0, 0.003)
                 rows = self.curves(self.scale.steps, lr=lr, final_acc=final)
-                self.write_run(
-                    self.sweep_spec(folder, lr, seed, member, rows, final_acc=final)
-                )
-        self.manifest.roles["diverging"] = self.write_run(
-            self.diverging(folder, member)
-        )
+                self.write_run(self.sweep_spec(folder, lr, seed, member, rows, final_acc=final))
+        self.manifest.roles["diverging"] = self.write_run(self.diverging(folder, member))
         self.manifest.roles["killed"] = self.write_run(self.killed(folder, member))
         diverging = self.manifest.roles["diverging"]
         self.write_md(
@@ -253,9 +247,7 @@ class Generator:
                 spec.data = [self.text_entry(rows[-1]["_step"], tok)]
                 self.write_run(spec)
 
-    def curves(
-        self, steps: int, *, lr: float, final_acc: float
-    ) -> list[dict[str, Any]]:
+    def curves(self, steps: int, *, lr: float, final_acc: float) -> list[dict[str, Any]]:
         """Make classifier records: train/loss and lr every step, val/acc periodically.
 
         :param steps: Number of steps.
@@ -339,8 +331,7 @@ class Generator:
                 "columns": {
                     "class": classes,
                     "acc": [
-                        round(min(1.0, final_acc + self.rng.gauss(0, 0.02)), 4)
-                        for _ in classes
+                        round(min(1.0, final_acc + self.rng.gauss(0, 0.02)), 4) for _ in classes
                     ],
                 },
             },
@@ -365,9 +356,7 @@ class Generator:
             row["train/loss"] = round(row["train/loss"] * math.exp(i / 8), 6)
             if i >= 50:
                 row["train/loss"] = math.nan if i < 59 else math.inf
-        spec = self.spec(
-            folder, {"lr": 1e-2, "seed": 0, "model": "resnet18"}, rows, "failed"
-        )
+        spec = self.spec(folder, {"lr": 1e-2, "seed": 0, "model": "resnet18"}, rows, "failed")
         spec.proposals = member
         spec.error = "FloatingPointError: train/loss is inf"
         return spec
@@ -380,9 +369,7 @@ class Generator:
         :return: The run description."""
         rows = self.curves(self.scale.steps, lr=BEST_LR, final_acc=0.93)
         rows = rows[: int(self.scale.steps * 0.4)]
-        spec = self.spec(
-            folder, {"lr": BEST_LR, "seed": 3, "model": "resnet18"}, rows, "killed"
-        )
+        spec = self.spec(folder, {"lr": BEST_LR, "seed": 3, "model": "resnet18"}, rows, "killed")
         spec.proposals = member
         spec.signal = "SIGTERM"
         return spec
@@ -564,8 +551,7 @@ class Generator:
             events.append(end)
         output = [f"[{host}] starting {spec.config}\n"]
         output += [
-            f"step {r['_step']} loss {r['train/loss']}\n"
-            for r in last[:: max(1, len(last) // 20)]
+            f"step {r['_step']} loss {r['train/loss']}\n" for r in last[:: max(1, len(last) // 20)]
         ]
         output.append(last_output)
 
@@ -579,9 +565,7 @@ class Generator:
             "ended_at": iso(datetime.fromtimestamp(end_t, timezone.utc))
             if end is not None
             else None,
-            "exit": {"failed": {"code": 1}, "killed": {"signal": spec.signal}}.get(
-                spec.status
-            ),
+            "exit": {"failed": {"code": 1}, "killed": {"signal": spec.signal}}.get(spec.status),
             "attempts": attempts,
             "proposals": spec.proposals,
             "job_key": f"slurm:{job}",
@@ -598,8 +582,7 @@ class Generator:
                 "nodes": host,
             },
             "git": {"commit": "57878f1", "branch": "main", "dirty": False},
-            "command": ["python", "train.py"]
-            + [f"--{k}={v}" for k, v in spec.config.items()],
+            "command": ["python", "train.py"] + [f"--{k}={v}" for k, v in spec.config.items()],
             "cwd": "/home/synth/proj",
             "beamtime_version": "synth",
         }
@@ -612,8 +595,7 @@ class Generator:
             values=spec.values,
         )
         data = [
-            {"_step": e["_step"], "_t": round(t0 + e["_step"] * 0.25, 3)} | e
-            for e in spec.data
+            {"_step": e["_step"], "_t": round(t0 + e["_step"] * 0.25, 3)} | e for e in spec.data
         ]
 
         write_replaced(d / c.RUN, info)

@@ -10,9 +10,7 @@ import msgspec
 class QueryError(ValueError):
     """A query that can't be answered as written; the message says how to fix it."""
 
-    def __init__(
-        self, message: str, *, code: Literal["invalid", "not_found"] = "invalid"
-    ):
+    def __init__(self, message: str, *, code: Literal["invalid", "not_found"] = "invalid"):
         """Create the error.
 
         :param message: What is wrong and what to do.

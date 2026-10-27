@@ -106,8 +106,7 @@ def prompts() -> list[types.Prompt]:
             name=name,
             description=description,
             arguments=[
-                types.PromptArgument(name=a, description=d, required=r)
-                for a, d, r in arguments
+                types.PromptArgument(name=a, description=d, required=r) for a, d, r in arguments
             ],
         )
         for name, (description, arguments, _) in PROMPTS.items()
@@ -124,16 +123,12 @@ def build(root: str | Path | None = None) -> Server:
     async def list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
         return types.ListToolsResult(tools=tools())
 
-    async def call_tool(
-        ctx: Any, params: types.CallToolRequestParams
-    ) -> types.CallToolResult:
+    async def call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
         if (op := BY_TOOL.get(params.name)) is None:
             return error(f"unknown tool {params.name!r}")
 
         def run() -> dict[str, Any]:
-            return call(
-                op.name, params.arguments or {}, Context.make(root=root, caller="mcp")
-            )
+            return call(op.name, params.arguments or {}, Context.make(root=root, caller="mcp"))
 
         try:
             answer = await anyio.to_thread.run_sync(run)
@@ -145,9 +140,7 @@ def build(root: str | Path | None = None) -> Server:
     async def list_prompts(ctx: Any, params: Any) -> types.ListPromptsResult:
         return types.ListPromptsResult(prompts=prompts())
 
-    async def get_prompt(
-        ctx: Any, params: types.GetPromptRequestParams
-    ) -> types.GetPromptResult:
+    async def get_prompt(ctx: Any, params: types.GetPromptRequestParams) -> types.GetPromptResult:
         if params.name not in PROMPTS:
             raise ValueError(f"unknown prompt {params.name!r}")
         description, arguments, template = PROMPTS[params.name]
@@ -177,9 +170,7 @@ def error(message: str) -> types.CallToolResult:
 
     :param message: What went wrong and what to do.
     :return: The tool result."""
-    return types.CallToolResult(
-        content=[types.TextContent(text=message)], is_error=True
-    )
+    return types.CallToolResult(content=[types.TextContent(text=message)], is_error=True)
 
 
 async def run(root: str | Path | None = None) -> None:

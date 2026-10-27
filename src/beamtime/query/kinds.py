@@ -84,31 +84,22 @@ def resolve_from(index: Index, base: str, target: str) -> tuple[str, str | None]
         raise QueryError(f"from {target!r} leaves the log dir")
     if not index.folder_path(rel).is_dir():
         parent = index.folder_path(posixpath.dirname(rel) or ".")
-        options = (
-            [p.name for p in parent.iterdir() if p.is_dir()] if parent.is_dir() else []
-        )
+        options = [p.name for p in parent.iterdir() if p.is_dir()] if parent.is_dir() else []
         raise QueryError(
-            f"no folder {rel!r} below the log dir."
-            + closest(posixpath.basename(rel), options),
+            f"no folder {rel!r} below the log dir." + closest(posixpath.basename(rel), options),
             code="not_found",
         )
     return rel, None
 
 
-def derived_status(
-    status: str | None, heartbeat: float | None, now: float
-) -> str | None:
+def derived_status(status: str | None, heartbeat: float | None, now: float) -> str | None:
     """Derive ``lost`` for running runs with a stale heartbeat.
 
     :param status: The status from ``_run.json``.
     :param heartbeat: The modification time of ``_run.json``.
     :param now: The current time.
     :return: The status shown."""
-    if (
-        status == "running"
-        and heartbeat is not None
-        and now - heartbeat > c.LOST_AFTER_S
-    ):
+    if status == "running" and heartbeat is not None and now - heartbeat > c.LOST_AFTER_S:
         return "lost"
     return status
 
@@ -149,9 +140,7 @@ def known_keys(ctx: Context, what: Literal["metrics", "values", "config"]) -> se
     :param what: Which keys.
     :return: The keys."""
     cond, params = scope_condition(ctx)
-    source = {"metrics": "card, '$.metrics'", "values": "card, '$.values'"}.get(
-        what, "config"
-    )
+    source = {"metrics": "card, '$.metrics'", "values": "card, '$.values'"}.get(what, "config")
     rows = ctx.index.store.db.execute(
         f"SELECT DISTINCT j.key FROM runs, json_each({source}) j WHERE {cond}", params
     )
@@ -187,13 +176,10 @@ def check_known(ctx: Context, fields: list[Field]) -> None:
         if what is None:
             continue
         cond, params = scope_condition(ctx)
-        source = {"metrics": "card, '$.metrics'", "values": "card, '$.values'"}.get(
-            what, "config"
-        )
+        source = {"metrics": "card, '$.metrics'", "values": "card, '$.values'"}.get(what, "config")
         # one hit is enough; the full key list is only needed for suggestions.
         hit = ctx.index.store.db.execute(
-            f"SELECT 1 FROM runs, json_each({source}) j WHERE {cond} AND j.key = ? "
-            "LIMIT 1",
+            f"SELECT 1 FROM runs, json_each({source}) j WHERE {cond} AND j.key = ? LIMIT 1",
             [*params, f.key],
         ).fetchone()
         if hit:
@@ -239,8 +225,7 @@ def prefilter(where: dict[str, Any], exprs: dict[Field, str]) -> tuple[str, list
                 params.append(value)
             elif isinstance(value, str) and (n := number(value)) is not value:
                 parts.append(
-                    f"(({is_num} AND {expr} {sql_op} ?) "
-                    f"OR ({is_text} AND {expr} {sql_op} ?))"
+                    f"(({is_num} AND {expr} {sql_op} ?) OR ({is_text} AND {expr} {sql_op} ?))"
                 )
                 params += [n, value]
             elif isinstance(value, str):
@@ -264,15 +249,11 @@ def select_runs(
     fields = [parse_field(t) for t in texts]
     for f in fields:
         if f.ns == "proposal" and f.text in sel.where:
-            raise QueryError(
-                f"{f.text!r}: proposal fields come with the research record (M4)"
-            )
+            raise QueryError(f"{f.text!r}: proposal fields come with the research record (M4)")
     check_known(ctx, fields)
     exprs = [(f, e) for f in fields if (e := sql(f)) is not None]
     whole = "config" if config or sel.seeds else "NULL"
-    cols = ", ".join(
-        ["id", "path", "status", "heartbeat", whole, *[e for _, e in exprs]]
-    )
+    cols = ", ".join(["id", "path", "status", "heartbeat", whole, *[e for _, e in exprs]])
     cond, params = scope_condition(ctx, sel.depth)
     pre, pre_params = prefilter(sel.where, dict(exprs))
     rows = ctx.index.store.db.execute(
@@ -316,9 +297,7 @@ def seed_groups(
     :return: ``(config without the seed, runs)`` per group."""
     seed = parse_field(seeds)
     if seed.ns != "config" or len(seed.path) != 1:
-        raise QueryError(
-            f"seeds: {seeds!r} must be a top-level config field like config.seed"
-        )
+        raise QueryError(f"seeds: {seeds!r} must be a top-level config field like config.seed")
     groups: dict[str, tuple[dict[str, Any], list]] = {}
     for r in runs:
         cfg = json.loads(r["_config"] or "{}")
@@ -361,11 +340,7 @@ def sort_rows(rows: list[dict[str, Any]], sort: list[str]) -> None:
     def key(v: Any) -> Any:
         if isinstance(v, dict) and "mean" in v:
             v = v["mean"]
-        return (
-            (0, v)
-            if isinstance(v, (int, float)) and not isinstance(v, bool)
-            else (1, str(v))
-        )
+        return (0, v) if isinstance(v, (int, float)) and not isinstance(v, bool) else (1, str(v))
 
     for spec in reversed(sort):
         desc = spec.startswith("-")
@@ -479,9 +454,7 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
         },
         "config": {
             "columns": ["key", "runs", "values"],
-            "rows": [
-                [f"config.{k}", len(v), summarize(v)] for k, v in sorted(config.items())
-            ],
+            "rows": [[f"config.{k}", len(v), summarize(v)] for k, v in sorted(config.items())],
         },
         "data": {
             "columns": ["key", "kind", "runs", "entries"],
@@ -517,9 +490,7 @@ def summarize(values: list[Any]) -> Any:
     distinct = {json.dumps(v, sort_keys=True): v for v in values}
     if len(distinct) <= 10:
         return sorted(distinct.values(), key=lambda v: (type(v).__name__, str(v)))
-    nums = [
-        v for v in values if isinstance(v, (int, float)) and not isinstance(v, bool)
-    ]
+    nums = [v for v in values if isinstance(v, (int, float)) and not isinstance(v, bool)]
     if nums:
         return {"min": min(nums), "max": max(nums), "distinct": len(distinct)}
     return {"distinct": len(distinct)}
@@ -560,9 +531,7 @@ def series_kind(ctx: Context, q: m.Series) -> dict[str, Any]:
         for r in runs:
             cols = Columns(index=ctx.index, run_id=r["_id"])
             for y in q.y:
-                if (
-                    curve := run_curve(ctx, r, cols, y, window, per_curve, q)
-                ) is not None:
+                if (curve := run_curve(ctx, r, cols, y, window, per_curve, q)) is not None:
                     curves.append(curve)
             cols.close()
     return {
@@ -616,9 +585,7 @@ def run_curve(
         end = len(steps) if window[1] is None else col.window(None, window[1])[1]
         values = ema(values[:end], q.smooth.ema)
         steps = steps[:end]
-    curve = downsample(
-        steps, values, window=window, points=points, nonfinite=col.nonfinite
-    )
+    curve = downsample(steps, values, window=window, points=points, nonfinite=col.nonfinite)
     if q.x != "_step":
         xs = curve["x"] if curve["raw"] else curve["first"]
         curve["x"] = map_x(cols, q.x, xs)
@@ -686,9 +653,7 @@ def grouped_curve(
             i, j = col.window(*window)
             a, b = finite_range(steps, values, i, j, col.nonfinite)
             if a < b:
-                series.append(
-                    (cols, steps, values, col.nonfinite, steps[a], steps[b - 1])
-                )
+                series.append((cols, steps, values, col.nonfinite, steps[a], steps[b - 1]))
                 continue
         cols.close()
     out: dict[str, Any] = {
@@ -703,9 +668,7 @@ def grouped_curve(
     width = width_for(lo, hi, points)
     per_bucket: dict[int, list[float]] = defaultdict(list)
     for cols, steps, values, nonfinite, _, _ in series:
-        means = bucket_means(
-            steps, values, window=window, width=width, nonfinite=nonfinite
-        )
+        means = bucket_means(steps, values, window=window, width=width, nonfinite=nonfinite)
         for b, v in means.items():
             per_bucket[b].append(v)
         cols.close()
@@ -793,9 +756,7 @@ def data_kind(ctx: Context, q: m.Data) -> dict[str, Any]:
         "kind": "data",
         "key": q.key,
         "entries": entries[:limit],
-        "meta": meta(
-            ctx, matched=len(runs), entries=len(entries), cut=len(entries) > limit
-        ),
+        "meta": meta(ctx, matched=len(runs), entries=len(entries), cut=len(entries) > limit),
     }
 
 
@@ -838,8 +799,7 @@ def timeline_kind(ctx: Context, q: m.Timeline) -> dict[str, Any]:
     entries = []
     marks = ", ".join("?" * len(ids))
     for run_id, t, step, kind, message, data in db.execute(
-        "SELECT run_id, t, step, kind, message, data FROM events "
-        f"WHERE run_id IN ({marks})",
+        f"SELECT run_id, t, step, kind, message, data FROM events WHERE run_id IN ({marks})",
         ids,
     ):
         if (types and kind not in types) or (since and (t or 0) < since):
@@ -859,8 +819,7 @@ def timeline_kind(ctx: Context, q: m.Timeline) -> dict[str, Any]:
     if ctx.run_id is not None:
         cond, params = "run_id = ?", [ctx.run_id]
     for path, folder, run_id, note_id, t, type_, description in db.execute(
-        "SELECT path, folder, run_id, id, t, type, description FROM notes "
-        f"WHERE {cond}",
+        f"SELECT path, folder, run_id, id, t, type, description FROM notes WHERE {cond}",
         params,
     ):
         if (types and type_ not in types) or (since and t < since):
@@ -972,9 +931,7 @@ def folders_kind(ctx: Context, q: m.Folders) -> dict[str, Any]:
             except (OSError, yaml.YAMLError):
                 pass
         view = newest(folder_dir / c.VIEW)
-        notes = db.execute(
-            "SELECT count(*) FROM notes WHERE folder = ?", (path,)
-        ).fetchone()[0]
+        notes = db.execute("SELECT count(*) FROM notes WHERE folder = ?", (path,)).fetchone()[0]
         rows.append(
             [
                 path,
@@ -1025,11 +982,7 @@ def file_kind(ctx: Context, q: m.File) -> dict[str, Any]:
             rows = [[number_or_text(v) for v in row] for row in body]
         case ".json":
             data = json.loads(path.read_text())
-            if (
-                isinstance(data, dict)
-                and "columns" in data
-                and isinstance(data["columns"], dict)
-            ):
+            if isinstance(data, dict) and "columns" in data and isinstance(data["columns"], dict):
                 data = data["columns"]
             if isinstance(data, dict):
                 columns = list(data)
@@ -1048,9 +1001,7 @@ def file_kind(ctx: Context, q: m.File) -> dict[str, Any]:
             columns = list(table)
             rows = [list(r) for r in zip(*table.values(), strict=False)]
         case other:
-            raise QueryError(
-                f"file: unsupported format {other!r}; use csv, json or parquet"
-            )
+            raise QueryError(f"file: unsupported format {other!r}; use csv, json or parquet")
     return {
         "kind": "file",
         "folder": ctx.scope,
@@ -1080,9 +1031,7 @@ def importance_kind(ctx: Context, q: m.Importance) -> dict[str, Any]:
     :param ctx: The query context.
     :param q: The query.
     :return: Never returns."""
-    raise QueryError(
-        "importance comes in v1.1; use a runs query sorted by the target for now"
-    )
+    raise QueryError("importance comes in v1.1; use a runs query sorted by the target for now")
 
 
 KIND_FUNCTIONS = {

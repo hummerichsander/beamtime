@@ -73,9 +73,7 @@ class Table(Data):
             return {str(n): [plain(row.get(n)) for row in data] for n in names}
         if hasattr(data, "columns") and hasattr(data, "__getitem__"):
             return {str(n): plain(list(data[n])) for n in data.columns}
-        raise TypeError(
-            f"Table expects a DataFrame, dict or list of dicts, not {type(data)}"
-        )
+        raise TypeError(f"Table expects a DataFrame, dict or list of dicts, not {type(data)}")
 
     def encode(self) -> Encoded:
         """Store small tables inline, large ones as Parquet (or JSON without PyArrow).

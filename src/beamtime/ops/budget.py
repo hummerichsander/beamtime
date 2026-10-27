@@ -20,14 +20,10 @@ def offset_of(cursor: str | None) -> int:
     try:
         return int(cursor)
     except ValueError:
-        raise OpError(
-            f"cursor {cursor!r} is not one Beamtime gave out", code=2
-        ) from None
+        raise OpError(f"cursor {cursor!r} is not one Beamtime gave out", code=2) from None
 
 
-def cut(
-    answer: dict[str, Any], offset: int, *, max_chars: int = MAX_CHARS
-) -> dict[str, Any]:
+def cut(answer: dict[str, Any], offset: int, *, max_chars: int = MAX_CHARS) -> dict[str, Any]:
     """Page an answer: drop items before the cursor, and items beyond the budget.
 
     :param answer: An answer with one item list (``rows``, ``curves`` or ``entries``).
@@ -52,9 +48,7 @@ def cut(
         answer[key] = items[:keep]
         meta["cut"] = True
         meta["next"] = str(offset + keep)
-        meta["hint"] = (
-            f"answer cut at about 8k tokens; pass cursor {meta['next']!r} for more"
-        )
+        meta["hint"] = f"answer cut at about 8k tokens; pass cursor {meta['next']!r} for more"
     if offset:
         meta["offset"] = offset
     return answer
