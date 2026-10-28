@@ -158,7 +158,7 @@ start after M2.
 - The built-in default view; live updates with in-place chart updates.
 - The bundle-size budget in CI.
 
-*Done when*: `beamtime serve` shows the group tree, the frame and the default view of any group or
+*Done when*: `beamtime serve` shows the group tree, the header and the default view of any group or
 run, with every state in the URL, and running curves grow in place.
 
 Checked by `tests/serve/test_browser.py` (a real `serve` and headless Chromium: navigation without
@@ -167,6 +167,14 @@ reloads, the proposal and its badges, a curve refetched after new metric lines) 
 early, for groups whose runs live in subgroups. Fixed on the way: runs whose streams a time budget
 had deferred were never stream-indexed once they had ended.
 
+**UI refactor after M5** (done): the folder/group rename across CLI, MCP, queries and docs (the
+chart parameter `group` became `by`); a notebook-like look (warm "paper and ink blue" themes, a
+serif for reading, larger type, symbols, whitespace instead of boxes); concise default views; uPlot
+for every chart instead of Vega-Lite, with W&B-like interactions; Markdown with KaTeX for notes and
+memory; editing written texts in place (new versions, never changed files). Checked by the extended
+browser test (navigation by click, zoom, aggregation, hiding runs, opening and editing a note) and
+`bench/web/timing.py` (scale M: first view about 140 ms, group to group 80 ms, hover 16 ms).
+
 **Milestone A2, after about 9–11 weeks: the UI in daily use.**
 
 ### M6: Views (2–2.5 weeks)
@@ -174,8 +182,10 @@ had deferred were never stream-indexed once they had ended.
 Implements [layer 5](design/05-views.md) for authored views.
 
 - The view format, inheritance, versions, drafts; compiling YAML widgets to queries and components.
-- The remaining wave-1 widgets: `scatter`, `bar`, `histogram`, `data_table`, `timeline`,
-  `tabs`; the `vega` block with the CSP-safe interpreter and no URL loading.
+- The remaining wave-1 widgets on uPlot: `scatter`, `bar`, `histogram`, `data_table`, `timeline`,
+  `tabs` (there is no `vega` block; charts beyond the widgets are custom blocks).
+- "Save as view" in the UI: the viewer's chart panels and settings become a new view version, with
+  the local account as author.
 - Static validation; the headless renderer as a client, `view render`, the single validation render
   with layout checks; graceful skip without Chromium.
 - View history; the view operations and MCP tools; the `view` prompt.

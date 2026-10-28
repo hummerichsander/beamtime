@@ -42,7 +42,7 @@ wherever a group does.
 | `beamtime file <view-group> <path>` | `file` | a data file stored with a view |
 | `beamtime output <run>` | `output` | captured output: `--tail`, `--grep`, `--rank` |
 | `beamtime timeline <group>` | `timeline` | notes and events in time order: `--types`, `--since` |
-| `beamtime notes <group>` | `notes` | notes with descriptions; `--open` for open questions, `--full` for bodies |
+| `beamtime notes <group>` | `notes` | notes with descriptions; `--open` for open questions, `--current` without superseded notes, `--full` for bodies |
 | `beamtime proposal show <group>` | `proposal_show` | the current proposal version, its earlier versions and their checks |
 | `beamtime check <group>` | `check` | the predictions of the current proposal and their results |
 | `beamtime importance <group> --target <field>` | `importance` | hyperparameter importance (v1.1) |

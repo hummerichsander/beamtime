@@ -137,7 +137,7 @@ window and aggregate is exact, and no precomputed structure needs maintaining.
   `serve`, tested against this reference.
 - **Charts** split the requested window into buckets and send min and max per bucket, like W&B's
   full fidelity. Bucket edges are fixed per zoom level, so live curves don't jitter. **Each chart**
-  has a point budget of about 30k, what Vega-Lite draws smoothly.
+  has a point budget of about 30k, which keeps charts smooth in the browser.
 - **Values stay float64**, so exact aggregates are exact.
 
 ### What we don't do

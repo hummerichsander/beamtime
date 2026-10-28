@@ -169,7 +169,10 @@ disagree with the check and say why.
 
 Notes are the running record of a group: what was seen, decided, wondered and concluded. Each note is
 a Markdown file with YAML frontmatter in `notes/`, named by its version id (`20261025-170200-m4p7.md`),
-and never edited; a correction is a new note.
+and never edited; a correction is a new note. The web UI makes this invisible: a note's title or
+body is edited in place, and saving writes a new note that supersedes the old one, with its typed
+fields carried over ([layer 7](07-web-ui.md#writing-from-the-ui)). The memory and a proposal that no
+run has recorded yet are edited the same way, as new versions; a frozen proposal is not.
 
 ### Types
 

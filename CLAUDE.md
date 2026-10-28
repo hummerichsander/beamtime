@@ -178,7 +178,7 @@ and say why.
 # Project specifics
 
 **Status: implementation.** M0 (foundations), M1 (SDK), M2 (index and queries), M3 (CLI and
-MCP), M4 (research record) and M5 (web UI shell) are done; milestones follow
+MCP), M4 (research record), M5 (web UI shell) and the UI refactor after it are done; milestones follow
 `docs/implementation-plan.md`.
 Each milestone implements the design sections it names; a deviation is decided and written back into
 the design before the code lands.
@@ -227,7 +227,8 @@ sync.
 - **The web UI** (`docs/design/07-web-ui.md`) is a fixed shell that must feel seamless, light and
   concise; every state has a URL; live updates are server-sent notifications plus refetch; browser,
   screenshots and exports share one renderer.
-- **Charts render with Vega-Lite** using Beamtime's theme. The matplotlib/scienceplots rules above
+- **Charts render with uPlot** using Beamtime's theme (no Vega-Lite); written texts are edited in
+  the UI as new versions. The matplotlib/scienceplots rules above
   apply to code that produces figures with matplotlib, not to the web UI.
 - **CLI and MCP** (`docs/design/08-cli-mcp.md`) are frontends of one operation set; MCP tool names
   follow the CLI path (`beamtime note add` ↔ `note_add`). Agent writes are additive; agents never run
@@ -263,8 +264,10 @@ sync.
   without it)
 - `src/beamtime/views/`: themes (`theme.py`, built-in pair in `themes/`) and the built-in default view
   as a block tree (`defaults.py`)
-- `web/`: the frontend in TypeScript (Preact + htm, Vega-Lite): `src/shell/` the app, `src/bt/` the
-  kit, `src/blocks/` the built-in blocks. After any change in `web/`, run
+- `web/`: the frontend in TypeScript (Preact + htm, uPlot, lucide, marked + KaTeX): `src/shell/` the
+  app, `src/bt/` the kit (charts, curves, preferences, writes), `src/blocks/` the built-in blocks,
+  `src/ui/` primitives (icons and symbols, tooltip, popovers, inline editing, Markdown),
+  `src/styles/` the stylesheets. After any change in `web/`, run
   `cd web && npm ci && npm test && npm run build` and commit the rebuilt `src/beamtime/serve/static/`
   with it (CI fails when the bundle is stale; the shell must stay under 120 KB compressed)
 - `bench/web/timing.py`: the UI's timing budgets on a scale-M log dir (first view, group to group)

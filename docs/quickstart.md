@@ -50,10 +50,13 @@ beamtime serve                                  # indexes live and prints http:/
 beamtime demo                                   # or: a sample log dir to look around in
 ```
 
-Open the printed URL once; the browser stays signed in. The sidebar holds your groups, each page
-shows the group's proposal, check and verdict, its curves and its runs, and running curves grow as
-the runs log. ⌘K searches groups, runs and commands; `?` lists the shortcuts. Every page has a URL
-you can paste to a colleague or an agent. `beamtime serve --no-ui` only keeps the index live.
+Open the printed URL once; the browser stays signed in. The sidebar holds your groups; each page
+shows the group's proposal, check and verdict, its essential curves and its runs, and running curves
+grow as the runs log. Charts zoom by dragging, hide runs from the legend or the run table, and take
+smoothing, aggregation and other metrics from the bar above them. Notes, the memory and unfrozen
+proposal statements are edited by clicking them; each edit is saved as a new version. ⌘K searches
+groups, runs and commands; `?` lists the shortcuts. Every page has a URL you can paste to a colleague
+or an agent. `beamtime serve --no-ui` only keeps the index live.
 
 ## Propose, check, conclude
 

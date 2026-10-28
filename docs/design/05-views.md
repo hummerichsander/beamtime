@@ -63,7 +63,7 @@ versioned; [layer 3](03-index.md#query-language) defines the queries they get th
 3. **Two ways to build, freely mixed.** Declarative widgets are the fast path: the agent states intent
    (`line: {y: val/loss, color: config.lr}`) and Beamtime produces the chart with correct defaults.
    Custom blocks are code for everything else.
-4. **Beamtime owns the look.** One theme drives widgets, the kit, Vega-Lite's `config` and CSS
+4. **Beamtime owns the look.** One theme drives widgets, the kit, the charts' style and CSS
    variables. Views contain no colors, fonts or pixel sizes; custom code takes them from the theme.
 5. **Few layout primitives, no coordinates**: section, row, auto-fitting grid, tabs (not nested), and
    `repeat` (wave 2). Inside a custom block, layout is the agent's.
@@ -98,7 +98,7 @@ body:
       id: grokking-map
       code: code/3f9a21c0-grokking-map.js
       kit: 1
-      libs: [vega]
+      libs: [d3]
       queries:
         runs:   {runs: {select: [run.id, config.weight_decay, config.n_params, metric.val/acc.max]}}
         detail: {series: {from: $run, y: [train/acc, val/acc]}}
@@ -200,7 +200,8 @@ of a field or per subgroup, each narrowed to its runs; `$value` names the value 
 | `note` | a short text, optionally as a callout (`info`, `warning`, `success`) | `text`, `kind` |
 | `output` | the tail of a run's captured output | `run`, `lines`, `stream` (`main` or a rank) |
 
-**Code** (wave 1): `vega` (a Vega-Lite spec whose named datasets are declared queries) and `custom`.
+**Code** (wave 1): `custom`. There is no free chart-spec block: charts beyond the widgets are custom
+blocks on `bt.chart` (uPlot) or D3 ([Charts](#charts)).
 
 ### `importance` (wave 2)
 
@@ -216,6 +217,9 @@ A selection in one block highlights the same runs in every other block of the vi
 selection per view (a set of run ids, kept in the URL); interactive blocks (`table`, `scatter`,
 `heatmap`, `parallel`, `line`, `bar`) set it on click; each block reacts with `on_selection`:
 `highlight` (default), `filter` or `ignore`. Custom blocks take part through `bt.useSelection()`.
+
+Part of this arrived early, in v1: hovering a run highlights it in every block of the view (table
+rows, legends, charts), and hiding a run hides it in every chart ([layer 7](07-web-ui.md#charts)).
 
 ### Behavior with one run, many runs and no data
 
@@ -334,13 +338,13 @@ and takes its data as a prop. Interactive components report `onSelect(row)` and 
 | `bt.theme.mode`, `bt.theme.onChange(cb)` | light or dark, and a callback when it switches |
 | `bt.fmt.value(field, v)`, `bt.fmt.delta(field, v)` | values and differences formatted with the view's `metrics` |
 | `bt.fmt.step(n)`, `bt.fmt.duration(s)`, `bt.label(field)` | readable steps, durations and labels |
-| `bt.plot(el, spec, {data})` | renders a Vega-Lite spec with the theme merged in; `data` maps dataset names to results |
+| `bt.chart.line(el, spec)` | draws curves on uPlot with the theme's axes, grid, fonts and run colors; synced crosshair, hover focus, zoom ([Charts](#charts)) |
 | `bt.link.run(id)`, `bt.link.group(path)` | URLs to runs and groups, opened in the main window |
 | `bt.useSize()` | the block's width |
 | `bt.warn(message)` | a warning shown by `validate` and on the block |
 | `bt.useSelection()` (wave 2) | the view's shared run selection |
 | `bt.preact` | `h`, `render`, `html` (htm), hooks |
-| `bt.lib` | the libraries listed in the block's `libs`: `vega`, `d3`, `uplot`, `katex` |
+| `bt.lib` | the libraries listed in the block's `libs`: `d3`, `uplot`, `katex` |
 
 ### Sandbox
 
@@ -350,17 +354,27 @@ and takes its data as a prop. Interactive components report `onSelect(row)` and 
 - **Static library files are public.** A sandboxed iframe has no origin and sends no token, so the
   bundled JavaScript is served without the token of mode 2 ([layer 7](07-web-ui.md#security)); data
   only ever arrives through the bridge.
-- **Each block loads only the libraries it declares** in `libs`. Preact and the kit are small; Vega,
-  D3, uPlot and KaTeX load only where needed, from the browser cache after the first block.
+- **Each block loads only the libraries it declares** in `libs`. Preact and the kit are small; D3,
+  uPlot and KaTeX load only where needed, from the browser cache after the first block.
 - **Height** follows the content through the bridge, with a guard against resize loops: a block whose
   height keeps changing is fixed at its last height and reported by `bt.warn`.
 - Sandboxing protects readers from views that others committed to a shared repository.
 
-### Vega-Lite security
+### Charts
 
-Vega specs can load data from URLs and evaluate expressions. Every Vega-Lite spec, from the `vega`
-widget or `bt.plot`, is rendered with Vega's CSP-safe expression interpreter and a loader that
-refuses every URL; data comes only from declared queries.
+Every chart is drawn by **uPlot**: the built-in widgets, `bt.chart` in custom blocks, and the default
+view. One small chart library keeps the dependencies few and the charts consistent, and it stays fast
+with hundreds of runs and thousands of points per curve.
+
+- **Data only from declared queries.** uPlot draws arrays it is given and loads nothing itself, so no
+  URL loading or expression evaluation has to be locked down.
+- **The theme styles the charts**: axes and grid from `muted` and `grid`, fonts from the type tokens,
+  run colors from the categorical palette, bands from the run color with transparency.
+- **Interactions** (synced crosshair, hover focus, legend toggles, zoom with exact refetch, smoothing,
+  aggregation, settings per chart and per view) are described in [layer 7](07-web-ui.md#charts).
+- **Figures** are high-resolution PNG, with the chart's data as CSV for vector figures made
+  elsewhere.
+- Wave-1 widgets beyond curves (`scatter`, `bar`, `histogram`) use uPlot's point and bar paths.
 
 ## Theme
 
@@ -374,13 +388,13 @@ Beamtime owns the look of every view. A theme defines it; views never contain co
 | Text | `fg`, `muted`, `subtle`, `link` |
 | Accent and state | `accent`, `selection`, `dim` (opacity for de-emphasized runs) |
 | Status | `good`, `bad`, `warn`, `info`, and per run status `running`, `finished`, `failed`, `killed`, `lost` |
-| Data | `categorical` (10–12 colors), `sequential`, `diverging`, `baseline` (color and dash) |
-| Type | `font-sans`, `font-mono`, a size scale (`xs` … `xl`), tabular figures |
-| Shape | spacing scale, `radius`, line width, point size |
+| Data | `categorical` (8 colors, checked for color-blind separation on the theme's background), `sequential`, `diverging`, `baseline` (color and dash) |
+| Type | `font-sans`, `font-serif`, `font-mono`, a size scale (`xs` … `xxl`), tabular figures |
+| Shape | spacing scale, `radius`, line width, point size, `density`, `column` (the width of text) |
 | Shell | sidebar, top bar, status bar, lists, inputs, buttons, badges, focus, tooltips, scrollbars ([layer 7](07-web-ui.md#theme-in-the-ui)) |
 
-The web UI, built-in blocks, the generated Vega-Lite `config` and the CSS variables of custom blocks
-all read the same tokens.
+The web UI, built-in blocks, the chart style and the CSS variables of custom blocks all read the
+same tokens.
 
 ### Theme files
 
@@ -390,16 +404,20 @@ all read the same tokens.
   "name": "Beamtime Light",
   "type": "light",
   "extends": null,
-  "colors": {"bg": "#ffffff", "surface": "#f6f8fa", "border": "#d0d7de", "grid": "#eaeef2",
-             "fg": "#1f2328", "muted": "#59636e", "accent": "#0969da",
-             "good": "#1a7f37", "bad": "#cf222e", "warn": "#9a6700"},
+  "colors": {"bg": "#faf9f6", "surface": "#f2f0eb", "border": "#e3e0d8", "grid": "#ebe8e1",
+             "fg": "#1c1d20", "muted": "#64625c", "accent": "#2f5aa8",
+             "good": "#3f7d3a", "bad": "#b8433a", "warn": "#a06a12"},
   "data": {
-    "categorical": ["#0969da", "#d1242f", "#1a7f37", "#bf8700", "#8250df", "#bc4c00", "#1b7c83", "#bf3989", "#59636e", "#2da44e"],
-    "sequential": ["#ddf4ff", "#0969da", "#0a3069"],
-    "diverging": ["#cf222e", "#f6f8fa", "#0969da"],
-    "baseline": {"color": "#59636e", "dash": [4, 3]}
+    "categorical": ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"],
+    "sequential": ["#e3eaf5", "#2f5aa8", "#142c5c"],
+    "diverging": ["#b8433a", "#f2f0eb", "#2f5aa8"],
+    "baseline": {"color": "#8f8c84", "dash": [4, 3]}
   },
-  "fonts": {"sans": "system-ui, -apple-system, 'Segoe UI', sans-serif", "mono": "ui-monospace, 'SF Mono', Menlo, monospace"}
+  "fonts": {"sans": "system-ui, -apple-system, 'Segoe UI', sans-serif",
+            "serif": "Charter, 'Bitstream Charter', 'Iowan Old Style', Georgia, serif",
+            "mono": "ui-monospace, 'SF Mono', Menlo, monospace"},
+  "sizes": {"xs": 10.5, "sm": 12.5, "md": 15, "lg": 19, "xl": 23.5, "xxl": 36.5},
+  "shape": {"radius": 9, "density": 0.9, "column": 900}
 }
 ```
 
@@ -415,10 +433,15 @@ all read the same tokens.
 
 ### The default theme
 
-**Beamtime Light** and **Beamtime Dark** are clean and quiet, in the spirit of GitHub's and VS Code's
-defaults: neutral grays, one blue accent, the system font, thin grid lines, no shadows or gradients.
-Color is reserved for data and status. The categorical palette is colorblind-safe and tuned per
-variant. Exported figures use the light variant.
+**Beamtime Light** and **Beamtime Dark** ("paper and ink blue") are warm and quiet, like a lab
+notebook: off-white paper (`#faf9f6`) or warm charcoal (`#1e1e1c`), ink rather than black, warm grays,
+one ink-blue accent, thin grid lines, no gradients. Titles, statements, notes and memory use a serif
+(Charter, then Iowan Old Style, then Georgia, whose old-style digits are only a fallback); controls
+use the system sans; numbers use tabular lining figures. The base size is 15 px on a 1.25 scale.
+Color is reserved for data and status. The categorical palette has eight colors, checked for
+color-blind separation on both backgrounds; on the light one a few stay below 3:1 contrast, so runs
+are always named next to their color (legends, tooltips, the run table). Exported figures use the
+light variant.
 
 ### Colors for runs and groups
 
@@ -456,7 +479,7 @@ queries:
   detail: {series: {from: $run, y: $curves}}      # $run remains a runtime placeholder
 code: code/3f9a21c0-phase-map.js                  # relative to the block's group
 kit: 1
-libs: [vega]
+libs: [d3]
 derived_from: null
 author: claude-opus-5-5
 user: ada
@@ -752,10 +775,12 @@ Decided while building themes (milestone M5):
   through the `file` query.
 - Built-in blocks exist as YAML widgets and kit components with the same props; wave 1 is v1.
 - Custom blocks are ES modules in sandboxed iframes on the `bt` kit (Preact components only), loading
-  only the libraries they declare; Vega-Lite runs with a CSP-safe interpreter and no URL loading.
+  only the libraries they declare.
+- All charts are uPlot; there is no Vega-Lite and no `vega` block. Figures are PNG with CSV data.
 - Validation is static always, plus one headless render where a browser is available; screenshots are
   the agent's own check.
-- Themes are token files with light and dark pairs and `extends`; the default is clean and quiet.
+- Themes are token files with light and dark pairs and `extends`; the default is a warm, quiet
+  notebook look with a serif for reading.
 - Run colors are stable by hash with collision resolution within a view.
 - Reusable blocks form a library in `blocks/`, used like widgets; views pin block versions and upgrade
   deliberately.
