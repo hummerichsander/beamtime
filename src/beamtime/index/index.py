@@ -15,6 +15,7 @@ from beamtime.index.store import Store
 
 # mtimes can be a second coarse; folders changed around a walk are listed again.
 MTIME_SLACK_S = 2.0
+AUTHORED = (c.PROPOSAL, c.MEMORY, c.VIEW)
 
 
 @dataclass(kw_only=True)
@@ -26,6 +27,7 @@ class Freshness:
     behind: int = 0
     behind_s: float | None = None
     damaged: list[str] = field(default_factory=list)
+    changed: set[str] = field(default_factory=set)
 
     def text(self) -> str:
         """Describe the freshness in one line for CLI and MCP answers.
@@ -90,6 +92,7 @@ class Index:
             shutil.rmtree(self.series, ignore_errors=True)
         self.lock = FileLock(path=self.cache / INDEX_LOCK)
         self.ingester = Ingester(store=self.store, logdir=self.logdir, series=self.series)
+        self.authored: dict[str, tuple[float | None, ...]] = {}
 
     def folder_path(self, rel: str) -> Path:
         """Turn a folder relative to the log dir into a path.
@@ -98,13 +101,15 @@ class Index:
         :return: The absolute path."""
         return self.logdir if rel in (".", "") else self.logdir / rel
 
-    def walk(self, scope: str = ".") -> list[tuple[str, float]]:
+    def walk(self, scope: str = ".", changed: set[str] | None = None) -> list[tuple[str, float]]:
         """Find the runs at or below a folder, reusing listings of unchanged folders.
 
         One ``stat`` of ``_run.json`` per run both identifies it and gives its
         heartbeat, so a walk over many finished runs stays cheap.
 
         :param scope: The folder relative to the log dir.
+        :param changed: If given, collects folders whose notes, proposals, memory or
+            views changed since the last walk of this index.
         :return: Each run's path relative to the log dir and its ``_run.json`` mtime."""
         now = time.time()
         root = str(self.logdir)
@@ -144,6 +149,13 @@ class Index:
                     entries = read_notes(folder, self.logdir) if notes else []
                     self.store.replace_notes(rel, None, entries)
                     self.store.set_folder(rel, notes_mtime=notes)
+                if changed is not None and row is not None:
+                    changed.add(rel)
+            if changed is not None:
+                authored = tuple(mtime(os.path.join(d, name)) for name in AUTHORED)
+                if self.authored.setdefault(rel, authored) != authored:
+                    self.authored[rel] = authored
+                    changed.add(rel)
             stack.extend(name if rel in (".", "") else f"{rel}/{name}" for name in children)
         return found
 
@@ -165,7 +177,8 @@ class Index:
 
         :param scope: The folder relative to the log dir.
         :param budget_s: Seconds to spend on streams.
-        :param daemon: Whether the caller is the daemon itself.
+        :param daemon: Whether the caller is the daemon itself; only the daemon's
+            ``Freshness.changed`` also lists folders with new authored files.
         :return: The freshness of the index for that folder."""
         if not daemon and daemon_status(self.cache) is not None:
             return Freshness(daemon=True)
@@ -178,17 +191,20 @@ class Index:
             rows = {r["id"]: r for r in self.store.runs_in(scope)}
             if (one := self.store.run(scope.rsplit("/", 1)[-1])) is not None:
                 rows[one["id"]] = one
-            found = self.walk(scope)
+            changed = freshness.changed if daemon else None
+            found = self.walk(scope, changed)
             ids = {rel.rsplit("/", 1)[-1] for rel, _ in found}
             for run_id, row in rows.items():
                 if run_id not in ids and not (self.logdir / row["path"]).is_dir():
                     self.forget(run_id)
+                    freshness.changed.add(row["path"])
             for rel, run_mtime in found:
                 run_id = rel.rsplit("/", 1)[-1]
                 try:
                     meta, streams = self.ingester.stale(rel, run_mtime, rows.get(run_id))
                     if meta:
                         self.ingester.ingest_meta(self.logdir / rel)
+                        freshness.changed.add(rel)
                 except (OSError, ValueError) as e:
                     freshness.damaged.append(f"{run_id}: {e}")
                     continue
@@ -203,6 +219,7 @@ class Index:
                     continue
                 try:
                     self.ingester.ingest_streams(run_dir)
+                    freshness.changed.add(run_dir.relative_to(self.logdir).as_posix())
                 except (OSError, ValueError) as e:
                     freshness.damaged.append(f"{run_dir.name}: {e}")
             freshness.behind = len(lags)

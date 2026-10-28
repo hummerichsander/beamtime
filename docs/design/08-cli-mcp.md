@@ -84,10 +84,10 @@ the user the command ([Policy](#policy)).
 |---|---|
 | `beamtime init` | sets up a project: adds the log dir to `.gitignore`, optionally creates `beamtime.yaml`, offers `mcp install` |
 | `beamtime mcp install --client <name>` | registers `beamtime mcp` with an agent client (Claude Code, Codex, Cursor, …) |
-| `beamtime demo` | generates a sample log dir from the evaluation generator and serves it |
+| `beamtime demo [dir]` | generates a sample log dir from the evaluation generator (once, in `beamtime-demo/`) and serves it |
 | `beamtime doctor` | checks root and log dir resolution, write access, Chromium, remote reachability and the remote's Beamtime version |
 | `beamtime settings` | the effective settings and the level each value comes from |
-| `beamtime serve [sources…]` | the web UI, indexer and remote connections; `--no-ui`, `--port`, `--cache` |
+| `beamtime serve [sources…]` | the web UI, indexer and remote connections; `--no-ui`, `--port` (default 8080, else the next free port), `--open` |
 | `beamtime pull <source>:<folder>` | a read-only offline snapshot; `--drop` removes it |
 | `beamtime mv <run> <folder>` | moves a run; refuses running runs |
 | `beamtime rm <run or folder>` | moves it into `_trash/` ([layer 1](01-storage.md#deleting-and-cleaning-up)) |
@@ -230,6 +230,10 @@ Decided while building the CLI and MCP server (milestone M3):
   user-wide config (Codex) still points at the right project. Claude Code uses
   `claude mcp add --scope project`, Cursor `.cursor/mcp.json`.
 - **`gc` is a dry run** unless given `--yes`; `rm` and `mv` refuse runs whose heartbeat is fresh.
+- **`serve` and `demo`** (M5) are user-only operations in the registry. `serve` refuses to start
+  when another `serve` holds the root's lock and names its URL; Ctrl-C and SIGTERM stop it cleanly.
+  The API of the web UI is the registry's non-user-only operations under their MCP names
+  ([layer 7](07-web-ui.md#implementation-notes)). Sources and `--cache` come with remotes (M7).
 
 ## Decisions
 

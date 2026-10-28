@@ -43,6 +43,18 @@ beamtime keys .                                 # what was logged
 Add `--json` for the full answer. `beamtime doctor` checks the setup; `beamtime status` shows the
 log dir, the index and whether a daemon keeps it live.
 
+## Open the web UI
+
+```sh
+beamtime serve                                  # indexes live and prints http://localhost:8080/f/local?token=...
+beamtime demo                                   # or: a sample log dir to look around in
+```
+
+Open the printed URL once; the browser stays signed in. The sidebar holds your folders, each page
+shows the folder's proposal, check and verdict, its curves and its runs, and running curves grow as
+the runs log. ⌘K searches folders, runs and commands; `?` lists the shortcuts. Every page has a URL
+you can paste to a colleague or an agent. `beamtime serve --no-ui` only keeps the index live.
+
 ## Propose, check, conclude
 
 Write down what a sweep should show before you launch it; every run started afterwards records it.

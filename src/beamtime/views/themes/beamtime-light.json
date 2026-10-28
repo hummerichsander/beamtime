@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "name": "Beamtime Light",
+  "type": "light",
+  "extends": null,
+  "colors": {
+    "bg": "#ffffff", "surface": "#f6f8fa", "surface-raised": "#ffffff", "border": "#d0d7de",
+    "grid": "#eaeef2", "fg": "#1f2328", "muted": "#59636e", "subtle": "#818b98", "link": "#0969da",
+    "accent": "#0969da", "selection": "#ddf4ff", "dim": 0.25,
+    "good": "#1a7f37", "bad": "#cf222e", "warn": "#9a6700", "info": "#0969da",
+    "running": "#0969da", "finished": "#1a7f37", "failed": "#cf222e", "killed": "#9a6700",
+    "lost": "#bc4c00"
+  },
+  "data": {
+    "categorical": ["#0969da", "#d1242f", "#1a7f37", "#bf8700", "#8250df", "#bc4c00", "#1b7c83",
+                    "#bf3989", "#59636e", "#2da44e"],
+    "sequential": ["#ddf4ff", "#0969da", "#0a3069"],
+    "diverging": ["#cf222e", "#f6f8fa", "#0969da"],
+    "baseline": {"color": "#59636e", "dash": [4, 3]}
+  },
+  "fonts": {
+    "sans": "system-ui, -apple-system, 'Segoe UI', sans-serif",
+    "mono": "ui-monospace, 'SF Mono', Menlo, monospace"
+  },
+  "sizes": {"xs": 11, "sm": 12, "md": 13, "lg": 15, "xl": 18},
+  "shape": {"radius": 6, "line": 1.5, "point": 3, "space": [2, 4, 8, 12, 16, 24]}
+}

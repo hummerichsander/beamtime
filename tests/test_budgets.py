@@ -54,3 +54,22 @@ def test_one_shot_runs_budget(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         subprocess.run(args, cwd=root, env=dict(os.environ), check=True, capture_output=True)
         best = min(best, time.perf_counter() - t)
     assert best < 0.150, f"beamtime runs took {best * 1000:.0f} ms"
+
+
+STATIC = Path(__file__).parents[1] / "src" / "beamtime" / "serve" / "static"
+SHELL_BUDGET = 120_000
+
+
+def test_shell_bundle_budget() -> None:
+    """The shell (entry, its static imports, CSS) stays within 120 KB compressed; Vega is lazy."""
+    import gzip
+    import re
+
+    entry = (STATIC / "app.js").read_text()
+    static = set(re.findall(r'from"\./(chunks/[\w.-]+\.js)"', entry))
+    static |= set(re.findall(r'import"\./(chunks/[\w.-]+\.js)"', entry))
+    lazy = set(re.findall(r'import\("\./(chunks/[\w.-]+\.js)"\)', entry))
+    files = ["app.js", "app.css", *sorted(static)]
+    size = sum(len(gzip.compress((STATIC / f).read_bytes(), 9)) for f in files)
+    assert size <= SHELL_BUDGET, f"shell is {size / 1000:.1f} KB compressed"
+    assert any("vega" in f for f in lazy) and not any("vega" in f for f in static)

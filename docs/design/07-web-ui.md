@@ -245,10 +245,10 @@ A PDF report and a dedicated print theme come later.
 
 ## Security
 
-- On a shared machine the UI requires the token of [layer 4](04-remotes.md#mode-2-port-forwarding);
-  locally it binds to `localhost` only. The bundled static JavaScript is public and served without
-  the token, so sandboxed custom blocks, which have no origin, can load it; data and everything
-  else require the token.
+- The UI always requires the token of [layer 4](04-remotes.md#mode-2-port-forwarding), locally too,
+  since `serve` cannot tell a laptop from a shared login node; it binds to `localhost` only. The
+  bundled static JavaScript is public and served without the token, so sandboxed custom blocks,
+  which have no origin, can load it; data and everything else require the token.
 - A strict content security policy on every page: scripts and styles only from `serve`, no outside
   requests. Custom blocks are additionally sandboxed, and Vega-Lite runs without URL loading
   ([layer 5](05-views.md#vega-lite-security)).
@@ -265,6 +265,53 @@ and reduced motion when the system asks for it. Theme validation and a high-cont
 - PDF export and a print theme.
 - Packages contributing panels or pages, like VS Code extensions.
 - The community gallery pages in settings ([layer 5](05-views.md#later)).
+
+## Implementation notes
+
+Decided while building the shell (milestone M5):
+
+- **The token** is created once per root (`serve.token` in the cache, mode 0600) and reused, so a
+  browser stays signed in across restarts. The printed URL carries it once; the server answers with
+  an HttpOnly, `SameSite=Strict` cookie named after the port (cookies ignore ports) and drops the
+  token from the URL. API clients may send `Authorization: Bearer <token>` instead.
+- **The API** is `POST /api/<method>` for every operation that isn't user-only, under its MCP tool
+  name (`runs`, `card`, `note_add`, …), with the same parameters and answers as `--json`; non-finite
+  numbers are `null`. The web UI is a caller of its own (`view`): its answers use the view defaults
+  of [layer 3](03-index.md#implementation-notes) and are never cut at the token budget. Three methods
+  serve the shell only: `meta` (project, version, the resolved theme pair), `view` (the view of a
+  folder or run, with a run id resolved to its path) and `watch`. Logged images come from
+  `GET /api/file/<run-id>/<path>`, confined to the run's directory.
+- **Live updates**: the page opens one `EventSource` on `/api/subscribe?client=<id>` and tells the
+  server with `watch` which calls it shows, each with its scope (a folder or run path). The daemon
+  reports changed run and folder paths after every poll; a call is stale when the changed path is its
+  scope, lies below it, or lies above it (a folder's notes and proposal reach the runs below). The
+  stream sends `stale` events with call ids, at most one a second per page; the page refetches those
+  calls, keeps the old answer on screen while it does, and updates charts through Vega's data API.
+  After a reconnect it refetches everything on screen.
+- **The built-in default view** is built on the server as a block tree (`{block, id, props, data,
+  children}`, where `data` names API calls), the same tree authored views will compile to in M6. A
+  folder with runs gets its proposal, stat tiles (runs, running, failed, the best value of the main
+  metric), a grid of `line` blocks (validation metrics first, at most eight; averaged over
+  `config.seed` beyond eight runs), the run table with the varying config keys, and its own memory.
+  A folder whose runs live in subfolders gets a `folders` block instead of curves. A run gets stat
+  tiles, a curve per metric, its logged images and text, and its output (expanded when it failed).
+  The proposal block leaves out the statement the frame already shows.
+- **URLs**: `/f/local/<path>` for folders and runs (a run's path ends in its id), `?run=<id>` for the
+  run open in the drawer, `?drawer=1` for the folder's notes and timeline, `/r/<id>` resolving to the
+  run's path, `/settings/appearance`. `?v=`, `/history`, `/search` and `/compare` come with the
+  milestones that add views and comparisons.
+- **Keyboard**: ⌘K or `/` for the palette, arrows in the tree, `[` and `]` for siblings, `i` for the
+  drawer, ⌘B for the sidebar, `p` to pause live updates, `Esc` to clear the selection and close the
+  drawer, `?` for the list.
+- **The frontend** lives in `web/` (Preact 10, htm, Vega 6 and Vega-Lite 6, TypeScript checked by
+  `tsc`, bundled by esbuild). The bundle in `src/beamtime/serve/static/` is committed, so installs
+  from git need no Node; CI rebuilds it and fails when it differs. Vega, Vega-Lite, the CSP-safe
+  interpreter and the tooltip handler form one lazy chunk (about 270 KB compressed); the shell is
+  about 24 KB compressed. Charts draw on canvas.
+- **Measured** on the generator's scale-M log dir (495 runs, `bench/web/timing.py`, local, warm
+  cache): first view median 135 ms (budget 300 ms), folder to folder median 53 ms (budget 100 ms).
+- **Not yet**: custom-block iframes and the `postMessage` bridge, the headless renderer and static
+  export (M6), remote sources in the tree and status bar (M7), uPlot, D3 and KaTeX.
 
 ## Decisions
 

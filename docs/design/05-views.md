@@ -704,6 +704,26 @@ second screenshot round worth it, how models compare, do custom blocks pay off) 
 about ten tasks run on every change to the guide, kit or built-in blocks, the full suite before
 releases. The generator and task definitions are built early; scoring follows the first renderer.
 
+## Implementation notes
+
+Decided while building themes (milestone M5):
+
+- **Theme files** are JSON with `colors`, `data`, `fonts`, `sizes` (the type scale in px) and `shape`
+  (`radius`, `line`, `point`, `space`); the built-in pair lives in `beamtime/views/themes/`.
+- **Pairs by name**: the `theme` setting `lab` selects `lab-light` and `lab-dark`; the name of a single
+  file serves both modes. A broken setting (a missing theme, a cycle in `extends`, an invalid file)
+  falls back to the default pair and shows the problem in the settings page.
+- **Resolution** happens in Python: the `extends` chain, then the default theme of the same `type`.
+  Shell tokens come from the theme's own files, else from its core colors (`sidebar.bg` from
+  `surface`, `focus` from `accent`, …), so a theme with a dozen colors gets a matching shell. The page
+  receives both variants and switches between them with the system preference or the viewer's
+  choice (kept in the browser).
+- **Run colors**: an FNV-1a hash of the run id picks a slot of the categorical palette; runs are
+  placed in id order and move to the next free slot on a collision, over all runs of the viewed
+  folder, so a run keeps its color across the blocks of a view. Beyond the palette's size, colors
+  repeat. Group values use the categorical palette in sorted order, or the sequential ramp for more
+  numeric values than the palette has colors.
+
 ## Later
 
 - **Wave 2** (v1.1): `heatmap`, `parallel`, `compare`, `importance`, `repeat`, `facet`, baselines,

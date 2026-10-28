@@ -178,7 +178,8 @@ and say why.
 # Project specifics
 
 **Status: implementation.** M0 (foundations), M1 (SDK), M2 (index and queries), M3 (CLI and
-MCP) and M4 (research record) are done; milestones follow `docs/implementation-plan.md`.
+MCP), M4 (research record) and M5 (web UI shell) are done; milestones follow
+`docs/implementation-plan.md`.
 Each milestone implements the design sections it names; a deviation is decided and written back into
 the design before the code lands.
 
@@ -256,12 +257,24 @@ sync.
 - `src/beamtime/cli/` (argparse, condition strings, text format) and `src/beamtime/mcp/` (stdio
   server, prompts; needs the `serve` extra)
 - `src/beamtime/settings.py`: built-in, user and project settings with provenance
+- `src/beamtime/serve/`: `beamtime serve` (Starlette on uvicorn): the API (`app.py`), the token and
+  CSP (`auth.py`), live updates (`live.py`), the command (`server.py`) and the committed frontend
+  bundle in `static/`; tests in `tests/serve/` (`test_browser.py` runs headless Chromium, skipped
+  without it)
+- `src/beamtime/views/`: themes (`theme.py`, built-in pair in `themes/`) and the built-in default view
+  as a block tree (`defaults.py`)
+- `web/`: the frontend in TypeScript (Preact + htm, Vega-Lite): `src/shell/` the app, `src/bt/` the
+  kit, `src/blocks/` the built-in blocks. After any change in `web/`, run
+  `cd web && npm ci && npm test && npm run build` and commit the rebuilt `src/beamtime/serve/static/`
+  with it (CI fails when the bundle is stale; the shell must stay under 120 KB compressed)
+- `bench/web/timing.py`: the UI's timing budgets on a scale-M log dir (first view, folder to folder)
 - Keep the CLI path light: no module-level imports of PyYAML, NumPy or `importlib.metadata` in
   modules a plain `beamtime runs` loads (`tests/test_budgets.py`)
 - Tests never touch `~/.cache`: `tests/conftest.py` points `BEAMTIME_CACHE` at a temporary directory
 - `examples/`: toy training script and SLURM job for checking the SDK by hand
 - `tests/golden/schema1/`: frozen, byte-exact reader fixtures; never regenerate or reformat them
-- `.github/workflows/ci.yml`: lint, tests on 3.11–3.13 and macOS, SDK tests on 3.10 and Windows, budgets
+- `.github/workflows/ci.yml`: lint, tests on 3.11–3.13 and macOS, SDK tests on 3.10 and Windows, budgets,
+  the web build and the browser test
 - Run checks with `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`
 - SDK side on 3.10, without touching `.venv`:
   `UV_PROJECT_ENVIRONMENT=/tmp/bt-venv310 uv run --python 3.10 pytest -q tests/sdk tests/format tests/synth tests/test_boundaries.py tests/test_cli.py`

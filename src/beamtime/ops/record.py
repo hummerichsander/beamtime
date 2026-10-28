@@ -93,7 +93,7 @@ def author_of(ctx: Context, author: str | None) -> tuple[str, str]:
     from beamtime.sdk.env import user
 
     account = user()
-    return author or (account if ctx.caller == "cli" else "agent"), account
+    return author or (account if ctx.caller in ("cli", "view") else "agent"), account
 
 
 def save(folder: Path, suffix: str, text: str) -> Path:
@@ -155,7 +155,7 @@ def notes(ctx: Context, p: r.NotesParams) -> dict[str, Any]:
     }
     if len(entries) > limit:
         answer["meta"] |= {"cut": True, "hint": "raise limit to see more"}
-    return cut(answer, offset_of(p.cursor))
+    return answer if ctx.caller == "view" else cut(answer, offset_of(p.cursor))
 
 
 def proposal_show(ctx: Context, p: r.FolderParams) -> dict[str, Any]:

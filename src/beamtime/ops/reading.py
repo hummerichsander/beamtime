@@ -46,7 +46,7 @@ def ask(ctx: Context, query: dict[str, Any], cursor: str | None = None) -> dict[
     except QueryError as e:
         raise OpError(str(e), code=4 if e.code == "not_found" else 2) from None
     answer["meta"] = {k: v for k, v in answer["meta"].items() if v is not None}
-    return cut(answer, offset)
+    return answer if ctx.caller == "view" else cut(answer, offset)
 
 
 def selection(p: r.Selection) -> dict[str, Any]:

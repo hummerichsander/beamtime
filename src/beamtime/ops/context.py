@@ -7,7 +7,7 @@ from typing import Literal
 
 from beamtime.settings import Settings, load
 
-Caller = Literal["cli", "mcp"]
+Caller = Literal["cli", "mcp", "view"]
 
 
 class OpError(Exception):
@@ -37,7 +37,7 @@ class Context:
         """Resolve the project from ``--root`` or the working directory.
 
         :param root: An explicit root, or ``None`` to search like the SDK does.
-        :param caller: ``cli`` or ``mcp``; sets answer defaults.
+        :param caller: ``cli``, ``mcp`` or ``view`` (the web UI); sets answer defaults.
         :return: The context."""
         from beamtime.sdk.paths import find_root
 

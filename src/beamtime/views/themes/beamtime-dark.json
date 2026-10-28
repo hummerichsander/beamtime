@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "name": "Beamtime Dark",
+  "type": "dark",
+  "extends": "beamtime-light",
+  "colors": {
+    "bg": "#0d1117", "surface": "#151b23", "surface-raised": "#212830", "border": "#3d444d",
+    "grid": "#262c36", "fg": "#f0f6fc", "muted": "#9198a1", "subtle": "#656c76", "link": "#4493f8",
+    "accent": "#4493f8", "selection": "#1c2d45", "dim": 0.2,
+    "good": "#3fb950", "bad": "#f85149", "warn": "#d29922", "info": "#4493f8",
+    "running": "#4493f8", "finished": "#3fb950", "failed": "#f85149", "killed": "#d29922",
+    "lost": "#db6d28"
+  },
+  "data": {
+    "categorical": ["#4493f8", "#f85149", "#3fb950", "#d29922", "#ab7df8", "#db6d28", "#39c5cf",
+                    "#f778ba", "#9198a1", "#56d364"],
+    "sequential": ["#0c2d6b", "#1f6feb", "#cae8ff"],
+    "diverging": ["#f85149", "#262c36", "#4493f8"],
+    "baseline": {"color": "#9198a1", "dash": [4, 3]}
+  }
+}

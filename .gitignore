@@ -7,3 +7,4 @@ build/
 .pytest_cache/
 .ruff_cache/
 .beamtime/
+web/node_modules/

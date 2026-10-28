@@ -250,6 +250,23 @@ class GcParams(Params, kw_only=True):
     yes: bool = False
 
 
+class ServeParams(Params, kw_only=True):
+    """Parameters of ``serve``."""
+
+    port: Annotated[int, msgspec.Meta(description="the first port to try")] = 8080
+    no_ui: Annotated[bool, msgspec.Meta(description="only index, no web UI")] = False
+    open: Annotated[bool, msgspec.Meta(description="open the UI in a browser")] = False
+
+
+class DemoParams(Params, kw_only=True):
+    """Parameters of ``demo``."""
+
+    dir: str = "beamtime-demo"
+    port: int = 8080
+    open: bool = False
+    seed: int = 1
+
+
 class McpInstallParams(Params, kw_only=True):
     """Parameters of ``mcp install``."""
 
@@ -411,6 +428,21 @@ OPS = [
         params=QueryParams,
         impl=f"{R}:query",
         summary="Any query in its object form, e.g. {runs: {from: ., limit: 5}}.",
+    ),
+    Op(
+        name="serve",
+        params=ServeParams,
+        impl="beamtime.serve.server:serve",
+        user_only=True,
+        summary="The web UI and the indexing daemon for this root; --no-ui only indexes.",
+    ),
+    Op(
+        name="demo",
+        params=DemoParams,
+        impl="beamtime.serve.server:demo",
+        positional=("dir",),
+        user_only=True,
+        summary="Generate a sample log dir and serve it.",
     ),
     Op(
         name="init",

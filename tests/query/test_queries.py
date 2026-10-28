@@ -341,3 +341,23 @@ def test_sql_prefilter_never_changes_answers(ask, monkeypatch, where: dict) -> N
     with_sql = {r[0] for r in ask(query)["rows"]}
     monkeypatch.setattr("beamtime.query.kinds.prefilter", lambda where, exprs: ("", []))
     assert {r[0] for r in ask(query)["rows"]} == with_sql
+
+
+def test_keys_of_running_runs_come_from_their_columns(tmp_path: Path) -> None:
+    """A running run's new metrics are listed before its card is rewritten."""
+    from beamtime.format.io import json_line
+
+    logdir = tmp_path / "beamtime"
+    roles = generate(logdir, seed=0, now=datetime.now(timezone.utc)).roles
+    run_dir = next(logdir.glob(f"**/{roles['running']}"))
+    with (run_dir / "_metrics.jsonl").open("ab") as f:
+        f.write(json_line({"_step": 5000, "_t": 1.0, "live/new": 1.0}))
+    index = Index(logdir=logdir, cache=tmp_path / "cache")
+    try:
+        index.catch_up(".", budget_s=float("inf"))
+        a = run({"keys": {"from": "."}}, logdir=logdir, index=index)
+    finally:
+        index.close()
+    metrics = {r[0]: r for r in a["metrics"]["rows"]}
+    assert metrics["live/new"] == ["live/new", 1, 5000]
+    assert metrics["train/loss"][1] == 26

@@ -84,7 +84,8 @@ class Ingester:
             or run_mtime != row["run_mtime"]
             or mtime(os.path.join(d, c.NOTES)) != row["notes_mtime"]
         )
-        if row["status"] != "running" and not meta:
+        # an ended run whose streams a budget deferred has never been read: indexed_at is None.
+        if row["status"] != "running" and not meta and row["indexed_at"] is not None:
             return False, False
         meta = (
             meta
@@ -92,7 +93,8 @@ class Ingester:
             or mtime(os.path.join(d, c.CARD)) != row["card_mtime"]
         )
         streams = (
-            size(os.path.join(d, c.METRICS)) != row["metrics_size"]
+            row["indexed_at"] is None
+            or size(os.path.join(d, c.METRICS)) != row["metrics_size"]
             or size(os.path.join(d, c.EVENTS)) != row["events_offset"]
             or size(os.path.join(d, c.DATA)) != row["data_offset"]
         )

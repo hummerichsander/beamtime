@@ -240,6 +240,13 @@ def test_budget_reports_runs_behind(index: Index) -> None:
     assert index.store.db.execute("SELECT count(*) FROM runs").fetchone()[0] == 26
 
 
+def test_deferred_streams_are_read_later(index: Index, logdir: Path) -> None:
+    """Runs whose streams a budget deferred are read by the next catch-up with time."""
+    assert index.catch_up(".", budget_s=0.0).behind > 0
+    assert index.catch_up(".", budget_s=float("inf")).behind == 0
+    check_all(index, logdir)
+
+
 def test_damaged_run_is_skipped(index: Index, logdir: Path) -> None:
     """A run with a broken _run.json is reported, the others are indexed."""
     run = next(iter_runs(logdir / "tokenizer"))

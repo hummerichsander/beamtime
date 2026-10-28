@@ -143,7 +143,7 @@ Checked by `tests/record/test_end_to_end.py`: a proposal saved with `proposal se
 seeded sweep through the SDK in subprocesses, the check provisional after half the grid and final
 after all of it, a verdict with the check snapshot, and a memory update that is no longer stale.
 
-### M5: Web UI shell (2–2.5 weeks)
+### M5: Web UI shell (2–2.5 weeks) — done
 
 Implements [layer 7](design/07-web-ui.md) and the theme of [layer 5](design/05-views.md#theme). Can
 start after M2.
@@ -158,6 +158,15 @@ start after M2.
 - The built-in default view; live updates with in-place chart updates.
 - The bundle-size budget in CI.
 
+*Done when*: `beamtime serve` shows the folder tree, the frame and the default view of any folder or
+run, with every state in the URL, and running curves grow in place.
+
+Checked by `tests/serve/test_browser.py` (a real `serve` and headless Chromium: navigation without
+reloads, the proposal and its badges, a curve refetched after new metric lines) and the timing script
+`bench/web/timing.py` (scale M: first view 135 ms, folder to folder 53 ms). The `folders` block came
+early, for folders whose runs live in subfolders. Fixed on the way: runs whose streams a time budget
+had deferred were never stream-indexed once they had ended.
+
 **Milestone A2, after about 9–11 weeks: the UI in daily use.**
 
 ### M6: Views (2–2.5 weeks)
@@ -165,8 +174,8 @@ start after M2.
 Implements [layer 5](design/05-views.md) for authored views.
 
 - The view format, inheritance, versions, drafts; compiling YAML widgets to queries and components.
-- The remaining wave-1 widgets: `scatter`, `bar`, `histogram`, `data_table`, `folders`, `timeline`,
-  layout blocks; the `vega` block with the CSP-safe interpreter and no URL loading.
+- The remaining wave-1 widgets: `scatter`, `bar`, `histogram`, `data_table`, `timeline`,
+  `tabs`; the `vega` block with the CSP-safe interpreter and no URL loading.
 - Static validation; the headless renderer as a client, `view render`, the single validation render
   with layout checks; graceful skip without Chromium.
 - View history; the view operations and MCP tools; the `view` prompt.

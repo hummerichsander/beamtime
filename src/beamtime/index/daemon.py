@@ -4,6 +4,7 @@ import json
 import os
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from beamtime.index.cache import SERVE_JSON, SERVE_LOCK, FileLock, cache_dir
@@ -15,15 +16,28 @@ POLL_S = 2.0
 class Daemon:
     """Keeps a log dir's index current; ``beamtime serve`` runs one per root."""
 
-    def __init__(self, *, logdir: Path, cache: Path | None = None, port: int | None = None):
+    def __init__(
+        self,
+        *,
+        logdir: Path,
+        cache: Path | None = None,
+        port: int | None = None,
+        on_change: Callable[[set[str]], None] | None = None,
+        poll_s: float = POLL_S,
+    ):
         """Prepare the daemon; nothing runs before ``start``.
 
         :param logdir: The log dir.
         :param cache: The cache directory; by default ``cache_dir(logdir)``.
-        :param port: The web UI's port, recorded in ``serve.json``."""
+        :param port: The web UI's port, recorded in ``serve.json``.
+        :param on_change: Called from the indexing thread with the run and folder
+            paths (relative to the log dir) that changed in a poll.
+        :param poll_s: Seconds between polls."""
         self.logdir = logdir.resolve()
         self.cache = cache or cache_dir(self.logdir)
         self.port = port
+        self.on_change = on_change
+        self.poll_s = poll_s
         self.lock = FileLock(path=self.cache / SERVE_LOCK)
         self.stopping = threading.Event()
         self.thread = threading.Thread(target=self.loop, name="beamtime-index", daemon=True)
@@ -58,9 +72,11 @@ class Daemon:
         index = Index(logdir=self.logdir, cache=self.cache)
         try:
             while not self.stopping.is_set():
-                index.catch_up(".", budget_s=float("inf"), daemon=True)
+                fresh = index.catch_up(".", budget_s=float("inf"), daemon=True)
                 self.write_status()
-                self.stopping.wait(POLL_S)
+                if fresh.changed and self.on_change is not None:
+                    self.on_change(fresh.changed)
+                self.stopping.wait(self.poll_s)
         finally:
             index.close()
 

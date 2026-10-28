@@ -1,0 +1,110 @@
+// The shell: top bar, sidebar, the page, the context drawer and the status bar.
+
+import { html } from "htm/preact";
+import { useEffect, useRef } from "preact/hooks";
+
+import { fetchCall, paused } from "../api.ts";
+import { rows } from "../blocks/common.ts";
+import { folderUrl, navigate, route, setScroller } from "../router.ts";
+import { useStore } from "../state.ts";
+import { StatusBar, TopBar } from "./bars.ts";
+import * as calls from "./calls.ts";
+import { Drawer } from "./drawer.ts";
+import { FolderPage, RunRedirect, Settings } from "./page.ts";
+import { Palette } from "./palette.ts";
+import { Sidebar } from "./sidebar.ts";
+import { buildTree, siblings } from "./tree.ts";
+import { help, palette, sidebar, SHORTCUTS, typing } from "./ui.ts";
+
+export function App() {
+  const r = useStore(route);
+  const showSidebar = useStore(sidebar);
+  const showPalette = useStore(palette);
+  const showHelp = useStore(help);
+  const main = useRef<HTMLElement>(null);
+  useEffect(() => setScroller(() => main.current), []);
+  useEffect(() => {
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, []);
+  const drawer = r.page === "folder" && r.drawer;
+  let page;
+  switch (r.page) {
+    case "folder":
+      page = html`<${FolderPage} key=${r.path} path=${r.path} />`;
+      break;
+    case "run":
+      page = html`<${RunRedirect} id=${r.id} />`;
+      break;
+    case "settings":
+      page = html`<${Settings} />`;
+      break;
+    default:
+      page = html`<div class="page"><p>No page at ${r.url}. <a href="/f/local">Go to the log dir.</a></p></div>`;
+  }
+  return html`<div class=${`shell${showSidebar ? "" : " no-sidebar"}${drawer ? " with-drawer" : ""}`}>
+    <${TopBar} />
+    ${showSidebar ? html`<${Sidebar} />` : null}
+    <main class="main" ref=${main}>${page}</main>
+    ${drawer ? html`<${Drawer} path=${r.path} run=${r.run} />` : null}
+    <${StatusBar} />
+    ${showPalette ? html`<${Palette} />` : null}
+    ${showHelp ? html`<div class="overlay" onClick=${() => help.set(false)}>
+        <div class="palette help" role="dialog" aria-label="Keyboard shortcuts">
+          <h3>Keyboard shortcuts</h3>
+          <table class="kv">${SHORTCUTS.map(([k, d]) => html`<tr><td><kbd>${k}</kbd></td><td>${d}</td></tr>`)}</table>
+        </div>
+      </div>` : null}
+  </div>`;
+}
+
+function onKey(e: KeyboardEvent): void {
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    palette.set(!palette.value);
+    return;
+  }
+  if (mod && e.key.toLowerCase() === "b") {
+    e.preventDefault();
+    sidebar.set(!sidebar.value);
+    return;
+  }
+  if (e.key === "Escape") {
+    if (palette.value) return palette.set(false);
+    if (help.value) return help.set(false);
+    const r = route.value;
+    if (r.page === "folder" && r.run) return navigate(folderUrl(r.path, { drawer: true }), { replace: true });
+    if (r.page === "folder" && r.drawer) return navigate(folderUrl(r.path), { replace: true });
+    return;
+  }
+  if (mod || e.altKey || typing(e) || palette.value) return;
+  const r = route.value;
+  switch (e.key) {
+    case "/":
+      e.preventDefault();
+      palette.set(true);
+      break;
+    case "?":
+      help.set(!help.value);
+      break;
+    case "p":
+      paused.set(!paused.value);
+      break;
+    case "i":
+      if (r.page === "folder") navigate(folderUrl(r.path, { drawer: !r.drawer }), { replace: true });
+      break;
+    case "[":
+    case "]":
+      if (r.page === "folder") void sibling(r.path, e.key === "]" ? 1 : -1);
+      break;
+  }
+}
+
+async function sibling(path: string, step: number): Promise<void> {
+  const root = buildTree(rows(await fetchCall(calls.tree())));
+  const list = siblings(root, path);
+  const i = list.findIndex((n) => n.path === path);
+  const next = list[i + step];
+  if (next) navigate(folderUrl(next.path));
+}

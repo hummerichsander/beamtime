@@ -433,6 +433,14 @@ Decided while building the index and the queries (milestone M2):
 - **Links** (M4): a `links` table (source note, kind, target) is filled at note ingest from the
   `[[...]]` links in bodies and from `evidence`, `resolves` and `supersedes`; it gives the backlinks of
   runs and predictions. The index schema version is 2; older caches are rebuilt.
+- **Change reports** (M5): `catch_up` lists the runs it ingested in `Freshness.changed`; the
+  daemon's also lists folders whose `notes/`, `proposal/`, `memory/` or `view/` changed since its
+  last poll. `Daemon(on_change=...)` receives them after every poll (every 2 s); `serve` turns them
+  into live updates ([layer 7](07-web-ui.md#implementation-notes)).
+- **Deferred streams** (fixed in M5): a run whose streams a time budget deferred has no `indexed_at`
+  yet, and the next catch-up with time to spare reads them, also for runs that have ended.
+- **Reserved names are not scopes**: `from` naming an authored or machine folder (`proposal/`,
+  `notes/`, `_trash/`, …) is refused like a missing folder.
 - **Not yet**: remote sources (`@name/…`) wait for M8; `importance` for v1.1.
 
 ## Decisions

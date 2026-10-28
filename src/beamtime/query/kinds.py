@@ -16,6 +16,7 @@ from beamtime.format import constants as c
 from beamtime.format.authored import newest, read_markdown_doc
 from beamtime.format.ids import is_run_id
 from beamtime.format.run import read_preview
+from beamtime.format.tree import is_reserved
 from beamtime.index.columns import TIME_KEY, Column, open_columns
 from beamtime.index.index import Index
 from beamtime.index.store import in_scope
@@ -83,6 +84,12 @@ def resolve_from(index: Index, base: str, target: str) -> tuple[str, str | None]
     rel = posixpath.normpath(posixpath.join(base, target.strip("/") or "."))
     if rel == ".." or rel.startswith("../"):
         raise QueryError(f"from {target!r} leaves the log dir")
+    if rel != "." and any(is_reserved(part) for part in rel.split("/")):
+        raise QueryError(
+            f"from {target!r}: {rel!r} holds authored or machine files, not runs; "
+            "name the folder above it",
+            code="not_found",
+        )
     if not index.folder_path(rel).is_dir():
         parent = index.folder_path(posixpath.dirname(rel) or ".")
         options = [p.name for p in parent.iterdir() if p.is_dir()] if parent.is_dir() else []
@@ -455,6 +462,7 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
         "GROUP BY j.key ORDER BY j.key",
         ids,
     ).fetchall()
+    metrics = with_live_keys(ctx, runs, metrics)
     data = db.execute(
         "SELECT key, kind, count(DISTINCT run_id), count(*) FROM data "
         f"WHERE run_id IN ({marks}) GROUP BY key, kind ORDER BY key",
@@ -484,6 +492,33 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
         "tags": dict(tags.most_common()),
         "meta": meta(ctx, matched=len(runs)),
     }
+
+
+def with_live_keys(
+    ctx: Context, runs: list[dict[str, Any]], metrics: list[tuple[str, int, Any]]
+) -> list[tuple[str, int, Any]]:
+    """Add the metrics running runs logged since their card was last written.
+
+    A run rewrites its card every few minutes, so a new run's keys are in its columns first.
+
+    :param ctx: The query context.
+    :param runs: The selected runs.
+    :param metrics: ``(key, runs, last_step)`` from the cards.
+    :return: The rows with the running runs' column keys merged in."""
+    out = {key: [n, last] for key, n, last in metrics}
+    for r in runs:
+        if r["run.status"] != "running":
+            continue
+        carded = {k for (k,) in ctx.index.store.db.execute(
+            "SELECT j.key FROM runs, json_each(card, '$.metrics') j WHERE runs.id = ?", (r["_id"],)
+        )}  # fmt: skip
+        manifest, entries = open_columns(ctx.index.series / r["_id"])
+        for key in entries.keys() - carded - {TIME_KEY}:
+            row = out.setdefault(key, [0, None])
+            steps = [x for x in (row[1], manifest.last_step) if x is not None]
+            row[0] += 1
+            row[1] = max(steps) if steps else None
+    return sorted((k, n, last) for k, (n, last) in out.items())
 
 
 def flatten(config: dict[str, Any], prefix: str = "") -> dict[str, Any]:
