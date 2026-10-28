@@ -74,7 +74,9 @@ function GroupContext({ path }: { path: string }) {
   return html`<div class="drawer-body">
     <h4 style="margin-block-start: 0">Notes</h4>
     ${notes && !notes.entries.length ? html`<p class="muted small">No notes yet.</p>` : null}
-    <div class="notes">${(notes?.entries ?? []).map((n: any) => html`<${NoteItem} key=${n.id} note=${n} />`)}</div>
+    <div class="notes">${(notes?.entries ?? [])
+      .filter((n: any) => !String(n.state ?? "").startsWith("superseded"))
+      .map((n: any) => html`<${NoteItem} key=${n.id} note=${n} />`)}</div>
     <h4>Timeline</h4>
     ${(timeline?.entries ?? []).slice().reverse().map(
       (e: any) => html`<div class="event"><span class="muted num">${e.t?.slice(5, 16).replace("T", " ")}</span>

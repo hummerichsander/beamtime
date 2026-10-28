@@ -48,6 +48,7 @@ export function Popover(props: {
   title?: string;
   children?: ComponentChildren;
   class?: string;
+  onOpen?: () => void;
 }) {
   const id = `pop-${useId()}`.replace(/:/g, "");
   const panel = useRef<HTMLDivElement>(null);
@@ -57,6 +58,7 @@ export function Popover(props: {
     if (!el) return;
     const place = (e: Event) => {
       if ((e as ToggleEvent).newState !== "open") return;
+      props.onOpen?.();
       const button = trigger.current?.querySelector("button");
       if (!button) return;
       const r = button.getBoundingClientRect();

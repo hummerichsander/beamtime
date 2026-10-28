@@ -49,6 +49,7 @@ export function Collapsible(props: {
   open?: boolean;
   result?: Result;
   class?: string;
+  action?: ComponentChildren;
   children?: ComponentChildren;
 }) {
   const key = `section.${props.id}`;
@@ -63,6 +64,7 @@ export function Collapsible(props: {
         <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${16} />${props.title}
         ${props.count ? html`<span class="count">${props.count}</span>` : null}
       </button>
+      ${props.action ? html`<span class="block-action">${props.action}</span>` : null}
     </h3>
     ${open ? (props.result?.status === "error" ? html`<${Notice} kind="error">${props.result.error}<//>` : props.children) : null}
   </section>`;

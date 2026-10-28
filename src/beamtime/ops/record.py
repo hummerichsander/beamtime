@@ -145,7 +145,9 @@ def notes(ctx: Context, p: r.NotesParams) -> dict[str, Any]:
     :param p: The parameters.
     :return: The answer: ``entries`` with id, type, description and state."""
     with target_of(ctx, p.from_) as target:
-        entries = listing(target, types=p.types, only_open=p.open, full=p.full)
+        entries = listing(
+            target, types=p.types, only_open=p.open, full=p.full, only_current=p.current
+        )
     limit = p.limit if p.limit is not None else 30
     answer = {
         "kind": "notes",

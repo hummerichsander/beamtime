@@ -36,15 +36,13 @@ def group_view(ctx: Context, path: str) -> dict[str, Any]:
     :param ctx: The operation context.
     :param path: The group below the log dir.
     :return: The root node."""
-    group = call("groups", {"from": path, "depth": 0}, ctx)
-    row = dict(zip(group["columns"], group["rows"][0], strict=True)) if group["rows"] else {}
+    runs, direct = counts(ctx, path)
     # the header states the proposal and its predictions; the body starts with the data.
     children: list[dict[str, Any]] = []
-    if not row.get("runs"):
+    if not runs:
         children.append(node("note", "empty", text=EMPTY, kind="info"))
         return node("section", "root", children=children)
-    direct = row.get("direct", 0)
-    if direct < row["runs"]:
+    if direct < runs:
         children.append(
             node(
                 "groups",
@@ -58,10 +56,11 @@ def group_view(ctx: Context, path: str) -> dict[str, Any]:
     main = (essential(ordered_metrics(keys)) or [None])[0]
     if direct:
         # curves show only the group's own runs; runs in subgroups belong to their groups.
-        own = direct < row["runs"]
+        own = direct < runs
         own_keys = call("keys", {"from": path, "depth": 1}, ctx) if own else keys
         many = "config.seed" in varying and direct > SEED_GROUPING_ABOVE
-        children += curves(path, ordered_metrics(own_keys), "config.seed" if many else None, own)
+        found = ordered_metrics(own_keys)
+        children += curves(path, found, "config.seed" if many else None, own, varying)
     if direct:
         select = ["run.name", "run.status", *varying, *([f"metric.{main}.last"] if main else [])]
     else:
@@ -96,7 +95,8 @@ def group_view(ctx: Context, path: str) -> dict[str, Any]:
         )
     notes = call("notes", {"from": path, "limit": 1}, ctx)
     if notes["meta"]["matched"]:
-        latest = api("notes", {"from": path, "limit": NOTES, "full": True}, path)
+        params = {"from": path, "limit": NOTES, "full": True, "current": True}
+        latest = api("notes", params, path)
         children.append(node("notes", "notes", title="Notes", data={"main": latest}))
     return node("section", "root", children=children)
 
@@ -111,7 +111,7 @@ def run_view(ctx: Context, path: str) -> dict[str, Any]:
     keys = call("keys", {"from": run_id}, ctx)
     metrics = ordered_metrics(keys)
     status = next(iter(keys["status"]), None)
-    children = curves(path, metrics, None, False)
+    children = curves(path, metrics, None, False, [])
     for key, kind, _, _ in keys["data"]["rows"]:
         params = {"from": run_id, "key": key, "step": "last"}
         match kind:
@@ -144,12 +144,9 @@ def summary(ctx: Context, path: str) -> dict[str, Any] | None:
         a group without runs of its own."""
     run_id = path.rsplit("/", 1)[-1]
     scope = run_id if is_run_id(run_id) else path
-    if scope == path:
-        # a group whose runs all sit in subgroups mixes experiments; no single best there.
-        group = call("groups", {"from": path, "depth": 0}, ctx)
-        direct = group["columns"].index("direct")
-        if not group["rows"] or not group["rows"][0][direct]:
-            return None
+    # a group whose runs all sit in subgroups mixes experiments; no single best there.
+    if scope == path and not counts(ctx, path)[1]:
+        return None
     keys = call("keys", {"from": scope}, ctx)
     main = (essential(ordered_metrics(keys)) or [None])[0]
     if main is None:
@@ -182,20 +179,37 @@ def summary(ctx: Context, path: str) -> dict[str, Any] | None:
     }
 
 
-def curves(path: str, metrics: list[str], seeds: str | None, own: bool) -> list[dict[str, Any]]:
+def counts(ctx: Context, path: str) -> tuple[int, int]:
+    """Count a group's runs, all and its own, without computing its research status.
+
+    :param ctx: The operation context.
+    :param path: The group.
+    :return: Runs at or below the group, and runs directly in it."""
+    count = lambda depth: call("runs", {"from": path, "depth": depth, "select": ["run.status"],  # noqa: E731
+                                        "limit": 1}, ctx)["meta"]["matched"]  # fmt: skip
+    return count("all"), count(1)
+
+
+def curves(
+    path: str, metrics: list[str], seeds: str | None, own: bool, varying: list[str]
+) -> list[dict[str, Any]]:
     """Make the essential charts, and the rest in a collapsed section.
 
     :param path: The group or run path.
     :param metrics: The metrics, ordered.
     :param seeds: ``config.seed`` to average over seeds, or ``None``.
     :param own: Whether to show only the runs directly in the group.
+    :param varying: Config keys that differ between runs, to aggregate by.
     :return: The nodes: a grid, and a section with more."""
     first = essential(metrics)
     rest = [m for m in metrics if m not in first]
     out = []
     if first:
+        # viewers add charts and set view-wide chart options here; new charts copy this call.
+        template = api("series", series_params(path, seeds, own), path)
         out.append(node("grid", "curves", children=[line(path, m, seeds, own) for m in first],
-                        min_width=420))  # fmt: skip
+                        min_width=420, addable=True, template=template, metrics=metrics,
+                        varying=[k for k in varying if k != "config.seed"]))  # fmt: skip
     if rest:
         grid = node("grid", "more-curves", children=[line(path, m, seeds, own) for m in rest],
                     min_width=420)  # fmt: skip
@@ -245,11 +259,7 @@ def line(path: str, metric: str, seeds: str | None, own: bool = False) -> dict[s
     :param seeds: ``config.seed`` to average over seeds, or ``None`` for one curve per run.
     :param own: Whether to show only the runs directly in the group.
     :return: The node."""
-    params: dict[str, Any] = {"from": path, "y": [metric], "points": 300}
-    if own:
-        params["depth"] = 1
-    if seeds:
-        params |= {"seeds": seeds, "band": "minmax"}
+    params = series_params(path, seeds, own) | {"y": [metric]}
     scale = "log" if lower_is_better(metric) and "loss" in metric else "linear"
     note = ", ".join([*(["seed mean and range"] if seeds else []), *(["own runs"] if own else [])])
     return node(
@@ -260,6 +270,21 @@ def line(path: str, metric: str, seeds: str | None, own: bool = False) -> dict[s
         note=note or None,
         data={"main": api("series", params, path)},
     )
+
+
+def series_params(path: str, seeds: str | None, own: bool) -> dict[str, Any]:
+    """Make the parameters every chart of a view shares, without the metric.
+
+    :param path: The group or run path.
+    :param seeds: ``config.seed`` to average over seeds, or ``None``.
+    :param own: Whether to show only the runs directly in the group.
+    :return: The ``series`` parameters."""
+    params: dict[str, Any] = {"from": path, "points": 300}
+    if own:
+        params["depth"] = 1
+    if seeds:
+        params |= {"seeds": seeds, "band": "minmax"}
+    return params
 
 
 def ordered_metrics(keys: dict[str, Any]) -> list[str]:

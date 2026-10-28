@@ -84,11 +84,12 @@ def test_view_of_groups_and_runs(api, roles: dict[str, str]) -> None:
     assert more["props"]["open"] is False and "lr" in str(more)
     table = next(c for c in sweep["view"]["children"] if c["block"] == "table")
     assert table["props"]["sparkline"] == "val/acc" and "spark" in table["data"]
-    assert sweep["summary"]["metric"] == "val/acc" and sweep["summary"]["config"]["lr"] == 3e-4
+    best = api("summary", path="scaling/lr-sweep").json()["summary"]
+    assert best["metric"] == "val/acc" and best["config"]["lr"] == 3e-4
 
     top = api("view", path="").json()
     assert top["path"] == "." and top["view"]["children"][0]["block"] == "groups"
-    assert top["summary"] is None
+    assert api("summary", path=".").json()["summary"] is None
     recent = next(c for c in top["view"]["children"] if c["block"] == "table")
     assert recent["props"]["columns"] == ["run.name", "run.status", "run.group", "run.created_at"]
 

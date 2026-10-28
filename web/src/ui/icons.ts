@@ -6,7 +6,7 @@ import {
   Activity, Bookmark, Check, ChevronDown, ChevronRight, Circle, CircleCheck, CircleDashed, CircleDot,
   CircleHelp, CircleMinus, CircleX, Clock, CloudOff, Copy, Download, Ellipsis, Eye, EyeOff, FileText,
   FolderTree, GitCommitHorizontal, Hourglass, Image, Keyboard, Lightbulb, Link, Maximize2, Minus,
-  Monitor, Moon, PanelLeft, PanelRight, Pause, Play, Plus, RotateCcw, Scale, Search, Server, Settings,
+  Lock, Monitor, Moon, PanelLeft, PanelRight, Pause, Pencil, Play, Plus, RotateCcw, Scale, Search, Server, Settings,
   Signpost, SlidersHorizontal, Square, Sun, Target, Terminal, TriangleAlert, X,
 } from "lucide-preact";
 
@@ -18,9 +18,9 @@ const ICONS: Record<string, FunctionComponent<any>> = {
   "circle-dot": CircleDot, "circle-help": CircleHelp, "circle-minus": CircleMinus, "circle-x": CircleX,
   clock: Clock, "cloud-off": CloudOff, copy: Copy, download: Download, ellipsis: Ellipsis, eye: Eye,
   "eye-off": EyeOff, "file-text": FileText, "folder-tree": FolderTree, "git-commit": GitCommitHorizontal,
-  hourglass: Hourglass, image: Image, keyboard: Keyboard, lightbulb: Lightbulb, link: Link,
+  hourglass: Hourglass, image: Image, keyboard: Keyboard, lightbulb: Lightbulb, link: Link, lock: Lock,
   maximize: Maximize2, minus: Minus, monitor: Monitor, moon: Moon, "panel-left": PanelLeft,
-  "panel-right": PanelRight, pause: Pause, play: Play, plus: Plus, reset: RotateCcw, scale: Scale,
+  "panel-right": PanelRight, pause: Pause, pencil: Pencil, play: Play, plus: Plus, reset: RotateCcw, scale: Scale,
   search: Search, server: Server, settings: Settings, signpost: Signpost, sliders: SlidersHorizontal,
   square: Square, sun: Sun, target: Target, terminal: Terminal, "triangle-alert": TriangleAlert, x: X,
 };

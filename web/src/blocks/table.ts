@@ -4,6 +4,7 @@ import { html } from "htm/preact";
 import { useContext, useState } from "preact/hooks";
 
 import { hovered, useData, useRunColors, ViewCtx, type Node } from "../bt/index.ts";
+import { toggleRun, usePrefs } from "../bt/prefs.ts";
 import { ago, label, lowerIsBetter, value } from "../bt/fmt.ts";
 import { groupUrl, navigate, route, runUrl } from "../router.ts";
 import { useStore } from "../state.ts";
@@ -17,6 +18,7 @@ export function Table({ node }: { node: Node }) {
   const view = useContext(ViewCtx);
   const colors = useRunColors();
   const hover = useStore(hovered);
+  const hidden = new Set(usePrefs(view.path).hidden);
   const [sort, setSort] = useState<{ field: string; desc: boolean } | null>(null);
   const answer = result.data;
   const columns: string[] = (node.props.columns ?? answer?.columns ?? []).filter((c: string) => c !== "run.id");
@@ -45,10 +47,14 @@ export function Table({ node }: { node: Node }) {
             ${data.map((r) => {
               const id = r["run.id"];
               const live = r["run.status"] === "running";
-              const cls = `${id === selected ? "selected" : ""}${id === hover ? " hovered" : ""}`;
+              const cls = `${id === selected ? "selected" : ""}${id === hover ? " hovered" : ""}${hidden.has(id) ? " hidden-run" : ""}`;
+              const toggle = (e: MouseEvent) => {
+                e.stopPropagation();
+                toggleRun(view.path, id, data.map((x) => x["run.id"]), e.shiftKey);
+              };
               return html`<tr key=${id} class=${cls} onClick=${() => open(id)}
                   onPointerEnter=${() => hovered.set(id)}>
-                ${columns.map((c) => cell(c, r[c], id, live, colors.get(id), best.get(c) === r[c]))}
+                ${columns.map((c) => cell(c, r[c], id, live, colors.get(id), best.get(c) === r[c], toggle, hidden.has(id)))}
                 ${node.props.sparkline ? html`<td class="spark"><${Spark} values=${trends.get(id)} color=${colors.get(id)} /></td>` : null}
               </tr>`;
             })}
@@ -59,9 +65,12 @@ export function Table({ node }: { node: Node }) {
   <//>`;
 }
 
-function cell(column: string, v: unknown, id: string, live: boolean, color: string | undefined, best: boolean) {
+function cell(column: string, v: unknown, id: string, live: boolean, color: string | undefined, best: boolean,
+              toggle: (e: MouseEvent) => void, off: boolean) {  // prettier-ignore
   if (column === "run.name") {
-    return html`<td class="name"><span class="swatch" style=${`background:${color ?? "transparent"}`}></span>
+    return html`<td class="name"><button type="button" class="swatch" style=${`background:${off ? "transparent" : (color ?? "transparent")}; border-color:${color ?? "var(--bt-border)"}`}
+        aria-pressed=${!off} aria-label=${off ? "Show in charts" : "Hide in charts"}
+        data-tip=${off ? "Show in charts (shift: only this)" : "Hide in charts (shift: only this)"} onClick=${toggle}></button>
       <a href=${runUrl(id)} onClick=${(e: Event) => e.stopPropagation()}>${v ?? id}</a></td>`;
   }
   if (column === "run.status") return html`<td><${Sym} spec=${symbolFor("run", v as string)} /></td>`;

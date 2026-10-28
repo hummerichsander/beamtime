@@ -1,14 +1,18 @@
 // Research context blocks: proposal, memory, groups, notes, output and note.
 
 import { html } from "htm/preact";
+import { useState } from "preact/hooks";
 
 import { useData, type Node } from "../bt/index.ts";
 import { ago, value } from "../bt/fmt.ts";
+import { addNote, editMemory, editNote } from "../bt/writes.ts";
 import { groupUrl, isRunId, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { Markdown } from "../ui/markdown.ts";
-import { Disclosure } from "../ui/primitives.ts";
+import { Editable } from "../ui/editable.ts";
+import { Disclosure, IconButton } from "../ui/primitives.ts";
 import { symbolFor } from "../ui/symbols.ts";
+import { prefetchGroup } from "../shell/calls.ts";
 import { Collapsible, Notice, Panel, rows } from "./common.ts";
 
 export function describe(pr: any): string {
@@ -70,7 +74,8 @@ export function Memory({ node }: { node: Node }) {
       count=${stale ? "out of date" : undefined} open=${false} result=${result} class="memory-block">
     ${own.map(
       (m) => html`<div key=${m.version}>
-        <${Markdown} text=${m.body} />
+        <${Editable} value=${m.body ?? ""} label="the memory" multiline class="markdown"
+          render=${(text: string) => html`<${Markdown} text=${text} />`} onSave=${(body: string) => editMemory(m.group, body)} />
         <p class="memory-meta">${m.author} · covers notes until ${m.covers_until?.slice(0, 10)}
           ${m.notes_since ? html` · <span class="warn-text">${m.notes_since} newer note${m.notes_since > 1 ? "s" : ""}</span>` : null}</p>
       </div>`,
@@ -88,7 +93,8 @@ export function Groups({ node }: { node: Node }) {
       ${data.map((r) => {
         const [progress, more] = progressText(r.progress);
         const ended = (r.failed ?? 0) + (r.killed ?? 0) + (r.lost ?? 0);
-        return html`<a class="group-row" key=${r.path} href=${groupUrl(r.path)}>
+        return html`<a class="group-row" key=${r.path} href=${groupUrl(r.path)}
+            onPointerEnter=${() => prefetchGroup(r.path)} onFocus=${() => prefetchGroup(r.path)}>
           <${Sym} spec=${symbolFor("research", r.status)} />
           <span class="gname">${r.path.split("/").pop()}</span>
           <span class="gfacts">
@@ -108,30 +114,59 @@ export function Groups({ node }: { node: Node }) {
 
 export function Notes({ node }: { node: Node }) {
   const result = useData("main");
-  const entries: any[] = result.data?.entries ?? [];
-  const total = result.data?.meta?.matched ?? entries.length;
+  const group = (node.data?.main.params.from as string) ?? ".";
+  const [adding, setAdding] = useState(false);
+  // an edited note is superseded by its new version; only the newest shows.
+  const entries: any[] = (result.data?.entries ?? []).filter((n: any) => !String(n.state ?? "").startsWith("superseded"));
   return html`<${Collapsible} id=${`notes:${node.data?.main.scope ?? node.id}`} title=${node.props.title ?? "Notes"}
-      count=${result.data ? String(total) : undefined} result=${result}>
-    <div class="notes">${entries.map((n) => html`<${NoteItem} key=${n.id} note=${n} />`)}</div>
-    ${total > entries.length ? html`<p class="more-rows">${entries.length} of ${total}; all in the drawer (i)</p>` : null}
+      count=${result.data ? String(entries.length) : undefined} result=${result}
+      action=${html`<${IconButton} icon="plus" label="Add a note" onClick=${() => setAdding(true)} />`}>
+    <div class="notes">
+      ${adding ? html`<${NewNote} group=${group} onDone=${() => setAdding(false)} />` : null}
+      ${entries.map((n) => html`<${NoteItem} key=${n.id} note=${n} />`)}
+    </div>
   <//>`;
 }
 
-// one line per note: type, title, who and when; the body opens on click.
+const NEW_TYPES = ["observation", "idea", "question", "decision"];
+
+function NewNote(props: { group: string; onDone: () => void }) {
+  const [type, setType] = useState("observation");
+  return html`<div class="note new-note">
+    <div class="note-line">
+      <select class="note-type" value=${type} aria-label="Note type" onChange=${(e: Event) => setType((e.target as HTMLSelectElement).value)}>
+        ${NEW_TYPES.map((t) => html`<option value=${t}>${t}</option>`)}
+      </select>
+      <${Editable} value="" label="the new note's title" placeholder="What did you see, decide or wonder?" startEditing
+        class="note-title" onCancel=${props.onDone}
+        onSave=${async (title: string) => { await addNote(props.group, type, title, ""); props.onDone(); }} />
+    </div>
+  </div>`;
+}
+
+// one line per note: type, title, who and when; the body opens below. Both edit in place.
 export function NoteItem(props: { note: any; open?: boolean }) {
   const n = props.note;
+  const [open, setOpen] = useState(!!props.open);
   const when = n.id.slice(0, 15).replace(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6Z");
   const author = n.meta?.author;
-  const head = html`<${Sym} spec=${symbolFor("note", n.type)} />
-    <span class="note-title">${inline(n.description)}</span>
-    ${n.overall ? html`<${Sym} spec=${symbolFor("verdict", n.overall)} />` : null}
-    ${n.state ? html`<span class="tag tone-warn">${n.state}</span>` : null}
-    <span class="note-meta">${author ? `${author} · ` : ""}${ago(when)}</span>`;
-  if (!n.body) return html`<div class="note"><div class="note-line">${head}</div></div>`;
-  return html`<details class="note" open=${props.open}>
-    <summary class="note-line">${head}</summary>
-    <${Markdown} text=${n.body} class="note-body" />
-  </details>`;
+  return html`<article class=${`note${open ? " open" : ""}`}>
+    <div class="note-line" onClick=${(e: MouseEvent) => !(e.target as Element).closest(".editable, a") && setOpen(!open)}>
+      <button type="button" class="note-toggle" aria-expanded=${open} aria-label=${open ? "Close the note" : "Open the note"}>
+        <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${14} /></button>
+      <${Sym} spec=${symbolFor("note", n.type)} />
+      <${Editable} value=${n.description} label="the note's title" class="note-title" render=${inline}
+        onSave=${(description: string) => editNote(n, { description })} />
+      ${n.overall ? html`<${Sym} spec=${symbolFor("verdict", n.overall)} />` : null}
+      ${n.state ? html`<span class="tag tone-warn">${n.state}</span>` : null}
+      <span class="note-meta">${author ? `${author} · ` : ""}${ago(when)}</span>
+    </div>
+    ${open
+      ? html`<${Editable} value=${n.body ?? ""} label="the note" multiline class="note-body markdown"
+          placeholder="Add details in Markdown" render=${(text: string) => html`<${Markdown} text=${text} />`}
+          onSave=${(body: string) => editNote(n, { body })} />`
+      : null}
+  </article>`;
 }
 
 export function Output({ node }: { node: Node }) {

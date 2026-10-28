@@ -7,30 +7,43 @@ import type { ChartStyle } from "./theme.ts";
 
 export type LineSpec = {
   curves: Curve[];
+  // unsmoothed curves, drawn faint behind smoothed ones; null when not smoothing.
+  raw: Curve[] | null;
   colors: string[];
+  hidden: Set<string>;
   style: ChartStyle;
   height: number;
   log: boolean;
   band: boolean;
+  range: [number, number] | null;
+  // the zoomed x range; when the data was fetched for it, the data's own range already is it.
+  zoom: [number, number] | null;
+  zoomFetched: boolean;
   sync: string;
   formatX: (v: number) => string;
   formatY: (v: number) => string;
   onFocus?: (curve: Curve | null) => void;
+  onZoom?: (window: [number, number] | null) => void;
 };
 
 export type LineChart = {
   update(spec: LineSpec): boolean;
   focus(key: string | null): void;
+  png(background: string): string;
   destroy(): void;
 };
 
-// series 0 is x; then one per curve; then lo and hi per curve when bands are drawn.
+const ZOOM_EVENTS = new Set(["mousedown", "mouseup", "dblclick"]);
+
+// series: 0 is x; 1..n the curves; then n raw curves when smoothing; then lo, hi per curve.
 export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
   let current = spec;
   const tip = document.createElement("div");
   tip.className = "bt-tip";
   tip.hidden = true;
   const n = spec.curves.length;
+  const rawAt = spec.raw ? n + 1 : -1;
+  const bandAt = n + 1 + (spec.raw ? n : 0);
   const width = () => Math.max(120, Math.floor(el.getBoundingClientRect().width));
 
   const series: uPlot.Series[] = [
@@ -43,12 +56,17 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       points: { show: false },
     })),
   ];
+  if (spec.raw) {
+    spec.curves.forEach((_, i) => {
+      series.push({ stroke: tint(spec.colors[i], 0.22), width: 1, spanGaps: true, points: { show: false } });
+    });
+  }
   const bands: uPlot.Band[] = [];
   if (spec.band) {
     spec.curves.forEach((_, i) => {
       series.push({ stroke: "transparent", width: 0, spanGaps: true, points: { show: false } });
       series.push({ stroke: "transparent", width: 0, spanGaps: true, points: { show: false } });
-      bands.push({ series: [n + 2 + i * 2, n + 1 + i * 2], fill: tint(spec.colors[i], spec.style.band) });
+      bands.push({ series: [bandAt + 1 + i * 2, bandAt + i * 2], fill: tint(spec.colors[i], spec.style.band) });
     });
   }
   const axis = (formatter: (v: number) => string): uPlot.Axis => ({
@@ -61,6 +79,7 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
     values: (_u, splits) => splits.map((v) => (v === null ? "" : formatter(v))),
   });
   let focused: number | null = null;
+  let applying = false;
   const u = new uPlot(
     {
       width: width(),
@@ -69,28 +88,72 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       bands,
       legend: { show: false },
       padding: [8, 8, 0, 0],
-      scales: { x: { time: false }, y: spec.log ? { distr: 3 } : {} },
+      scales: {
+        x: { time: false },
+        y: {
+          ...(spec.log ? { distr: 3 } : {}),
+          range: (_self, min, max) =>
+            current.range ??
+            (current.log ? uPlot.rangeLog(min, max, 10, false) : uPlot.rangeNum(min, max, 0.06, true)),
+        },
+      },
       axes: [{ ...axis(spec.formatX), size: 30 }, { ...axis(spec.formatY), size: 52 }],
       focus: { alpha: spec.style.dim },
       cursor: {
-        sync: { key: spec.sync, setSeries: false },
+        // the crosshair follows across the view; dragging and double-clicking zoom one chart only.
+        sync: { key: spec.sync, setSeries: false, filters: { pub: (type) => !ZOOM_EVENTS.has(type) } },
         points: { show: false },
         drag: { x: true, y: false },
       },
       hooks: {
         setCursor: [(self) => cursorMoved(self)],
-        ready: [(self) => self.over.append(tip)],
+        setSelect: [
+          (self) => {
+            if (applying || self.select.width < 4) return;
+            const a = self.posToVal(self.select.left, "x");
+            const b = self.posToVal(self.select.left + self.select.width, "x");
+            current.onZoom?.([a, b]);
+          },
+        ],
+        ready: [
+          (self) => {
+            self.over.append(tip);
+            self.over.addEventListener("dblclick", () => current.onZoom?.(null));
+          },
+        ],
       },
     },
     data(spec),
     el,
   );
+  applyHidden(spec);
+  applyZoom(spec);
 
   function data(s: LineSpec): uPlot.AlignedData {
-    const al = align(s.curves);
+    const all = s.raw ? [...s.curves, ...s.raw] : s.curves;
+    const al = align(all);
     const out: (number | null)[][] = [al.x, ...al.y];
     if (s.band) s.curves.forEach((_, i) => out.push(al.lo[i], al.hi[i]));
     return out as uPlot.AlignedData;
+  }
+
+  function applyZoom(s: LineSpec): void {
+    if (s.zoom && !s.zoomFetched) u.setScale("x", { min: s.zoom[0], max: s.zoom[1] });
+  }
+
+  function applyHidden(s: LineSpec): void {
+    applying = true;
+    s.curves.forEach((c, i) => {
+      const show = !(s.hidden.has(c.key) || (c.run !== null && s.hidden.has(c.run)));
+      const set = (idx: number) => u.series[idx].show !== show && u.setSeries(idx, { show }, false);
+      set(i + 1);
+      if (rawAt > 0) set(rawAt + i);
+      if (s.band) {
+        set(bandAt + i * 2);
+        set(bandAt + i * 2 + 1);
+      }
+    });
+    applying = false;
   }
 
   function cursorMoved(self: uPlot): void {
@@ -152,33 +215,46 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
   ro.observe(el);
 
   return {
-    // same curves and colors: new data in place, keeping zoom; otherwise the caller rebuilds.
+    // same curves, colors and layers: new data in place, keeping zoom; otherwise the caller rebuilds.
     update(next: LineSpec): boolean {
       const same =
         next.curves.length === current.curves.length &&
         next.curves.every((c, i) => c.key === current.curves[i].key && next.colors[i] === current.colors[i]) &&
         next.band === current.band &&
-        next.log === current.log;
+        next.log === current.log &&
+        !!next.raw === !!current.raw &&
+        next.height === current.height;
       if (!same) return false;
       current = next;
-      const zoomed = u.scales.x.min !== undefined && isZoomed(u);
-      u.setData(data(next), !zoomed);
+      // setData without resetting scales keeps index ranges of the old data, and later redraws
+      // draw stale paths; so always reset, then re-apply a zoom the data wasn't fetched for.
+      u.batch(() => {
+        u.setData(data(next), true);
+        applyZoom(next);
+      });
+      applyHidden(next);
       return true;
     },
     focus(key: string | null): void {
       const i = key === null ? -1 : current.curves.findIndex((c) => c.key === key || c.run === key);
       setFocus(i < 0 ? null : i);
     },
+    png(background: string): string {
+      const src = u.ctx.canvas;
+      const out = document.createElement("canvas");
+      out.width = src.width;
+      out.height = src.height;
+      const ctx = out.getContext("2d")!;
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, out.width, out.height);
+      ctx.drawImage(src, 0, 0);
+      return out.toDataURL("image/png");
+    },
     destroy(): void {
       ro.disconnect();
       u.destroy();
     },
   };
-}
-
-function isZoomed(u: uPlot): boolean {
-  const xs = u.data[0];
-  return xs.length > 1 && (u.scales.x.min! > xs[0] || u.scales.x.max! < xs[xs.length - 1]);
 }
 
 function line(label: string, value: string, color: string | null, strong: boolean): HTMLElement {

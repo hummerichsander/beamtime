@@ -51,6 +51,8 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
                     answer = await run_in_threadpool(meta, ctx)
                 case "view":
                     answer = await run_in_threadpool(view, ctx, body.get("path", "."))
+                case "summary":
+                    answer = await run_in_threadpool(summary_of, ctx, body.get("path", "."))
                 case "watch":
                     hub.watch(str(body.get("client")), dict(body.get("watched") or {}))
                     answer = {"kind": "watch", "watching": len(body.get("watched") or {})}
@@ -156,10 +158,9 @@ def view(ctx: Context, path: str) -> dict[str, Any]:
 
     :param ctx: The operation context.
     :param path: A group path, or a run id or path.
-    :return: ``{kind, path, run, view, summary}`` with the run's path resolved; ``summary``
-        names the main metric's best run for the header."""
+    :return: ``{kind, path, run, view}`` with the run's path resolved."""
     from beamtime.index.index import Index
-    from beamtime.views.defaults import default_view, summary
+    from beamtime.views.defaults import default_view
 
     path = path.strip("/") or "."
     name = path.rsplit("/", 1)[-1]
@@ -177,13 +178,20 @@ def view(ctx: Context, path: str) -> dict[str, Any]:
         path = found.relative_to(ctx.logdir).as_posix()
     elif not (ctx.logdir / path).is_dir() or ".." in path.split("/"):
         raise OpError(f"no group {path!r} below the log dir", code=4)
-    return {
-        "kind": "view",
-        "path": path,
-        "run": run,
-        "view": default_view(ctx, path),
-        "summary": summary(ctx, path),
-    }
+    return {"kind": "view", "path": path, "run": run, "view": default_view(ctx, path)}
+
+
+def summary_of(ctx: Context, path: str) -> dict[str, Any]:
+    """Answer the main metric's best run for the header, apart from the view so it loads in
+    parallel.
+
+    :param ctx: The operation context.
+    :param path: A group or run path.
+    :return: ``{kind, path, summary}``; ``summary`` is ``None`` without metrics."""
+    from beamtime.views.defaults import summary
+
+    path = path.strip("/") or "."
+    return {"kind": "summary", "path": path, "summary": summary(ctx, path)}
 
 
 def locate(ctx: Context, run_id: str, rel: str) -> Path | None:

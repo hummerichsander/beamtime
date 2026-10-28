@@ -3,7 +3,7 @@
 import { html } from "htm/preact";
 import { useRef, useState } from "preact/hooks";
 
-import { prefetch, useCall } from "../api.ts";
+import { useCall } from "../api.ts";
 import { rows } from "../blocks/common.ts";
 import { groupUrl, navigate, route } from "../router.ts";
 import { stored, store, useStore } from "../state.ts";
@@ -68,10 +68,7 @@ export function Sidebar() {
 
 function Item(props: { node: TreeNode; current: boolean; open: boolean; onToggle: () => void }) {
   const n = props.node;
-  const hover = () => {
-    prefetch(calls.view(n.path));
-    prefetch(calls.group(n.path));
-  };
+  const hover = () => calls.prefetchGroup(n.path);
   const expandable = n.children.length > 0 && n.path !== ".";
   return html`<a class=${`tree-item${props.current ? " current" : ""}`} href=${groupUrl(n.path)}
       role="treeitem" aria-current=${props.current ? "page" : undefined} aria-expanded=${expandable ? props.open : undefined}

@@ -117,3 +117,21 @@ h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
   &.clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--clamp); overflow: hidden; }
 }
 .more { font-size: var(--bt-size-sm); }
+
+/* inline editing (ui/editable.ts): the text is the field */
+.editable {
+  border-radius: calc(var(--bt-radius) - 3px); margin-inline: -6px; padding-inline: 6px; cursor: text;
+  transition: background 120ms, box-shadow 120ms;
+  &:hover { background: color-mix(in srgb, var(--bt-accent) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bt-accent) 18%, transparent); }
+  &.locked { cursor: default; &:hover { background: none; box-shadow: none; } }
+  &.saving { opacity: 0.6; }
+  &.editing { background: none; box-shadow: none; }
+}
+.edit-field {
+  display: block; inline-size: 100%; margin: 0; padding: 4px 6px; resize: vertical;
+  font: inherit; font-style: inherit; color: inherit; line-height: inherit; letter-spacing: inherit;
+  background: var(--bt-input-bg); border: 1px solid var(--bt-focus); border-radius: calc(var(--bt-radius) - 3px); outline: none;
+  field-sizing: content; min-block-size: 1.6em;
+}
+.editable.markdown .edit-field { font-family: var(--bt-font-mono); font-size: var(--bt-size-sm); font-style: normal; line-height: 1.55; }
+.edit-hint { display: block; margin-block-start: 4px; font-family: var(--bt-font-sans); font-style: normal; font-size: var(--bt-size-xs); color: var(--bt-muted); }

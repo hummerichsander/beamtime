@@ -102,6 +102,6 @@ export function chartStyle(theme: Theme): ChartStyle {
     font: `${(theme.sizes.sm ?? 12) - 0.5}px ${theme.fonts.sans}`,
     line: Number(theme.shape.line ?? 1.5),
     dim: Number(c.dim ?? 0.2),
-    band: 0.14,
+    band: 0.2,
   };
 }

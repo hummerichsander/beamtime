@@ -46,3 +46,23 @@ test("curves align on the union of their x values", () => {
   assert.deepEqual(al.y, [[1, null, 2, 3], [null, 5, 6, null]]);
   assert.deepEqual(al.lo[0], [null, null, null, null]);
 });
+
+test("debiased EMA keeps the first value and gaps", async () => {
+  const { ema } = await import("../src/bt/curves.ts");
+  assert.deepEqual(ema([1, 2, 3], 0), [1, 2, 3]);
+  const out = ema([1, null, 1, 1], 0.9);
+  assert.equal(out[0], 1);
+  assert.equal(out[1], null);
+  assert.ok(Math.abs((out[3] as number) - 1) < 1e-9);
+  const step = ema([0, 0, 0, 10, 10, 10], 0.5) as number[];
+  assert.ok(step[3] > 0 && step[3] < 10 && step[5] > step[4]);
+});
+
+test("robust range ignores a diverging run", async () => {
+  const { robustRange } = await import("../src/bt/curves.ts");
+  const calm = Array.from({ length: 200 }, (_, i) => 1 + (i % 10) / 10);
+  const spike = [...calm.slice(0, 198), 266, 300];
+  const [lo, hi] = robustRange([spike])!;
+  assert.ok(lo < 1 && hi < 3, `${lo} ${hi}`);
+  assert.equal(robustRange([[1, 2]]), null);
+});

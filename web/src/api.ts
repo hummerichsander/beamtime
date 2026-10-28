@@ -184,3 +184,8 @@ export function connect(): void {
     if (!p) for (const e of entries.values()) if (e.stale && e.listeners.size) void load(e);
   });
 }
+
+// after a write, the answers it changes are fetched again (the live stream confirms later).
+export function invalidate(match: (call: Call) => boolean): void {
+  markStale([...entries.values()].filter((e) => match(e.call)).map((e) => e.id));
+}

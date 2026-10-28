@@ -157,6 +157,7 @@ def listing(
     types: list[str] | None,
     only_open: bool,
     full: bool,
+    only_current: bool = False,
 ) -> list[dict[str, Any]]:
     """List the notes at or below a group with their derived states, newest first.
 
@@ -164,6 +165,7 @@ def listing(
     :param types: Note types to keep, or ``None`` for all.
     :param only_open: Keep only open questions.
     :param full: Include the bodies.
+    :param only_current: Leave out notes that a newer version supersedes.
     :return: One entry per note."""
     from beamtime.format.authored import read_markdown_doc
 
@@ -195,6 +197,8 @@ def listing(
         if note_id in superseded:
             state = f"superseded by {superseded[note_id]}"
         if (types and type_ not in types) or (only_open and state != "open"):
+            continue
+        if only_current and note_id in superseded:
             continue
         entry = {
             "id": note_id,

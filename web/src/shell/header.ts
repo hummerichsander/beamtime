@@ -1,6 +1,7 @@
 // The page header, the same on every view: where you are, what was proposed, how it stands.
 
 import { html } from "htm/preact";
+import { useState } from "preact/hooks";
 
 import { useCall } from "../api.ts";
 import { describe, progressText } from "../blocks/context.ts";
@@ -8,7 +9,9 @@ import { rows } from "../blocks/common.ts";
 import { ago, duration, step, value } from "../bt/fmt.ts";
 import { groupUrl, isRunId, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
+import { Editable } from "../ui/editable.ts";
 import { IconButton, Meter } from "../ui/primitives.ts";
+import { editStatement } from "../bt/writes.ts";
 import { symbolFor } from "../ui/symbols.ts";
 import * as calls from "./calls.ts";
 
@@ -31,7 +34,14 @@ export function Header(props: { path: string; finding?: string | null }) {
 function GroupHeader({ path }: { path: string }) {
   const row = rows(useCall(calls.group(path)).data)[0] ?? null;
   const check = useCall(row?.proposal ? calls.check(path) : null).data;
-  const rationale = useCall(row?.proposal ? calls.proposal(path) : null).data?.proposal?.rationale;
+  // the rationale shows as the statement's tooltip; it is asked for on the first hover.
+  const [curious, setCurious] = useState(false);
+  const shown = useCall(row?.proposal && curious ? calls.proposal(path) : null).data;
+  const rationale = shown?.proposal?.rationale;
+  // runs recorded a frozen version; a changed statement would be a version none of them ran under.
+  const frozen = shown?.versions?.find((v: any) => v.version === shown.version)?.frozen
+    ? "Frozen: runs recorded this proposal. Supersede it with `beamtime proposal set --reason`."
+    : undefined;
   const name = path === "." ? "local" : path.split("/").pop();
   if (!row) {
     return html`<h1 class="title" tabindex="-1">${name}</h1><div class="skeleton late" style="block-size: 52px"></div>`;
@@ -40,7 +50,13 @@ function GroupHeader({ path }: { path: string }) {
   const ended = ENDED.reduce((n, k) => n + (row[k] ?? 0), 0);
   return html`
     <h1 class="title" tabindex="-1">${name} <${Sym} spec=${symbolFor("research", row.status)} word /></h1>
-    ${row.proposal ? html`<p class="statement" data-tip=${rationale}>${row.proposal}</p>` : null}
+    ${row.proposal
+      ? html`<div class="statement" onPointerEnter=${() => setCurious(true)} onFocusIn=${() => setCurious(true)}>
+          <${Editable} value=${row.proposal} label="the proposal's statement" locked=${frozen ?? undefined}
+            render=${(text: string) => html`<span data-tip=${frozen ? undefined : rationale}>${text}</span>`}
+            onSave=${(statement: string) => editStatement(path, statement)} />
+        </div>`
+      : null}
     ${row.proposal
       ? html`<div class="preds">
           ${(check?.predictions ?? []).map(
@@ -99,7 +115,7 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
 
 // the main metric's best value, and for a group which run reached it with what config.
 function Best({ path }: { path: string }) {
-  const best = useCall(calls.view(path)).data?.summary;
+  const best = useCall(calls.summary(path)).data?.summary;
   if (!best) return null;
   const config = Object.entries(best.config ?? {}).map(([k, v]) => `${k} ${value(v)}`).join(", ");
   const isRun = isRunId(path.split("/").pop() ?? "");

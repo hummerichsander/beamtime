@@ -150,6 +150,9 @@ def test_notes_states_and_links(ctx: Context, roles: dict[str, str]) -> None:
                             "supersedes": answer["version"]}, ctx)  # fmt: skip
     listed = {e["id"]: e for e in call("notes", {"from": "tokenizer", "full": True}, ctx)["entries"]}
     assert listed[answer["version"]]["state"] == f"superseded by {fix['version']}"
+    current = call("notes", {"from": "tokenizer", "current": True}, ctx)["entries"]
+    assert fix["version"] in {e["id"] for e in current}
+    assert answer["version"] not in {e["id"] for e in current}
     assert listed[question]["state"] == "resolved" and "body" in listed[question]
     card = call("card", {"run": roles["killed"]}, ctx)
     assert {n["id"] for n in card["cited_by"]} >= {answer["version"]}

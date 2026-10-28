@@ -149,6 +149,9 @@ class NotesParams(Page, kw_only=True):
     from_: Group = msgspec.field(default=".", name="from")
     types: list[str] | None = None
     open: Annotated[bool, msgspec.Meta(description="only open questions")] = False
+    current: Annotated[
+        bool, msgspec.Meta(description="leave out notes that a newer version supersedes")
+    ] = False
     full: Annotated[bool, msgspec.Meta(description="include fields and bodies")] = False
     limit: int | None = None
 

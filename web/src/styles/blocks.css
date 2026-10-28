@@ -67,7 +67,12 @@ table.runs {
   & tbody tr.selected { background: color-mix(in srgb, var(--bt-accent) 12%, transparent); }
   & td.name { max-inline-size: 420px; overflow: hidden; text-overflow: ellipsis; }
   & td.best { font-weight: 700; color: var(--bt-fg); }
-  & .swatch { display: inline-block; inline-size: 9px; block-size: 9px; border-radius: 50%; margin-inline-end: 9px; vertical-align: 0; }
+  & .swatch {
+    display: inline-block; inline-size: 11px; block-size: 11px; border-radius: 50%; margin-inline-end: 9px; vertical-align: -1px;
+    border: 1.5px solid transparent; cursor: pointer; transition: transform 120ms;
+    &:hover { transform: scale(1.3); }
+  }
+  & tr.hidden-run td { opacity: 0.45; }
 }
 .more-rows { margin: 8px 0 0; font-size: var(--bt-size-sm); color: var(--bt-muted); }
 
@@ -121,3 +126,49 @@ table.runs td.spark { padding-block: 0; line-height: 0; }
   &:hover .icon { color: var(--bt-fg); }
 }
 .collapsible .block-title { margin-block-end: 6px; }
+
+/* charts: tools appear on hover or keyboard focus; the legend toggles curves */
+.chart-head { display: flex; align-items: center; gap: 10px; min-block-size: 30px; }
+.chart-tools {
+  margin-inline-start: auto; display: inline-flex; gap: 2px; opacity: 0; transition: opacity 120ms;
+  .chart-frame:hover &, .chart-frame:focus-within &, .chart-frame.expanded & { opacity: 1; }
+}
+@media (hover: none) { .chart-tools { opacity: 1; } }
+.legend { display: flex; flex-wrap: wrap; gap: 2px 4px; margin-block-start: 6px; }
+.legend-item {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; font-size: var(--bt-size-sm);
+  color: var(--bt-fg); transition: background 100ms, opacity 100ms;
+  &:hover { background: color-mix(in srgb, var(--bt-fg) 6%, transparent); }
+  &.off { opacity: 0.45; text-decoration: line-through; }
+}
+.legend-dot { inline-size: 9px; block-size: 9px; border-radius: 50%; }
+.view-bar {
+  display: flex; flex-wrap: wrap; align-items: end; gap: 10px 22px; padding: 10px 14px; margin-block-end: 18px;
+  border-radius: var(--bt-radius); background: color-mix(in srgb, var(--bt-fg) 3%, transparent);
+  & .field { margin: 0; }
+  & > :last-child { margin-inline-start: auto; }
+}
+.field {
+  display: flex; flex-direction: column; gap: 4px; margin-block-end: 12px; font-size: var(--bt-size-sm);
+  &.inline { flex-direction: row; align-items: center; gap: 6px; }
+  & select { padding: 3px 6px; border: 1px solid var(--bt-input-border); border-radius: calc(var(--bt-radius) - 3px); background: var(--bt-input-bg); }
+  & input[type=range] { inline-size: 150px; accent-color: var(--bt-accent); }
+  & input[type=checkbox] { accent-color: var(--bt-accent); }
+}
+.field-label { color: var(--bt-muted); & b { color: var(--bt-fg); font-weight: 600; } }
+.checks { display: flex; flex-direction: column; gap: 3px; max-block-size: 180px; overflow: auto; & label { display: flex; gap: 6px; align-items: center; } }
+.chart-settings { inline-size: 280px; }
+.menu-list {
+  display: flex; flex-direction: column; min-inline-size: 180px;
+  & button { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: calc(var(--bt-radius) - 3px); text-align: start; }
+  & button:hover { background: color-mix(in srgb, var(--bt-accent) 12%, transparent); }
+}
+dialog.sheet.chart-dialog {
+  padding: 26px 32px 28px;
+  & .chart-head { margin-block-end: 12px; }
+  & .chart-title { font-family: var(--bt-font-serif); font-size: var(--bt-size-xl); font-weight: 700; }
+  & .legend { margin-block-start: 14px; }
+}
+
+.block-action { margin-inline-start: auto; font-family: var(--bt-font-sans); font-weight: 400; }
+.collapsible .block-title { display: flex; align-items: center; }

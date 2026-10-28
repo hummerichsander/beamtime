@@ -77,6 +77,36 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     page.wait_for_timeout(4500)
     assert errors == []
 
+    asked: list[dict] = []
+    page.on("request", lambda r: r.url.endswith("/api/series") and asked.append(json.loads(r.post_data)))
+    over = page.locator(".chart .u-over").first.bounding_box()
+    page.mouse.move(over["x"] + over["width"] * 0.2, over["y"] + 40)
+    page.mouse.down()
+    page.mouse.move(over["x"] + over["width"] * 0.5, over["y"] + 50, steps=6)
+    page.mouse.up()
+    page.wait_for_timeout(1000)
+    assert any(q.get("steps") for q in asked), "drag-zoom refetches the window"
+    asked.clear()
+    page.select_option(".view-bar select >> nth=1", "")
+    page.wait_for_timeout(1000)
+    assert asked and all("seeds" not in q for q in asked), "aggregation applies to every chart"
+    page.click("table.runs tbody tr:nth-child(1) .swatch")
+    assert page.locator("table.runs tbody tr.hidden-run").count() == 1
+    page.click(".notes .note >> nth=0 >> .note-toggle")
+    page.wait_for_selector(".notes .note.open .md p")
+
+    # text edits in place: a note's title saves as one new note that supersedes the old one.
+    notes_dir = project / "beamtime" / "scaling" / "lr-sweep" / "notes"
+    before = set(notes_dir.iterdir())
+    page.click(".notes .note >> nth=0 >> .note-title")
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Edited in the browser.")
+    page.keyboard.press("Enter")
+    page.wait_for_selector(".notes .note-title:has-text('Edited in the browser.')")
+    page.wait_for_timeout(500)
+    added = set(notes_dir.iterdir()) - before
+    assert len(added) == 1 and "supersedes:" in added.pop().read_text()
+
     running = roles["running"]
     page.goto(f"{base}/r/{running}")
     page.wait_for_url(re.compile(rf".*/f/local/.+/{running}$"))

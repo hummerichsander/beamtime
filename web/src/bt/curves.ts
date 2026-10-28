@@ -91,3 +91,35 @@ function runLabels(curves: any[]): string[] {
 function format(v: unknown): string {
   return typeof v === "number" ? String(Number(v.toPrecision(4))) : String(v);
 }
+
+// TensorBoard-style debiased exponential moving average; gaps stay gaps. weight 0 is no smoothing.
+export function ema(values: (number | null)[], weight: number): (number | null)[] {
+  if (weight <= 0) return values;
+  let last = 0;
+  let n = 0;
+  return values.map((v) => {
+    if (v === null || !Number.isFinite(v)) return v;
+    last = last * weight + (1 - weight) * v;
+    n += 1;
+    return last / (1 - weight ** n);
+  });
+}
+
+export function smooth(c: Curves, weight: number): Curves {
+  if (weight <= 0) return c;
+  return { ...c, curves: c.curves.map((cv) => ({ ...cv, y: ema(cv.y, weight) })) };
+}
+
+// a y range that ignores the most extreme 1 % on each side, so one diverging run doesn't
+// flatten every other curve; padded a little.
+export function robustRange(series: (number | null)[][], log = false): [number, number] | null {
+  const vals = series.flat().filter((v): v is number => v !== null && Number.isFinite(v) && (!log || v > 0));
+  if (vals.length < 10) return null;
+  vals.sort((a, b) => a - b);
+  const q = (p: number) => vals[Math.min(vals.length - 1, Math.max(0, Math.round(p * (vals.length - 1))))];
+  let [lo, hi] = [q(0.01), q(0.99)];
+  if (log) return [lo / 1.15, hi * 1.15];
+  const pad = (hi - lo) * 0.06 || Math.abs(hi) * 0.05 || 1;
+  [lo, hi] = [lo - pad, hi + pad];
+  return [lo, hi];
+}
