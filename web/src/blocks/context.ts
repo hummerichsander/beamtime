@@ -9,7 +9,7 @@ import { Icon, Sym } from "../ui/icons.ts";
 import { Markdown } from "../ui/markdown.ts";
 import { Disclosure } from "../ui/primitives.ts";
 import { symbolFor } from "../ui/symbols.ts";
-import { Notice, Panel, rows } from "./common.ts";
+import { Collapsible, Notice, Panel, rows } from "./common.ts";
 
 export function describe(pr: any): string {
   const parts: string[] = [];
@@ -65,10 +65,12 @@ export function Memory({ node }: { node: Node }) {
   const result = useData("main");
   const chain: any[] = result.data?.chain ?? [];
   const own = chain.filter((m) => m.group === result.data?.group || chain.length === 1);
-  return html`<${Panel} title=${node.props.title ?? "Memory"} result=${result} class="memory-block">
+  const stale = own.some((m) => m.notes_since);
+  return html`<${Collapsible} id=${`memory:${node.data?.main.scope ?? node.id}`} title=${node.props.title ?? "Memory"}
+      count=${stale ? "out of date" : undefined} open=${false} result=${result} class="memory-block">
     ${own.map(
       (m) => html`<div key=${m.version}>
-        <${Markdown} text=${m.body} clamp=${12} />
+        <${Markdown} text=${m.body} />
         <p class="memory-meta">${m.author} · covers notes until ${m.covers_until?.slice(0, 10)}
           ${m.notes_since ? html` · <span class="warn-text">${m.notes_since} newer note${m.notes_since > 1 ? "s" : ""}</span>` : null}</p>
       </div>`,
@@ -107,25 +109,29 @@ export function Groups({ node }: { node: Node }) {
 export function Notes({ node }: { node: Node }) {
   const result = useData("main");
   const entries: any[] = result.data?.entries ?? [];
-  return html`<${Panel} title=${node.props.title ?? "Notes"} count=${result.data ? String(entries.length) : undefined} result=${result}>
-    ${entries.map((n) => html`<${NoteItem} key=${n.id} note=${n} />`)}
+  const total = result.data?.meta?.matched ?? entries.length;
+  return html`<${Collapsible} id=${`notes:${node.data?.main.scope ?? node.id}`} title=${node.props.title ?? "Notes"}
+      count=${result.data ? String(total) : undefined} result=${result}>
+    <div class="notes">${entries.map((n) => html`<${NoteItem} key=${n.id} note=${n} />`)}</div>
+    ${total > entries.length ? html`<p class="more-rows">${entries.length} of ${total}; all in the drawer (i)</p>` : null}
   <//>`;
 }
 
-export function NoteItem(props: { note: any; clamp?: number }) {
+// one line per note: type, title, who and when; the body opens on click.
+export function NoteItem(props: { note: any; open?: boolean }) {
   const n = props.note;
   const when = n.id.slice(0, 15).replace(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6Z");
   const author = n.meta?.author;
-  return html`<article class="note">
-    <div class="note-head">
-      <${Sym} spec=${symbolFor("note", n.type)} word />
-      ${n.overall ? html`<${Sym} spec=${symbolFor("verdict", n.overall)} word />` : null}
-      ${n.state ? html`<span class="tag tone-warn">${n.state}</span>` : null}
-      <span>${author ? `${author} · ` : ""}${ago(when)}</span>
-    </div>
-    <p class="note-title">${inline(n.description)}</p>
-    ${n.body ? html`<${Markdown} text=${n.body} clamp=${props.clamp ?? 6} />` : null}
-  </article>`;
+  const head = html`<${Sym} spec=${symbolFor("note", n.type)} />
+    <span class="note-title">${inline(n.description)}</span>
+    ${n.overall ? html`<${Sym} spec=${symbolFor("verdict", n.overall)} />` : null}
+    ${n.state ? html`<span class="tag tone-warn">${n.state}</span>` : null}
+    <span class="note-meta">${author ? `${author} · ` : ""}${ago(when)}</span>`;
+  if (!n.body) return html`<div class="note"><div class="note-line">${head}</div></div>`;
+  return html`<details class="note" open=${props.open}>
+    <summary class="note-line">${head}</summary>
+    <${Markdown} text=${n.body} class="note-body" />
+  </details>`;
 }
 
 export function Output({ node }: { node: Node }) {
@@ -133,7 +139,7 @@ export function Output({ node }: { node: Node }) {
   const lines: string[] = result.data?.lines ?? [];
   const meta = result.data?.meta ?? {};
   const summary = html`<${Icon} name="terminal" size=${15} /> ${node.props.title ?? "Output"}
-    <span class="muted small">${result.data ? `last ${meta.shown ?? lines.length} of ${meta.total_lines ?? lines.length} lines` : ""}</span>`;
+    <span class="muted small">${result.data ? `${meta.total_lines ?? lines.length} lines${(meta.shown ?? 0) < (meta.total_lines ?? 0) ? `, last ${meta.shown}` : ""}` : ""}</span>`;
   return html`<${Panel} result=${result}>
     <${Disclosure} summary=${summary} open=${node.props.open}>
       <pre class="log">${lines.join("\n")}</pre>

@@ -4,7 +4,7 @@ import { html } from "htm/preact";
 import { useContext, useState } from "preact/hooks";
 
 import { hovered, useData, useRunColors, ViewCtx, type Node } from "../bt/index.ts";
-import { label, lowerIsBetter, value } from "../bt/fmt.ts";
+import { ago, label, lowerIsBetter, value } from "../bt/fmt.ts";
 import { groupUrl, navigate, route, runUrl } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Sym } from "../ui/icons.ts";
@@ -13,6 +13,7 @@ import { Panel, rows } from "./common.ts";
 
 export function Table({ node }: { node: Node }) {
   const result = useData("main");
+  const spark = useData(node.props.sparkline ? "spark" : "");
   const view = useContext(ViewCtx);
   const colors = useRunColors();
   const hover = useStore(hovered);
@@ -22,6 +23,7 @@ export function Table({ node }: { node: Node }) {
   let data = rows(answer);
   if (sort) data = [...data].sort((a, b) => compare(a[sort.field], b[sort.field]) * (sort.desc ? -1 : 1));
   const best = bestValues(data, columns);
+  const trends = sparks(spark.data);
   const selected = route.value.page === "group" ? route.value.run : null;
   const total = answer?.meta?.matched ?? data.length;
   const open = (id: string) => navigate(groupUrl(view.path, { run: id }), { replace: selected !== null });
@@ -37,6 +39,7 @@ export function Table({ node }: { node: Node }) {
                   aria-sort=${sort?.field === c ? (sort.desc ? "descending" : "ascending") : undefined}>
                 ${c === "run.status" ? "" : label(c)}${sort?.field === c ? (sort.desc ? " ↓" : " ↑") : ""}</th>`,
             )}
+            ${node.props.sparkline ? html`<th data-tip=${`${node.props.sparkline} over steps`}>trend</th>` : null}
           </tr></thead>
           <tbody onPointerLeave=${() => hovered.set(null)}>
             ${data.map((r) => {
@@ -46,6 +49,7 @@ export function Table({ node }: { node: Node }) {
               return html`<tr key=${id} class=${cls} onClick=${() => open(id)}
                   onPointerEnter=${() => hovered.set(id)}>
                 ${columns.map((c) => cell(c, r[c], id, live, colors.get(id), best.get(c) === r[c]))}
+                ${node.props.sparkline ? html`<td class="spark"><${Spark} values=${trends.get(id)} color=${colors.get(id)} /></td>` : null}
               </tr>`;
             })}
           </tbody>
@@ -61,6 +65,12 @@ function cell(column: string, v: unknown, id: string, live: boolean, color: stri
       <a href=${runUrl(id)} onClick=${(e: Event) => e.stopPropagation()}>${v ?? id}</a></td>`;
   }
   if (column === "run.status") return html`<td><${Sym} spec=${symbolFor("run", v as string)} /></td>`;
+  if (column === "run.group") {
+    return html`<td><a href=${groupUrl(String(v))} onClick=${(e: Event) => e.stopPropagation()}>${v}</a></td>`;
+  }
+  if (column === "run.created_at" || column === "run.ended_at") {
+    return html`<td class="muted" data-tip=${v ? String(v) : undefined}>${ago(v as string)}</td>`;
+  }
   const isNum = typeof v === "number";
   const changing = live && column.startsWith("metric.");
   const cls = `${isNum ? "num" : ""}${changing ? " live" : ""}${best ? " best" : ""}`;
@@ -90,4 +100,29 @@ function compare(a: unknown, b: unknown): number {
   if (b === null || b === undefined) return -1;
   if (typeof a === "number" && typeof b === "number") return a - b;
   return String(a).localeCompare(String(b));
+}
+
+function sparks(answer: { curves: any[] } | null): Map<string, (number | null)[]> {
+  const out = new Map<string, (number | null)[]>();
+  for (const c of answer?.curves ?? []) out.set(c.run, c.raw ? c.y : c.last);
+  return out;
+}
+
+// a small trend line from the preview's buckets; the last point is marked.
+export function Spark(props: { values: (number | null)[] | undefined; color?: string }) {
+  const W = 84;
+  const H = 20;
+  const v = (props.values ?? []).map((x, i) => [i, x] as const).filter((p): p is [number, number] => p[1] !== null && Number.isFinite(p[1]));
+  if (v.length < 2) return html`<svg width=${W} height=${H} aria-hidden="true"></svg>`;
+  const ys = v.map((p) => p[1]);
+  const lo = Math.min(...ys);
+  const hi = Math.max(...ys);
+  const n = (props.values ?? []).length - 1 || 1;
+  const pts = v.map(([i, y]) => [(i / n) * (W - 4) + 2, H - 3 - ((y - lo) / (hi - lo || 1)) * (H - 6)]);
+  const color = props.color ?? "var(--bt-muted)";
+  const [lx, ly] = pts[pts.length - 1];
+  return html`<svg width=${W} height=${H} viewBox=${`0 0 ${W} ${H}`} aria-hidden="true">
+    <polyline fill="none" stroke=${color} stroke-width="1.4" stroke-linejoin="round" points=${pts.map((p) => p.join(",")).join(" ")} />
+    <circle cx=${lx} cy=${ly} r="2" fill=${color} />
+  </svg>`;
 }

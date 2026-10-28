@@ -29,8 +29,10 @@ test("steps, durations and times", () => {
 
 test("labels drop prefixes", () => {
   assert.equal(label("metric.val/acc.max"), "val/acc max");
+  assert.equal(label("metric.val/acc.last"), "val/acc");
   assert.equal(label("config.lr"), "lr");
   assert.equal(label("run.status"), "status");
+  assert.equal(label("run.created_at"), "started");
 });
 
 test("metric direction from the name", async () => {

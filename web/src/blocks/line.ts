@@ -64,7 +64,7 @@ export function Line({ node }: { node: Node }) {
   const empty = curves && !curves.curves.length;
   return html`<div ref=${box} class="block chart-block">
     <div class="chart-head"><span class="chart-title">${node.props.title ?? node.props.y}</span>
-      ${log ? html`<span class="muted small">log</span>` : null}</div>
+      ${node.props.note ? html`<span class="muted small">${node.props.note}</span>` : null}</div>
     <${Panel} caption=${node.props.caption} result=${result}>
       ${empty
         ? html`<${Notice}>No run in scope logs ${node.props.y}.<//>`

@@ -38,9 +38,18 @@ export function ago(iso: string | null | undefined, now: number = Date.now()): s
   return iso.slice(0, 10);
 }
 
+const NAMES: Record<string, string> = {
+  "run.name": "run",
+  "run.created_at": "started",
+  "run.ended_at": "ended",
+  "run.group": "group",
+};
+
 export function label(field: string): string {
+  if (NAMES[field]) return NAMES[field];
   const m = /^metric\.(.+)\.(last|first|min|max|mean|count|ema_last|last_step)$/.exec(field);
-  if (m) return `${m[1]} ${m[2].replace("_", " ")}`;
+  // "last" is what a run table means by a metric; other statistics are named.
+  if (m) return m[2] === "last" ? m[1] : `${m[1]} ${m[2].replace("_", " ")}`;
   for (const prefix of ["config.", "run.", "value.", "proposal."]) {
     if (field.startsWith(prefix)) return field.slice(prefix.length);
   }

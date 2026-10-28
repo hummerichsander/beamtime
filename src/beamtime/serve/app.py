@@ -156,9 +156,10 @@ def view(ctx: Context, path: str) -> dict[str, Any]:
 
     :param ctx: The operation context.
     :param path: A group path, or a run id or path.
-    :return: ``{kind, path, run, view}`` with the run's path resolved."""
+    :return: ``{kind, path, run, view, summary}`` with the run's path resolved; ``summary``
+        names the main metric's best run for the header."""
     from beamtime.index.index import Index
-    from beamtime.views.defaults import default_view
+    from beamtime.views.defaults import default_view, summary
 
     path = path.strip("/") or "."
     name = path.rsplit("/", 1)[-1]
@@ -176,7 +177,13 @@ def view(ctx: Context, path: str) -> dict[str, Any]:
         path = found.relative_to(ctx.logdir).as_posix()
     elif not (ctx.logdir / path).is_dir() or ".." in path.split("/"):
         raise OpError(f"no group {path!r} below the log dir", code=4)
-    return {"kind": "view", "path": path, "run": run, "view": default_view(ctx, path)}
+    return {
+        "kind": "view",
+        "path": path,
+        "run": run,
+        "view": default_view(ctx, path),
+        "summary": summary(ctx, path),
+    }
 
 
 def locate(ctx: Context, run_id: str, rel: str) -> Path | None:

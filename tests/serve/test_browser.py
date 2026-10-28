@@ -68,10 +68,14 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     page.wait_for_selector(".tree-item")
     page.click("a.tree-item:has-text('scaling')")
     page.wait_for_url(f"{base}/f/local/scaling")
-    page.goto(f"{base}/f/local/scaling/lr-sweep")
-    page.wait_for_selector("text=Predictions")
+    page.wait_for_selector(".page h1:has-text('scaling')", timeout=2000)
+    page.click("a.group-row:has-text('lr-sweep')")
+    page.wait_for_selector(".page h1:has-text('lr-sweep')", timeout=2000)
     page.wait_for_selector(".chart canvas")
     assert page.locator(".preds .pred .sym.tone-good").count() >= 2
+    # a view transition that hangs reports itself only after its timeout.
+    page.wait_for_timeout(4500)
+    assert errors == []
 
     running = roles["running"]
     page.goto(f"{base}/r/{running}")

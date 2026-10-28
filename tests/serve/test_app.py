@@ -74,13 +74,23 @@ def test_view_of_groups_and_runs(api, roles: dict[str, str]) -> None:
     """The default view fits the group: proposal, curves, table; subgroups at the top."""
     sweep = api("view", path="scaling/lr-sweep").json()
     blocks = [c["block"] for c in sweep["view"]["children"]]
-    assert blocks[0] == "proposal" and {"row", "grid", "table"} <= set(blocks)
+    assert blocks[0] == "grid" and {"table", "notes"} <= set(blocks) and "proposal" not in blocks
+    walk = lambda n: [n["block"], *[b for c in n.get("children", []) for b in walk(c)]]  # noqa: E731
+    assert "stat" not in walk(sweep["view"])
     curves = next(c for c in sweep["view"]["children"] if c["block"] == "grid")
     assert all(c["data"]["main"]["method"] == "series" for c in curves["children"])
-    assert curves["children"][0]["props"]["y"] == "val/acc"
+    assert [c["props"]["y"] for c in curves["children"]] == ["val/acc", "train/loss"]
+    more = next(c for c in sweep["view"]["children"] if c["id"] == "more")
+    assert more["props"]["open"] is False and "lr" in str(more)
+    table = next(c for c in sweep["view"]["children"] if c["block"] == "table")
+    assert table["props"]["sparkline"] == "val/acc" and "spark" in table["data"]
+    assert sweep["summary"]["metric"] == "val/acc" and sweep["summary"]["config"]["lr"] == 3e-4
 
     top = api("view", path="").json()
     assert top["path"] == "." and top["view"]["children"][0]["block"] == "groups"
+    assert top["summary"] is None
+    recent = next(c for c in top["view"]["children"] if c["block"] == "table")
+    assert recent["props"]["columns"] == ["run.name", "run.status", "run.group", "run.created_at"]
 
     failed = roles["diverging"]
     run = api("view", path=failed).json()

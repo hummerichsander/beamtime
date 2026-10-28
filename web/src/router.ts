@@ -76,9 +76,11 @@ export function navigate(url: string, opts: { replace?: boolean } = {}): void {
     if (!opts.replace) requestAnimationFrame(focusPage);
     return;
   }
+  // frames are paused while the transition updates the DOM, so wait for Preact's render (a
+  // microtask) with a task, never with requestAnimationFrame, or the transition times out.
   const t = document.startViewTransition(async () => {
     swap();
-    await new Promise((r) => requestAnimationFrame(r));
+    await new Promise((r) => setTimeout(r, 0));
   });
   void t.finished.then(focusPage);
 }

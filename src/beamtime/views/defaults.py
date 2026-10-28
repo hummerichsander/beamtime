@@ -10,10 +10,13 @@ from beamtime.format.ids import is_run_id
 from beamtime.ops import call
 from beamtime.ops.context import Context
 
-MAX_LINES = 8
+ESSENTIAL = 4
 SEED_GROUPING_ABOVE = 8
 TABLE_LIMIT = 100
+RECENT = 10
+NOTES = 3
 LOWER_IS_BETTER = ("loss", "err", "ppl", "perplexity", "nll", "mse", "mae", "wer", "cer")
+EVAL_PREFIXES = ("val", "valid", "eval", "test")
 
 
 def default_view(ctx: Context, path: str) -> dict[str, Any]:
@@ -28,20 +31,20 @@ def default_view(ctx: Context, path: str) -> dict[str, Any]:
 
 
 def group_view(ctx: Context, path: str) -> dict[str, Any]:
-    """Build the default view of a group.
+    """Build the default view of a group: what it shows, concisely.
 
     :param ctx: The operation context.
     :param path: The group below the log dir.
     :return: The root node."""
     group = call("groups", {"from": path, "depth": 0}, ctx)
     row = dict(zip(group["columns"], group["rows"][0], strict=True)) if group["rows"] else {}
+    # the header states the proposal and its predictions; the body starts with the data.
     children: list[dict[str, Any]] = []
-    if row.get("proposal"):
-        children.append(proposal_block(path))
     if not row.get("runs"):
         children.append(node("note", "empty", text=EMPTY, kind="info"))
         return node("section", "root", children=children)
-    if row.get("direct", 0) < row["runs"]:
+    direct = row.get("direct", 0)
+    if direct < row["runs"]:
         children.append(
             node(
                 "groups",
@@ -51,44 +54,36 @@ def group_view(ctx: Context, path: str) -> dict[str, Any]:
             )
         )
     keys = call("keys", {"from": path}, ctx)
-    metrics = ordered_metrics(keys)
-    varying = [
-        k for k, _, values in keys["config"]["rows"] if isinstance(values, list) and len(values) > 1
-    ]
-    main = metrics[0] if metrics else None
-    children.append(stats(path, main, row["runs"]))
-    if direct := row.get("direct", 0):
+    varying = varying_config(keys)
+    main = (essential(ordered_metrics(keys)) or [None])[0]
+    if direct:
         # curves show only the group's own runs; runs in subgroups belong to their groups.
         own = direct < row["runs"]
-        if own:
-            keys = call("keys", {"from": path, "depth": 1}, ctx)
-            metrics = ordered_metrics(keys)
+        own_keys = call("keys", {"from": path, "depth": 1}, ctx) if own else keys
         many = "config.seed" in varying and direct > SEED_GROUPING_ABOVE
-        seeds = "config.seed" if many else None
-        lines = [line(path, m, seeds, own) for m in metrics[:MAX_LINES]]
-        if lines:
-            children.append(node("grid", "curves", children=lines, min_width=360))
-    select = ["run.name", "run.status", *varying, *[f"metric.{m}.last" for m in metrics[:4]]]
+        children += curves(path, ordered_metrics(own_keys), "config.seed" if many else None, own)
+    if direct:
+        select = ["run.name", "run.status", *varying, *([f"metric.{main}.last"] if main else [])]
+    else:
+        # runs from different experiments share no config or metric: say where and when instead.
+        select = ["run.name", "run.status", "run.group", "run.created_at"]
+        main = None
+    limit = TABLE_LIMIT if direct else RECENT
     children.append(
         node(
             "table",
             "runs",
-            title="Runs",
+            title="Runs" if direct else "Recent runs",
             columns=select,
+            sparkline=main,
             data={
-                "main": api(
-                    "runs",
-                    {
-                        "from": path,
-                        "select": select,
-                        "sort": ["-run.created_at"],
-                        "limit": TABLE_LIMIT,
-                    },
-                    path,
-                )
-            },  # fmt: skip
+                "main": api("runs", {"from": path, "select": select, "sort": ["-run.created_at"],
+                                     "limit": limit}, path),
+                **({"spark": api("series", {"from": path, "y": [main], "points": 48}, path)}
+                   if main else {}),
+            },
         )
-    )
+    )  # fmt: skip
     chain = call("memory show", {"group": path}, ctx)["chain"]
     if any(m["group"] == path for m in chain):
         children.append(
@@ -99,6 +94,10 @@ def group_view(ctx: Context, path: str) -> dict[str, Any]:
                 data={"main": api("memory_show", {"group": path}, path)},
             )
         )
+    notes = call("notes", {"from": path, "limit": 1}, ctx)
+    if notes["meta"]["matched"]:
+        latest = api("notes", {"from": path, "limit": NOTES, "full": True}, path)
+        children.append(node("notes", "notes", title="Notes", data={"main": latest}))
     return node("section", "root", children=children)
 
 
@@ -112,11 +111,7 @@ def run_view(ctx: Context, path: str) -> dict[str, Any]:
     keys = call("keys", {"from": run_id}, ctx)
     metrics = ordered_metrics(keys)
     status = next(iter(keys["status"]), None)
-    children = [stats(path, metrics[0] if metrics else None, 1)]
-    if metrics:
-        children.append(
-            node("grid", "curves", children=[line(path, m, None) for m in metrics], min_width=360)
-        )
+    children = curves(path, metrics, None, False)
     for key, kind, _, _ in keys["data"]["rows"]:
         params = {"from": run_id, "key": key, "step": "last"}
         match kind:
@@ -138,6 +133,75 @@ def run_view(ctx: Context, path: str) -> dict[str, Any]:
         )
     )
     return node("section", "root", children=children)
+
+
+def summary(ctx: Context, path: str) -> dict[str, Any] | None:
+    """Find the main metric and its best run, for the header's facts line.
+
+    :param ctx: The operation context.
+    :param path: A group or run path.
+    :return: ``{metric, stat, value, run, name, config}``, or ``None`` without metrics or for
+        a group without runs of its own."""
+    run_id = path.rsplit("/", 1)[-1]
+    scope = run_id if is_run_id(run_id) else path
+    if scope == path:
+        # a group whose runs all sit in subgroups mixes experiments; no single best there.
+        group = call("groups", {"from": path, "depth": 0}, ctx)
+        direct = group["columns"].index("direct")
+        if not group["rows"] or not group["rows"][0][direct]:
+            return None
+    keys = call("keys", {"from": scope}, ctx)
+    main = (essential(ordered_metrics(keys)) or [None])[0]
+    if main is None:
+        return None
+    stat = "min" if lower_is_better(main) else "max"
+    field = f"metric.{main}.{stat}"
+    varying = varying_config(keys)
+    query = {
+        "from": scope,
+        "select": ["run.name", field, *varying],
+        "where": {field: {"exists": True}},
+        "sort": [field if stat == "min" else f"-{field}"],
+        "limit": 1,
+    }
+    answer = call("runs", query, ctx)
+    if not answer["rows"]:
+        return None
+    best = dict(zip(answer["columns"], answer["rows"][0], strict=True))
+    return {
+        "metric": main,
+        "stat": stat,
+        "value": best[field],
+        "run": best["run.id"],
+        "name": best["run.name"],
+        "config": {
+            k.removeprefix("config."): best[k]
+            for k in varying
+            if k != "config.seed" and best.get(k) is not None
+        },
+    }
+
+
+def curves(path: str, metrics: list[str], seeds: str | None, own: bool) -> list[dict[str, Any]]:
+    """Make the essential charts, and the rest in a collapsed section.
+
+    :param path: The group or run path.
+    :param metrics: The metrics, ordered.
+    :param seeds: ``config.seed`` to average over seeds, or ``None``.
+    :param own: Whether to show only the runs directly in the group.
+    :return: The nodes: a grid, and a section with more."""
+    first = essential(metrics)
+    rest = [m for m in metrics if m not in first]
+    out = []
+    if first:
+        out.append(node("grid", "curves", children=[line(path, m, seeds, own) for m in first],
+                        min_width=420))  # fmt: skip
+    if rest:
+        grid = node("grid", "more-curves", children=[line(path, m, seeds, own) for m in rest],
+                    min_width=420)  # fmt: skip
+        out.append(node("section", "more", title=f"More metrics ({len(rest)})", open=False,
+                        children=[grid]))  # fmt: skip
+    return out
 
 
 EMPTY = (
@@ -173,49 +237,6 @@ def api(method: str, params: dict[str, Any], scope: str) -> dict[str, Any]:
     return {"method": method, "params": params, "scope": scope}
 
 
-def proposal_block(path: str) -> dict[str, Any]:
-    """Make the proposal block of a group.
-
-    :param path: The group.
-    :return: The node."""
-    return node(
-        "proposal",
-        "proposal",
-        data={
-            "proposal": api("proposal_show", {"group": path}, path),
-            "check": api("check", {"group": path}, path),
-        },
-    )
-
-
-def stats(path: str, main: str | None, runs: int) -> dict[str, Any]:
-    """Make the row of stat tiles: run counts and the best value of the main metric.
-
-    :param path: The group or run path.
-    :param main: The main metric, if any.
-    :param runs: How many runs are in scope.
-    :return: The row node."""
-    best = "min" if main and lower_is_better(main) else "max"
-    select = ["run.status", *([f"metric.{main}.{best}"] if main else [])]
-    source = {"main": api("runs", {"from": path, "select": select, "limit": 10_000}, path)}
-    tiles = []
-    if runs > 1:
-        tiles += [
-            node("stat", "runs", title="Runs", aggregate="count", data=source),
-            node("stat", "running", title="Running", aggregate="count",
-                 where={"run.status": "running"}, data=source),
-            node("stat", "failed", title="Failed, killed or lost", aggregate="count",
-                 where={"run.status": ["failed", "killed", "lost"]}, data=source),
-        ]  # fmt: skip
-    else:
-        tiles.append(node("stat", "status", title="Status", field="run.status",
-                          aggregate="last", data=source))  # fmt: skip
-    if main:
-        tiles.append(node("stat", "best", title=f"{best} {main}", field=f"metric.{main}.{best}",
-                          aggregate="min" if best == "min" else "max", data=source))  # fmt: skip
-    return node("row", "stats", children=tiles)
-
-
 def line(path: str, metric: str, seeds: str | None, own: bool = False) -> dict[str, Any]:
     """Make the line block of one metric.
 
@@ -230,14 +251,13 @@ def line(path: str, metric: str, seeds: str | None, own: bool = False) -> dict[s
     if seeds:
         params |= {"seeds": seeds, "band": "minmax"}
     scale = "log" if lower_is_better(metric) and "loss" in metric else "linear"
-    caption = f"{metric} over steps" + (", mean and range over seeds" if seeds else "")
-    caption += ", runs directly in this group" if own else ""
+    note = ", ".join([*(["seed mean and range"] if seeds else []), *(["own runs"] if own else [])])
     return node(
         "line",
         f"line-{slug(metric)}",
         y=metric,
         scale=scale,
-        caption=caption,
+        note=note or None,
         data={"main": api("series", params, path)},
     )
 
@@ -250,6 +270,28 @@ def ordered_metrics(keys: dict[str, Any]) -> list[str]:
     names = [r[0] for r in keys["metrics"]["rows"]]
     rank = {"val": 0, "valid": 0, "eval": 0, "test": 1, "train": 2}
     return sorted(names, key=lambda k: (rank.get(k.split("/", 1)[0], 3) if "/" in k else 4, k))
+
+
+def essential(metrics: list[str]) -> list[str]:
+    """Pick the metrics worth a chart up front: evaluation metrics, then training losses.
+
+    :param metrics: The metrics, ordered.
+    :return: At most four; schedules and diagnostics (lr, grad norms) are left for "more"."""
+    prefix = lambda m: m.split("/", 1)[0] if "/" in m else ""  # noqa: E731
+    evals = [m for m in metrics if prefix(m) in EVAL_PREFIXES]
+    losses = [m for m in metrics if prefix(m) == "train" and "loss" in m]
+    plain = [m for m in metrics if not prefix(m) and lower_is_better(m) or m in ("acc", "accuracy")]
+    picked = list(dict.fromkeys([*evals, *losses, *plain]))
+    return picked[:ESSENTIAL] or metrics[:ESSENTIAL]
+
+
+def varying_config(keys: dict[str, Any]) -> list[str]:
+    """List the config keys whose values differ between runs.
+
+    :param keys: The ``keys`` answer.
+    :return: The fields, e.g. ``config.lr``."""
+    rows = keys["config"]["rows"]
+    return [k for k, _, values in rows if isinstance(values, list) and len(values) > 1]
 
 
 def lower_is_better(metric: str) -> bool:

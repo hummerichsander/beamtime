@@ -70,7 +70,7 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       legend: { show: false },
       padding: [8, 8, 0, 0],
       scales: { x: { time: false }, y: spec.log ? { distr: 3 } : {} },
-      axes: [axis(spec.formatX), { ...axis(spec.formatY), size: 52 }],
+      axes: [{ ...axis(spec.formatX), size: 30 }, { ...axis(spec.formatY), size: 52 }],
       focus: { alpha: spec.style.dim },
       cursor: {
         sync: { key: spec.sync, setSeries: false },

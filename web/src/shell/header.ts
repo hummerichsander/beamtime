@@ -5,8 +5,8 @@ import { html } from "htm/preact";
 import { useCall } from "../api.ts";
 import { describe, progressText } from "../blocks/context.ts";
 import { rows } from "../blocks/common.ts";
-import { ago, duration, step } from "../bt/fmt.ts";
-import { groupUrl, isRunId } from "../router.ts";
+import { ago, duration, step, value } from "../bt/fmt.ts";
+import { groupUrl, isRunId, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { IconButton, Meter } from "../ui/primitives.ts";
 import { symbolFor } from "../ui/symbols.ts";
@@ -31,6 +31,7 @@ export function Header(props: { path: string; finding?: string | null }) {
 function GroupHeader({ path }: { path: string }) {
   const row = rows(useCall(calls.group(path)).data)[0] ?? null;
   const check = useCall(row?.proposal ? calls.check(path) : null).data;
+  const rationale = useCall(row?.proposal ? calls.proposal(path) : null).data?.proposal?.rationale;
   const name = path === "." ? "local" : path.split("/").pop();
   if (!row) {
     return html`<h1 class="title" tabindex="-1">${name}</h1><div class="skeleton late" style="block-size: 52px"></div>`;
@@ -39,7 +40,7 @@ function GroupHeader({ path }: { path: string }) {
   const ended = ENDED.reduce((n, k) => n + (row[k] ?? 0), 0);
   return html`
     <h1 class="title" tabindex="-1">${name} <${Sym} spec=${symbolFor("research", row.status)} word /></h1>
-    ${row.proposal ? html`<p class="statement">${row.proposal}</p>` : null}
+    ${row.proposal ? html`<p class="statement" data-tip=${rationale}>${row.proposal}</p>` : null}
     ${row.proposal
       ? html`<div class="preds">
           ${(check?.predictions ?? []).map(
@@ -63,6 +64,7 @@ function GroupHeader({ path }: { path: string }) {
             <${Icon} name="circle-x" size=${15} /><b class="tone-bad">${ended}</b> ${ended === 1 ? ENDED.find((k) => row[k]) : "ended early"}</span>`
         : null}
       ${row.notes ? html`<span class="fact"><${Icon} name="file-text" size=${15} /><b>${row.notes}</b> note${row.notes === 1 ? "" : "s"}</span>` : null}
+      <${Best} path=${path} />
     </div>`;
 }
 
@@ -75,12 +77,14 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
     <h1 class="title" tabindex="-1">${r.name ?? r.id} <${Sym} spec=${symbolFor("run", r.status)} word /></h1>
     ${r.error ? html`<p class="statement bad-text" data-tip=${r.error}>${r.error.split("\n")[0].slice(0, 160)}</p>` : null}
     <div class="facts">
-      <span class="fact"><code class="muted">${r.id}</code><${IconButton} icon="copy" label="Copy the run id" onClick=${copy} /></span>
       <span class="fact"><b>${step(r.steps)}</b> steps</span>
-      <span class="fact"><${Icon} name="clock" size=${15} /><b>${duration(r.duration_s)}</b></span>
-      <span class="fact" data-tip=${r.created_at}>started ${ago(r.created_at)}</span>
-      ${r.host ? html`<span class="fact"><${Icon} name="server" size=${15} />${r.host}</span>` : null}
-      ${r.git?.commit ? html`<span class="fact"><${Icon} name="git-commit" size=${15} />${r.git.commit}${r.git.dirty ? " (dirty)" : ""}</span>` : null}
+      <span class="fact"><b>${duration(r.duration_s)}</b></span>
+      <span class="fact" data-tip=${r.created_at}>${ago(r.created_at)}</span>
+      <${Best} path=${scope} />
+      <span class="fact">
+        <${IconButton} icon="copy" label=${`Copy the run id ${r.id}`} onClick=${copy} />
+        <span class="icon-button" tabindex="0" aria-label="Details" data-tip=${details(r)}><${Icon} name="ellipsis" size=${16} /></span>
+      </span>
     </div>
     ${(card.proposals ?? []).length
       ? html`<div class="preds" style="margin-block-start: 10px">
@@ -91,4 +95,26 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
           )}
         </div>`
       : null}`;
+}
+
+// the main metric's best value, and for a group which run reached it with what config.
+function Best({ path }: { path: string }) {
+  const best = useCall(calls.view(path)).data?.summary;
+  if (!best) return null;
+  const config = Object.entries(best.config ?? {}).map(([k, v]) => `${k} ${value(v)}`).join(", ");
+  const isRun = isRunId(path.split("/").pop() ?? "");
+  return html`<span class="fact" data-tip=${`${best.stat} of ${best.metric} over ${isRun ? "the run" : "all runs"}`}>
+    best <b>${best.metric} ${value(best.value)}</b>
+    ${isRun ? null : html`<span>· <a href=${runUrl(best.run)}>${best.name}</a>${config ? html` <em>(${config})</em>` : null}</span>`}
+  </span>`;
+}
+
+function details(r: any): string {
+  return [
+    r.id,
+    r.host && `host ${r.host}`,
+    r.git?.commit && `commit ${r.git.commit}${r.git.dirty ? " (dirty)" : ""}${r.git.branch ? ` on ${r.git.branch}` : ""}`,
+    r.scheduler?.job_id && `${r.scheduler.kind} job ${r.scheduler.job_id}`,
+    r.attempts > 1 && `${r.attempts} attempts`,
+  ].filter(Boolean).join(" · ");
 }

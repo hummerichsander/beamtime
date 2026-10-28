@@ -111,3 +111,13 @@ pre.log {
 
 /* memory */
 .memory-block { max-inline-size: var(--bt-column, 900px); & .memory-meta { margin-block-start: 8px; font-size: var(--bt-size-sm); color: var(--bt-muted); } }
+
+.section-title { color: var(--bt-muted); font-family: var(--bt-font-sans); font-size: var(--bt-size-md); font-weight: 600; &:hover { color: var(--bt-fg); } }
+table.runs td.spark { padding-block: 0; line-height: 0; }
+
+.collapse-toggle {
+  display: inline-flex; align-items: baseline; gap: 8px; font: inherit; color: inherit;
+  & .icon { align-self: center; color: var(--bt-muted); }
+  &:hover .icon { color: var(--bt-fg); }
+}
+.collapsible .block-title { margin-block-end: 6px; }
