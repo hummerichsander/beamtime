@@ -9,11 +9,11 @@
   },
   "dependencies": {
     "htm": "3.1.1",
+    "katex": "0.19.0",
+    "lucide-preact": "1.56.0",
+    "marked": "18.1.1",
     "preact": "10.29.8",
-    "vega": "6.4.0",
-    "vega-interpreter": "2.3.2",
-    "vega-lite": "6.5.0",
-    "vega-tooltip": "1.1.0"
+    "uplot": "1.6.32"
   },
   "devDependencies": {
     "esbuild": "0.28.2",

@@ -1,7 +1,7 @@
 // Bundle the frontend into the Python package: src/beamtime/serve/static.
 
 import { build } from "esbuild";
-import { copyFile, mkdir, rm } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
 
 const out = "../src/beamtime/serve/static";
 await rm(out, { recursive: true, force: true });
@@ -17,6 +17,26 @@ await build({
   entryNames: "[name]",
   chunkNames: "chunks/[name]-[hash]",
   legalComments: "none",
+  logLevel: "warning",
+});
+// KaTeX's stylesheet, loaded by the Markdown renderer when a text has math; woff2 fonts only.
+const woff2Only = {
+  name: "woff2-only",
+  setup(b) {
+    b.onLoad({ filter: /katex\.min\.css$/ }, async (args) => ({
+      contents: (await readFile(args.path, "utf8")).replace(/,url\([^)]*\.(woff|ttf)\) format\("(woff|truetype)"\)/g, ""),
+      loader: "css",
+    }));
+  },
+};
+await build({
+  entryPoints: { katex: "node_modules/katex/dist/katex.min.css" },
+  bundle: true,
+  minify: true,
+  outdir: out,
+  assetNames: "fonts/[name]-[hash]",
+  loader: { ".woff2": "file" },
+  plugins: [woff2Only],
   logLevel: "warning",
 });
 await copyFile("src/index.html", `${out}/index.html`);

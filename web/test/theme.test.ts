@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { assignColors, cssVariables, groupColors, ramp, vegaConfig } from "../src/bt/theme.ts";
+import { assignColors, chartStyle, cssVariables, groupColors, ramp } from "../src/bt/theme.ts";
 import { groupUrl, parse } from "../src/router.ts";
 
 const palette = ["#a", "#b", "#c", "#d"];
@@ -9,7 +9,7 @@ const theme = {
   name: "T", type: "light" as const,
   colors: { bg: "#ffffff", "sidebar.bg": "#eeeeee", border: "#cccccc", grid: "#dddddd", muted: "#666666" },
   data: { categorical: palette, sequential: ["#000000", "#ffffff"], diverging: [], baseline: { color: "#999999", dash: [4, 3] } },
-  fonts: { sans: "system-ui" }, sizes: { xs: 11 }, shape: { radius: 4 },
+  fonts: { sans: "system-ui" }, sizes: { xs: 11, sm: 12 }, shape: { radius: 4 },
 };
 
 test("run colors are stable and distinct within a view", () => {
@@ -32,13 +32,13 @@ test("groups: categorical in sorted order, numeric ramps when many", () => {
   assert.equal(ramp(["#000000", "#ffffff"], 0.5), "#808080");
 });
 
-test("css variables and the Vega-Lite config come from the tokens", () => {
+test("css variables and the chart style come from the tokens", () => {
   const vars = cssVariables(theme);
   assert.equal(vars["--bt-sidebar-bg"], "#eeeeee");
   assert.equal(vars["--bt-radius"], "4px");
-  const config: any = vegaConfig(theme);
-  assert.equal(config.axis.gridColor, "#dddddd");
-  assert.deepEqual(config.range.category, palette);
+  const style = chartStyle(theme);
+  assert.equal(style.grid, "#dddddd");
+  assert.equal(style.axis, "#666666");
 });
 
 test("URLs round-trip", () => {

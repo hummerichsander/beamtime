@@ -5,6 +5,7 @@ import { html } from "htm/preact";
 import { useData, type Node } from "../bt/index.ts";
 import { value } from "../bt/fmt.ts";
 import { groupUrl, runUrl, isRunId } from "../router.ts";
+import { Markdown } from "../ui/markdown.ts";
 import { Dot, Notice, Panel, rows } from "./common.ts";
 
 export function Badge(props: { prediction: any }) {
@@ -128,22 +129,6 @@ export function Output({ node }: { node: Node }) {
 
 export function NoteBlock({ node }: { node: Node }) {
   return html`<${Notice} kind=${node.props.kind ?? "info"}>${node.props.text}<//>`;
-}
-
-export function Markdown(props: { text: string }) {
-  const blocks = (props.text ?? "").trim().split(/\n{2,}/);
-  return html`<div class="md">${blocks.map((b) => {
-    const lines = b.split("\n");
-    const heading = /^(#{1,4})\s+(.*)$/.exec(lines[0]);
-    if (heading && lines.length === 1) return html`<h4>${inline(heading[2])}</h4>`;
-    if (lines.every((l) => /^\s*[-*]\s+/.test(l))) {
-      return html`<ul>${lines.map((l) => html`<li>${inline(l.replace(/^\s*[-*]\s+/, ""))}</li>`)}</ul>`;
-    }
-    if (heading) {
-      return html`<h4>${inline(heading[2])}</h4><p>${inline(lines.slice(1).join(" "))}</p>`;
-    }
-    return html`<p>${inline(lines.join(" "))}</p>`;
-  })}</div>`;
 }
 
 // [[run-id]], [[group]] and [[group#prediction]] become links; `code` stays code.

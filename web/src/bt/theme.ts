@@ -81,43 +81,25 @@ function rgb(hex: string): number[] {
   return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
 }
 
-export function vegaConfig(theme: Theme): Record<string, unknown> {
+export type ChartStyle = {
+  axis: string;
+  grid: string;
+  text: string;
+  font: string;
+  line: number;
+  dim: number;
+  band: number;
+};
+
+export function chartStyle(theme: Theme): ChartStyle {
   const c = theme.colors;
-  const font = theme.fonts.sans;
-  const axis = {
-    domainColor: c.border,
-    gridColor: c.grid,
-    tickColor: c.border,
-    labelColor: c.muted,
-    titleColor: c.muted,
-    labelFont: font,
-    titleFont: font,
-    labelFontSize: theme.sizes.xs,
-    titleFontSize: theme.sizes.xs,
-    titleFontWeight: "normal",
-  };
   return {
-    background: null,
-    font,
-    view: { stroke: null },
-    axis,
-    legend: {
-      labelColor: c.muted,
-      titleColor: c.muted,
-      labelFont: font,
-      titleFont: font,
-      labelFontSize: theme.sizes.xs,
-      titleFontSize: theme.sizes.xs,
-      titleFontWeight: "normal",
-      symbolType: "stroke",
-      labelLimit: 120,
-    },
-    line: { strokeWidth: Number(theme.shape.line ?? 1.5) },
-    point: { size: Number(theme.shape.point ?? 3) ** 2 * 4 },
-    range: {
-      category: theme.data.categorical,
-      ramp: theme.data.sequential,
-      diverging: theme.data.diverging,
-    },
+    axis: String(c.muted),
+    grid: String(c.grid),
+    text: String(c.muted),
+    font: `${(theme.sizes.sm ?? 12) - 0.5}px ${theme.fonts.sans}`,
+    line: Number(theme.shape.line ?? 1.5),
+    dim: Number(c.dim ?? 0.2),
+    band: 0.14,
   };
 }

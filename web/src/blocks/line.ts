@@ -1,119 +1,70 @@
-// `line`: metric curves over steps; new points update the chart in place, keeping zoom.
+// `line`: metric curves over steps on uPlot; new points update the chart in place, keeping zoom.
 
 import { html } from "htm/preact";
-import { useEffect, useRef } from "preact/hooks";
-import type { View } from "vega";
+import { useContext, useEffect, useRef } from "preact/hooks";
 
-import { useData, useRunColors, useTheme, useVisible, type Node } from "../bt/index.ts";
+import { useData, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { reshape, type Curves } from "../bt/curves.ts";
-import { plot, update } from "../bt/plot.ts";
-import { groupColors, vegaConfig, type Theme } from "../bt/theme.ts";
+import { step, value } from "../bt/fmt.ts";
+import { lineChart, type LineChart, type LineSpec } from "../bt/plot.ts";
+import { chartStyle, groupColors, type Theme } from "../bt/theme.ts";
 import { Notice, Panel } from "./common.ts";
 
-const HEIGHT = 200;
-// steps as 0, 500, 1.5k, 12k: SI prefixes without "0k".
-const STEPS = "abs(datum.value) >= 1000 ? format(datum.value / 1000, '~g') + 'k' : format(datum.value, '~g')";
-const LEGEND_MAX = 8;
+const HEIGHT = 220;
 
 export function Line({ node }: { node: Node }) {
   const [box, visible] = useVisible();
   const result = useData(visible ? "main" : "");
   const theme = useTheme();
   const colors = useRunColors();
+  const view = useContext(ViewCtx);
   const el = useRef<HTMLDivElement>(null);
-  const chart = useRef<{ view: View; signature: string } | null>(null);
+  const chart = useRef<LineChart | null>(null);
   const log = node.props.scale === "log";
   const curves = result.data ? reshape(result.data, { log }) : null;
 
   useEffect(() => {
-    if (!curves || !theme || !el.current || !curves.points.length) return;
-    const domain = curves.keys.map((k) => curves.labels.get(k)!);
-    const range = palette(curves, theme, colors);
-    const signature = JSON.stringify([domain, range, theme.name, theme.type, log]);
-    const data = { points: curves.points };
-    if (chart.current?.signature === signature) {
-      void update(chart.current.view, data);
-      return;
-    }
+    if (!curves || !theme || !el.current || !curves.curves.length) return;
+    const spec: LineSpec = {
+      curves: curves.curves,
+      colors: palette(curves, theme, colors),
+      style: chartStyle(theme),
+      height: HEIGHT,
+      log,
+      band: curves.aggregated || curves.curves.length === 1,
+      sync: `view:${view.path}`,
+      formatX: step,
+      formatY: (v) => value(v),
+    };
+    if (chart.current?.update(spec)) return;
     let cancelled = false;
-    chart.current?.view.finalize();
+    chart.current?.destroy();
     chart.current = null;
-    void plot(el.current, spec(node, curves, domain, range), vegaConfig(theme), data).then((view) => {
-      if (cancelled) view.finalize();
-      else chart.current = { view, signature };
+    el.current.replaceChildren();
+    void lineChart(el.current, spec).then((c) => {
+      if (cancelled) c.destroy();
+      else chart.current = c;
     });
     return () => {
       cancelled = true;
     };
   }, [result.data, theme, colors]);
 
-  useEffect(() => () => chart.current?.view.finalize(), []);
+  useEffect(() => () => chart.current?.destroy(), []);
 
-  const empty = curves && !curves.points.length;
-  return html`<div ref=${box}><${Panel} title=${node.props.title} caption=${node.props.caption} result=${result}>
+  const empty = curves && !curves.curves.length;
+  return html`<div ref=${box} class="block-line"><${Panel} title=${node.props.title ?? node.props.y} caption=${node.props.caption} result=${result}>
     ${empty
       ? html`<${Notice}>No run in scope logs ${node.props.y}.<//>`
-      : html`<div class=${`chart${result.status === "ready" ? "" : " pending"}`} ref=${el} style=${`height:${HEIGHT}px`}></div>`}
+      : html`<div class=${`chart${result.status === "ready" ? "" : " pending"}`} ref=${el} style=${`min-height:${HEIGHT}px`}></div>`}
   <//></div>`;
 }
 
 function palette(curves: Curves, theme: Theme, colors: Map<string, string>): string[] {
-  if (curves.grouped) {
-    const byLabel = groupColors(curves.keys.map((k) => curves.labels.get(k)), theme);
-    return curves.keys.map((k) => byLabel.get(JSON.stringify(curves.labels.get(k)))!);
+  if (curves.aggregated) {
+    const byLabel = groupColors(curves.curves.map((c) => c.label), theme);
+    return curves.curves.map((c) => byLabel.get(JSON.stringify(c.label))!);
   }
   const cat = theme.data.categorical;
-  return curves.keys.map((k, i) => colors.get(k.split(":")[0]) ?? cat[i % cat.length]);
-}
-
-function spec(node: Node, curves: Curves, domain: string[], range: string[]): Record<string, any> {
-  const x = { field: "x", type: "quantitative", title: node.props.x ?? "step", axis: { labelExpr: STEPS } };
-  const y = {
-    field: "y",
-    type: "quantitative",
-    title: node.props.y,
-    scale: node.props.scale === "log" ? { type: "log" } : { zero: false },
-    axis: { format: "~g" },
-  };
-  const color = {
-    field: "label",
-    type: "nominal",
-    scale: { domain, range },
-    legend: domain.length > 1 && domain.length <= LEGEND_MAX ? { title: null, orient: "right" } : null,
-  };
-  const band = curves.grouped || curves.keys.length === 1;
-  const layers: Record<string, any>[] = [];
-  if (band && curves.points.some((p) => p.lo !== null)) {
-    layers.push({
-      mark: { type: "area", opacity: 0.15, interpolate: "linear" },
-      encoding: { x, y: { field: "lo", type: "quantitative" }, y2: { field: "hi" }, color, detail: { field: "key" } },
-    });
-  }
-  layers.push({
-    mark: { type: "line", interpolate: "linear", clip: true },
-    encoding: { x, y, color, detail: { field: "key" } },
-    params: [{ name: "zoom", select: { type: "interval", encodings: ["x"] }, bind: "scales" }],
-  });
-  layers.push({
-    mark: { type: "point", opacity: 0, size: 80 },
-    encoding: {
-      x,
-      y,
-      tooltip: [
-        { field: "label", title: curves.grouped ? "aggregate" : "run" },
-        { field: "x", title: "step", format: "," },
-        { field: "y", title: node.props.y, format: ".4~g" },
-        ...(curves.grouped ? [{ field: "n", title: "runs" }] : []),
-      ],
-    },
-  });
-  return {
-    $schema: "https://vega.github.io/schema/vega-lite/v6.json",
-    width: "container",
-    height: HEIGHT - 44,
-    autosize: { type: "fit-x", contains: "padding" },
-    data: { name: "points" },
-    transform: [{ filter: "isValid(datum.y)" }],
-    layer: layers,
-  };
+  return curves.curves.map((c, i) => (c.run && colors.get(c.run)) || cat[i % cat.length]);
 }

@@ -61,7 +61,8 @@ SHELL_BUDGET = 120_000
 
 
 def test_shell_bundle_budget() -> None:
-    """The shell (entry, its static imports, CSS) stays within 120 KB compressed; Vega is lazy."""
+    """The shell (entry, its static imports, CSS) stays within 120 KB compressed; charts,
+    Markdown and KaTeX load lazily."""
     import gzip
     import re
 
@@ -72,4 +73,7 @@ def test_shell_bundle_budget() -> None:
     files = ["app.js", "app.css", *sorted(static)]
     size = sum(len(gzip.compress((STATIC / f).read_bytes(), 9)) for f in files)
     assert size <= SHELL_BUDGET, f"shell is {size / 1000:.1f} KB compressed"
-    assert any("vega" in f for f in lazy) and not any("vega" in f for f in static)
+    for lib in ("uplot", "md"):
+        assert any(lib in f for f in lazy) and not any(lib in f for f in static), lib
+    md = next(f for f in lazy if "md" in f)
+    assert re.search(r'import\("\./katex-[\w-]+\.js"\)', (STATIC / md).read_text())

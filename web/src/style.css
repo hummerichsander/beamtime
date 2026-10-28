@@ -1,3 +1,5 @@
+@import "uplot/dist/uPlot.min.css";
+
 /* Beamtime's shell. Every color is a theme token (--bt-*); fallbacks only cover the first paint. */
 
 * { box-sizing: border-box; }
@@ -216,3 +218,88 @@ details.output summary { cursor: pointer; font-weight: 600; font-size: var(--bt-
   .drawer { animation: slide 140ms ease-out; }
   @keyframes slide { from { transform: translateX(12px); opacity: 0.6; } }
 }
+
+/* icons and symbols: color comes with an icon and a word, never alone */
+.icon { flex: none; vertical-align: -0.15em; }
+.sym { display: inline-flex; align-items: center; gap: 4px; line-height: 1; }
+.sym-word { font-size: var(--bt-size-sm); }
+.tone-good, .tone-finished { color: var(--bt-good); }
+.tone-bad, .tone-failed { color: var(--bt-bad); }
+.tone-warn, .tone-killed { color: var(--bt-warn); }
+.tone-muted { color: var(--bt-muted); }
+.tone-accent, .tone-running { color: var(--bt-accent); }
+.tone-lost { color: var(--bt-lost); }
+@media (prefers-reduced-motion: no-preference) {
+  .sym.pulse .icon { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.45; } }
+}
+
+.icon-button {
+  display: inline-flex; align-items: center; justify-content: center; inline-size: 28px; block-size: 28px;
+  border-radius: var(--bt-radius); color: var(--bt-muted); transition: background 120ms, color 120ms;
+  &:hover { background: color-mix(in srgb, var(--bt-fg) 7%, transparent); color: var(--bt-fg); }
+  &[aria-pressed="true"] { color: var(--bt-accent); }
+}
+.tag {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px;
+  font-size: var(--bt-size-sm); background: color-mix(in srgb, currentColor 10%, transparent);
+}
+.meter { display: inline-block; inline-size: 72px; block-size: 5px; border-radius: 3px; background: var(--bt-border); overflow: hidden; vertical-align: middle; }
+.meter-fill { display: block; block-size: 100%; background: var(--bt-accent); }
+.disclosure > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 4px; }
+.disclosure > summary::-webkit-details-marker { display: none; }
+.disclosure-chevron { transition: rotate 120ms; }
+.disclosure[open] > summary .disclosure-chevron { rotate: 90deg; }
+
+/* the shared tooltip (ui/tip.ts) */
+.bt-hint {
+  position: fixed; inset: auto; margin: 0; max-inline-size: 280px; padding: 4px 8px;
+  border: 1px solid var(--bt-border); border-radius: calc(var(--bt-radius) - 3px);
+  background: var(--bt-tooltip-bg); color: var(--bt-fg); font-size: var(--bt-size-sm); line-height: 1.35;
+  pointer-events: auto;
+}
+
+/* anchored popover panels (ui/primitives.ts) */
+.panel-popover {
+  position: fixed; inset: auto; margin: 0; min-inline-size: 220px; padding: 10px 12px;
+  border: 1px solid var(--bt-border); border-radius: var(--bt-radius);
+  background: var(--bt-surface-raised); color: var(--bt-fg);
+}
+.popover-title { margin: 0 0 8px; color: var(--bt-fg); font-size: var(--bt-size-sm); }
+@media (prefers-reduced-motion: no-preference) {
+  .panel-popover, .bt-hint {
+    opacity: 0; translate: 0 -2px;
+    transition: opacity 0.12s, translate 0.12s, display 0.12s allow-discrete, overlay 0.12s allow-discrete;
+    &:popover-open { opacity: 1; translate: 0 0; @starting-style { opacity: 0; translate: 0 -2px; } }
+  }
+}
+
+/* the chart tooltip (bt/uplot.ts) */
+.bt-tip {
+  position: absolute; z-index: 5; pointer-events: none; min-inline-size: 160px; max-inline-size: 320px;
+  padding: 6px 8px; border: 1px solid var(--bt-border); border-radius: calc(var(--bt-radius) - 3px);
+  background: var(--bt-tooltip-bg); font-size: var(--bt-size-sm); font-variant-numeric: tabular-nums;
+}
+.bt-tip-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 6px; align-items: center; color: var(--bt-muted); }
+.bt-tip-row.strong { color: var(--bt-fg); font-weight: 600; }
+.bt-tip-dot { inline-size: 8px; block-size: 8px; border-radius: 50%; }
+.bt-tip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uplot { font-family: var(--bt-font-sans); }
+.u-select { background: color-mix(in srgb, var(--bt-accent) 12%, transparent); }
+
+/* rendered Markdown (ui/markdown.ts): notes and memory read in the serif */
+.md {
+  font-family: var(--bt-font-serif, Georgia, serif); font-size: calc(var(--bt-size-md) * 1.05); line-height: 1.6;
+  max-inline-size: 72ch; text-wrap: pretty;
+  & h1, & h2, & h3, & h4 { font-size: var(--bt-size-lg); margin: 1em 0 0.3em; text-wrap: balance; }
+  & p, & ul, & ol { margin: 0.4em 0; }
+  & code { font-family: var(--bt-font-mono); font-size: 0.85em; background: var(--bt-surface); padding: 1px 4px; border-radius: 4px; }
+  & pre { background: var(--bt-surface); padding: 8px 10px; border-radius: var(--bt-radius); overflow: auto; }
+  & pre code { background: none; padding: 0; }
+  & table { border-collapse: collapse; font-family: var(--bt-font-sans); font-size: var(--bt-size-sm); }
+  & th, & td { border-block-end: 1px solid var(--bt-border); padding: 3px 10px; text-align: start; }
+  & a { text-decoration-color: color-mix(in srgb, var(--bt-link) 40%, transparent); text-underline-offset: 3px; }
+  & .math { overflow-x: auto; }
+  &.clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--clamp); overflow: hidden; }
+}
+.more { font-size: var(--bt-size-sm); }

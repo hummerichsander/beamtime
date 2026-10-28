@@ -5,6 +5,7 @@ import { html } from "htm/preact";
 import { useCall } from "../api.ts";
 import { Dot } from "../blocks/common.ts";
 import { inline } from "../blocks/context.ts";
+import { Markdown } from "../ui/markdown.ts";
 import { ago, duration, value } from "../bt/fmt.ts";
 import { groupUrl, navigate, runUrl } from "../router.ts";
 import * as calls from "./calls.ts";
@@ -56,6 +57,7 @@ function GroupContext({ path }: { path: string }) {
     ${(notes?.entries ?? []).map((n: any) => html`<div class="note-item" key=${n.id}>
       <span class=${`chip note-${n.type}`}>${n.type}</span>${n.state ? html` <span class="muted small">${n.state}</span>` : null}
       <p>${inline(n.description)}</p>
+      ${n.body ? html`<${Markdown} text=${n.body} clamp=${6} />` : null}
       <p class="muted small">${n.group} · ${n.id.slice(0, 13).replace(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/, "$1-$2-$3 $4:$5")}</p>
     </div>`)}
     <h4>Timeline</h4>

@@ -9,7 +9,7 @@ import { type Call, type Result, useCall } from "../api.ts";
 import { groupUrl, runUrl } from "../router.ts";
 import { Store, stored, store, useStore } from "../state.ts";
 import * as fmt from "./fmt.ts";
-import { plot } from "./plot.ts";
+import { lineChart } from "./plot.ts";
 import { assignColors, cssVariables, groupColors, type Mode, type Pair, type Theme } from "./theme.ts";
 
 export type Node = {
@@ -123,7 +123,7 @@ export const bt = {
   },
   fmt,
   label: fmt.label,
-  plot,
+  chart: { line: lineChart },
   link: { run: runUrl, group: groupUrl },
   useSize,
 };

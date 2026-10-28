@@ -13,7 +13,7 @@ export const runIds = (path: string): Call => ({
   params: { from: path, select: ["run.status"], limit: 10000 },
   scope: path,
 });
-export const notes = (path: string): Call => ({ method: "notes", params: { from: path, limit: 20 }, scope: path });
+export const notes = (path: string): Call => ({ method: "notes", params: { from: path, limit: 20, full: true }, scope: path });
 export const timeline = (path: string): Call => ({ method: "timeline", params: { from: path, limit: 30 }, scope: path });
 export const status = (): Call => ({ method: "status", params: {}, scope: "." });
 export const allRuns = (): Call => ({

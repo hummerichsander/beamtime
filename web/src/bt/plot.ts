@@ -1,23 +1,16 @@
-// `bt.plot`: Vega-Lite with the theme merged in, loading Vega on first use.
+// Charts load their runtime (uPlot) on first use and stay cached afterwards.
 
-import type { View } from "vega";
+import type { LineChart, LineSpec } from "./uplot.ts";
 
-let runtime: Promise<typeof import("./vega.ts")> | null = null;
+export type { LineChart, LineSpec };
 
-export function vega(): Promise<typeof import("./vega.ts")> {
-  runtime ??= import("./vega.ts");
+let runtime: Promise<typeof import("./uplot.ts")> | null = null;
+
+export function charts(): Promise<typeof import("./uplot.ts")> {
+  runtime ??= import("./uplot.ts");
   return runtime;
 }
 
-export async function plot(
-  el: HTMLElement,
-  spec: Record<string, any>,
-  config: Record<string, unknown>,
-  data: Record<string, unknown[]>,
-): Promise<View> {
-  return (await vega()).render(el, spec, config, data);
-}
-
-export async function update(view: View, data: Record<string, unknown[]>): Promise<void> {
-  (await vega()).replace(view, data);
+export async function lineChart(el: HTMLElement, spec: LineSpec): Promise<LineChart> {
+  return (await charts()).lineChart(el, spec);
 }
