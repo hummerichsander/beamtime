@@ -1,0 +1,180 @@
+from pathlib import Path
+
+import pytest
+import yaml
+
+from beamtime.format.authored import newest, read_markdown_doc, versions
+from beamtime.ops import call
+from beamtime.ops.context import Context, OpError
+
+PROPOSAL = {
+    "statement": "Warmup removes the loss spike.",
+    "plan": {"runs": 6},
+    "predictions": [
+        {
+            "name": "no-spike",
+            "reduce": {"metric": "train/loss", "stat": "max", "steps": [100, 300]},
+            "op": "<",
+            "value": 2.5,
+        },
+        {"name": "sharper", "kind": "manual", "description": "Samples look sharper."},
+    ],
+}
+
+
+def fails(code: int, match: str, op: str, params: dict, ctx: Context) -> None:
+    """Assert that an operation fails with an exit code and a message.
+
+    :param code: The exit code.
+    :param match: A regular expression the message must match.
+    :param op: The operation.
+    :param params: Its parameters.
+    :param ctx: The operation context."""
+    with pytest.raises(OpError, match=match) as e:
+        call(op, params, ctx)
+    assert e.value.code == code
+
+
+def test_proposal_set_new_folder(ctx: Context) -> None:
+    """A proposal can be written before the first run, into a folder that is created."""
+    out = call("proposal set", {"folder": "warmup/sweep", "proposal": PROPOSAL, "author": "a"}, ctx)
+    path = ctx.logdir / out["path"]
+    saved = yaml.safe_load(path.read_text())
+    assert saved["schema"] == 1 and saved["author"] == "a" and saved["user"]
+    assert saved["predictions"][0]["name"] == "no-spike"
+    shown = call("proposal show", {"folder": "warmup/sweep"}, ctx)
+    assert shown["status"] == "proposed" and shown["versions"][0]["frozen"] is False
+    status = call("folders", {"from": "warmup"}, ctx)
+    assert ["warmup/sweep", PROPOSAL["statement"], "proposed"] == status["rows"][-1][:3]
+    again = call("proposal set", {"folder": "warmup/sweep", "proposal": PROPOSAL}, ctx)
+    assert "which no run had recorded" in again["lines"][1]
+    fails(2, "reserved", "proposal set", {"folder": "x/notes", "proposal": PROPOSAL}, ctx)
+
+
+def test_proposal_validation(ctx: Context) -> None:
+    """Invalid proposals are refused with exit code 3 and say how to fix them."""
+    bad = [
+        ({"statment": "x"}, "Did you mean 'statement'"),
+        ({"statement": "x", "plan": {"runs": 0}}, "plan is"),
+        ({"statement": "x", "predictions": [{"name": "a", "reduce": {"metric": "m"}}]}, "op is"),
+        ({"statement": "x", "predictions": [{"name": "a", "test": "trend"}]}, "v1.1"),
+        (
+            {"statement": "x", "predictions": [{"name": "a", "kind": "manual"}] * 2},
+            "unique",
+        ),
+        ({"rationale": "no statement"}, "statement is required"),
+        ("statement: [unclosed", "not valid YAML"),
+    ]
+    for proposal, match in bad:
+        fails(3, match, "proposal set", {"folder": "new", "proposal": proposal}, ctx)
+
+
+def test_frozen_versions_are_superseded(ctx: Context) -> None:
+    """A version runs recorded is frozen: a new one needs a reason."""
+    new = PROPOSAL | {"plan": {"runs": 15}}
+    fails(3, "frozen", "proposal set", {"folder": "scaling/lr-sweep", "proposal": new}, ctx)
+    before = newest(ctx.logdir / "scaling/lr-sweep/proposal").stem
+    out = call(
+        "proposal set",
+        {"folder": "scaling/lr-sweep", "proposal": new, "reason": "metric renamed"},
+        ctx,
+    )
+    saved = yaml.safe_load((ctx.logdir / out["path"]).read_text())
+    assert saved["supersedes"] == {"version": before, "reason": "metric renamed"}
+    assert not any("has logged" in line for line in out["lines"])
+    shown = call("proposal show", {"folder": "scaling/lr-sweep"}, ctx)
+    assert shown["status"] == "proposed"
+    assert [v["frozen"] for v in shown["versions"]] == [False, True]
+    old = call("check", {"folder": "scaling/lr-sweep", "version": before}, ctx)
+    assert old["result"] == "pass"
+
+
+def test_metric_warning(ctx: Context) -> None:
+    """Predictions on metrics nobody logged are saved, with a warning."""
+    typo = {"statement": "x", "predictions": [
+        {"name": "a", "reduce": {"metric": "val/accc"}, "op": ">", "value": 0.5}
+    ]}  # fmt: skip
+    out = call("proposal set", {"folder": "scaling/lr-sweep", "proposal": typo, "reason": "r"}, ctx)
+    assert any("'val/accc'" in line for line in out["lines"])
+
+
+def test_verdict_notes(ctx: Context) -> None:
+    """A verdict judges every prediction of an existing version and carries the check."""
+    sweep = "tokenizer/bpe-vs-unigram"
+    version = newest(ctx.logdir / sweep / "proposal").stem
+    base = {"folder": sweep, "type": "verdict", "description": "Unigram wins."}
+    fails(3, "--proposal", "note add", base, ctx)
+    fails(3, "missing: unigram-wins", "note add", base | {"proposal": version}, ctx)
+    fails(3, "no prediction nope", "note add", base | {
+        "proposal": version, "verdict": {"unigram-wins": "confirmed", "nope": "refuted"},
+        "overall": "confirmed"}, ctx)  # fmt: skip
+    out = call(
+        "note add",
+        base
+        | {
+            "proposal": version,
+            "verdict": {"unigram-wins": "confirmed"},
+            "overall": "confirmed",
+            "evidence": [f"{sweep}#unigram-wins"],
+            "body": "Clear gain; see [[tokenizer/bpe-vs-unigram#unigram-wins]].",
+            "author": "claude-test",
+        },
+        ctx,
+    )
+    doc = read_markdown_doc(ctx.logdir / out["path"], kind="note")
+    assert doc.meta["check"]["unigram-wins"]["result"] == "pass"
+    assert doc.meta["evidence"] == [{"prediction": f"{sweep}#unigram-wins"}]
+    assert doc.meta["author"] == "claude-test" and "Clear gain" in doc.body
+    folder = call("folders", {"from": sweep}, ctx)["rows"][0]
+    assert folder[2:6] == ["concluded", "pass", "6 of 6 grid points", "confirmed"]
+    check = call("check", {"folder": sweep}, ctx)
+    assert check["predictions"][0]["cited_by"][0]["id"] == doc.id
+
+
+def test_notes_states_and_links(ctx: Context, roles: dict[str, str]) -> None:
+    """Questions are open until resolved; superseded notes say so; runs show backlinks."""
+    open_ = call("notes", {"open": True}, ctx)["entries"]
+    assert [e["description"] for e in open_] == ["Is the gain the same for code?"]
+    question = open_[0]["id"]
+    fails(3, "no note", "note add", {"folder": ".", "type": "idea", "description": "x",
+                                     "resolves": ["20200101-000000-zzzz"]}, ctx)  # fmt: skip
+    fails(3, "one line", "note add", {"folder": ".", "type": "idea", "description": "a\nb"}, ctx)
+    fails(3, "decision", "note add", {"folder": ".", "type": "idea", "description": "x",
+                                      "completes": ["scaling"]}, ctx)  # fmt: skip
+    answer = call("note add", {"folder": "tokenizer", "type": "observation",
+                               "description": "Same gain on code.", "resolves": [question],
+                               "evidence": [roles["killed"]]}, ctx)  # fmt: skip
+    assert call("notes", {"open": True}, ctx)["entries"] == []
+    fix = call("note add", {"folder": "tokenizer", "type": "observation",
+                            "description": "Gain is smaller on code.",
+                            "supersedes": answer["version"]}, ctx)  # fmt: skip
+    listed = {e["id"]: e for e in call("notes", {"from": "tokenizer", "full": True}, ctx)["entries"]}
+    assert listed[answer["version"]]["state"] == f"superseded by {fix['version']}"
+    assert listed[question]["state"] == "resolved" and "body" in listed[question]
+    card = call("card", {"run": roles["killed"]}, ctx)
+    assert {n["id"] for n in card["cited_by"]} >= {answer["version"]}
+    assert card["proposals"][0]["check"] == "pass" and card["proposals"][0]["verdict"] == "confirmed"
+
+
+def test_memory(ctx: Context) -> None:
+    """Memory versions chain from the root down; new notes make them stale."""
+    chain = call("memory show", {"folder": "tokenizer/bpe-vs-unigram"}, ctx)["chain"]
+    assert [m["folder"] for m in chain] == ["."] and chain[0]["notes_since"] == 0
+    call("note add", {"folder": "tokenizer", "type": "idea", "description": "Try 128k."}, ctx)
+    shown = call("memory show", {"folder": "tokenizer"}, ctx)
+    assert shown["chain"][0]["notes_since"] == 1 and "1 note(s)" in shown["meta"]["hints"][0]
+    assert call("status", {}, ctx)["memory"]["notes_since"] == 1
+    body = "---\nauthor: claude-test\n---\n## Current understanding\n- Unigram wins [[x]]\n"
+    out = call("memory update", {"folder": ".", "body": body}, ctx)
+    assert out["lines"][1].startswith("covers notes until")
+    assert call("memory show", {"folder": "tokenizer"}, ctx)["chain"][0]["notes_since"] == 0
+    call("memory update", {"folder": "tokenizer", "body": "- big\n" * 2000}, ctx)
+    chain = call("memory show", {"folder": "tokenizer"}, ctx)["chain"]
+    assert [m["folder"] for m in chain] == [".", "tokenizer"]
+    assert read_markdown_doc(newest(ctx.logdir / "memory"), kind="memory").meta["author"] == (
+        "claude-test"
+    )
+    big = call("memory update", {"folder": "tokenizer", "body": "x" * 7000}, ctx)
+    assert "budget" in big["lines"][-1]
+    assert len(versions(ctx.logdir / "tokenizer" / "memory")) == 2
+    fails(3, "covers_until", "memory update", {"body": "x", "covers_until": "yesterday"}, ctx)

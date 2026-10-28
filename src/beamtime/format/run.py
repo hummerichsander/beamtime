@@ -36,6 +36,7 @@ class RunInfo:
     exit: dict[str, Any] | None = None
     attempts: list[Attempt] = field(default_factory=list)
     proposals: dict[str, str] = field(default_factory=dict)
+    proposal_hashes: dict[str, str] = field(default_factory=dict)
     job_key: str | None = None
     host: dict[str, Any] = field(default_factory=dict)
     scheduler: dict[str, Any] | None = None
@@ -72,6 +73,7 @@ def read_run_info(run_dir: Path) -> RunInfo:
                     for a in d.get("attempts") or []
                 ],
                 proposals=d.get("proposals") or {},
+                proposal_hashes=d.get("proposal_hashes") or {},
                 job_key=d.get("job_key"),
                 host=d.get("host") or {},
                 scheduler=d.get("scheduler"),

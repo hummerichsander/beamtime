@@ -9,7 +9,7 @@ from typing import Any
 import msgspec
 
 from beamtime.format import constants as c
-from beamtime.format.authored import read_markdown_doc, versions
+from beamtime.format.authored import note_links, read_markdown_doc, versions
 from beamtime.format.ids import id_time
 from beamtime.format.io import read_json, read_jsonl
 from beamtime.format.schema import SchemaError, schema_of
@@ -278,6 +278,7 @@ def read_notes(folder: Path, logdir: Path) -> list[dict[str, Any]]:
                 "type": doc.meta.get("type"),
                 "description": doc.meta.get("description"),
                 "meta": doc.meta,
+                "links": note_links(doc.meta, doc.body),
             }
         )
     return out

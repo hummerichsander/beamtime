@@ -327,6 +327,39 @@ The guide ([layer 5](05-views.md#defaults)) states these as defaults:
 - **Never overclaim**: a finding or verdict says what the check says, including `insufficient`,
   `inconclusive` and provisional results.
 
+## Implementation notes
+
+Decided while building the research record (milestone M4):
+
+- **Edits of frozen versions** are detected with `proposal_hashes` in `_run.json`
+  ([layer 1](01-storage.md#_runjson)): the SDK records the hash of every proposal file it records.
+  A version whose file no longer matches, or is gone, checks as `invalid` with the mismatch, and no
+  prediction is evaluated. A run's own proposal counts as frozen from its start.
+- **t quantiles** are computed in pure Python (Newton steps on the upper tail via the regularized
+  incomplete beta function); they match SciPy to 1e-9, also for the fractional degrees of freedom of
+  Welch's interval.
+- **Margins and direction**: the `op` gives the direction. For `>` the claim is
+  `estimate > threshold + margin`, for `<` it is `estimate < threshold - margin`; `each` compares the
+  point means with `value` (or the `ref` run's reduced value), `compare` the difference `a - b` with
+  0. Effects are reported as `mean - value` and `a - b`.
+- **`each`** reports the worst point (closest to failing) as the effect and lists every point,
+  labelled by the config keys that differ between points.
+- **`compare`** without `pair_by` uses the runs of each side as the repetitions of a Welch interval;
+  with `pair_by`, points that agree on those fields are paired, each the mean of its runs, and the
+  paired interval runs over the pairs. `compare` always takes uncertainty into account unless
+  `significance: none`.
+- **Only finished runs** enter the check; with none yet, a prediction is `pending` (and says how many
+  are running). A metric no run has logged is `pending` too.
+- **Manual predictions** take the judgement of the newest verdict on the version: `confirmed` counts
+  as `pass`, `refuted` as `fail`.
+- **Verdicts must judge every prediction** of the version they name; evidence ids must exist.
+- **A run's own proposal** is complete once the run has finished, whatever its plan; a blank one (no
+  statement, plan or predictions) leaves the run `open`.
+- **Backlinks** come from the index's links table: `card` lists the notes citing a run
+  (`cited_by`), and `check` the notes citing each prediction.
+- **Memory**: the size budget is measured in characters, 6000 (about 1.5k tokens); `covers_until`
+  defaults to the time of the newest note at or below the folder.
+
 ## Decisions
 
 - Proposals are versioned; runs record their membership in `_run.json`; a version is frozen once a run

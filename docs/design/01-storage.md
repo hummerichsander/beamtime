@@ -215,6 +215,11 @@ How views look and behave is [layer 5](05-views.md). For storage:
     "scaling": "20261020-140000-q7w3",
     "scaling/lr-sweep": "20261023-090000-z9y8"
   },
+  "proposal_hashes": {
+    ".": "9c1d4e07b2a5f318",
+    "scaling": "3e6f4cb965dfafe7",
+    "scaling/lr-sweep": "a07b33c1e8d2f940"
+  },
   "job_key": "slurm:8812300:45",
   "host": {"hostname": "gpu042", "user": "ada", "os": "Linux", "python": "3.10.14"},
   "scheduler": {"kind": "slurm", "job_id": "8812345", "array_job_id": "8812300",
@@ -230,6 +235,9 @@ How views look and behave is [layer 5](05-views.md). For storage:
   newest version of every ancestor group that has a proposal, keyed by path relative to the log dir.
   This is the run's membership in each proposal, explicit and independent of clocks or later moves
   ([the research record](09-research-record.md#versions)).
+- **`proposal_hashes`** has the same keys and the first 16 hex characters of the SHA-256 of each
+  recorded proposal file, so an edit of a frozen version is detected. Runs written before M4 lack it
+  and are simply not checked for edits.
 - **`job_key`** identifies the launch, so other ranks of the same job can find the run
   ([layer 2](02-sdk.md#distributed-training)): the scheduler's job and array ids, or
   `torchrun:<TORCHELASTIC_RUN_ID>`.

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from beamtime.format.authored import newest, read_yaml_doc
+from beamtime.format.authored import file_hash, newest, read_yaml_doc
 from beamtime.format.io import read_json
 from beamtime.format.run import (
     read_artifacts,
@@ -74,6 +74,8 @@ def test_full_run(script: Script, logdir: Path, tmp_path: Path) -> None:
     own = read_yaml_doc(newest(run / "proposal"), kind="proposal")
     assert own.meta["statement"] == "Warmup helps." and own.meta["author"]
     assert info.proposals == {".": own.id, "scaling": "20261020-140000-q7w3"}
+    group = logdir / "scaling" / "proposal" / "20261020-140000-q7w3.yaml"
+    assert info.proposal_hashes == {".": file_hash(own.path), "scaling": file_hash(group)}
     assert read_config(run) == {"lr": 3e-4, "model": {"w": 64}, "n_params": 10}
 
     rows = read_effective_metrics(run)

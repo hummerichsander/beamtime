@@ -11,6 +11,7 @@ from typing import Any, Literal
 import yaml
 
 from beamtime.format import constants as c
+from beamtime.format.authored import file_hash
 from beamtime.format.ids import new_run_id, new_version_id
 from beamtime.format.io import json_line, write_created, write_replaced
 from beamtime.format.names import random_name
@@ -48,6 +49,7 @@ class Manifest:
     scale: str
     runs: int = 0
     roles: dict[str, str] = field(default_factory=dict)
+    notes: dict[str, str] = field(default_factory=dict)
     effects: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -111,6 +113,7 @@ class Generator:
         self.rng = random.Random(seed)
         self.clock = BASE_TIME
         self.host = 0
+        self.hashes: dict[str, str] = {}
         self.manifest = Manifest(seed=seed, scale=scale.name)
 
     def run(self) -> None:
@@ -118,6 +121,7 @@ class Generator:
         self.lr_sweep()
         self.long_context()
         self.tokenizer()
+        self.record()
         self.write_md(
             self.logdir / c.MEMORY,
             {"covers_until": iso(self.clock), "author": "synth", "user": "synth"},
@@ -181,9 +185,98 @@ class Generator:
             f"The loss of [[{diverging}]] grows, then turns NaN.\n",
         )
 
+    def record(self) -> None:
+        """Write the research record after the runs: a verdict, a question with its
+        answer, and a decision that completes the plan-less long-context proposal."""
+        sweep = self.logdir / "scaling" / "lr-sweep"
+        version = (sweep / c.PROPOSAL).iterdir().__next__().stem
+        killed = self.manifest.roles["killed"]
+        self.manifest.notes["verdict"] = self.write_md(
+            sweep / c.NOTES,
+            {
+                "description": f"lr {BEST_LR:g} is best; high rates lose about 4 points.",
+                "type": "verdict",
+                "proposal": version,
+                "verdicts": {"converges": "confirmed", "mid-beats-high": "confirmed"},
+                "overall": "confirmed",
+                "check": {
+                    "converges": {
+                        "result": "pass",
+                        "effect": 0.029,
+                        "ci": [0.012, 0.045],
+                        "points": 1,
+                    },
+                    "mid-beats-high": {
+                        "result": "pass",
+                        "effect": 0.04,
+                        "ci": [0.025, 0.054],
+                        "points": 6,
+                    },
+                },  # fmt: skip
+                "evidence": [{"prediction": "scaling/lr-sweep#mid-beats-high"}],
+                "author": "synth",
+                "user": "synth",
+            },
+            "Both predictions hold; see [[scaling/lr-sweep#converges]]. The killed run "
+            f"[[{killed}]] is not counted.\n",
+        )
+        tok = self.logdir / "tokenizer" / "bpe-vs-unigram"
+        question = self.write_md(
+            tok / c.NOTES,
+            {
+                "description": "Does the unigram gain hold with a larger vocabulary?",
+                "type": "question",
+                "author": "synth",
+                "user": "synth",
+            },
+            "The sweep used one vocabulary size.\n",
+        )
+        self.manifest.notes["question"] = question
+        self.manifest.notes["open_question"] = self.write_md(
+            tok / c.NOTES,
+            {
+                "description": "Is the gain the same for code?",
+                "type": "question",
+                "author": "synth",
+                "user": "synth",
+            },
+            "",
+        )
+        self.manifest.notes["answer"] = self.write_md(
+            tok / c.NOTES,
+            {
+                "description": "A 64k vocabulary keeps the gain within noise.",
+                "type": "observation",
+                "resolves": [question],
+                "author": "synth",
+                "user": "synth",
+            },
+            f"Answers [[{question}]].\n",
+        )
+        self.manifest.notes["decision"] = self.write_md(
+            self.logdir / "scaling" / "long-context" / c.NOTES,
+            {
+                "description": "Long context is explored enough; resume support works.",
+                "type": "decision",
+                "completes": ["scaling/long-context"],
+                "author": "synth",
+                "user": "synth",
+            },
+            "",
+        )
+
     def long_context(self) -> None:
         """Write ``scaling/long-context``: a resumed, a lost and a running run."""
         folder = self.logdir / "scaling" / "long-context"
+        proposal = self.write_yaml(
+            folder / c.PROPOSAL,
+            {
+                "statement": "Resumed runs continue where they stopped.",
+                "author": "synth",
+                "user": "synth",
+            },
+        )
+        member = {"scaling/long-context": proposal}
         steps = self.scale.steps
         rows = self.curves(steps, lr=BEST_LR, final_acc=0.91)
         cut, resume = int(steps * 0.6), int(steps * 0.5)
@@ -196,15 +289,18 @@ class Generator:
         second = Attempt(resume_step=resume, rows=redo)
         spec = self.spec(folder, {"lr": BEST_LR, "context": 4096}, [first, second])
         spec.signal = "SIGUSR1"
+        spec.proposals = member
         self.manifest.roles["resumed"] = self.write_run(spec)
 
         rows = self.curves(steps, lr=BEST_LR, final_acc=0.9)[: steps // 3]
         spec = self.spec(folder, {"lr": BEST_LR, "context": 8192}, rows, "running")
         spec.heartbeat_age_s = 3600.0
+        spec.proposals = member
         self.manifest.roles["lost"] = self.write_run(spec)
 
         rows = self.curves(steps, lr=BEST_LR, final_acc=0.9)[: steps // 2]
         spec = self.spec(folder, {"lr": BEST_LR, "context": 16384}, rows, "running")
+        spec.proposals = member
         self.manifest.roles["running"] = self.write_run(spec)
 
     def tokenizer(self) -> None:
@@ -568,6 +664,7 @@ class Generator:
             "exit": {"failed": {"code": 1}, "killed": {"signal": spec.signal}}.get(spec.status),
             "attempts": attempts,
             "proposals": spec.proposals,
+            "proposal_hashes": {k: self.hashes[v] for k, v in spec.proposals.items()},
             "job_key": f"slurm:{job}",
             "host": {
                 "hostname": host,
@@ -627,6 +724,7 @@ class Generator:
         vid = new_version_id(now=self.clock, rng=self.rng)
         text = yaml.safe_dump({"schema": 1, **fields}, sort_keys=False)
         write_created(folder / f"{vid}.yaml", text.encode())
+        self.hashes[vid] = file_hash(folder / f"{vid}.yaml")
         self.clock += timedelta(minutes=3)
         return vid
 

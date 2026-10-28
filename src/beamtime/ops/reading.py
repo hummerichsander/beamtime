@@ -183,12 +183,17 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer."""
+    from beamtime.record.check import cited_by
+    from beamtime.record.proposals import Target
+
     index, run_dir = find_run(ctx, p.run)
     try:
         freshness = index.catch_up(run_dir.relative_to(ctx.logdir).as_posix(), 0.2)
+        info = read_run_info(run_dir)
+        proposals = run_proposals(index, run_dir, info.proposals)
+        cited = cited_by(Target(index=index, rel=".", run_id=None), info.id)
     finally:
         index.close()
-    info = read_run_info(run_dir)
     status = run_status(info, heartbeat=(run_dir / c.RUN).stat().st_mtime, now=time.time())
     run_card = read_card(run_dir) if (run_dir / c.CARD).exists() else None
     events = read_events(run_dir)
@@ -219,6 +224,8 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
             for k, m in (run_card.metrics if run_card else {}).items()
         },
         "values": run_card.values if run_card else {},
+        "proposals": proposals,
+        "cited_by": cited,
         "events": [
             {
                 "t": iso(e.t),
@@ -230,6 +237,44 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
         ],
         "meta": {"source": "local", "freshness": freshness.dump()},
     }
+
+
+def run_proposals(index: Index, run_dir: Path, recorded: dict[str, str]) -> list[dict[str, Any]]:
+    """Summarize the checks and verdicts of the proposal versions a run recorded.
+
+    :param index: The open index.
+    :param run_dir: The run directory.
+    :param recorded: The run's ``proposals``: folder (``.`` for its own) to version.
+    :return: Per version: folder, version, whether it is current, check and verdict."""
+    from beamtime.record.check import evaluate, newest_verdict
+    from beamtime.record.proposals import RecordError, Target, current, load
+
+    out = []
+    for key, version in recorded.items():
+        own = key == "."
+        rel = run_dir.relative_to(index.logdir).as_posix() if own else key
+        target = Target(index=index, rel=rel, run_id=run_dir.name if own else None)
+        try:
+            proposal = load(target.dir, version)
+        except RecordError as e:
+            out.append({"folder": key, "version": version, "check": "invalid", "problem": str(e)})
+            continue
+        if own and proposal.blank:
+            continue
+        check = evaluate(target, version, proposal)
+        verdict = newest_verdict(target, version)
+        out.append(
+            {
+                "folder": key,
+                "version": version,
+                "statement": proposal.statement,
+                "current": version == current(target.dir),
+                "check": check["result"],
+                "provisional": check.get("provisional"),
+                "verdict": verdict.get("overall") if verdict else None,
+            }
+        )
+    return out
 
 
 def output(ctx: Context, p: r.OutputParams) -> dict[str, Any]:
@@ -292,6 +337,7 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
             for status, heartbeat in index.store.db.execute("SELECT status, heartbeat FROM runs")
         )
         cache = index.cache
+        memory = project_memory(index) if ctx.logdir.is_dir() else None
     finally:
         index.close()
     daemon = daemon_status(cache)
@@ -306,5 +352,25 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         "daemon": daemon,
         "web_ui": f"http://localhost:{daemon['port']}" if daemon and daemon.get("port") else None,
         "remotes": sorted(ctx.settings.get("remotes") or {}),
+        "memory": memory,
         "meta": {"freshness": freshness.dump() if freshness else None},
     }
+
+
+def project_memory(index: Index) -> dict[str, Any] | None:
+    """Tell how current the project's memory is.
+
+    :param index: The open index.
+    :return: Its version and the notes added since, or ``None`` without memory."""
+    from beamtime.format.authored import newest, read_markdown_doc
+    from beamtime.record.memory import notes_since, to_time
+    from beamtime.record.proposals import Target
+
+    if (path := newest(index.logdir / c.MEMORY)) is None:
+        return None
+    try:
+        covers = to_time(read_markdown_doc(path, kind="memory").meta.get("covers_until"))
+    except (ValueError, OSError):
+        covers = None
+    target = Target(index=index, rel=".", run_id=None)
+    return {"version": path.stem, "notes_since": notes_since(target, ".", covers)}

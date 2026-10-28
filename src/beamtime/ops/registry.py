@@ -131,6 +131,100 @@ class QueryParams(Page, kw_only=True):
     ]
 
 
+Folder = Annotated[str, msgspec.Meta(description="folder below the log dir, or a run id")]
+Author = Annotated[
+    str | None,
+    msgspec.Meta(
+        description="who writes it: a person, or your model id such as claude-opus-5-5; "
+        "default: the local account"
+    ),
+]
+
+
+class NotesParams(Page, kw_only=True):
+    """Parameters of ``notes``."""
+
+    from_: Folder = msgspec.field(default=".", name="from")
+    types: list[str] | None = None
+    open: Annotated[bool, msgspec.Meta(description="only open questions")] = False
+    full: Annotated[bool, msgspec.Meta(description="include fields and bodies")] = False
+    limit: int | None = None
+
+
+class FolderParams(Params, kw_only=True):
+    """Parameters of operations on one folder's research record."""
+
+    folder: Folder = "."
+
+
+class CheckParams(FolderParams, kw_only=True):
+    """Parameters of ``check``."""
+
+    version: Annotated[str | None, msgspec.Meta(description="default: the current one")] = None
+
+
+class NoteAddParams(Params, kw_only=True):
+    """Parameters of ``note add``."""
+
+    folder: Folder
+    type: Literal["observation", "decision", "idea", "question", "verdict"]
+    description: Annotated[str, msgspec.Meta(description="one line; what listings show")]
+    body: Annotated[
+        str | None, msgspec.Meta(description="Markdown; [[run-id]], [[folder#prediction]] link")
+    ] = None
+    resolves: Annotated[list[str], msgspec.Meta(description="ids of notes it answers")] = (
+        msgspec.field(default_factory=list)
+    )
+    supersedes: Annotated[str | None, msgspec.Meta(description="id of a note it corrects")] = None
+    completes: Annotated[
+        list[str], msgspec.Meta(description="decisions: folders declared complete")
+    ] = msgspec.field(default_factory=list)
+    evidence: Annotated[
+        list[str | dict[str, Any]],
+        msgspec.Meta(
+            description="run ids, note ids, folder#prediction, folder@view-version, or "
+            "{metric, stat, run, value}"
+        ),
+    ] = msgspec.field(default_factory=list)
+    proposal: Annotated[
+        str | None, msgspec.Meta(description="verdicts: the judged proposal version")
+    ] = None
+    verdict: Annotated[
+        dict[str, str],
+        msgspec.Meta(description="verdicts: prediction -> confirmed, refuted or inconclusive"),
+    ] = msgspec.field(default_factory=dict)
+    overall: Literal["confirmed", "refuted", "inconclusive"] | None = None
+    author: Author = None
+
+
+class ProposalSetParams(Params, kw_only=True):
+    """Parameters of ``proposal set``."""
+
+    folder: Folder
+    file: Annotated[str | None, msgspec.Meta(description="a YAML file with the proposal")] = None
+    proposal: Annotated[
+        dict[str, Any] | str | None,
+        msgspec.Meta(description="the proposal as an object or YAML text, instead of file"),
+    ] = None
+    reason: Annotated[
+        str | None,
+        msgspec.Meta(description="why a frozen current version is superseded"),
+    ] = None
+    author: Author = None
+
+
+class MemoryUpdateParams(Params, kw_only=True):
+    """Parameters of ``memory update``."""
+
+    folder: Folder = "."
+    file: Annotated[str | None, msgspec.Meta(description="a Markdown file")] = None
+    body: Annotated[str | None, msgspec.Meta(description="the memory, instead of file")] = None
+    covers_until: Annotated[
+        str | None, msgspec.Meta(description="default: the time of the newest note in scope")
+    ] = None
+    author: Author = None
+
+
 class InitParams(Params, kw_only=True):
     """Parameters of ``init``."""
 
@@ -172,6 +266,7 @@ class Op:
     impl: str
     positional: tuple[str, ...] = ()
     user_only: bool = False
+    stdin: str | None = None
 
     @property
     def tool(self) -> str:
@@ -187,6 +282,7 @@ class Op:
 
 
 R = "beamtime.ops.reading"
+W = "beamtime.ops.record"
 A = "beamtime.ops.admin"
 OPS = [
     Op(
@@ -207,7 +303,7 @@ OPS = [
         params=FoldersParams,
         impl=f"{R}:folders",
         positional=("from_",),
-        summary="The folder tree with proposals and run counts by status.",
+        summary="The folder tree: research status, check, verdict and run counts.",
     ),
     Op(
         name="runs",
@@ -257,6 +353,58 @@ OPS = [
         impl=f"{R}:timeline",
         positional=("from_",),
         summary="Notes and run events in time order.",
+    ),
+    Op(
+        name="notes",
+        params=NotesParams,
+        impl=f"{W}:notes",
+        positional=("from_",),
+        summary="Notes with descriptions and states; open questions with --open.",
+    ),
+    Op(
+        name="proposal show",
+        params=FolderParams,
+        impl=f"{W}:proposal_show",
+        positional=("folder",),
+        summary="The current proposal, its earlier versions and their checks.",
+    ),
+    Op(
+        name="check",
+        params=CheckParams,
+        impl=f"{W}:check",
+        positional=("folder",),
+        summary="The predictions of a proposal version and their results, with plan progress.",
+    ),
+    Op(
+        name="memory show",
+        params=FolderParams,
+        impl=f"{W}:memory_show",
+        positional=("folder",),
+        summary="The memory of a folder and every folder above it; read before designing.",
+    ),
+    Op(
+        name="note add",
+        params=NoteAddParams,
+        impl=f"{W}:note_add",
+        positional=("folder",),
+        stdin="body",
+        summary="Add a note; verdicts get the check snapshot added automatically.",
+    ),
+    Op(
+        name="proposal set",
+        params=ProposalSetParams,
+        impl=f"{W}:proposal_set",
+        positional=("folder", "file"),
+        stdin="proposal",
+        summary="Save a new proposal version; a frozen one is superseded with a reason.",
+    ),
+    Op(
+        name="memory update",
+        params=MemoryUpdateParams,
+        impl=f"{W}:memory_update",
+        positional=("folder", "file"),
+        stdin="body",
+        summary="Save a new memory version; warns beyond the size budget.",
     ),
     Op(
         name="query",

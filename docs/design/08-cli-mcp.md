@@ -213,8 +213,19 @@ Decided while building the CLI and MCP server (milestone M3):
   errors are tool errors with the same message, so agents can correct themselves. Parameters that
   agents can't guess (`where`, `select`, `sort`, `seeds`, `y`, `x`, `steps`, `query`) carry short
   descriptions; all tool definitions together are about 2k tokens.
-- **Prompts in M3**: `review`, `debug` and `compare`, which need only reading; `view`, `proposal`,
-  `verdict`, `report` and `memory` follow with the milestones that add their tools.
+- **Prompts in M3**: `review`, `debug` and `compare`, which need only reading. M4 adds `proposal`,
+  `verdict` and `memory`; `view` and `report` follow with the milestones that add their tools.
+- **Two-word commands** (`note add`, `proposal show`, `proposal set`, `memory show`,
+  `memory update`, `mcp install`) sit under a group command; a bare group prints its help.
+- **Writes (M4).** `note add` and `memory update` read the body from stdin, `proposal set` the
+  proposal, when no file is given; MCP passes `body`, or `proposal` as an object or YAML text.
+  `--verdict prediction=verdict` and `--evidence` repeat; evidence is a run id, note id,
+  `folder#prediction`, `folder@view-version` or an object such as `{metric, stat, run, value}`, and
+  the run and note ids must exist. `--reason` fills `supersedes` with the current version. A write
+  to a missing folder creates it (not a reserved name, not inside a run), so a proposal can precede
+  the first run. `author` defaults to the local account in the CLI and to `agent` in MCP, whose
+  instructions ask for the model id. Validation errors exit with 3.
+- **`status`** reports how many notes were added since the project memory's `covers_until`.
 - **`mcp install`** registers `beamtime --root <project> mcp`, so a client that keeps one
   user-wide config (Codex) still points at the right project. Claude Code uses
   `claude mcp add --scope project`, Cursor `.cursor/mcp.json`.

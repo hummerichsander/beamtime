@@ -425,8 +425,15 @@ Decided while building the index and the queries (milestone M2):
 - **Concurrency.** Schema creation re-checks the version inside an immediate transaction, so two
   processes opening a new cache at once don't rebuild it under each other; switching to WAL retries
   while another process holds the lock.
-- **Not yet**: `proposal.*` fields resolve to `null` and refuse to filter until the research record
-  (M4); remote sources (`@name/…`) wait for M8; `importance` for v1.1.
+- **`proposal.*` fields** (M4) are computed in Python after the SQL selection, like windowed
+  statistics: on a `runs` row they describe the run's own proposal (a blank one is `open`), on a
+  `folders` row the folder's current proposal. `proposal.progress` is a fraction from 0 to 1;
+  `folders` shows the progress as text ("9 of 15 grid points") and filters on `path` and
+  `proposal.*`.
+- **Links** (M4): a `links` table (source note, kind, target) is filled at note ingest from the
+  `[[...]]` links in bodies and from `evidence`, `resolves` and `supersedes`; it gives the backlinks of
+  runs and predictions. The index schema version is 2; older caches are rebuilt.
+- **Not yet**: remote sources (`@name/…`) wait for M8; `importance` for v1.1.
 
 ## Decisions
 

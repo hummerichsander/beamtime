@@ -124,7 +124,7 @@ Not in M3, by design: the reading operations of the research record (`notes`, `p
 **Milestone A1, after about 5–7 weeks: first use.** Runs are recorded in real research; an agent can
 answer "how did last night's runs go?" through MCP.
 
-### M4: Research record (1–1.5 weeks)
+### M4: Research record (1–1.5 weeks) — done
 
 Implements [the research record](design/09-research-record.md). Can run in parallel with M5.
 
@@ -138,6 +138,10 @@ Implements [the research record](design/09-research-record.md). Can run in paral
 
 *Done when*: a proposal written before a sweep is checked automatically as the sweep runs, and an agent
 writes a verdict and updates the memory.
+
+Checked by `tests/record/test_end_to_end.py`: a proposal saved with `proposal set` before any run, a
+seeded sweep through the SDK in subprocesses, the check provisional after half the grid and final
+after all of it, a verdict with the check snapshot, and a memory update that is no longer stale.
 
 ### M5: Web UI shell (2–2.5 weeks)
 
@@ -249,11 +253,11 @@ For each milestone:
 
 ## Decisions
 
+- **t quantiles** are computed in pure Python (inverse regularized incomplete beta), tested against
+  SciPy's values (M4).
 - **License**: Apache 2.0 (`LICENSE`, and `license` in `pyproject.toml`).
 - **Cluster for testing**: a SLURM cluster; M1 and M8 are tested there.
 
 ## Still to decide
 
-- **The t quantile implementation**: pure Python as planned, or a small table for low degrees of freedom
-  plus an approximation; settled when M4 starts.
 - **Outside testers** for M9: who, and when to invite them.

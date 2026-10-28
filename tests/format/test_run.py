@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from beamtime.format.authored import file_hash
 from beamtime.format.run import (
     read_artifacts,
     read_card,
@@ -21,6 +22,7 @@ from beamtime.format.run import (
 FINISHED = "scaling/lr-sweep/20261024-101532-k3m9xq2a"
 RESUMED = "scaling/lr-sweep/20261024-111500-r3s4m5d6"
 FAILED = "scaling/lr-sweep/20261024-121500-f4a1ed00"
+HASHED = "scaling/lr-sweep/20261025-100000-h4shc0de"
 
 
 @pytest.fixture
@@ -132,3 +134,11 @@ def test_lost_is_derived(finished: Path, golden: Path) -> None:
     running = info.__class__(**{**info.__dict__, "status": "running"})
     assert run_status(running, heartbeat=now - 3600, now=now) == "lost"
     assert run_status(running, heartbeat=now - 10, now=now) == "running"
+
+
+def test_proposal_hashes(golden: Path) -> None:
+    """Runs record the hash of each proposal file; older runs have none."""
+    info = read_run_info(golden / HASHED)
+    proposal = golden / "scaling/proposal/20261021-090000-q8w4.yaml"
+    assert info.proposal_hashes == {"scaling": file_hash(proposal)}
+    assert read_run_info(golden / RESUMED).proposal_hashes == {}

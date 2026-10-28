@@ -20,6 +20,7 @@ from beamtime.index.columns import TIME_KEY, Column, open_columns
 from beamtime.index.index import Index
 from beamtime.index.store import in_scope
 from beamtime.query import models as m
+from beamtime.query.fields import PROPOSAL as PROPOSAL_FIELDS
 from beamtime.query.fields import Field, decode_cell, parse_field, sql
 from beamtime.query.models import QueryError, closest
 from beamtime.query.read import (
@@ -235,7 +236,12 @@ def prefilter(where: dict[str, Any], exprs: dict[Field, str]) -> tuple[str, list
 
 
 def select_runs(
-    ctx: Context, sel: m.Selection, extra: list[str], *, config: bool = False
+    ctx: Context,
+    sel: m.Selection,
+    extra: list[str],
+    *,
+    config: bool = False,
+    restrict: tuple[str, list[Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[Field]]:
     """Select runs in scope that match ``where``, with the values of the given fields.
 
@@ -243,22 +249,24 @@ def select_runs(
     :param sel: The selection part of the query.
     :param extra: Further fields to fetch (``select``, ``sort``, ``group``).
     :param config: Whether to fetch whole configs (``seeds`` and ``keys`` need them).
+    :param restrict: A further SQL condition and its parameters, e.g. proposal membership.
     :return: One dict per run (``_id``, ``_path``, ``_config`` and the field values),
         and the parsed fields."""
     texts = list(dict.fromkeys([*fields_of(sel.where), *extra]))
     fields = [parse_field(t) for t in texts]
-    for f in fields:
-        if f.ns == "proposal" and f.text in sel.where:
-            raise QueryError(f"{f.text!r}: proposal fields come with the research record (M4)")
     check_known(ctx, fields)
     exprs = [(f, e) for f in fields if (e := sql(f)) is not None]
     whole = "config" if config or sel.seeds else "NULL"
     cols = ", ".join(["id", "path", "status", "heartbeat", whole, *[e for _, e in exprs]])
     cond, params = scope_condition(ctx, sel.depth)
+    if restrict is not None:
+        cond, params = f"{cond} AND {restrict[0]}", [*params, *restrict[1]]
     pre, pre_params = prefilter(sel.where, dict(exprs))
     rows = ctx.index.store.db.execute(
         f"SELECT {cols} FROM runs WHERE {cond}{pre}", [*params, *pre_params]
-    )
+    ).fetchall()
+    windowed = [f for f in fields if f.window is not None]
+    proposal = [f for f in fields if f.ns == "proposal"]
     out = []
     for row in rows:
         values: dict[str, Any] = {"_id": row[0], "_path": row[1], "_config": row[4]}
@@ -267,9 +275,9 @@ def select_runs(
         for f in fields:
             if f.text == "run.status":
                 values[f.text] = derived_status(row[2], row[3], ctx.now)
-            elif f.ns == "proposal":
-                values[f.text] = None
-        windowed = [f for f in fields if f.window is not None]
+        if proposal:
+            research = run_research(ctx, row[0], row[1])
+            values |= {f.text: research[f.key] for f in proposal}
         if windowed:
             cols_ = Columns(index=ctx.index, run_id=row[0])
             for f in windowed:
@@ -285,6 +293,19 @@ def select_runs(
         if matches(sel.where, values):
             out.append(values)
     return out, fields
+
+
+def run_research(ctx: Context, run_id: str, path: str) -> dict[str, Any]:
+    """Derive the ``proposal.*`` fields of a run from its own proposal.
+
+    :param ctx: The query context.
+    :param run_id: The run id.
+    :param path: The run path relative to the log dir.
+    :return: ``status``, ``check``, ``progress`` and ``verdict``."""
+    from beamtime.record.proposals import Target
+    from beamtime.record.status import research_status
+
+    return research_status(Target(index=ctx.index, rel=path, run_id=run_id))
 
 
 def seed_groups(
@@ -894,11 +915,17 @@ def iso(t: float | None) -> str | None:
 
 
 def folders_kind(ctx: Context, q: m.Folders) -> dict[str, Any]:
-    """Answer the folder tree with proposals and run counts.
+    """Answer the folder tree with research status, check, verdict and run counts.
 
     :param ctx: The query context.
-    :param q: The query.
+    :param q: The query; ``where`` may filter on ``path`` and ``proposal.*``.
     :return: ``{columns, rows, meta}``."""
+    from beamtime.record.proposals import Target
+    from beamtime.record.status import research_status
+
+    for text in fields_of(q.where):
+        if text != "path" and parse_field(text).ns != "proposal":
+            raise QueryError(f"folders: filter on path or proposal.* fields, not {text!r}")
     db = ctx.index.store.db
     cond, params = in_scope("path", ctx.scope)
     paths = [r[0] for r in db.execute(f"SELECT path FROM folders WHERE {cond}", params)]
@@ -908,14 +935,16 @@ def folders_kind(ctx: Context, q: m.Folders) -> dict[str, Any]:
         (r[0], derived_status(r[1], r[2], ctx.now))
         for r in db.execute("SELECT folder, status, heartbeat FROM runs")
     ]
-    columns = ["path", "proposal", "status", "check", "verdict", "runs", "direct"]
+    columns = ["path", "proposal", "status", "check", "progress", "verdict", "runs", "direct"]
     columns += ["running", "finished", "failed", "killed", "lost", "view", "notes"]
     rows = []
-    import yaml
-
     for path in sorted(paths):
         depth = 0 if path in (".", "") else path.count("/") + 1
         if path in run_paths or (q.depth != "all" and depth - base > int(q.depth)):
+            continue
+        research = research_status(Target(index=ctx.index, rel=path, run_id=None))
+        values = {"path": path} | {f"proposal.{k}": research[k] for k in PROPOSAL_FIELDS}
+        if not matches(q.where, values):
             continue
         below = [
             s
@@ -923,22 +952,19 @@ def folders_kind(ctx: Context, q: m.Folders) -> dict[str, Any]:
             if path == "." or folder == path or folder.startswith(f"{path}/")
         ]
         counts = Counter(below)
-        folder_dir = ctx.index.folder_path(path)
-        statement = None
-        if (p := newest(folder_dir / c.PROPOSAL)) is not None:
-            try:
-                statement = (yaml.safe_load(p.read_text()) or {}).get("statement")
-            except (OSError, yaml.YAMLError):
-                pass
-        view = newest(folder_dir / c.VIEW)
+        view = newest(ctx.index.folder_path(path) / c.VIEW)
         notes = db.execute("SELECT count(*) FROM notes WHERE folder = ?", (path,)).fetchone()[0]
+        check = research["check"]
+        if check and research["provisional"]:
+            check += " (provisional)"
         rows.append(
             [
                 path,
-                statement,
-                None,
-                None,
-                None,
+                research["statement"],
+                research["status"],
+                check,
+                research["progress_text"],
+                research["verdict"],
                 len(below),
                 sum(1 for folder, _ in statuses if folder == path),
                 counts["running"],
@@ -954,11 +980,7 @@ def folders_kind(ctx: Context, q: m.Folders) -> dict[str, Any]:
         "kind": "folders",
         "columns": columns,
         "rows": rows,
-        "meta": meta(
-            ctx,
-            matched=len(rows),
-            research_record="status, check and verdict come with M4",
-        ),
+        "meta": meta(ctx, matched=len(rows)),
     }
 
 

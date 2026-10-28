@@ -101,7 +101,11 @@ def test_full_ingest_matches_the_files(index: Index, logdir: Path) -> None:
     check_all(index, logdir)
     db = index.store.db
     assert db.execute("SELECT count(*) FROM runs").fetchone()[0] == 26
-    assert db.execute("SELECT count(*) FROM notes").fetchone()[0] == 1
+    assert db.execute("SELECT count(*) FROM notes").fetchone()[0] == 6
+    links = {tuple(r) for r in db.execute("SELECT kind, target FROM links")}
+    assert ("prediction", "scaling/lr-sweep#converges") in links
+    roles = json.loads((logdir / "_synth.json").read_text())["roles"]
+    assert ("run", roles["diverging"]) in links
     assert db.execute("SELECT count(*) FROM events WHERE kind='requeue_requested'").fetchone()[0]
 
 

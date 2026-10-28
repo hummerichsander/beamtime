@@ -1,4 +1,4 @@
-"""The SQLite part of the index: runs, folders, events, data entries and notes."""
+"""The SQLite part of the index: runs, folders, events, data entries, notes and links."""
 
 import json
 import sqlite3
@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
@@ -60,6 +60,8 @@ CREATE TABLE notes (
     meta TEXT
 );
 CREATE INDEX notes_folder ON notes (folder);
+CREATE TABLE links (source TEXT NOT NULL, kind TEXT, target TEXT);
+CREATE INDEX links_target ON links (target);
 """
 
 
@@ -188,6 +190,10 @@ class Store:
         :param run_id: The run id."""
         for table, col in (("runs", "id"), ("events", "run_id"), ("data", "run_id")):
             self.db.execute(f"DELETE FROM {table} WHERE {col} = ?", (run_id,))
+        self.db.execute(
+            "DELETE FROM links WHERE source IN (SELECT path FROM notes WHERE run_id = ?)",
+            (run_id,),
+        )
         self.db.execute("DELETE FROM notes WHERE run_id = ?", (run_id,))
 
     def folder(self, path: str) -> sqlite3.Row | None:
@@ -218,8 +224,12 @@ class Store:
 
         :param folder: The folder (or run path) relative to the log dir.
         :param run_id: The run id for run notes, else ``None``.
-        :param notes: Rows with ``path``, ``id``, ``t``, ``type``, ``description`` and
-            ``meta``."""
+        :param notes: Rows with ``path``, ``id``, ``t``, ``type``, ``description``,
+            ``meta`` and ``links``, ``(kind, target)`` pairs."""
+        self.db.execute(
+            "DELETE FROM links WHERE source IN (SELECT path FROM notes WHERE folder = ?)",
+            (folder,),
+        )
         self.db.execute("DELETE FROM notes WHERE folder = ?", (folder,))
         for n in notes:
             self.db.execute(
@@ -234,6 +244,10 @@ class Store:
                     n["description"],
                     json.dumps(n["meta"], default=str),
                 ),
+            )
+            self.db.executemany(
+                "INSERT INTO links VALUES (?, ?, ?)",
+                [(n["path"], kind, target) for kind, target in n["links"]],
             )
 
 

@@ -5,7 +5,7 @@ from statistics import mean
 
 import pytest
 
-from beamtime.format.authored import newest, read_markdown_doc, read_yaml_doc
+from beamtime.format.authored import file_hash, newest, read_markdown_doc, read_yaml_doc, versions
 from beamtime.format.io import read_json
 from beamtime.format.run import (
     read_artifacts,
@@ -64,11 +64,14 @@ def test_authored_files_read_back(synth: tuple[Path, Manifest]) -> None:
         "converges",
         "mid-beats-high",
     }
-    note = read_markdown_doc(newest(sweep / "notes"), kind="note")
-    assert note.meta["evidence"] == [manifest.roles["diverging"]]
+    first, verdict = (read_markdown_doc(p, kind="note") for p in versions(sweep / "notes"))
+    assert first.meta["evidence"] == [manifest.roles["diverging"]]
+    assert verdict.meta["proposal"] == proposal.id and verdict.id == manifest.notes["verdict"]
     assert read_markdown_doc(newest(logdir / "memory"), kind="memory").body
     for run in iter_runs(sweep):
-        assert read_run_info(run).proposals == {"scaling/lr-sweep": proposal.id}
+        info = read_run_info(run)
+        assert info.proposals == {"scaling/lr-sweep": proposal.id}
+        assert info.proposal_hashes == {"scaling/lr-sweep": file_hash(proposal.path)}
 
 
 def test_deterministic(tmp_path: Path) -> None:

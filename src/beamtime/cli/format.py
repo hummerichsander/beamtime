@@ -213,6 +213,16 @@ def render(answer: dict[str, Any]) -> str:
             return "\n".join([*lines, tail])
         case "status":
             return render_status(answer)
+        case "check":
+            return render_check(answer)
+        case "notes":
+            lines = [note_line(e) for e in answer["entries"]]
+            lines.append(meta_line(answer, "notes", len(answer["entries"])))
+            return "\n".join(lines)
+        case "proposal":
+            return render_proposal(answer)
+        case "memory":
+            return render_memory(answer)
         case _:
             return "\n".join(answer.get("lines", [])) or str(answer)
 
@@ -285,6 +295,20 @@ def render_card(answer: dict[str, Any]) -> str:
         lines += ["", *table(cols, rows)]
     if answer["values"]:
         lines += ["", "values"] + [f"  {k} = {num(v)}" for k, v in answer["values"].items()]
+    if answer.get("proposals"):
+        lines += ["", "proposals"]
+        for prop in answer["proposals"]:
+            line = f"  {prop['folder']} {prop['version']}  check "
+            line += result_text(prop["check"], prop.get("provisional"))
+            if prop.get("verdict"):
+                line += f"  verdict {prop['verdict']}"
+            if prop.get("current") is False:
+                line += "  (superseded)"
+            lines.append(line)
+    if answer.get("cited_by"):
+        lines += ["", "cited by"] + [
+            f"  {n['id']}  {n['type']}  {n['description']}" for n in answer["cited_by"]
+        ]
     if answer["events"]:
         lines += ["", "recent events"] + [
             f"  {e['t'][:16].replace('T', ' ')}  {e['description']}" for e in answer["events"]
@@ -340,6 +364,12 @@ def render_status(answer: dict[str, Any]) -> str:
             else "not running (each call catches up itself; serve comes with M5)"
         ),
     ]
+    if memory := answer.get("memory"):
+        since = memory["notes_since"]
+        lines.append(
+            f"memory    {memory['version']}"
+            + (f"; {since} note(s) since, `beamtime memory update .`" if since else "; current")
+        )
     if answer["web_ui"]:
         lines.append(f"web UI    {answer['web_ui']}")
     if answer["remotes"]:
@@ -347,3 +377,101 @@ def render_status(answer: dict[str, Any]) -> str:
     if fresh := answer["meta"].get("freshness"):
         lines.append(fresh["text"])
     return "\n".join(lines)
+
+
+def result_text(result: str | None, provisional: bool | None = None) -> str:
+    """Write a check result, marked when the plan is not complete.
+
+    :param result: The result.
+    :param provisional: Whether it is provisional.
+    :return: E.g. ``pass (provisional)``."""
+    return f"{result or 'no predictions'}{' (provisional)' if provisional else ''}"
+
+
+def render_check(answer: dict[str, Any]) -> str:
+    """Render a check: the combined result, the plan and one line per prediction.
+
+    :param answer: The answer.
+    :return: The text."""
+    lines = [
+        f"{answer['folder']}  proposal {answer['version']}  "
+        f"{result_text(answer['result'], answer.get('provisional'))}"
+    ]
+    if answer.get("problem"):
+        lines.append(f"problem: {answer['problem']}")
+    if plan := answer.get("progress"):
+        lines.append(f"plan        {plan['text']}")
+    if answer.get("level") is not None:
+        lines.append(f"level       {answer['level']:.0%} t-intervals")
+    for p in answer.get("predictions", []):
+        line = f"  {p['name']:<20} {p['result']:<13}"
+        if p.get("effect") is not None:
+            line += f" effect {num(p['effect'])}"
+            if p.get("ci"):
+                line += f" [{num(p['ci'][0])}, {num(p['ci'][1])}]"
+            line += f" vs {p.get('op', '')} {num(p.get('threshold'))}  points {p.get('points')}"
+        elif p.get("kind") == "manual":
+            line += f" manual: {p.get('description')}"
+        lines.append(line.rstrip())
+        if p.get("detail"):
+            lines.append(f"  {'':<20} {p['detail']}")
+        for point in p.get("by_point", []) if len(p.get("by_point", [])) > 1 else []:
+            ci = f" [{num(point['ci'][0])}, {num(point['ci'][1])}]" if point.get("ci") else ""
+            lines.append(
+                f"  {'':<20}   {num(point['point']) or 'all'}: {num(point['mean'])}{ci} "
+                f"{point['result']}"
+            )
+        for note in p.get("cited_by", []):
+            lines.append(
+                f"  {'':<20} cited by {note['id']} ({note['type']}): {note['description']}"
+            )
+    return "\n".join(lines)
+
+
+def note_line(entry: dict[str, Any]) -> str:
+    """Render one note of a ``notes`` answer.
+
+    :param entry: The entry.
+    :return: The text, with the body if it was asked for."""
+    state = f" [{entry['state']}]" if entry.get("state") else ""
+    verdict = f" {entry['overall']} on {entry['proposal']}" if entry.get("overall") else ""
+    line = f"{entry['id']}  {entry['type']}{state}{verdict}  {entry['folder']}  "
+    line += entry.get("description") or ""
+    return line + (f"\n{entry['body'].strip()}\n" if entry.get("body") else "")
+
+
+def render_proposal(answer: dict[str, Any]) -> str:
+    """Render a proposal with its versions.
+
+    :param answer: The answer.
+    :return: The text."""
+    import yaml
+
+    lines = [
+        f"{answer['folder']}  {answer['status']}  version {answer['version']}"
+        + (f"  ({answer['progress']})" if answer.get("progress") else ""),
+        "",
+        yaml.safe_dump(answer["proposal"], sort_keys=False, allow_unicode=True).rstrip(),
+        "",
+        "versions",
+    ]
+    for v in answer["versions"]:
+        frozen = "frozen" if v["frozen"] else "not frozen"
+        line = f"  {v['version']}  {v['runs']} runs, {frozen}, check {v['check']}"
+        if v.get("supersedes"):
+            line += f"; supersedes {v['supersedes']}: {v['reason']}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def render_memory(answer: dict[str, Any]) -> str:
+    """Render the memory chain, root first.
+
+    :param answer: The answer.
+    :return: The text."""
+    lines = []
+    for m in answer["chain"]:
+        head = f"# memory of {m['folder']}  ({m['version']}, notes until {m.get('covers_until')})"
+        lines += [head, "", (m.get("body") or m.get("problem") or "").strip(), ""]
+    lines += answer["meta"].get("hints", [])
+    return "\n".join(lines).strip()

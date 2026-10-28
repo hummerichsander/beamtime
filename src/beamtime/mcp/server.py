@@ -17,9 +17,12 @@ from beamtime.ops.registry import BY_TOOL, Op
 INSTRUCTIONS = (
     "Beamtime records ML experiments as run folders below a log dir. Start in an "
     "unfamiliar folder with `keys`; check `status` before working with live runs. "
-    "Answers are cut at about 8k tokens; pass `cursor` from `meta.next` for more. "
-    "User-only commands (serve, init, mv, rm, gc, settings, doctor, reindex) are not "
-    "tools: give the user the command."
+    "Before designing an experiment read `memory_show`; before a launch write the "
+    "proposal with `proposal_set`; judge results with `check` and a verdict note "
+    "(`note_add`), never claiming more than the check says. Writes are additive and pass "
+    "`author` (your model id). Answers are cut at about 8k tokens; pass `cursor` from "
+    "`meta.next` for more. User-only commands (serve, init, mv, rm, gc, settings, doctor, "
+    "reindex) are not tools: give the user the command."
 )
 
 
@@ -94,6 +97,62 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
             better, by how much, and how sure that is given the number of runs."""
         ),
     ),
+    "proposal": (
+        "Write a proposal with a plan and checkable predictions before a launch.",
+        [
+            ("folder", "the folder the runs will go into", True),
+            ("idea", "what the experiment is meant to show", False),
+        ],
+        text(
+            """Write the Beamtime proposal for folder {folder} before any run starts, so
+            every run records it. Idea: {idea}. First read `memory_show` {folder} and the
+            open questions (`notes`, open) it points to, and `keys` of related folders for
+            the exact metric and config names. The proposal has a one-sentence
+            `statement`, a `rationale`, an optional `confidence` (0 to 1, your belief
+            before any data), a `plan` (`{{runs: N}}` or `{{grid: {{config.lr: [...],
+            config.seed: [0, 1, 2]}}}}`), and named `predictions`. An automatic prediction
+            has `reduce: {{metric, stat: last|first|min|max|mean, steps: [a, b]}}`,
+            optional `where`, `seeds: config.seed` for repetitions, and either `test: each`
+            with `op` and `value` (or `ref: {{run: <id>}}`) or `test: compare` with `a`,
+            `b`, `op`, `margin` and optional `pair_by`. Plan at least three seeds per point:
+            the check uses t-intervals and gives `insufficient` with fewer than two. Use
+            `kind: manual` with a `description` for claims a number can't decide. Save it
+            with `proposal_set` (folder, proposal, author) and show the user the launch
+            command; you don't launch runs yourself unless asked."""
+        ),
+    ),
+    "verdict": (
+        "Judge a proposal against its check and write a verdict note.",
+        [("folder", "the folder whose proposal is judged", True)],
+        text(
+            """Write the verdict on the Beamtime proposal of {folder}. Read `proposal_show`
+            and `check` {folder}: each prediction's result, effect, interval and points, and
+            whether the result is provisional (plan not complete). Look at the evidence:
+            `runs` with the predicted metrics, `series` of the key curves, and `card` plus
+            `output` of failed runs. Judge every prediction as confirmed, refuted or
+            inconclusive. Follow the check unless you have a reason not to, and if you
+            disagree, say why in the body. Never claim more than the check supports:
+            `insufficient`, `inconclusive` and provisional results stay that way. Write
+            the note with `note_add` (type verdict, proposal = the version, verdict per
+            prediction, overall, a one-line description, evidence with run ids and
+            folder#prediction links, author); the check snapshot is added automatically.
+            Then update the memory (the `memory` prompt)."""
+        ),
+    ),
+    "memory": (
+        "Update and compact a folder's memory from the notes since its last update.",
+        [("folder", "the folder; . for the project", False)],
+        text(
+            """Update the Beamtime memory of {folder}. Read `memory_show` {folder} (the
+            current memory and how many notes came since) and `notes` {folder} with full
+            bodies for the new ones. Rewrite the memory, don't append: keep the sections
+            Current understanding, Decisions and conventions, Dead ends, Open questions and
+            Active; fold concluded experiments into one line each; drop what no longer
+            matters. Every line ends with a link to its evidence, like
+            [[20261025-170200-m4p7]] or [[scaling/warmup#warmup-helps]]. Stay under about
+            1.5k tokens. Save it with `memory_update` (folder, body, author)."""
+        ),
+    ),
 }
 
 
@@ -148,6 +207,7 @@ def build(root: str | Path | None = None) -> Server:
         values = {
             "folder": given.get("folder") or ".",
             "since": given.get("since") or "the last day",
+            "idea": given.get("idea") or "ask the user if it is unclear",
             **{k: v for k, v in given.items() if v},
         }
         text = template.format_map(values)

@@ -19,7 +19,7 @@ from typing import Any, Literal
 import yaml
 
 from beamtime.format import constants as c
-from beamtime.format.authored import newest
+from beamtime.format.authored import file_hash, newest
 from beamtime.format.ids import new_run_id, new_version_id
 from beamtime.format.io import json_line, read_json, write_created, write_replaced
 from beamtime.format.names import random_name
@@ -857,20 +857,21 @@ def find_by_job_key(folder: Path, job_key: str) -> Path | None:
     return max(found, default=None, key=lambda d: d.name)
 
 
-def proposals_of(logdir: Path, folder: Path, own: str) -> dict[str, str]:
+def proposals_of(logdir: Path, run_dir: Path, own: str) -> tuple[dict[str, str], dict[str, str]]:
     """Record the newest proposal version of every ancestor group and the run's own.
 
     :param logdir: The log dir.
-    :param folder: The folder the run is created in.
+    :param run_dir: The new run's directory, holding its own proposal.
     :param own: The version id of the run's own proposal.
-    :return: Path relative to the log dir (``.`` for the run) to version id."""
-    out = {".": own}
-    parts = folder.relative_to(logdir).parts
+    :return: Path relative to the log dir (``.`` for the run) to version id, and the
+        same keys to the hash of each recorded file."""
+    files = {".": run_dir / c.PROPOSAL / f"{own}.yaml"}
+    parts = run_dir.parent.relative_to(logdir).parts
     for i in range(1, len(parts) + 1):
         rel = "/".join(parts[:i])
         if (path := newest(logdir / rel / c.PROPOSAL)) is not None:
-            out[rel] = path.stem
-    return out
+            files[rel] = path
+    return {k: p.stem for k, p in files.items()}, {k: file_hash(p) for k, p in files.items()}
 
 
 def init(
@@ -957,6 +958,7 @@ def new_run(
         run_dir / c.PROPOSAL / f"{own}.yaml",
         yaml.safe_dump(jsonable(doc), sort_keys=False).encode(),
     )
+    proposals, hashes = proposals_of(location.logdir, run_dir, own)
     host = env.host_info()
     git, diff = env.git_info(Path.cwd())
     environ = dict(os.environ)
@@ -970,7 +972,8 @@ def new_run(
         "ended_at": None,
         "exit": None,
         "attempts": [{"started_at": iso(now), "host": host["hostname"], "resume_step": None}],
-        "proposals": proposals_of(location.logdir, location.folder, own),
+        "proposals": proposals,
+        "proposal_hashes": hashes,
         "job_key": env.job_key(environ),
         "host": host,
     }

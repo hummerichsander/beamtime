@@ -249,6 +249,28 @@ def test_folders(ask) -> None:
     assert {r[0] for r in shallow["rows"]} == {".", "scaling", "tokenizer"}
 
 
+def test_research_fields(ask) -> None:
+    """Folders carry their research status; proposal.* fields filter folders and runs."""
+    rows = {r["path"]: r for r in table(ask({"folders": {"from": "."}}))}
+    assert rows["tokenizer/bpe-vs-unigram"]["status"] == "evaluable"
+    assert rows["tokenizer/bpe-vs-unigram"]["check"] == "pass"
+    assert rows["tokenizer/bpe-vs-unigram"]["progress"] == "6 of 6 grid points"
+    assert rows["scaling"]["status"] == "open" and rows["scaling"]["check"] is None
+    done = ask({"folders": {"where": {"proposal.status": {"in": ["evaluable", "concluded"]}}}})
+    assert {r[0] for r in done["rows"]} == {
+        "scaling/lr-sweep",
+        "scaling/long-context",
+        "tokenizer/bpe-vs-unigram",
+    }
+    assert rows["scaling/lr-sweep"]["status"] == "concluded"
+    assert rows["scaling/lr-sweep"]["verdict"] == "confirmed"
+    # no plan: complete once a decision note says so; nothing to check.
+    assert rows["scaling/long-context"]["status"] == "evaluable"
+    runs = ask({"runs": {"from": "tokenizer", "select": ["proposal.status", "proposal.check"]}})
+    # runs started without a proposal of their own have a blank one.
+    assert {tuple(r[1:]) for r in runs["rows"]} == {("open", None)}
+
+
 def test_file(ask) -> None:
     """View data files come back as tables."""
     a = ask({"file": {"path": "data/3f9a21c0-fit.csv", "view": "scaling"}})
@@ -267,7 +289,8 @@ def test_file(ask) -> None:
         ({"runs": {"select": ["config.lrr"]}}, "not_found", "'lr'"),
         ({"data": {"from": ".", "key": "sample"}}, "not_found", "'samples'"),
         ({"runs": {"from": "@cluster/x"}}, "invalid", "M8"),
-        ({"runs": {"where": {"proposal.check": "pass"}}}, "invalid", "M4"),
+        ({"runs": {"where": {"proposal.chek": "pass"}}}, "invalid", "proposal.check"),
+        ({"folders": {"where": {"config.lr": 1}}}, "invalid", "proposal.*"),
         ({"importance": {"target": "metric.val/acc.max"}}, "invalid", "v1.1"),
         ({"runs": {"from": "../.."}}, "invalid", "leaves the log dir"),
         ({"runs": {"where": {"config.lr": {"less": 1}}}}, "invalid", "operators"),

@@ -177,8 +177,8 @@ and say why.
 
 # Project specifics
 
-**Status: implementation.** M0 (foundations), M1 (SDK), M2 (index and queries) and M3 (CLI and
-MCP) are done; milestones follow `docs/implementation-plan.md`.
+**Status: implementation.** M0 (foundations), M1 (SDK), M2 (index and queries), M3 (CLI and
+MCP) and M4 (research record) are done; milestones follow `docs/implementation-plan.md`.
 Each milestone implements the design sections it names; a deviation is decided and written back into
 the design before the code lands.
 
@@ -248,6 +248,9 @@ sync.
 - `src/beamtime/index/`: the cache (SQLite + column files), ingest, discovery, locks, the daemon loop
 - `src/beamtime/query/`: the query language; `beamtime.query.run(query, logdir=...)` answers any kind;
   `read.py` is the one read path every number goes through
+- `src/beamtime/record/`: the research record: proposal models and membership (`Target`), the check
+  (`check.py`), t-intervals in pure Python (`stats.py`), plans, notes, folder status and memory;
+  tests in `tests/record/`, the done criterion in `test_end_to_end.py`
 - `src/beamtime/ops/`: the operation set; `registry.py` lists every operation (CLI path, msgspec
   params, summary, user-only flag) and is the single source for CLI flags and MCP tools
 - `src/beamtime/cli/` (argparse, condition strings, text format) and `src/beamtime/mcp/` (stdio

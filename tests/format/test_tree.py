@@ -19,6 +19,7 @@ def test_iter_runs_skips_reserved(golden: Path) -> None:
         "20261024-101532-k3m9xq2a",
         "20261024-111500-r3s4m5d6",
         "20261024-121500-f4a1ed00",
+        "20261025-100000-h4shc0de",
     ]
 
 

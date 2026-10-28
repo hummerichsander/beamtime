@@ -1,0 +1,30 @@
+{
+ "schema": 1,
+ "id": "20261025-100000-h4shc0de",
+ "name": "forward-gluon-3",
+ "tags": [],
+ "status": "finished",
+ "created_at": "2026-10-25T10:00:00.000Z",
+ "ended_at": "2026-10-25T10:05:00.000Z",
+ "exit": null,
+ "attempts": [
+  {
+   "started_at": "2026-10-25T10:00:00.000Z",
+   "host": "gpu007",
+   "resume_step": null
+  }
+ ],
+ "proposals": {
+  "scaling": "20261021-090000-q8w4"
+ },
+ "proposal_hashes": {
+  "scaling": "b9817a36111e9597"
+ },
+ "job_key": "slurm:8812501",
+ "host": {
+  "hostname": "gpu007",
+  "user": "ada",
+  "os": "Linux",
+  "python": "3.11.9"
+ }
+}

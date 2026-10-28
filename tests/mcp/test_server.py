@@ -79,3 +79,44 @@ def test_calls_answer_and_errors_return_to_the_agent(project: Path) -> None:
     assert not ok.is_error and answer["kind"] == "runs" and len(answer["rows"]) == 2
     assert bad.is_error and "Did you mean 'scaling'" in bad.content[0].text
     assert "scaling" in prompt.messages[0].content.text
+
+
+def test_record_writes_and_prompts(project: Path) -> None:
+    """Agents write proposals, notes and memory through tools; the prompts name them."""
+    proposal = {
+        "statement": "Dropout helps.",
+        "predictions": [{"name": "p", "reduce": {"metric": "val/acc"}, "op": ">", "value": 0.5}],
+    }
+
+    async def work(s):
+        saved = await s.call_tool(
+            "proposal_set", {"folder": "agent/dropout", "proposal": proposal, "author": "m"}
+        )
+        yaml_text = await s.call_tool(
+            "proposal_set", {"folder": "agent/other", "proposal": "statement: From YAML.\n"}
+        )
+        note = await s.call_tool(
+            "note_add",
+            {"folder": "agent/dropout", "type": "idea", "description": "Try 0.2.", "body": "x"},
+        )
+        bad = await s.call_tool("note_add", {"folder": "agent", "type": "idea", "description": ""})
+        memory = await s.call_tool("memory_update", {"folder": "agent", "body": "- idea [[x]]"})
+        shown = await s.call_tool("memory_show", {"folder": "agent/dropout"})
+        prompts = [
+            await s.get_prompt(name, {"folder": "agent/dropout"})
+            for name in ("proposal", "verdict", "memory")
+        ]
+        return saved, yaml_text, note, bad, memory, shown, prompts
+
+    saved, yaml_text, note, bad, memory, shown, prompts = session(project, work)
+    for result in (saved, yaml_text, note, memory, shown):
+        assert not result.is_error, result.content[0].text
+    path = project / "beamtime" / json.loads(saved.content[0].text)["path"]
+    assert "author: m" in path.read_text()
+    note_path = project / "beamtime" / json.loads(note.content[0].text)["path"]
+    assert "author: agent" in note_path.read_text()
+    assert bad.is_error and "one line" in bad.content[0].text
+    assert json.loads(shown.content[0].text)["chain"][-1]["folder"] == "agent"
+    texts = [p.messages[0].content.text for p in prompts]
+    assert "proposal_set" in texts[0] and "note_add" in texts[1] and "memory_update" in texts[2]
+    assert all("agent/dropout" in t for t in texts)

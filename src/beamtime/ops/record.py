@@ -1,0 +1,430 @@
+"""The research-record operations: notes, proposals, checks and memory.
+
+The writes are additive: each creates a new file named by a fresh version id."""
+
+import posixpath
+import time
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
+
+from beamtime.format import constants as c
+from beamtime.format.authored import split_frontmatter
+from beamtime.format.ids import is_run_id, new_version_id
+from beamtime.format.io import write_created
+from beamtime.format.schema import SchemaError
+from beamtime.format.tree import is_reserved, is_run
+from beamtime.index.index import Index
+from beamtime.ops import registry as r
+from beamtime.ops.budget import cut, offset_of
+from beamtime.ops.context import Context, OpError
+from beamtime.query.kinds import known_keys, resolve_from
+from beamtime.query.models import QueryError
+from beamtime.record import memory as mem
+from beamtime.record.check import evaluate
+from beamtime.record.notes import build, listing
+from beamtime.record.proposals import (
+    Proposal,
+    RecordError,
+    Target,
+    all_versions,
+    current,
+    load,
+    parse,
+)
+from beamtime.record.status import research_status
+
+
+@contextmanager
+def target_of(ctx: Context, folder: str, *, create: bool = False) -> Iterator[Target]:
+    """Open the index, catch up, and resolve a folder or run.
+
+    :param ctx: The operation context.
+    :param folder: A folder below the log dir, or a run id.
+    :param create: Whether a missing folder is created, for writes before the first run.
+    :return: The target, while the index is open."""
+    if create:
+        make_folder(ctx, folder)
+    if not ctx.logdir.is_dir():
+        raise OpError(f"no log dir at {ctx.logdir}; `beamtime init` sets one up", code=4)
+    index = Index(logdir=ctx.logdir)
+    try:
+        index.catch_up(".", 0.2)
+        try:
+            rel, run_id = resolve_from(index, ".", folder)
+        except QueryError as e:
+            raise OpError(str(e), code=4 if e.code == "not_found" else 2) from None
+        try:
+            yield Target(index=index, rel=rel, run_id=run_id)
+        except RecordError as e:
+            raise OpError(str(e), code=3) from None
+    finally:
+        index.close()
+
+
+def make_folder(ctx: Context, folder: str) -> None:
+    """Create a missing group below the log dir, refusing reserved names and runs.
+
+    :param ctx: The operation context.
+    :param folder: The folder relative to the log dir, or a run id."""
+    rel = posixpath.normpath(folder.strip("/") or ".")
+    if is_run_id(rel.rsplit("/", 1)[-1]) or rel == ".":
+        return
+    if rel.startswith(".."):
+        raise OpError(f"{folder!r} leaves the log dir", code=2)
+    path = ctx.logdir / rel
+    if path.is_dir():
+        return
+    if any(is_reserved(part) for part in rel.split("/")):
+        raise OpError(f"{folder!r}: names starting with _ or . and {sorted(c.AUTHORED)} are "
+                      "reserved; choose another folder name", code=2)  # fmt: skip
+    if any(is_run(parent) for parent in path.parents):
+        raise OpError(f"{folder!r} is inside a run; give the run id instead", code=2)
+    path.mkdir(parents=True)
+
+
+def author_of(ctx: Context, author: str | None) -> tuple[str, str]:
+    """Name who writes a file and the account it is written for.
+
+    :param ctx: The operation context.
+    :param author: The given author, if any.
+    :return: ``(author, user)``."""
+    from beamtime.sdk.env import user
+
+    account = user()
+    return author or (account if ctx.caller == "cli" else "agent"), account
+
+
+def save(folder: Path, suffix: str, text: str) -> Path:
+    """Write a new version of an authored file.
+
+    :param folder: The authored folder, e.g. ``<group>/notes``.
+    :param suffix: ``.md`` or ``.yaml``.
+    :param text: The content.
+    :return: The new file."""
+    path = folder / f"{new_version_id()}{suffix}"
+    while path.exists():
+        path = folder / f"{new_version_id()}{suffix}"
+    write_created(path, text.encode())
+    return path
+
+
+def dump(fields: dict[str, Any]) -> str:
+    """Write YAML in the order given.
+
+    :param fields: The fields.
+    :return: The YAML text."""
+    import yaml
+
+    return yaml.safe_dump(fields, sort_keys=False, allow_unicode=True)
+
+
+def written(ctx: Context, kind: str, path: Path, lines: list[str]) -> dict[str, Any]:
+    """Build the answer of a write.
+
+    :param ctx: The operation context.
+    :param kind: The operation.
+    :param path: The new file.
+    :param lines: What else to say.
+    :return: The answer."""
+    rel = path.relative_to(ctx.logdir).as_posix()
+    return {
+        "kind": kind,
+        "lines": [f"wrote {rel}", *lines],
+        "path": rel,
+        "version": path.stem,
+        "meta": {},
+    }
+
+
+def notes(ctx: Context, p: r.NotesParams) -> dict[str, Any]:
+    """List notes at or below a folder, newest first.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The answer: ``entries`` with id, type, description and state."""
+    with target_of(ctx, p.from_) as target:
+        entries = listing(target, types=p.types, only_open=p.open, full=p.full)
+    limit = p.limit if p.limit is not None else 30
+    answer = {
+        "kind": "notes",
+        "folder": target.rel,
+        "entries": entries[:limit],
+        "meta": {"matched": len(entries)},
+    }
+    if len(entries) > limit:
+        answer["meta"] |= {"cut": True, "hint": "raise limit to see more"}
+    return cut(answer, offset_of(p.cursor))
+
+
+def proposal_show(ctx: Context, p: r.FolderParams) -> dict[str, Any]:
+    """Show the current proposal, its earlier versions and their checks.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The answer."""
+    import yaml
+
+    with target_of(ctx, p.folder) as target:
+        versions = all_versions(target.dir)
+        if not versions:
+            raise OpError(
+                f"{target.rel} has no proposal; write one with `beamtime proposal set "
+                f"{target.rel} <file>`",
+                code=4,
+            )
+        status = research_status(target)
+        history = []
+        for version in reversed(versions):
+            members = target.members(version)
+            try:
+                proposal = load(target.dir, version)
+                check = evaluate(target, version, proposal)["result"]
+                statement, supersedes = proposal.statement, proposal.supersedes
+            except RecordError as e:
+                check, statement, supersedes = "invalid", str(e), None
+            history.append(
+                {
+                    "version": version,
+                    "statement": statement,
+                    "runs": len(members),
+                    "frozen": bool(members) or target.run_id is not None,
+                    "check": check,
+                    "supersedes": supersedes.version if supersedes else None,
+                    "reason": supersedes.reason if supersedes else None,
+                }
+            )
+        text = (target.dir / c.PROPOSAL / f"{versions[-1]}.yaml").read_text()
+    return {
+        "kind": "proposal",
+        "folder": target.rel,
+        "version": versions[-1],
+        "status": status["status"],
+        "progress": status["progress_text"],
+        "proposal": yaml.safe_load(text),
+        "versions": history,
+        "meta": {},
+    }
+
+
+def check(ctx: Context, p: r.CheckParams) -> dict[str, Any]:
+    """Check a proposal version against its runs.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The check."""
+    with target_of(ctx, p.folder) as target:
+        version = p.version or current(target.dir)
+        if version is None:
+            raise OpError(f"{target.rel} has no proposal to check", code=4)
+        if version not in all_versions(target.dir):
+            raise OpError(f"no proposal version {version!r} in {target.rel}", code=4)
+        result = evaluate(target, version)
+    return {"kind": "check"} | result | {"meta": {}}
+
+
+def memory_show(ctx: Context, p: r.FolderParams) -> dict[str, Any]:
+    """Show the memory of a folder and every folder above it, root first.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The answer: ``chain`` with each memory and its staleness."""
+    with target_of(ctx, p.folder) as target:
+        chain = mem.chain(target)
+        unread = mem.notes_since(target, target.rel, None) if not chain else 0
+    hints = [
+        f"{m['folder']}: {m['notes_since']} note(s) since the last update; "
+        f"update with `beamtime memory update {m['folder']}`"
+        for m in chain
+        if m.get("notes_since")
+    ]
+    if not chain:
+        hints.append(f"no memory yet; {unread} note(s) in scope")
+    return {
+        "kind": "memory",
+        "folder": target.rel,
+        "chain": chain,
+        "meta": {"hints": hints},
+    }
+
+
+def note_add(ctx: Context, p: r.NoteAddParams) -> dict[str, Any]:
+    """Add a note to a folder or run.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The new note's path and id."""
+    author, user = author_of(ctx, p.author)
+    with target_of(ctx, p.folder, create=True) as target:
+        meta = build(
+            target,
+            type=p.type,
+            description=p.description,
+            resolves=p.resolves,
+            supersedes=p.supersedes,
+            completes=p.completes,
+            evidence=p.evidence,
+            proposal=p.proposal,
+            verdicts=p.verdict,
+            overall=p.overall,
+        )
+        front = dump({"schema": 1, **meta, "author": author, "user": user})
+        body = (p.body or "").strip()
+        path = save(target.dir / c.NOTES, ".md", f"---\n{front}---\n\n{body}\n")
+        lines = []
+        if p.type == "verdict":
+            results = ", ".join(f"{k} {v['result']}" for k, v in meta["check"].items())
+            lines.append(f"check at the time of writing: {results or 'no automatic predictions'}")
+        if p.type in ("verdict", "decision"):
+            lines.append(f"next: update the memory (`beamtime memory update {target.rel}`)")
+    return written(ctx, "note add", path, lines)
+
+
+def proposal_set(ctx: Context, p: r.ProposalSetParams) -> dict[str, Any]:
+    """Save a new proposal version, refusing to silently replace a frozen one.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The new version and any warnings."""
+    data, source = read_input(p.file, p.proposal, "proposal", yaml_text=True)
+    if isinstance(data, dict) and p.reason and "supersedes" not in data:
+        data = data | {"supersedes": {"version": None, "reason": p.reason}}
+    with target_of(ctx, p.folder, create=True) as target:
+        latest = current(target.dir)
+        if isinstance(data, dict) and isinstance(data.get("supersedes"), dict):
+            data["supersedes"].setdefault("version", None)
+            data["supersedes"]["version"] = data["supersedes"]["version"] or latest
+        proposal = parse(data, source=source)
+        if not proposal.statement:
+            raise RecordError(f"{source}: statement is required: what the runs should show")
+        lines = superseding(target, proposal, latest)
+        author, user = author_of(ctx, p.author)
+        fields = {k: v for k, v in data.items() if k not in ("schema", "author", "user")}
+        path = save(
+            target.dir / c.PROPOSAL,
+            ".yaml",
+            dump({"schema": 1, **fields, "author": author, "user": user}),
+        )
+        lines += metric_warnings(target, proposal)
+        lines.append("runs started from now on record this version")
+    return written(ctx, "proposal set", path, lines)
+
+
+def superseding(target: Target, proposal: Proposal, latest: str | None) -> list[str]:
+    """Apply the superseding rules: frozen versions are superseded with a reason.
+
+    :param target: The folder or run.
+    :param proposal: The new version.
+    :param latest: The current version, if any.
+    :return: Lines for the answer."""
+    if proposal.supersedes is not None:
+        if proposal.supersedes.version not in all_versions(target.dir):
+            raise RecordError(f"supersedes: no version {proposal.supersedes.version!r}")
+        if not proposal.supersedes.reason.strip():
+            raise RecordError("supersedes: give the reason")
+        return [f"supersedes {proposal.supersedes.version}: {proposal.supersedes.reason}"]
+    if latest is None:
+        return []
+    n = len(target.members(latest))
+    if n or target.run_id is not None:
+        raise RecordError(
+            f"the current version {latest} is frozen ({n} run(s) recorded it); say why it is "
+            f"replaced: --reason '...' or supersedes: {{version: {latest}, reason: ...}}"
+        )
+    return [f"replaces {latest}, which no run had recorded"]
+
+
+def metric_warnings(target: Target, proposal: Proposal) -> list[str]:
+    """Warn about predictions on metrics no run in scope has logged yet.
+
+    :param target: The folder or run.
+    :param proposal: The proposal.
+    :return: One line per unknown metric."""
+    from beamtime.query.kinds import Context as QueryContext
+
+    ctx = QueryContext(
+        index=target.index, caller="cli", scope=target.rel, run_id=target.run_id, now=time.time()
+    )
+    known = known_keys(ctx, "metrics")
+    if not known:
+        return []
+    metrics = {pr.reduce.metric for pr in proposal.predictions if pr.reduce is not None}
+    return [
+        f"warning: no run in {target.rel} has logged {m!r} yet; check the key name"
+        for m in sorted(metrics - known)
+    ]
+
+
+def memory_update(ctx: Context, p: r.MemoryUpdateParams) -> dict[str, Any]:
+    """Save a new memory version for a folder.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The new version and any warnings."""
+    text, source = read_input(p.file, p.body, "body")
+    meta: dict[str, Any] = {}
+    if text.lstrip().startswith("---"):
+        try:
+            meta, text = split_frontmatter(text.lstrip(), source=source)
+        except SchemaError as e:
+            raise OpError(str(e), code=3) from None
+        meta = meta or {}
+    body = text.strip()
+    if not body:
+        raise OpError("memory update: the memory is empty", code=3)
+    author, user = author_of(ctx, p.author or meta.get("author"))
+    with target_of(ctx, p.folder, create=True) as target:
+        covers = p.covers_until or meta.get("covers_until")
+        if covers is not None and mem.to_time(covers) is None:
+            raise OpError(
+                f"covers_until {covers!r} is not a time like 2026-10-25T14:00:00Z", code=3
+            )
+        t = mem.to_time(covers) if covers is not None else mem.newest_note_time(target)
+        fields = {"schema": 1, "covers_until": mem.iso(t or time.time())}
+        path = save(
+            target.dir / c.MEMORY,
+            ".md",
+            f"---\n{dump(fields | {'author': author, 'user': user})}---\n\n{body}\n",
+        )
+    lines = [f"covers notes until {fields['covers_until']}"]
+    if len(body) > mem.BUDGET_CHARS:
+        lines.append(
+            f"warning: {len(body)} characters, beyond the budget of about {mem.BUDGET_CHARS} "
+            "(1.5k tokens); compress: fold concluded work into single lines"
+        )
+    return written(ctx, "memory update", path, lines)
+
+
+def read_input(
+    file: str | None, given: Any, name: str, *, yaml_text: bool = False
+) -> tuple[Any, str]:
+    """Read what a write saves, from a file or a parameter.
+
+    :param file: A path, from the CLI or an agent.
+    :param given: The parameter's value: text, or an object.
+    :param name: The parameter's name, for messages.
+    :param yaml_text: Whether text is parsed as YAML.
+    :return: The content and where it came from."""
+    parse_text: Callable[[str], Any] = yaml_load if yaml_text else str
+    if file is not None:
+        path = Path(file).expanduser()
+        if not path.is_file():
+            raise OpError(f"no file {file!r}", code=4)
+        return parse_text(path.read_text()), path.name
+    if given is None:
+        raise OpError(f"give a file, or {name} (on the command line, stdin works too)", code=2)
+    return (parse_text(given) if isinstance(given, str) else given), name
+
+
+def yaml_load(text: str) -> Any:
+    """Parse YAML, with errors that say where.
+
+    :param text: The text.
+    :return: The value."""
+    import yaml
+
+    try:
+        return yaml.safe_load(text)
+    except yaml.YAMLError as e:
+        raise OpError(f"not valid YAML: {e}", code=3) from None

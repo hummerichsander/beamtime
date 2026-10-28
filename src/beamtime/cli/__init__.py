@@ -11,8 +11,19 @@ EXAMPLES = """examples:
   beamtime runs scaling/lr-sweep --where 'config.lr<1e-3' --sort -metric.val/acc.max
   beamtime series . -y train/loss --steps 0:5000 --points 50
   beamtime card 20261024-101532-k3m9xq2a
+  beamtime check scaling/lr-sweep
+  echo 'Spike gone in all seeds.' | beamtime note add scaling/lr-sweep --type observation \\
+      --description 'No loss spike with warmup'
   beamtime query '{"keys": {"from": "."}}'
 """
+
+
+GROUPS = {
+    "mcp": "the MCP server over stdio (for agent clients)",
+    "note": "add notes to a folder or run",
+    "proposal": "show or save a folder's proposal",
+    "memory": "show or update a folder's memory",
+}
 
 
 def unwrap(tp: Any) -> tuple[Any, ...]:
@@ -47,6 +58,25 @@ def step_value(text: str) -> Any:
         a, b = text.split(":", 1)
         return [int(a), int(b)]
     return scalar(text)
+
+
+def pair(text: str) -> tuple[str, str]:
+    """Read a ``name=value`` flag value.
+
+    :param text: The value as typed.
+    :return: The name and the value."""
+    name, sep, value = text.partition("=")
+    if not sep or not name:
+        raise argparse.ArgumentTypeError(f"{text!r}: write name=value")
+    return name.strip(), value.strip()
+
+
+def evidence_item(text: str) -> Any:
+    """Read an ``--evidence`` value: an id or path, or an object like ``{run: ..}``.
+
+    :param text: The value as typed.
+    :return: The text, or the parsed object."""
+    return json_or_yaml(text) if text.lstrip().startswith("{") else text
 
 
 def add_field(parser: argparse.ArgumentParser, field: Any, positional: bool) -> None:
@@ -89,6 +119,10 @@ def add_field(parser: argparse.ArgumentParser, field: Any, positional: bool) -> 
             kw |= {"metavar": "last|all|STEP|FIRST:LAST", "type": step_value}
         case "depth":
             kw |= {"type": scalar, "metavar": "all|N"}
+        case "verdict":
+            kw |= {"action": "append", "type": pair, "default": [], "metavar": "PREDICTION=VERDICT"}
+        case "evidence":
+            kw |= {"action": "append", "type": evidence_item, "default": [], "metavar": "ITEM"}
         case _ if members == (bool,):
             kw["action"] = "store_true"
             kw.pop("required")
@@ -147,10 +181,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--json", action="store_true", help="the canonical answer as JSON")
     parser.add_argument("--quiet", action="store_true", help="print nothing on success")
     commands = parser.add_subparsers(dest="command", metavar="COMMAND")
-    mcp = commands.add_parser(
-        "mcp", parents=[common], help="the MCP server over stdio (for agent clients)"
-    )
-    mcp_commands = mcp.add_subparsers(dest="mcp_command")
+    groups: dict[str, Any] = {}
     for op in OPS:
         if op.name == "query":
             sub = commands.add_parser(op.name, parents=[common], help=op.summary)
@@ -158,8 +189,14 @@ def build_parser() -> argparse.ArgumentParser:
             sub.add_argument("--cursor", default=None)
             sub.set_defaults(op=op.name)
             continue
-        where = mcp_commands if op.name.startswith("mcp ") else commands
-        name = op.name.split(" ", 1)[1] if op.name.startswith("mcp ") else op.name
+        where, name = commands, op.name
+        if " " in op.name:
+            group, name = op.name.split(" ", 1)
+            if group not in groups:
+                help_ = GROUPS[group]
+                group_parser = commands.add_parser(group, parents=[common], help=help_)
+                groups[group] = group_parser.add_subparsers(dest=f"{group}_command")
+            where = groups[group]
         label = op.summary + (" (user only)" if op.user_only else "")
         sub = where.add_parser(name, parents=[common], help=label, description=op.summary)
         for field in msgspec.structs.fields(op.params):
@@ -187,7 +224,12 @@ def params_of(op_name: str, args: argparse.Namespace) -> dict[str, Any]:
         value = getattr(args, field.name)
         if field.name == "where":
             value = parse_where(value)
+        elif field.name == "verdict":
+            value = dict(value)
         out[field.encode_name] = value
+    if op.stdin and out.get(op.stdin) is None and out.get("file") is None:
+        if not sys.stdin.isatty():
+            out[op.stdin] = sys.stdin.read()
     return out
 
 
@@ -254,6 +296,8 @@ def main(argv: list[str] | None = None) -> None:
         from beamtime.mcp import serve
 
         sys.exit(serve(root=args.root))
+    if args.command in GROUPS and getattr(args, f"{args.command}_command") is None:
+        parser.parse_args([args.command, "--help"])
     from beamtime.ops import call
     from beamtime.ops.context import Context, OpError
 
