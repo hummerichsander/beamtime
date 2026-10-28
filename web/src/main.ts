@@ -9,7 +9,7 @@ import { listen } from "./router.ts";
 import { App } from "./shell/app.ts";
 import { meta } from "./shell/ui.ts";
 import { installTips } from "./ui/tip.ts";
-import "./style.css";
+import "./styles/index.css";
 
 listen();
 connect();

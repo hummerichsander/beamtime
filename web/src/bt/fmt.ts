@@ -61,3 +61,12 @@ function exp(v: number): string {
 function trim(s: string): string {
   return s.includes(".") && !s.includes("e") ? s.replace(/\.?0+$/, "") : s;
 }
+
+const LOWER_IS_BETTER = ["loss", "err", "ppl", "perplexity", "nll", "mse", "mae", "wer", "cer"];
+
+// a guess from the metric's name, matching the server's default view (views/defaults.py).
+export function lowerIsBetter(field: string): boolean {
+  const m = /^metric\.(.+)\.[a-z_]+$/.exec(field);
+  const leaf = (m ? m[1] : field).split("/").pop()!.toLowerCase();
+  return LOWER_IS_BETTER.some((w) => leaf.includes(w));
+}

@@ -69,9 +69,9 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     page.click("a.tree-item:has-text('scaling')")
     page.wait_for_url(f"{base}/f/local/scaling")
     page.goto(f"{base}/f/local/scaling/lr-sweep")
-    page.wait_for_selector("text=Proposal")
+    page.wait_for_selector("text=Predictions")
     page.wait_for_selector(".chart canvas")
-    assert page.locator(".badge.result-pass").count() >= 2
+    assert page.locator(".preds .pred .sym.tone-good").count() >= 2
 
     running = roles["running"]
     page.goto(f"{base}/r/{running}")

@@ -23,6 +23,8 @@ export function cssVariables(theme: Theme): Record<string, string> {
   for (const [k, v] of Object.entries(theme.fonts)) out[`--bt-font-${k}`] = v;
   for (const [k, v] of Object.entries(theme.sizes)) out[`--bt-size-${k}`] = `${v}px`;
   out["--bt-radius"] = `${Number(theme.shape.radius ?? 6)}px`;
+  out["--bt-density"] = String(Number(theme.shape.density ?? 1));
+  out["--bt-column"] = `${Number(theme.shape.column ?? 900)}px`;
   return out;
 }
 

@@ -134,6 +134,8 @@ export function useCall<T = any>(call: Call | null): Result<T> {
 
 export const paused = new Store<boolean>(false);
 export const connection = new Store<"connecting" | "live" | "offline">("connecting");
+// when the server last reported new data (or the stream opened): "updated 3 s ago".
+export const updated = new Store<number>(Date.now());
 const client = Math.random().toString(36).slice(2, 10);
 let watchTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -173,7 +175,10 @@ export function connect(): void {
     if (connected) markStale([...entries.values()].filter((e) => e.listeners.size).map((e) => e.id));
     connected = true;
   });
-  source.addEventListener("stale", (ev) => markStale(JSON.parse((ev as MessageEvent).data)));
+  source.addEventListener("stale", (ev) => {
+    updated.set(Date.now());
+    markStale(JSON.parse((ev as MessageEvent).data));
+  });
   source.onerror = () => connection.set(source.readyState === EventSource.CLOSED ? "offline" : "connecting");
   paused.subscribe((p) => {
     if (!p) for (const e of entries.values()) if (e.stale && e.listeners.size) void load(e);

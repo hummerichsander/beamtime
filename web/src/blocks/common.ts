@@ -1,4 +1,4 @@
-// What every block shares: the panel with title and caption, notices, status dots.
+// What every block shares: an optional title and caption, errors where they happen, notices.
 
 import type { ComponentChildren } from "preact";
 import { html } from "htm/preact";
@@ -7,31 +7,25 @@ import type { Result } from "../api.ts";
 
 export function Panel(props: {
   title?: string;
+  count?: string;
   caption?: string;
-  height?: number;
   result?: Result;
-  wide?: boolean;
+  class?: string;
   children?: ComponentChildren;
 }) {
   const { title, caption, result } = props;
-  return html`<section class=${`panel${props.wide ? " wide" : ""}`}>
-    ${title ? html`<h3 class="panel-title">${title}</h3>` : null}
-    <div class="panel-body" style=${props.height ? `min-height:${props.height}px` : ""}>
-      ${result?.status === "error" ? html`<${Notice} kind="error">${result.error}<//>` : props.children}
-    </div>
-    ${result?.status === "ready" && result.error
-      ? html`<p class="panel-error">Refresh failed: ${result.error}</p>`
+  return html`<section class=${`block ${props.class ?? ""}`}>
+    ${title
+      ? html`<h3 class="block-title">${title}${props.count ? html`<span class="count">${props.count}</span>` : null}</h3>`
       : null}
+    ${result?.status === "error" ? html`<${Notice} kind="error">${result.error}<//>` : props.children}
+    ${result?.status === "ready" && result.error ? html`<p class="block-error">Refresh failed: ${result.error}</p>` : null}
     ${caption ? html`<p class="caption">${caption}</p>` : null}
   </section>`;
 }
 
 export function Notice(props: { kind?: string; children?: ComponentChildren }) {
   return html`<p class=${`notice ${props.kind ?? "info"}`}>${props.children}</p>`;
-}
-
-export function Dot(props: { status: string | null | undefined }) {
-  return html`<span class=${`dot ${props.status ?? ""}`} title=${props.status ?? ""}></span>`;
 }
 
 export function rows(answer: { columns: string[]; rows: unknown[][] } | null): Record<string, any>[] {

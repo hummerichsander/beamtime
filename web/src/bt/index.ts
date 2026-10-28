@@ -21,6 +21,8 @@ export type Node = {
 };
 
 export const pair = new Store<Pair | null>(null);
+// the run under the pointer anywhere in the view; tables, legends and charts highlight it.
+export const hovered = new Store<string | null>(null);
 export const mode = new Store<Mode>(stored<Mode>("mode", "system"));
 export const theme = new Store<Theme | null>(null);
 const dark = matchMedia("(prefers-color-scheme: dark)");

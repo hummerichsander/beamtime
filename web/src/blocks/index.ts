@@ -5,7 +5,7 @@ import { html } from "htm/preact";
 
 import { BlockCtx, type Node } from "../bt/index.ts";
 import { Notice } from "./common.ts";
-import { Groups, Memory, NoteBlock, Output, Proposal } from "./context.ts";
+import { Groups, Memory, NoteBlock, Notes, Output, Proposal } from "./context.ts";
 import { Images, Text } from "./logged.ts";
 import { Grid, Row, Section } from "./layout.ts";
 import { Line } from "./line.ts";
@@ -26,6 +26,7 @@ const BLOCKS: Record<string, FunctionComponent<{ node: Node }>> = {
   output: Output,
   memory: Memory,
   groups: Groups,
+  notes: Notes,
 };
 
 export function Block({ node }: { node: Node }) {

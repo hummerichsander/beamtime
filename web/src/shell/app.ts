@@ -19,7 +19,7 @@ import { help, palette, sidebar, SHORTCUTS, typing } from "./ui.ts";
 export function App() {
   const r = useStore(route);
   const showSidebar = useStore(sidebar);
-  const showPalette = useStore(palette);
+  const query = useStore(palette);
   const showHelp = useStore(help);
   const main = useRef<HTMLElement>(null);
   useEffect(() => setScroller(() => main.current), []);
@@ -48,13 +48,8 @@ export function App() {
     <main class="main" ref=${main}>${page}</main>
     ${drawer ? html`<${Drawer} path=${r.path} run=${r.run} />` : null}
     <${StatusBar} />
-    ${showPalette ? html`<${Palette} />` : null}
-    ${showHelp ? html`<div class="overlay" onClick=${() => help.set(false)}>
-        <div class="palette help" role="dialog" aria-label="Keyboard shortcuts">
-          <h3>Keyboard shortcuts</h3>
-          <table class="kv">${SHORTCUTS.map(([k, d]) => html`<tr><td><kbd>${k}</kbd></td><td>${d}</td></tr>`)}</table>
-        </div>
-      </div>` : null}
+    ${query !== null ? html`<${Palette} query=${query} />` : null}
+    ${showHelp ? html`<${Help} />` : null}
   </div>`;
 }
 
@@ -62,7 +57,7 @@ function onKey(e: KeyboardEvent): void {
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === "k") {
     e.preventDefault();
-    palette.set(!palette.value);
+    palette.set(palette.value === null ? "" : null);
     return;
   }
   if (mod && e.key.toLowerCase() === "b") {
@@ -71,19 +66,18 @@ function onKey(e: KeyboardEvent): void {
     return;
   }
   if (e.key === "Escape") {
-    if (palette.value) return palette.set(false);
-    if (help.value) return help.set(false);
+    if (palette.value !== null || help.value) return;
     const r = route.value;
     if (r.page === "group" && r.run) return navigate(groupUrl(r.path, { drawer: true }), { replace: true });
     if (r.page === "group" && r.drawer) return navigate(groupUrl(r.path), { replace: true });
     return;
   }
-  if (mod || e.altKey || typing(e) || palette.value) return;
+  if (mod || e.altKey || typing(e) || palette.value !== null || help.value) return;
   const r = route.value;
   switch (e.key) {
     case "/":
       e.preventDefault();
-      palette.set(true);
+      palette.set("");
       break;
     case "?":
       help.set(!help.value);
@@ -93,6 +87,9 @@ function onKey(e: KeyboardEvent): void {
       break;
     case "i":
       if (r.page === "group") navigate(groupUrl(r.path, { drawer: !r.drawer }), { replace: true });
+      break;
+    case "b":
+      sidebar.set(!sidebar.value);
       break;
     case "[":
     case "]":
@@ -107,4 +104,22 @@ async function sibling(path: string, step: number): Promise<void> {
   const i = list.findIndex((n) => n.path === path);
   const next = list[i + step];
   if (next) navigate(groupUrl(next.path));
+}
+
+function Help() {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = dialog.current!;
+    d.showModal();
+    const closed = () => help.set(false);
+    d.addEventListener("close", closed);
+    return () => d.removeEventListener("close", closed);
+  }, []);
+  return html`<dialog class="sheet" ref=${dialog} aria-labelledby="help-title" closedby="any">
+    <div class="help">
+      <h3 id="help-title">Keyboard shortcuts</h3>
+      <table class="kv">${SHORTCUTS.map(([k, d]) => html`<tr><td><kbd>${k}</kbd></td><td>${d}</td></tr>`)}</table>
+      <form method="dialog" style="margin-block-start: 14px"><button class="link" autofocus>Close</button></form>
+    </div>
+  </dialog>`;
 }

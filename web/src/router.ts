@@ -64,10 +64,32 @@ export function setScroller(get: () => HTMLElement | null): void {
 export function navigate(url: string, opts: { replace?: boolean } = {}): void {
   const el = scroller();
   if (el) scrolls.set(location.pathname + location.search, el.scrollTop);
-  if (opts.replace) history.replaceState(null, "", url);
-  else history.pushState(null, "", url);
-  route.set(parse(location.pathname, location.search));
-  if (!opts.replace && el) el.scrollTop = 0;
+  const swap = () => {
+    if (opts.replace) history.replaceState(null, "", url);
+    else history.pushState(null, "", url);
+    route.set(parse(location.pathname, location.search));
+    if (!opts.replace && el) el.scrollTop = 0;
+  };
+  // only page changes cross-fade; drawer and selection changes (replace) are instant.
+  if (opts.replace || !document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    swap();
+    if (!opts.replace) requestAnimationFrame(focusPage);
+    return;
+  }
+  const t = document.startViewTransition(async () => {
+    swap();
+    await new Promise((r) => requestAnimationFrame(r));
+  });
+  void t.finished.then(focusPage);
+}
+
+// after a page change, focus goes to the new heading, unless it stayed somewhere still on screen
+// (the group tree), so keyboard users keep their place.
+function focusPage(): void {
+  const active = document.activeElement;
+  const main = scroller();
+  const lost = !active || active === document.body || !active.isConnected || (main?.contains(active) ?? false);
+  if (lost) document.querySelector<HTMLElement>(".page h1")?.focus({ preventScroll: true });
 }
 
 export function restoreScroll(): void {

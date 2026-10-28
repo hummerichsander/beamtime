@@ -25,7 +25,7 @@ export function Images({ node }: { node: Node }) {
 export function Text({ node }: { node: Node }) {
   const result = useData("main");
   const entries: any[] = result.data?.entries ?? [];
-  return html`<${Panel} title=${node.props.title} caption=${node.props.caption} result=${result} wide>
+  return html`<${Panel} title=${node.props.title} caption=${node.props.caption} result=${result}>
     ${result.data && !entries.length ? html`<${Notice}>No text logged.<//>` : null}
     ${entries.map(
       (e) => html`<div class="text-entry" key=${`${e.run}/${e.step}`}>

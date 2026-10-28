@@ -96,9 +96,11 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
   function cursorMoved(self: uPlot): void {
     const idx = self.cursor.idx;
     const top = self.cursor.top ?? -1;
+    // only the chart under the pointer decides the focus; synced charts follow the view's hover.
+    const active = self.over.matches(":hover");
     if (idx === null || idx === undefined || top < 0) {
       tip.hidden = true;
-      setFocus(null);
+      if (active || focused !== null) report(null);
       return;
     }
     const x = self.data[0][idx];
@@ -115,7 +117,7 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
         nearest = i;
       }
     }
-    setFocus(nearest);
+    if (active) report(nearest);
     if (!rows.length) {
       tip.hidden = true;
       return;
@@ -138,6 +140,11 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
     if (i === focused) return;
     focused = i;
     u.setSeries(i === null ? null : i + 1, { focus: true }, false);
+  }
+
+  function report(i: number | null): void {
+    if (i === focused) return;
+    setFocus(i);
     current.onFocus?.(i === null ? null : current.curves[i]);
   }
 

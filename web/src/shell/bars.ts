@@ -1,48 +1,98 @@
 // The top bar and the status bar.
 
 import { html } from "htm/preact";
+import { useEffect, useState } from "preact/hooks";
 
-import { connection, paused, useCall } from "../api.ts";
+import { connection, paused, updated, useCall } from "../api.ts";
+import { rows } from "../blocks/common.ts";
 import { mode, setMode } from "../bt/index.ts";
+import { ago } from "../bt/fmt.ts";
 import { route } from "../router.ts";
 import { useStore } from "../state.ts";
+import { Icon } from "../ui/icons.ts";
+import { IconButton } from "../ui/primitives.ts";
 import * as calls from "./calls.ts";
-import { meta, palette, sidebar } from "./ui.ts";
+import { lastVisit, meta, palette, sidebar } from "./ui.ts";
 
 const NEXT = { system: "light", light: "dark", dark: "system" } as const;
-const ICON = { system: "◐", light: "☀", dark: "☾" } as const;
+const MODE_ICON = { system: "monitor", light: "sun", dark: "moon" } as const;
 
 export function TopBar() {
   const info = useStore(meta);
   const m = useStore(mode);
+  const side = useStore(sidebar);
   return html`<header class="topbar">
-    <button class="icon" title="Sidebar (⌘B)" onClick=${() => sidebar.set(!sidebar.value)}>☰</button>
+    <${IconButton} icon="panel-left" label=${side ? "Hide the sidebar (⌘B)" : "Show the sidebar (⌘B)"}
+      pressed=${side} onClick=${() => sidebar.set(!side)} />
     <a class="project" href="/f/local">${info?.project ?? "Beamtime"}</a>
-    <button class="search" onClick=${() => palette.set(true)}>
-      <span>Search groups, runs, commands</span><kbd>⌘K</kbd>
+    <button type="button" class="search" onClick=${() => palette.set("")} aria-label="Search (⌘K)">
+      <${Icon} name="search" size=${15} /><span class="search-label">Search groups, runs, commands</span><kbd>⌘K</kbd>
     </button>
-    <span class="source" title="Sources; remotes come with M7"><span class="dot finished"></span> local</span>
-    <button class="icon" title=${`Theme: ${m} (click for ${NEXT[m]})`} onClick=${() => setMode(NEXT[m])}>${ICON[m]}</button>
-    <a class="icon" href="/settings/appearance" title="Settings">⚙</a>
+    <div class="topbar-actions">
+      <span class="source" data-tip="Sources: this machine. Remote sources come later."><${Icon} name="server" size=${15} /> local</span>
+      <${IconButton} icon=${MODE_ICON[m]} label=${`Theme: ${m === "system" ? "follows the system" : m} (switch to ${NEXT[m]})`}
+        onClick=${() => setMode(NEXT[m])} />
+      <a class="icon-button" href="/settings/appearance" aria-label="Settings" data-tip="Settings"><${Icon} name="settings" size=${16} /></a>
+    </div>
   </header>`;
+}
+
+function useNow(everyMs: number): number {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), everyMs);
+    return () => clearInterval(t);
+  }, [everyMs]);
+  return now;
+}
+
+function endedAt(v: unknown): number {
+  if (typeof v === "number") return v * 1000;
+  return typeof v === "string" ? Date.parse(v) : NaN;
 }
 
 export function StatusBar() {
   const conn = useStore(connection);
   const isPaused = useStore(paused);
+  const last = useStore(updated);
   const r = useStore(route);
+  const now = useNow(5000);
   const status = useCall(calls.status()).data;
+  const runs = rows(useCall(calls.allRuns()).data);
+  const info = useStore(meta);
   const daemon = status?.daemon;
-  const live = conn === "live" && daemon;
+  const running = status?.runs?.running ?? 0;
+  const failed = runs.filter((x) => x["run.status"] === "failed" && endedAt(x["run.ended_at"]) > lastVisit).length;
+  const fresh = status?.meta?.freshness;
+  const [dot, text, tip] = isPaused
+    ? ["paused", "paused", "Live updates are paused (p)"]
+    : conn === "live" && daemon
+      ? ["", `live · updated ${ago(new Date(last).toISOString(), now)}`, `beamtime serve, pid ${daemon.pid}`]
+      : conn === "live"
+        ? ["wait", "connected; the indexer is not running", "Start it with: beamtime serve"]
+        : conn === "connecting"
+          ? ["wait", "connecting…", "Reconnecting to beamtime serve"]
+          : ["off", "offline", "The server is not reachable"];
   return html`<footer class="statusbar">
-    <span title=${daemon ? `pid ${daemon.pid}, version ${daemon.version}` : ""}>
-      <span class=${`dot ${live ? "finished" : conn === "connecting" ? "killed" : "failed"}`}></span>
-      ${conn === "live" ? (daemon ? "live" : "connected, daemon not running") : conn === "connecting" ? "connecting…" : "offline"}
-    </span>
-    ${daemon ? null : html`<span class="muted">${status?.meta?.freshness?.text ?? ""}</span>`}
+    <span class="status-item" data-tip=${tip}><span class=${`live-dot ${dot}`}></span>${text}</span>
+    ${running
+      ? html`<button type="button" class="status-item" data-tip="List the running runs" onClick=${() => palette.set("running")}>
+          <${Icon} name="circle-dot" size=${14} class="tone-running" />${running} running</button>`
+      : null}
+    ${failed
+      ? html`<button type="button" class="status-item tone-bad" data-tip="Runs that failed since your last visit" onClick=${() => palette.set("failed")}>
+          <${Icon} name="circle-x" size=${14} />${failed} failed since your last visit</button>`
+      : null}
+    ${fresh?.behind
+      ? html`<span class="status-item warn-text" data-tip=${fresh.text}><${Icon} name="hourglass" size=${14} />${fresh.behind} runs behind</span>`
+      : null}
+    ${fresh?.damaged?.length
+      ? html`<span class="status-item warn-text" data-tip=${fresh.damaged.join("\n")}><${Icon} name="triangle-alert" size=${14} />${fresh.damaged.length} unreadable</span>`
+      : null}
     <span class="spacer"></span>
-    ${r.page === "group" && r.run ? html`<span>1 run selected</span>` : null}
-    <button class="link" title="Pause live updates (p)" onClick=${() => paused.set(!isPaused)}>
-      ${isPaused ? "▶ resume" : "❚❚ pause"}</button>
+    ${r.page === "group" && r.run ? html`<span class="status-item"><${Icon} name="activity" size=${14} />1 run selected</span>` : null}
+    <${IconButton} icon=${isPaused ? "play" : "pause"} label=${isPaused ? "Resume live updates (p)" : "Pause live updates (p)"}
+      pressed=${isPaused} onClick=${() => paused.set(!isPaused)} />
+    <span class="status-item subtle">${info?.version ? `beamtime ${info.version}` : ""}</span>
   </footer>`;
 }

@@ -3,7 +3,7 @@
 import { html } from "htm/preact";
 import { useContext, useEffect, useRef } from "preact/hooks";
 
-import { useData, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
+import { hovered, useData, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { reshape, type Curves } from "../bt/curves.ts";
 import { step, value } from "../bt/fmt.ts";
 import { lineChart, type LineChart, type LineSpec } from "../bt/plot.ts";
@@ -35,6 +35,7 @@ export function Line({ node }: { node: Node }) {
       sync: `view:${view.path}`,
       formatX: step,
       formatY: (v) => value(v),
+      onFocus: (c) => hovered.set(c?.run ?? null),
     };
     if (chart.current?.update(spec)) return;
     let cancelled = false;
@@ -52,12 +53,24 @@ export function Line({ node }: { node: Node }) {
 
   useEffect(() => () => chart.current?.destroy(), []);
 
+  useEffect(
+    () =>
+      hovered.subscribe((run) => {
+        if (chart.current && !el.current?.matches(":hover")) chart.current.focus(run);
+      }),
+    [],
+  );
+
   const empty = curves && !curves.curves.length;
-  return html`<div ref=${box} class="block-line"><${Panel} title=${node.props.title ?? node.props.y} caption=${node.props.caption} result=${result}>
-    ${empty
-      ? html`<${Notice}>No run in scope logs ${node.props.y}.<//>`
-      : html`<div class=${`chart${result.status === "ready" ? "" : " pending"}`} ref=${el} style=${`min-height:${HEIGHT}px`}></div>`}
-  <//></div>`;
+  return html`<div ref=${box} class="block chart-block">
+    <div class="chart-head"><span class="chart-title">${node.props.title ?? node.props.y}</span>
+      ${log ? html`<span class="muted small">log</span>` : null}</div>
+    <${Panel} caption=${node.props.caption} result=${result}>
+      ${empty
+        ? html`<${Notice}>No run in scope logs ${node.props.y}.<//>`
+        : html`<div class=${`chart${result.status === "ready" ? "" : " pending"}`} ref=${el} style=${`min-height:${HEIGHT}px`}></div>`}
+    <//>
+  </div>`;
 }
 
 function palette(curves: Curves, theme: Theme, colors: Map<string, string>): string[] {

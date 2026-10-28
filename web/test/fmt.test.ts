@@ -32,3 +32,10 @@ test("labels drop prefixes", () => {
   assert.equal(label("config.lr"), "lr");
   assert.equal(label("run.status"), "status");
 });
+
+test("metric direction from the name", async () => {
+  const { lowerIsBetter } = await import("../src/bt/fmt.ts");
+  assert.equal(lowerIsBetter("metric.train/loss.last"), true);
+  assert.equal(lowerIsBetter("metric.val/acc.max"), false);
+  assert.equal(lowerIsBetter("val/ppl"), true);
+});

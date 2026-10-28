@@ -3,11 +3,16 @@
 import { Store, stored, store } from "../state.ts";
 
 export const sidebar = new Store<boolean>(stored("sidebar", true));
-export const palette = new Store<boolean>(false);
+// the palette is closed (null) or open with a starting query.
+export const palette = new Store<string | null>(null);
 export const help = new Store<boolean>(false);
 export const meta = new Store<any>(null);
 
 sidebar.subscribe((v) => store("sidebar", v));
+
+// the previous visit, for "failed since your last visit"; this visit becomes the next one's.
+export const lastVisit: number = stored<number>("visit", Date.now());
+store("visit", Date.now());
 
 export function typing(e: Event): boolean {
   const t = e.target as HTMLElement | null;
@@ -19,7 +24,7 @@ export const SHORTCUTS: [string, string][] = [
   ["↑ ↓ ← →", "move in the group tree"],
   ["[  ]", "previous and next sibling group"],
   ["i", "open or close the context drawer"],
-  ["⌘B", "show or hide the sidebar"],
+  ["⌘B, b", "show or hide the sidebar"],
   ["p", "pause or resume live updates"],
   ["Esc", "clear the selection, close the drawer"],
   ["?", "this list"],

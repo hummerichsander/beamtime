@@ -18,6 +18,6 @@ export const timeline = (path: string): Call => ({ method: "timeline", params: {
 export const status = (): Call => ({ method: "status", params: {}, scope: "." });
 export const allRuns = (): Call => ({
   method: "runs",
-  params: { from: ".", select: ["run.name", "run.path", "run.status"], sort: ["-run.created_at"], limit: 5000 },
+  params: { from: ".", select: ["run.name", "run.path", "run.status", "run.ended_at"], sort: ["-run.created_at"], limit: 5000 },
   scope: ".",
 });

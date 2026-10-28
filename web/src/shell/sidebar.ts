@@ -1,12 +1,14 @@
-// The sidebar: the group tree with run counts and status dots, filterable and keyboard-driven.
+// The sidebar: the group tree with run counts and status marks, filterable and keyboard-driven.
 
 import { html } from "htm/preact";
 import { useRef, useState } from "preact/hooks";
 
 import { prefetch, useCall } from "../api.ts";
-import { Dot, rows } from "../blocks/common.ts";
+import { rows } from "../blocks/common.ts";
 import { groupUrl, navigate, route } from "../router.ts";
 import { stored, store, useStore } from "../state.ts";
+import { Icon, Sym } from "../ui/icons.ts";
+import { symbolFor } from "../ui/symbols.ts";
 import * as calls from "./calls.ts";
 import { buildTree, depth, visible, type TreeNode } from "./tree.ts";
 
@@ -53,8 +55,10 @@ export function Sidebar() {
   };
 
   return html`<nav class="sidebar" aria-label="Groups">
-    <input class="filter" type="search" placeholder="Filter groups" value=${filter}
-      onInput=${(e: Event) => setFilter((e.target as HTMLInputElement).value)} />
+    <label class="filter"><${Icon} name="search" size=${14} />
+      <input type="search" placeholder="Filter groups" value=${filter} aria-label="Filter groups"
+        onInput=${(e: Event) => setFilter((e.target as HTMLInputElement).value)} />
+    </label>
     <div class="tree" ref=${list} onKeyDown=${onKey} role="tree">
       ${shown.map((n) => html`<${Item} key=${n.path} node=${n} current=${n.path === current}
         open=${open.has(n.path) || !!filter} onToggle=${() => toggle(n.path)} />`)}
@@ -68,19 +72,22 @@ function Item(props: { node: TreeNode; current: boolean; open: boolean; onToggle
     prefetch(calls.view(n.path));
     prefetch(calls.group(n.path));
   };
+  const expandable = n.children.length > 0 && n.path !== ".";
   return html`<a class=${`tree-item${props.current ? " current" : ""}`} href=${groupUrl(n.path)}
-      role="treeitem" aria-current=${props.current ? "page" : undefined}
-      style=${`padding-left:${8 + depth(n.path) * 12}px`} onMouseEnter=${hover} onFocus=${hover}
+      role="treeitem" aria-current=${props.current ? "page" : undefined} aria-expanded=${expandable ? props.open : undefined}
+      style=${`padding-inline-start:${6 + depth(n.path) * 14}px`} onMouseEnter=${hover} onFocus=${hover}
       onClick=${(e: MouseEvent) => {
         if (e.metaKey || e.ctrlKey) return;
         e.preventDefault();
         navigate(groupUrl(n.path));
       }}>
     <span class="twisty" onClick=${(e: Event) => { e.preventDefault(); e.stopPropagation(); props.onToggle(); }}>
-      ${n.children.length && n.path !== "." ? (props.open ? "▾" : "▸") : ""}</span>
+      ${expandable ? html`<${Icon} name=${props.open ? "chevron-down" : "chevron-right"} size=${14} />` : null}</span>
     <span class="tree-name">${n.name}</span>
-    ${n.running ? html`<${Dot} status="running" />` : null}
-    ${n.failed ? html`<${Dot} status="failed" />` : null}
+    <span class="tree-marks">
+      ${n.running ? html`<${Sym} spec=${symbolFor("run", "running")} size=${13} />` : null}
+      ${n.failed ? html`<${Sym} spec=${{ ...symbolFor("run", "failed"), label: `${n.failed} failed, killed or lost` }} size=${13} />` : null}
+    </span>
     <span class="count">${n.runs || ""}</span>
   </a>`;
 }

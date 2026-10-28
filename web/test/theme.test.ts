@@ -36,6 +36,7 @@ test("css variables and the chart style come from the tokens", () => {
   const vars = cssVariables(theme);
   assert.equal(vars["--bt-sidebar-bg"], "#eeeeee");
   assert.equal(vars["--bt-radius"], "4px");
+  assert.equal(vars["--bt-density"], "1");
   const style = chartStyle(theme);
   assert.equal(style.grid, "#dddddd");
   assert.equal(style.axis, "#666666");
