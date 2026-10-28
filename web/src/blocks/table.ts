@@ -5,7 +5,7 @@ import { useContext, useState } from "preact/hooks";
 
 import { useData, useRunColors, ViewCtx, type Node } from "../bt/index.ts";
 import { label, value } from "../bt/fmt.ts";
-import { folderUrl, navigate, route, runUrl } from "../router.ts";
+import { groupUrl, navigate, route, runUrl } from "../router.ts";
 import { Dot, Panel, rows } from "./common.ts";
 
 export function Table({ node }: { node: Node }) {
@@ -19,9 +19,9 @@ export function Table({ node }: { node: Node }) {
   if (sort) {
     data = [...data].sort((a, b) => compare(a[sort.field], b[sort.field]) * (sort.desc ? -1 : 1));
   }
-  const selected = route.value.page === "folder" ? route.value.run : null;
+  const selected = route.value.page === "group" ? route.value.run : null;
   const total = answer?.meta?.matched ?? data.length;
-  const open = (id: string) => navigate(folderUrl(view.path, { run: id }), { replace: selected !== null });
+  const open = (id: string) => navigate(groupUrl(view.path, { run: id }), { replace: selected !== null });
   return html`<${Panel} title=${node.props.title} caption=${node.props.caption} result=${result} wide>
     ${answer
       ? html`<div class="table-wrap"><table class="runs">

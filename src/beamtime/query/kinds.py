@@ -62,16 +62,16 @@ class Context:
 
 
 def resolve_from(index: Index, base: str, target: str) -> tuple[str, str | None]:
-    """Resolve ``from`` to a folder relative to the log dir, or to one run.
+    """Resolve ``from`` to a group relative to the log dir, or to one run.
 
     :param index: The index.
-    :param base: The folder relative paths start from (a view's folder; ``.`` for CLI).
-    :param target: The ``from`` value: a folder, a run id, or ``@remote/...``.
-    :return: The folder relative to the log dir, and the run id if one run was named."""
+    :param base: The group relative paths start from (a view's group; ``.`` for CLI).
+    :param target: The ``from`` value: a group, a run id, or ``@remote/...``.
+    :return: The group relative to the log dir, and the run id if one run was named."""
     if target.startswith("@"):
         raise QueryError(
             f"from {target!r}: remote sources come with remotes (milestone M8); "
-            "query local folders for now"
+            "query local groups for now"
         )
     name = target.rstrip("/").rsplit("/", 1)[-1]
     if is_run_id(name):
@@ -87,14 +87,14 @@ def resolve_from(index: Index, base: str, target: str) -> tuple[str, str | None]
     if rel != "." and any(is_reserved(part) for part in rel.split("/")):
         raise QueryError(
             f"from {target!r}: {rel!r} holds authored or machine files, not runs; "
-            "name the folder above it",
+            "name the group above it",
             code="not_found",
         )
     if not index.folder_path(rel).is_dir():
         parent = index.folder_path(posixpath.dirname(rel) or ".")
         options = [p.name for p in parent.iterdir() if p.is_dir()] if parent.is_dir() else []
         raise QueryError(
-            f"no folder {rel!r} below the log dir." + closest(posixpath.basename(rel), options),
+            f"no group {rel!r} below the log dir." + closest(posixpath.basename(rel), options),
             code="not_found",
         )
     return rel, None
@@ -159,7 +159,7 @@ def scope_condition(ctx: Context, depth: Any = "all") -> tuple[str, list[Any]]:
     """Build the SQL condition selecting the runs in scope.
 
     :param ctx: The query context.
-    :param depth: ``all`` or how many folder levels below the scope to include.
+    :param depth: ``all`` or how many levels below the scope to include.
     :return: The condition and its parameters."""
     if ctx.run_id is not None:
         return "runs.id = ?", [ctx.run_id]
@@ -254,7 +254,7 @@ def select_runs(
 
     :param ctx: The query context.
     :param sel: The selection part of the query.
-    :param extra: Further fields to fetch (``select``, ``sort``, ``group``).
+    :param extra: Further fields to fetch (``select``, ``sort``, ``by``).
     :param config: Whether to fetch whole configs (``seeds`` and ``keys`` need them).
     :param restrict: A further SQL condition and its parameters, e.g. proposal membership.
     :return: One dict per run (``_id``, ``_path``, ``_config`` and the field values),
@@ -419,7 +419,7 @@ def runs_kind(ctx: Context, q: m.Runs) -> dict[str, Any]:
         "meta": meta(
             ctx,
             matched=len(runs),
-            groups=len(rows) if q.seeds else None,
+            means=len(rows) if q.seeds else None,
             shown=len(shown),
             cut=cut,
             hint="raise limit to see more" if cut else None,
@@ -553,13 +553,13 @@ def summarize(values: list[Any]) -> Any:
 
 
 def series_kind(ctx: Context, q: m.Series) -> dict[str, Any]:
-    """Answer curves, per run or aggregated per group.
+    """Answer curves, per run or aggregated by fields or over seeds.
 
     :param ctx: The query context.
     :param q: The query.
     :return: ``{curves, meta}``."""
-    group = list(q.group or [])
-    fields = ["run.name", *[f"metric.{y}.count" for y in q.y], *group]
+    by = list(q.by or [])
+    fields = ["run.name", *[f"metric.{y}.count" for y in q.y], *by]
     runs, _ = select_runs(ctx, q, fields)
     if q.steps and len(q.steps) != 2:
         raise QueryError("series: steps is [first, last], e.g. [0, 5000]")
@@ -567,11 +567,11 @@ def series_kind(ctx: Context, q: m.Series) -> dict[str, Any]:
     if q.x not in ("_step", TIME_KEY, "_elapsed"):
         check_known(ctx, [parse_field(f"metric.{q.x}.last")])
     points = q.points or ctx.defaults["points"]
-    if q.group or q.seeds:
+    if q.by or q.seeds:
         groups = (
             [(cfg, rs) for cfg, rs in seed_groups(runs, q.seeds)]
-            if q.seeds and not q.group
-            else group_by(runs, group)
+            if q.seeds and not q.by
+            else group_by(runs, by)
         )
         n_curves = max(1, len(groups) * len(q.y))
         per_curve = max(2, min(points, CHART_BUDGET // n_curves))
@@ -713,7 +713,7 @@ def grouped_curve(
                 continue
         cols.close()
     out: dict[str, Any] = {
-        "group": label,
+        "by": label,
         "runs": [r["_id"] for r in runs],
         "metric": y,
     }
@@ -885,7 +885,7 @@ def timeline_kind(ctx: Context, q: m.Timeline) -> dict[str, Any]:
             "kind": "note",
             "type": type_,
             "id": note_id,
-            "folder": folder,
+            "group": folder,
             "run": run_id,
             "description": description,
         }
@@ -949,8 +949,8 @@ def iso(t: float | None) -> str | None:
     return datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def folders_kind(ctx: Context, q: m.Folders) -> dict[str, Any]:
-    """Answer the folder tree with research status, check, verdict and run counts.
+def groups_kind(ctx: Context, q: m.Groups) -> dict[str, Any]:
+    """Answer the group tree with research status, check, verdict and run counts.
 
     :param ctx: The query context.
     :param q: The query; ``where`` may filter on ``path`` and ``proposal.*``.
@@ -960,7 +960,7 @@ def folders_kind(ctx: Context, q: m.Folders) -> dict[str, Any]:
 
     for text in fields_of(q.where):
         if text != "path" and parse_field(text).ns != "proposal":
-            raise QueryError(f"folders: filter on path or proposal.* fields, not {text!r}")
+            raise QueryError(f"groups: filter on path or proposal.* fields, not {text!r}")
     db = ctx.index.store.db
     cond, params = in_scope("path", ctx.scope)
     paths = [r[0] for r in db.execute(f"SELECT path FROM folders WHERE {cond}", params)]
@@ -1012,7 +1012,7 @@ def folders_kind(ctx: Context, q: m.Folders) -> dict[str, Any]:
             ]
         )
     return {
-        "kind": "folders",
+        "kind": "groups",
         "columns": columns,
         "rows": rows,
         "meta": meta(ctx, matched=len(rows)),
@@ -1028,7 +1028,7 @@ def file_kind(ctx: Context, q: m.File) -> dict[str, Any]:
     view_dir = (ctx.index.folder_path(ctx.scope) / c.VIEW).resolve()
     path = (view_dir / q.path).resolve()
     if view_dir not in path.parents:
-        raise QueryError(f"file {q.path!r} is outside the view folder {ctx.scope}/view")
+        raise QueryError(f"file {q.path!r} is outside {ctx.scope}/view")
     if not path.is_file():
         raise QueryError(f"no file {q.path!r} in {ctx.scope}/view", code="not_found")
     match path.suffix.lower():
@@ -1061,7 +1061,7 @@ def file_kind(ctx: Context, q: m.File) -> dict[str, Any]:
             raise QueryError(f"file: unsupported format {other!r}; use csv, json or parquet")
     return {
         "kind": "file",
-        "folder": ctx.scope,
+        "group": ctx.scope,
         "path": q.path,
         "columns": columns,
         "rows": rows,
@@ -1097,7 +1097,7 @@ KIND_FUNCTIONS = {
     "series": series_kind,
     "data": data_kind,
     "timeline": timeline_kind,
-    "folders": folders_kind,
+    "groups": groups_kind,
     "file": file_kind,
     "importance": importance_kind,
 }

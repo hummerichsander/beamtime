@@ -37,18 +37,18 @@ def fails(code: int, match: str, op: str, params: dict, ctx: Context) -> None:
 
 def test_proposal_set_new_folder(ctx: Context) -> None:
     """A proposal can be written before the first run, into a folder that is created."""
-    out = call("proposal set", {"folder": "warmup/sweep", "proposal": PROPOSAL, "author": "a"}, ctx)
+    out = call("proposal set", {"group": "warmup/sweep", "proposal": PROPOSAL, "author": "a"}, ctx)
     path = ctx.logdir / out["path"]
     saved = yaml.safe_load(path.read_text())
     assert saved["schema"] == 1 and saved["author"] == "a" and saved["user"]
     assert saved["predictions"][0]["name"] == "no-spike"
-    shown = call("proposal show", {"folder": "warmup/sweep"}, ctx)
+    shown = call("proposal show", {"group": "warmup/sweep"}, ctx)
     assert shown["status"] == "proposed" and shown["versions"][0]["frozen"] is False
-    status = call("folders", {"from": "warmup"}, ctx)
+    status = call("groups", {"from": "warmup"}, ctx)
     assert ["warmup/sweep", PROPOSAL["statement"], "proposed"] == status["rows"][-1][:3]
-    again = call("proposal set", {"folder": "warmup/sweep", "proposal": PROPOSAL}, ctx)
+    again = call("proposal set", {"group": "warmup/sweep", "proposal": PROPOSAL}, ctx)
     assert "which no run had recorded" in again["lines"][1]
-    fails(2, "reserved", "proposal set", {"folder": "x/notes", "proposal": PROPOSAL}, ctx)
+    fails(2, "reserved", "proposal set", {"group": "x/notes", "proposal": PROPOSAL}, ctx)
 
 
 def test_proposal_validation(ctx: Context) -> None:
@@ -66,26 +66,26 @@ def test_proposal_validation(ctx: Context) -> None:
         ("statement: [unclosed", "not valid YAML"),
     ]
     for proposal, match in bad:
-        fails(3, match, "proposal set", {"folder": "new", "proposal": proposal}, ctx)
+        fails(3, match, "proposal set", {"group": "new", "proposal": proposal}, ctx)
 
 
 def test_frozen_versions_are_superseded(ctx: Context) -> None:
     """A version runs recorded is frozen: a new one needs a reason."""
     new = PROPOSAL | {"plan": {"runs": 15}}
-    fails(3, "frozen", "proposal set", {"folder": "scaling/lr-sweep", "proposal": new}, ctx)
+    fails(3, "frozen", "proposal set", {"group": "scaling/lr-sweep", "proposal": new}, ctx)
     before = newest(ctx.logdir / "scaling/lr-sweep/proposal").stem
     out = call(
         "proposal set",
-        {"folder": "scaling/lr-sweep", "proposal": new, "reason": "metric renamed"},
+        {"group": "scaling/lr-sweep", "proposal": new, "reason": "metric renamed"},
         ctx,
     )
     saved = yaml.safe_load((ctx.logdir / out["path"]).read_text())
     assert saved["supersedes"] == {"version": before, "reason": "metric renamed"}
     assert not any("has logged" in line for line in out["lines"])
-    shown = call("proposal show", {"folder": "scaling/lr-sweep"}, ctx)
+    shown = call("proposal show", {"group": "scaling/lr-sweep"}, ctx)
     assert shown["status"] == "proposed"
     assert [v["frozen"] for v in shown["versions"]] == [False, True]
-    old = call("check", {"folder": "scaling/lr-sweep", "version": before}, ctx)
+    old = call("check", {"group": "scaling/lr-sweep", "version": before}, ctx)
     assert old["result"] == "pass"
 
 
@@ -94,7 +94,7 @@ def test_metric_warning(ctx: Context) -> None:
     typo = {"statement": "x", "predictions": [
         {"name": "a", "reduce": {"metric": "val/accc"}, "op": ">", "value": 0.5}
     ]}  # fmt: skip
-    out = call("proposal set", {"folder": "scaling/lr-sweep", "proposal": typo, "reason": "r"}, ctx)
+    out = call("proposal set", {"group": "scaling/lr-sweep", "proposal": typo, "reason": "r"}, ctx)
     assert any("'val/accc'" in line for line in out["lines"])
 
 
@@ -102,7 +102,7 @@ def test_verdict_notes(ctx: Context) -> None:
     """A verdict judges every prediction of an existing version and carries the check."""
     sweep = "tokenizer/bpe-vs-unigram"
     version = newest(ctx.logdir / sweep / "proposal").stem
-    base = {"folder": sweep, "type": "verdict", "description": "Unigram wins."}
+    base = {"group": sweep, "type": "verdict", "description": "Unigram wins."}
     fails(3, "--proposal", "note add", base, ctx)
     fails(3, "missing: unigram-wins", "note add", base | {"proposal": version}, ctx)
     fails(3, "no prediction nope", "note add", base | {
@@ -125,9 +125,9 @@ def test_verdict_notes(ctx: Context) -> None:
     assert doc.meta["check"]["unigram-wins"]["result"] == "pass"
     assert doc.meta["evidence"] == [{"prediction": f"{sweep}#unigram-wins"}]
     assert doc.meta["author"] == "claude-test" and "Clear gain" in doc.body
-    folder = call("folders", {"from": sweep}, ctx)["rows"][0]
+    folder = call("groups", {"from": sweep}, ctx)["rows"][0]
     assert folder[2:6] == ["concluded", "pass", "6 of 6 grid points", "confirmed"]
-    check = call("check", {"folder": sweep}, ctx)
+    check = call("check", {"group": sweep}, ctx)
     assert check["predictions"][0]["cited_by"][0]["id"] == doc.id
 
 
@@ -136,16 +136,16 @@ def test_notes_states_and_links(ctx: Context, roles: dict[str, str]) -> None:
     open_ = call("notes", {"open": True}, ctx)["entries"]
     assert [e["description"] for e in open_] == ["Is the gain the same for code?"]
     question = open_[0]["id"]
-    fails(3, "no note", "note add", {"folder": ".", "type": "idea", "description": "x",
+    fails(3, "no note", "note add", {"group": ".", "type": "idea", "description": "x",
                                      "resolves": ["20200101-000000-zzzz"]}, ctx)  # fmt: skip
-    fails(3, "one line", "note add", {"folder": ".", "type": "idea", "description": "a\nb"}, ctx)
-    fails(3, "decision", "note add", {"folder": ".", "type": "idea", "description": "x",
+    fails(3, "one line", "note add", {"group": ".", "type": "idea", "description": "a\nb"}, ctx)
+    fails(3, "decision", "note add", {"group": ".", "type": "idea", "description": "x",
                                       "completes": ["scaling"]}, ctx)  # fmt: skip
-    answer = call("note add", {"folder": "tokenizer", "type": "observation",
+    answer = call("note add", {"group": "tokenizer", "type": "observation",
                                "description": "Same gain on code.", "resolves": [question],
                                "evidence": [roles["killed"]]}, ctx)  # fmt: skip
     assert call("notes", {"open": True}, ctx)["entries"] == []
-    fix = call("note add", {"folder": "tokenizer", "type": "observation",
+    fix = call("note add", {"group": "tokenizer", "type": "observation",
                             "description": "Gain is smaller on code.",
                             "supersedes": answer["version"]}, ctx)  # fmt: skip
     listed = {e["id"]: e for e in call("notes", {"from": "tokenizer", "full": True}, ctx)["entries"]}
@@ -158,23 +158,23 @@ def test_notes_states_and_links(ctx: Context, roles: dict[str, str]) -> None:
 
 def test_memory(ctx: Context) -> None:
     """Memory versions chain from the root down; new notes make them stale."""
-    chain = call("memory show", {"folder": "tokenizer/bpe-vs-unigram"}, ctx)["chain"]
-    assert [m["folder"] for m in chain] == ["."] and chain[0]["notes_since"] == 0
-    call("note add", {"folder": "tokenizer", "type": "idea", "description": "Try 128k."}, ctx)
-    shown = call("memory show", {"folder": "tokenizer"}, ctx)
+    chain = call("memory show", {"group": "tokenizer/bpe-vs-unigram"}, ctx)["chain"]
+    assert [m["group"] for m in chain] == ["."] and chain[0]["notes_since"] == 0
+    call("note add", {"group": "tokenizer", "type": "idea", "description": "Try 128k."}, ctx)
+    shown = call("memory show", {"group": "tokenizer"}, ctx)
     assert shown["chain"][0]["notes_since"] == 1 and "1 note(s)" in shown["meta"]["hints"][0]
     assert call("status", {}, ctx)["memory"]["notes_since"] == 1
     body = "---\nauthor: claude-test\n---\n## Current understanding\n- Unigram wins [[x]]\n"
-    out = call("memory update", {"folder": ".", "body": body}, ctx)
+    out = call("memory update", {"group": ".", "body": body}, ctx)
     assert out["lines"][1].startswith("covers notes until")
-    assert call("memory show", {"folder": "tokenizer"}, ctx)["chain"][0]["notes_since"] == 0
-    call("memory update", {"folder": "tokenizer", "body": "- big\n" * 2000}, ctx)
-    chain = call("memory show", {"folder": "tokenizer"}, ctx)["chain"]
-    assert [m["folder"] for m in chain] == [".", "tokenizer"]
+    assert call("memory show", {"group": "tokenizer"}, ctx)["chain"][0]["notes_since"] == 0
+    call("memory update", {"group": "tokenizer", "body": "- big\n" * 2000}, ctx)
+    chain = call("memory show", {"group": "tokenizer"}, ctx)["chain"]
+    assert [m["group"] for m in chain] == [".", "tokenizer"]
     assert read_markdown_doc(newest(ctx.logdir / "memory"), kind="memory").meta["author"] == (
         "claude-test"
     )
-    big = call("memory update", {"folder": "tokenizer", "body": "x" * 7000}, ctx)
+    big = call("memory update", {"group": "tokenizer", "body": "x" * 7000}, ctx)
     assert "budget" in big["lines"][-1]
     assert len(versions(ctx.logdir / "tokenizer" / "memory")) == 2
     fails(3, "covers_until", "memory update", {"body": "x", "covers_until": "yesterday"}, ctx)

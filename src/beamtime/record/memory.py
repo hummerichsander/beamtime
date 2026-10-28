@@ -1,4 +1,4 @@
-"""Memory: the compressed summary of a folder's record, and how stale it is."""
+"""Memory: the compressed summary of a group's record, and how stale it is."""
 
 from datetime import datetime, timezone
 from typing import Any
@@ -39,10 +39,10 @@ def iso(t: float) -> str:
 
 
 def chain(target: Target) -> list[dict[str, Any]]:
-    """Read the memory of a folder and of every folder above it, root first.
+    """Read the memory of a group and of every group above it, root first.
 
-    :param target: The folder or run.
-    :return: Per folder with a memory: its version, fields, body and staleness."""
+    :param target: The group or run.
+    :return: Per group with a memory: its version, fields, body and staleness."""
     parts = [] if target.rel in (".", "") else target.rel.split("/")
     out = []
     for i in range(len(parts) + 1):
@@ -52,12 +52,12 @@ def chain(target: Target) -> list[dict[str, Any]]:
         try:
             doc = read_markdown_doc(path, kind="memory")
         except (SchemaError, ValueError, OSError) as e:
-            out.append({"folder": rel, "version": path.stem, "problem": str(e)})
+            out.append({"group": rel, "version": path.stem, "problem": str(e)})
             continue
         covers = to_time(doc.meta.get("covers_until"))
         out.append(
             {
-                "folder": rel,
+                "group": rel,
                 "version": doc.id,
                 "covers_until": iso(covers) if covers is not None else None,
                 "author": doc.meta.get("author"),
@@ -70,10 +70,10 @@ def chain(target: Target) -> list[dict[str, Any]]:
 
 
 def notes_since(target: Target, rel: str, since: float | None) -> int:
-    """Count the notes at or below a folder that are newer than a time.
+    """Count the notes at or below a group that are newer than a time.
 
     :param target: Any target, for its index.
-    :param rel: The folder.
+    :param rel: The group.
     :param since: The time; ``None`` counts every note.
     :return: The count."""
     cond, params = in_scope("folder", rel)
@@ -83,9 +83,9 @@ def notes_since(target: Target, rel: str, since: float | None) -> int:
 
 
 def newest_note_time(target: Target) -> float | None:
-    """Find the time of the newest note at or below a folder.
+    """Find the time of the newest note at or below a group.
 
-    :param target: The folder.
+    :param target: The group.
     :return: Unix time, or ``None`` without notes."""
     cond, params = in_scope("folder", target.rel)
     return target.index.store.db.execute(

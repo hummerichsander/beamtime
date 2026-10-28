@@ -5,12 +5,12 @@ import { useEffect, useRef } from "preact/hooks";
 
 import { fetchCall, paused } from "../api.ts";
 import { rows } from "../blocks/common.ts";
-import { folderUrl, navigate, route, setScroller } from "../router.ts";
+import { groupUrl, navigate, route, setScroller } from "../router.ts";
 import { useStore } from "../state.ts";
 import { StatusBar, TopBar } from "./bars.ts";
 import * as calls from "./calls.ts";
 import { Drawer } from "./drawer.ts";
-import { FolderPage, RunRedirect, Settings } from "./page.ts";
+import { GroupPage, RunRedirect, Settings } from "./page.ts";
 import { Palette } from "./palette.ts";
 import { Sidebar } from "./sidebar.ts";
 import { buildTree, siblings } from "./tree.ts";
@@ -27,11 +27,11 @@ export function App() {
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
   }, []);
-  const drawer = r.page === "folder" && r.drawer;
+  const drawer = r.page === "group" && r.drawer;
   let page;
   switch (r.page) {
-    case "folder":
-      page = html`<${FolderPage} key=${r.path} path=${r.path} />`;
+    case "group":
+      page = html`<${GroupPage} key=${r.path} path=${r.path} />`;
       break;
     case "run":
       page = html`<${RunRedirect} id=${r.id} />`;
@@ -74,8 +74,8 @@ function onKey(e: KeyboardEvent): void {
     if (palette.value) return palette.set(false);
     if (help.value) return help.set(false);
     const r = route.value;
-    if (r.page === "folder" && r.run) return navigate(folderUrl(r.path, { drawer: true }), { replace: true });
-    if (r.page === "folder" && r.drawer) return navigate(folderUrl(r.path), { replace: true });
+    if (r.page === "group" && r.run) return navigate(groupUrl(r.path, { drawer: true }), { replace: true });
+    if (r.page === "group" && r.drawer) return navigate(groupUrl(r.path), { replace: true });
     return;
   }
   if (mod || e.altKey || typing(e) || palette.value) return;
@@ -92,11 +92,11 @@ function onKey(e: KeyboardEvent): void {
       paused.set(!paused.value);
       break;
     case "i":
-      if (r.page === "folder") navigate(folderUrl(r.path, { drawer: !r.drawer }), { replace: true });
+      if (r.page === "group") navigate(groupUrl(r.path, { drawer: !r.drawer }), { replace: true });
       break;
     case "[":
     case "]":
-      if (r.page === "folder") void sibling(r.path, e.key === "]" ? 1 : -1);
+      if (r.page === "group") void sibling(r.path, e.key === "]" ? 1 : -1);
       break;
   }
 }
@@ -106,5 +106,5 @@ async function sibling(path: string, step: number): Promise<void> {
   const list = siblings(root, path);
   const i = list.findIndex((n) => n.path === path);
   const next = list[i + step];
-  if (next) navigate(folderUrl(next.path));
+  if (next) navigate(groupUrl(next.path));
 }

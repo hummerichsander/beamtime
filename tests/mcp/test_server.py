@@ -71,7 +71,7 @@ def test_calls_answer_and_errors_return_to_the_agent(project: Path) -> None:
     async def work(s):
         ok = await s.call_tool("runs", {"from": "scaling/lr-sweep", "limit": 2})
         bad = await s.call_tool("runs", {"from": "scalng"})
-        prompt = await s.get_prompt("review", {"folder": "scaling"})
+        prompt = await s.get_prompt("review", {"group": "scaling"})
         return ok, bad, prompt
 
     ok, bad, prompt = session(project, work)
@@ -90,20 +90,20 @@ def test_record_writes_and_prompts(project: Path) -> None:
 
     async def work(s):
         saved = await s.call_tool(
-            "proposal_set", {"folder": "agent/dropout", "proposal": proposal, "author": "m"}
+            "proposal_set", {"group": "agent/dropout", "proposal": proposal, "author": "m"}
         )
         yaml_text = await s.call_tool(
-            "proposal_set", {"folder": "agent/other", "proposal": "statement: From YAML.\n"}
+            "proposal_set", {"group": "agent/other", "proposal": "statement: From YAML.\n"}
         )
         note = await s.call_tool(
             "note_add",
-            {"folder": "agent/dropout", "type": "idea", "description": "Try 0.2.", "body": "x"},
+            {"group": "agent/dropout", "type": "idea", "description": "Try 0.2.", "body": "x"},
         )
-        bad = await s.call_tool("note_add", {"folder": "agent", "type": "idea", "description": ""})
-        memory = await s.call_tool("memory_update", {"folder": "agent", "body": "- idea [[x]]"})
-        shown = await s.call_tool("memory_show", {"folder": "agent/dropout"})
+        bad = await s.call_tool("note_add", {"group": "agent", "type": "idea", "description": ""})
+        memory = await s.call_tool("memory_update", {"group": "agent", "body": "- idea [[x]]"})
+        shown = await s.call_tool("memory_show", {"group": "agent/dropout"})
         prompts = [
-            await s.get_prompt(name, {"folder": "agent/dropout"})
+            await s.get_prompt(name, {"group": "agent/dropout"})
             for name in ("proposal", "verdict", "memory")
         ]
         return saved, yaml_text, note, bad, memory, shown, prompts
@@ -116,7 +116,7 @@ def test_record_writes_and_prompts(project: Path) -> None:
     note_path = project / "beamtime" / json.loads(note.content[0].text)["path"]
     assert "author: agent" in note_path.read_text()
     assert bad.is_error and "one line" in bad.content[0].text
-    assert json.loads(shown.content[0].text)["chain"][-1]["folder"] == "agent"
+    assert json.loads(shown.content[0].text)["chain"][-1]["group"] == "agent"
     texts = [p.messages[0].content.text for p in prompts]
     assert "proposal_set" in texts[0] and "note_add" in texts[1] and "memory_update" in texts[2]
     assert all("agent/dropout" in t for t in texts)

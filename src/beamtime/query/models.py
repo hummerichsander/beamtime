@@ -71,7 +71,7 @@ class Series(Selection, kw_only=True):
     steps: list[int | None] | None = None
     points: int | None = None
     smooth: Smooth | None = None
-    group: list[str] | None = None
+    by: list[str] | None = None
     band: Literal["minmax", "std", "stderr", "none"] = "minmax"
 
 
@@ -92,8 +92,8 @@ class Timeline(Selection, kw_only=True):
     full: bool = False
 
 
-class Folders(Selection, kw_only=True):
-    """The folder tree with what is attached to it."""
+class Groups(Selection, kw_only=True):
+    """The group tree with what is attached to it."""
 
 
 class File(Struct, kw_only=True):
@@ -116,7 +116,7 @@ KINDS: dict[str, type[Struct]] = {
     "series": Series,
     "data": Data,
     "timeline": Timeline,
-    "folders": Folders,
+    "groups": Groups,
     "file": File,
     "importance": Importance,
 }

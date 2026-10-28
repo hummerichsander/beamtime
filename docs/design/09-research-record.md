@@ -21,12 +21,12 @@ proposal ──► plan ──► runs ──► check ──► verdict note �
  (frozen)            (logged)  (automatic) (human/agent)    (what next)      (compressed)
 ```
 
-Every step is a file in a folder. The index derives the rest: checks, folder status, the timeline,
+Every step is a file in a group. The index derives the rest: checks, group status, the timeline,
 backlinks.
 
 ## Proposals
 
-A proposal states what a folder's runs are expected to show and why. It can sit on a group or on a
+A proposal states what a group's runs are expected to show and why. It can sit on a group or on a
 run.
 
 ### Versions
@@ -67,7 +67,7 @@ user: ada
 - **Membership.** At `init`, every run records in its own `_run.json` the current proposal version of
   each ancestor group and its own ([layer 1](01-storage.md#_runjson)). A proposal version is evaluated
   against exactly the runs that recorded it. This is explicit, needs no clock, and survives moving a
-  run: a moved run keeps its membership, and the UI notes that it was recorded under another folder.
+  run: a moved run keeps its membership, and the UI notes that it was recorded under another group.
 - **Freezing.** A version is frozen once any run has recorded it. A run's own proposal is frozen from
   the run's start. Frozen versions never change; the index refuses to treat an edited frozen file as
   valid and shows the hash mismatch.
@@ -92,7 +92,7 @@ of fifteen. It is optional:
 |---|---|---|
 | `plan: {runs: 15}` | 15 runs of this version have ended | a sweep of known size |
 | `plan: {grid: {config.lr: [...], config.seed: [...]}}` | every grid point has an ended run | a sweep defined by its grid |
-| `plan: children` | the plans of all subfolders are complete | a group of sweeps |
+| `plan: children` | the plans of all subgroups are complete | a group of sweeps |
 | no plan | a decision note declares it (`completes: [scaling/warmup]`) | exploratory work |
 
 Progress is shown wherever the check is ("9 of 15 runs"). Runs that failed, were killed or are lost
@@ -167,7 +167,7 @@ disagree with the check and say why.
 
 ## Notes
 
-Notes are the running record of a folder: what was seen, decided, wondered and concluded. Each note is
+Notes are the running record of a group: what was seen, decided, wondered and concluded. Each note is
 a Markdown file with YAML frontmatter in `notes/`, named by its version id (`20261025-170200-m4p7.md`),
 and never edited; a correction is a new note.
 
@@ -218,14 +218,14 @@ across learning rates; see the view for the curves.
 | `author`, `user` | who wrote it (a person or model id), and the account it was written for |
 | `resolves` | ids of notes this one answers or implements (a question, an idea) |
 | `supersedes` | the id of a note this one corrects |
-| `completes` | (decisions) folders whose open-ended experiment is declared complete |
+| `completes` | (decisions) groups whose open-ended experiment is declared complete |
 | `proposal`, `verdicts`, `overall`, `check` | (verdicts) the version judged, a verdict per prediction (`confirmed`, `refuted`, `inconclusive`), an overall verdict, and the check at the time of writing, added automatically, so the verdict stays traceable after more runs arrive |
 | `evidence` | what the note rests on, as typed entries: `run`, `metric` (with `stat`, `run`, `value`), `view`, `prediction`, `note` |
 
 - Fields hold plain ids and paths; `[[...]]` links are for the body.
 - A question is **open** until a note `resolves` it; a note is **superseded** once another note
   `supersedes` it. Both states are derived and shown in listings.
-- The newest verdict on the current proposal version is the folder's verdict.
+- The newest verdict on the current proposal version is the group's verdict.
 
 ### Links
 
@@ -234,7 +234,7 @@ across learning rates; see the view for the curves.
 | Target | Syntax |
 |---|---|
 | a run | `[[20261025-101532-k3m9xq2a]]` |
-| a folder | `[[scaling/warmup]]`, `[[@cluster/scaling]]` |
+| a group | `[[scaling/warmup]]`, `[[@cluster/scaling]]` |
 | a note | `[[20261020-110000-ab12]]` |
 | a prediction | `[[scaling/warmup#warmup-helps]]` |
 | a view version | `[[scaling/warmup@20261025-161004-q2m1]]` |
@@ -242,9 +242,9 @@ across learning rates; see the view for the curves.
 The index resolves links and keeps backlinks, so a run, prediction or view shows the notes that cite
 it. The UI shows a note's description instead of its id.
 
-## Folder status
+## Group status
 
-Every group has a research status, derived from its files and shown in the frame, the `folders` block
+Every group has a research status, derived from its files and shown in the frame, the `groups` block
 and the sidebar ([layer 7](07-web-ui.md#shell)):
 
 | Status | When |
@@ -307,23 +307,23 @@ kept.
 
 ### Reading and staleness
 
-- `beamtime memory show <folder>` (MCP: `memory_show`) returns the memory of the folder and of every
-  folder above it, root first.
+- `beamtime memory show <group>` (MCP: `memory_show`) returns the memory of the group and of every
+  group above it, root first.
 - `status`, `guide` and `memory_show` say when notes have been added since `covers_until` ("7 notes
   since the last update").
-- `/beamtime:memory` (an MCP prompt) updates and compacts a folder's memory.
+- `/beamtime:memory` (an MCP prompt) updates and compacts a group's memory.
 
 ## Agent defaults
 
 The guide ([layer 5](05-views.md#defaults)) states these as defaults:
 
-- **Before designing an experiment**, read `memory_show` for the target folder, then the open
+- **Before designing an experiment**, read `memory_show` for the target group, then the open
   questions and recent decisions it points to.
 - **Before a launch**, write the proposal with a plan and named predictions, so its runs record it
   from the start (`/beamtime:proposal`).
 - **Verdicts** judge each prediction, cite evidence, and carry the check snapshot; disagreeing with the
   check is allowed and must be explained (`/beamtime:verdict`).
-- **After a verdict or decision**, update the folder's memory.
+- **After a verdict or decision**, update the group's memory.
 - **Never overclaim**: a finding or verdict says what the check says, including `insufficient`,
   `inconclusive` and provisional results.
 
@@ -358,14 +358,14 @@ Decided while building the research record (milestone M4):
 - **Backlinks** come from the index's links table: `card` lists the notes citing a run
   (`cited_by`), and `check` the notes citing each prediction.
 - **Memory**: the size budget is measured in characters, 6000 (about 1.5k tokens); `covers_until`
-  defaults to the time of the newest note at or below the folder.
+  defaults to the time of the newest note at or below the group.
 
 ## Decisions
 
 - Proposals are versioned; runs record their membership in `_run.json`; a version is frozen once a run
   records it; frozen versions are superseded with a reason, never edited.
 - Plans are optional (`runs`, `grid`, `children`); without one, checks stay provisional until a
-  decision note completes the folder.
+  decision note completes the group.
 - Predictions are named, automatic or manual; v1 has `each` and `compare`, with `trend` and `best` in
   v1.1. Selection uses the query language's `where`.
 - Intervals are t-intervals (Welch, or paired with `pair_by`) at 95 % by default; `inconclusive` and
@@ -373,5 +373,5 @@ Decided while building the research record (milestone M4):
 - Verdicts judge each prediction, name the proposal version, and snapshot the check.
 - Notes are named by version id, have five types, and link with plain ids in fields and `[[...]]` in
   bodies.
-- Folders have a derived research status: `open`, `proposed`, `running`, `evaluable`, `concluded`.
-- Memory is a versioned, compressed summary per folder with links to evidence and a size budget.
+- Groups have a derived research status: `open`, `proposed`, `running`, `evaluable`, `concluded`.
+- Memory is a versioned, compressed summary per group with links to evidence and a size budget.

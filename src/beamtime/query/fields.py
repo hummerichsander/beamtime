@@ -30,7 +30,7 @@ RUN_COLUMNS = {
     "created_at": "created_at",
     "ended_at": "ended_at",
     "path": "path",
-    "folder": "folder",
+    "group": "folder",
     "tags": "tags",
 }
 RUN_CARD = {

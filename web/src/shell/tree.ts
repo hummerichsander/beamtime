@@ -1,4 +1,4 @@
-// The folder tree from one `folders` answer: nodes with counts, status and children.
+// The group tree from one `groups` answer: nodes with counts, status and children.
 
 export type TreeNode = {
   path: string;

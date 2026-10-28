@@ -152,11 +152,11 @@ def meta(ctx: Context) -> dict[str, Any]:
 
 
 def view(ctx: Context, path: str) -> dict[str, Any]:
-    """Answer the view of a folder or run: for now the built-in default.
+    """Answer the view of a group or run: for now the built-in default.
 
     :param ctx: The operation context.
-    :param path: A folder path, or a run id or path.
-    :return: ``{kind, path, run, view}`` with the run's folder path resolved."""
+    :param path: A group path, or a run id or path.
+    :return: ``{kind, path, run, view}`` with the run's path resolved."""
     from beamtime.index.index import Index
     from beamtime.views.defaults import default_view
 
@@ -175,7 +175,7 @@ def view(ctx: Context, path: str) -> dict[str, Any]:
             raise OpError(f"no run {run!r} below the log dir", code=4)
         path = found.relative_to(ctx.logdir).as_posix()
     elif not (ctx.logdir / path).is_dir() or ".." in path.split("/"):
-        raise OpError(f"no folder {path!r} below the log dir", code=4)
+        raise OpError(f"no group {path!r} below the log dir", code=4)
     return {"kind": "view", "path": path, "run": run, "view": default_view(ctx, path)}
 
 

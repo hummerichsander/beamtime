@@ -73,7 +73,7 @@ def test_series_steps_and_query_argument(project: Path) -> None:
     """--steps takes first:last; query takes inline YAML flow or JSON."""
     out = beamtime(project, "series", "tokenizer", "-y", "val/ppl", "--steps", "0:500", "--json")
     assert all(max(c["x"]) <= 500 for c in json.loads(out.stdout)["curves"])
-    out = beamtime(project, "query", "{folders: {from: tokenizer}}")
+    out = beamtime(project, "query", "{groups: {from: tokenizer}}")
     assert "bpe-vs-unigram" in out.stdout
     query = project / "q.yaml"
     query.write_text("keys:\n  from: tokenizer\n")
@@ -83,7 +83,7 @@ def test_series_steps_and_query_argument(project: Path) -> None:
 @pytest.mark.parametrize(
     "args, code, text",
     [
-        (["runs", "nope"], 4, "no folder 'nope'"),
+        (["runs", "nope"], 4, "no group 'nope'"),
         (["runs", "--select", "metric.val/acc.mx"], 2, "metric field"),
         (["runs", "--where", "config.lr"], 2, "operator"),
         (["card", "20200101-000000-zzzzzzzz"], 4, "no run"),

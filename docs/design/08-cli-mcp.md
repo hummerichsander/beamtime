@@ -23,57 +23,57 @@ thin frontends over one set of **operations**, which is also the API of `serve`
 
 ## Operations
 
-Folders are paths below the log dir; `@cluster/scaling` names a remote folder; a run id works
-wherever a folder does.
+Groups are paths below the log dir; `@cluster/scaling` names a remote group; a run id works
+wherever a group does.
 
 ### Reading (CLI and MCP)
 
 | CLI | MCP | Does |
 |---|---|---|
 | `beamtime status` | `status` | daemon, indexer, sources and remotes, freshness, the web UI's URL |
-| `beamtime guide [part] [folder]` | `guide` | the agent guide ([layer 5](05-views.md#the-agent-guide)) |
-| `beamtime memory show <folder>` | `memory_show` | the memory of the folder and every folder above it, with a staleness hint |
-| `beamtime keys <folder>` | `keys` | metrics, config keys, data keys and tags |
-| `beamtime folders <folder>` | `folders` | the folder tree with status, proposal, check, verdict and run counts |
-| `beamtime runs <folder>` | `runs` | a run table: `--where`, `--select`, `--sort`, `--limit` |
+| `beamtime guide [part] [group]` | `guide` | the agent guide ([layer 5](05-views.md#the-agent-guide)) |
+| `beamtime memory show <group>` | `memory_show` | the memory of the group and every group above it, with a staleness hint |
+| `beamtime keys <group>` | `keys` | metrics, config keys, data keys and tags |
+| `beamtime groups <group>` | `groups` | the group tree with status, proposal, check, verdict and run counts |
+| `beamtime runs <group>` | `runs` | a run table: `--where`, `--select`, `--sort`, `--limit` |
 | `beamtime card <run>` | `card` | one run's card with its proposals' checks, verdicts and latest notes |
-| `beamtime series <folder> -y <key>` | `series` | curves: `--steps`, `--points`, `--group`, `--seeds` |
-| `beamtime data <folder> <key>` | `data` | logged tables, images (as references) and text |
-| `beamtime file <view-folder> <path>` | `file` | a data file stored with a view |
+| `beamtime series <group> -y <key>` | `series` | curves: `--steps`, `--points`, `--by`, `--seeds` |
+| `beamtime data <group> <key>` | `data` | logged tables, images (as references) and text |
+| `beamtime file <view-group> <path>` | `file` | a data file stored with a view |
 | `beamtime output <run>` | `output` | captured output: `--tail`, `--grep`, `--rank` |
-| `beamtime timeline <folder>` | `timeline` | notes and events in time order: `--types`, `--since` |
-| `beamtime notes <folder>` | `notes` | notes with descriptions; `--open` for open questions, `--full` for bodies |
-| `beamtime proposal show <folder>` | `proposal_show` | the current proposal version, its earlier versions and their checks |
-| `beamtime check <folder>` | `check` | the predictions of the current proposal and their results |
-| `beamtime importance <folder> --target <field>` | `importance` | hyperparameter importance (v1.1) |
+| `beamtime timeline <group>` | `timeline` | notes and events in time order: `--types`, `--since` |
+| `beamtime notes <group>` | `notes` | notes with descriptions; `--open` for open questions, `--full` for bodies |
+| `beamtime proposal show <group>` | `proposal_show` | the current proposal version, its earlier versions and their checks |
+| `beamtime check <group>` | `check` | the predictions of the current proposal and their results |
+| `beamtime importance <group> --target <field>` | `importance` | hyperparameter importance (v1.1) |
 | `beamtime query <file or {…}>` | `query` | any query in its object form ([layer 3](03-index.md#query-language)) |
 
 ### Writing (CLI and MCP)
 
 | CLI | MCP | Does |
 |---|---|---|
-| `beamtime note add <folder>` | `note_add` | a note: `--type`, `--description`, `--resolves`, `--supersedes`, `--completes`, `--evidence`; for verdicts `--proposal <version>`, `--verdict <prediction>=<verdict>`, `--overall`; the check snapshot is added automatically; body from stdin |
-| `beamtime proposal set <folder> <file>` | `proposal_set` | saves a new proposal version; superseding a frozen version requires `--reason` |
-| `beamtime memory update <folder> <file>` | `memory_update` | saves a new memory version; warns beyond the size budget |
+| `beamtime note add <group>` | `note_add` | a note: `--type`, `--description`, `--resolves`, `--supersedes`, `--completes`, `--evidence`; for verdicts `--proposal <version>`, `--verdict <prediction>=<verdict>`, `--overall`; the check snapshot is added automatically; body from stdin |
+| `beamtime proposal set <group> <file>` | `proposal_set` | saves a new proposal version; superseding a frozen version requires `--reason` |
+| `beamtime memory update <group> <file>` | `memory_update` | saves a new memory version; warns beyond the size budget |
 
 ### Views and blocks (CLI and MCP)
 
 | CLI | MCP | Does |
 |---|---|---|
-| `beamtime view new <folder> [--from <example>]` | `view_new` | starts a draft |
+| `beamtime view new <group> [--from <example>]` | `view_new` | starts a draft |
 | `beamtime view validate <draft>` | `view_validate` | validation ([layer 5](05-views.md#validation)) |
 | `beamtime view render <draft>` | `view_render` | screenshots (PNG files in the CLI, images in MCP) |
 | `beamtime view save <draft>` | `view_save` | saves a new view version |
-| `beamtime view show <folder>` | `view_show` | the current view's YAML, pins and version |
-| `beamtime view history <folder>` | `view_history` | the version list |
-| `beamtime view outdated [folder]` | `view_outdated` | views pinned to older block versions |
+| `beamtime view show <group>` | `view_show` | the current view's YAML, pins and version |
+| `beamtime view history <group>` | `view_history` | the version list |
+| `beamtime view outdated [group]` | `view_outdated` | views pinned to older block versions |
 | `beamtime view upgrade <view> [--block <name>]` | `view_upgrade` | re-pins and validates a view |
-| `beamtime block list [folder]` | `block_list` | library blocks with descriptions |
+| `beamtime block list [group]` | `block_list` | library blocks with descriptions |
 | `beamtime block promote <view> <block-id> <name>` | `block_promote` | turns a custom block into a library block |
 | `beamtime block fork <name> <new-name>` | `block_fork` | copies a block as a starting point |
 | `beamtime block validate <draft>` | `block_validate` | checks a block draft |
 | `beamtime block save <draft>` | `block_save` | saves a new block version |
-| `beamtime export <folder>` | `export` | `--html`, `--figures`, `--points` ([layer 7](07-web-ui.md#static-export)) |
+| `beamtime export <group>` | `export` | `--html`, `--figures`, `--points` ([layer 7](07-web-ui.md#static-export)) |
 
 ### User-only commands (CLI only)
 
@@ -88,12 +88,12 @@ the user the command ([Policy](#policy)).
 | `beamtime doctor` | checks root and log dir resolution, write access, Chromium, remote reachability and the remote's Beamtime version |
 | `beamtime settings` | the effective settings and the level each value comes from |
 | `beamtime serve [sources…]` | the web UI, indexer and remote connections; `--no-ui`, `--port` (default 8080, else the next free port), `--open` |
-| `beamtime pull <source>:<folder>` | a read-only offline snapshot; `--drop` removes it |
-| `beamtime mv <run> <folder>` | moves a run; refuses running runs |
-| `beamtime rm <run or folder>` | moves it into `_trash/` ([layer 1](01-storage.md#deleting-and-cleaning-up)) |
+| `beamtime pull <source>:<group>` | a read-only offline snapshot; `--drop` removes it |
+| `beamtime mv <run> <group>` | moves a run; refuses running runs |
+| `beamtime rm <run or group>` | moves it into `_trash/` ([layer 1](01-storage.md#deleting-and-cleaning-up)) |
 | `beamtime gc` | empties the trash and removes crashed runs without metrics |
 | `beamtime reindex` | rebuilds the index from the files |
-| `beamtime block export <name> <folder>`, `beamtime block import <folder>` | copy blocks between projects |
+| `beamtime block export <name> <group>`, `beamtime block import <group>` | copy blocks between projects |
 | `beamtime theme list`, `beamtime theme use <name>` | themes ([layer 5](05-views.md#theme)) |
 
 Internal entry points: `beamtime serve --stdio` (started by a laptop over ssh) and `beamtime mcp` (the
@@ -151,14 +151,14 @@ MCP prompts appear as slash commands in clients such as Claude Code (`/beamtime:
 
 | Prompt | Starts |
 |---|---|
-| `view` | build or improve the view of a folder |
+| `view` | build or improve the view of a group |
 | `proposal` | write a proposal with a plan and checkable predictions before a launch |
-| `review` | summarize what changed in a folder since a date: new runs, checks, failures |
+| `review` | summarize what changed in a group since a date: new runs, checks, failures |
 | `debug` | find out why a run failed, from its output, card and curves |
 | `verdict` | evaluate a proposal against its runs and write a verdict note |
-| `compare` | compare two runs, groups or folders: config differences, metric deltas, and a temporary view if it helps |
-| `report` | summarize a folder for others: findings, verdicts, open questions, as a view or an export |
-| `memory` | update and compact a folder's memory from the notes added since it was last written |
+| `compare` | compare two runs or groups: config differences, metric deltas, and a temporary view if it helps |
+| `report` | summarize a group for others: findings, verdicts, open questions, as a view or an export |
+| `memory` | update and compact a group's memory from the notes added since it was last written |
 
 ### Token budgets
 
@@ -202,7 +202,7 @@ Decided while building the CLI and MCP server (milestone M3):
   `beamtime runs` at about 100–120 ms.
 - **`beamtime query`** takes a file or an inline object as its argument (`beamtime query '{runs:
   {from: .}}'`), since `--json` is the global flag for JSON output.
-- **Exit codes**: an invalid query or bad flag is wrong usage (2); a missing folder, run or key is 4.
+- **Exit codes**: an invalid query or bad flag is wrong usage (2); a missing group, run or key is 4.
 - **Text output** puts the run name first and the full run id last, so agents can copy ids; seed
   groups show how many runs they have (`--json` lists them); curves are one line each with first,
   min, max, last, a trend arrow and a sparkline.
@@ -220,9 +220,9 @@ Decided while building the CLI and MCP server (milestone M3):
 - **Writes (M4).** `note add` and `memory update` read the body from stdin, `proposal set` the
   proposal, when no file is given; MCP passes `body`, or `proposal` as an object or YAML text.
   `--verdict prediction=verdict` and `--evidence` repeat; evidence is a run id, note id,
-  `folder#prediction`, `folder@view-version` or an object such as `{metric, stat, run, value}`, and
+  `group#prediction`, `group@view-version` or an object such as `{metric, stat, run, value}`, and
   the run and note ids must exist. `--reason` fills `supersedes` with the current version. A write
-  to a missing folder creates it (not a reserved name, not inside a run), so a proposal can precede
+  to a missing group creates it (not a reserved name, not inside a run), so a proposal can precede
   the first run. `author` defaults to the local account in the CLI and to `agent` in MCP, whose
   instructions ask for the model id. Validation errors exit with 3.
 - **`status`** reports how many notes were added since the project memory's `covers_until`.

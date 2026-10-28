@@ -100,7 +100,7 @@ function spec(node: Node, curves: Curves, domain: string[], range: string[]): Re
       x,
       y,
       tooltip: [
-        { field: "label", title: curves.grouped ? "group" : "run" },
+        { field: "label", title: curves.grouped ? "aggregate" : "run" },
         { field: "x", title: "step", format: "," },
         { field: "y", title: node.props.y, format: ".4~g" },
         ...(curves.grouped ? [{ field: "n", title: "runs" }] : []),

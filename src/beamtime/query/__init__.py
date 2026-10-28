@@ -25,7 +25,7 @@ def run(
     :param query: E.g. ``{"runs": {"from": "scaling", "limit": 5}}``.
     :param logdir: The log dir.
     :param caller: ``cli``, ``mcp`` or ``view``; sets default limits.
-    :param base: The folder relative ``from`` paths start at (a view's folder).
+    :param base: The group relative ``from`` paths start at (a view's group).
     :param budget_s: Seconds to spend catching up on new data first.
     :param index: An open index to reuse; by default one is opened and closed.
     :return: The canonical answer with ``meta``, including freshness."""

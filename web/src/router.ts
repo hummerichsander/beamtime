@@ -1,9 +1,9 @@
-// Every state has a URL: the page, the folder or run, and the run open in the drawer.
+// Every state has a URL: the page, the group or run, and the run open in the drawer.
 
 import { Store } from "./state.ts";
 
 export type Route =
-  | { page: "folder"; source: string; path: string; run: string | null; drawer: boolean }
+  | { page: "group"; source: string; path: string; run: string | null; drawer: boolean }
   | { page: "run"; id: string }
   | { page: "settings"; section: string }
   | { page: "missing"; url: string };
@@ -19,20 +19,20 @@ export function parse(pathname: string, search: string): Route {
   const parts = pathname.split("/").filter(Boolean).map(decodeURIComponent);
   if (parts[0] === "f" && parts.length >= 2) {
     return {
-      page: "folder",
+      page: "group",
       source: parts[1],
       path: parts.slice(2).join("/") || ".",
       run: q.get("run"),
       drawer: q.get("drawer") === "1" || q.has("run"),
     };
   }
-  if (parts[0] === "f") return { page: "folder", source: "local", path: ".", run: null, drawer: false };
+  if (parts[0] === "f") return { page: "group", source: "local", path: ".", run: null, drawer: false };
   if (parts[0] === "r" && parts[1]) return { page: "run", id: parts[1] };
   if (parts[0] === "settings") return { page: "settings", section: parts[1] ?? "appearance" };
   return { page: "missing", url: pathname };
 }
 
-export function folderUrl(path: string, opts: { run?: string | null; drawer?: boolean } = {}): string {
+export function groupUrl(path: string, opts: { run?: string | null; drawer?: boolean } = {}): string {
   const tail = path === "." || path === "" ? "" : `/${path.split("/").map(encodeURIComponent).join("/")}`;
   const q = new URLSearchParams();
   if (opts.run) q.set("run", opts.run);

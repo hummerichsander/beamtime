@@ -40,7 +40,7 @@ class Page(Params, kw_only=True):
 class Selection(Page, kw_only=True):
     """Which runs an operation looks at."""
 
-    from_: Annotated[str, msgspec.Meta(description="folder below the log dir, or a run id")] = (
+    from_: Annotated[str, msgspec.Meta(description="group below the log dir, or a run id")] = (
         msgspec.field(default=".", name="from")
     )
     where: Where = msgspec.field(default_factory=dict)
@@ -51,8 +51,8 @@ class KeysParams(Selection, kw_only=True):
     """Parameters of ``keys``."""
 
 
-class FoldersParams(Selection, kw_only=True):
-    """Parameters of ``folders``."""
+class GroupsParams(Selection, kw_only=True):
+    """Parameters of ``groups``."""
 
 
 class RunsParams(Selection, kw_only=True):
@@ -83,7 +83,9 @@ class SeriesParams(Selection, kw_only=True):
         list[int | None] | None, msgspec.Meta(description="[first, last] step window")
     ] = None
     points: int | None = None
-    group: list[str] | None = None
+    by: Annotated[
+        list[str] | None, msgspec.Meta(description="aggregate runs by these fields, e.g. config.lr")
+    ] = None
     seeds: str | None = None
     smooth: float | None = None
     band: Literal["minmax", "std", "stderr", "none"] = "minmax"
@@ -127,11 +129,11 @@ class QueryParams(Page, kw_only=True):
 
     query: Annotated[
         dict[str, Any],
-        msgspec.Meta(description="one kind: keys, runs, series, data, timeline, folders, file"),
+        msgspec.Meta(description="one kind: keys, runs, series, data, timeline, groups, file"),
     ]
 
 
-Folder = Annotated[str, msgspec.Meta(description="folder below the log dir, or a run id")]
+Group = Annotated[str, msgspec.Meta(description="group below the log dir, or a run id")]
 Author = Annotated[
     str | None,
     msgspec.Meta(
@@ -144,20 +146,20 @@ Author = Annotated[
 class NotesParams(Page, kw_only=True):
     """Parameters of ``notes``."""
 
-    from_: Folder = msgspec.field(default=".", name="from")
+    from_: Group = msgspec.field(default=".", name="from")
     types: list[str] | None = None
     open: Annotated[bool, msgspec.Meta(description="only open questions")] = False
     full: Annotated[bool, msgspec.Meta(description="include fields and bodies")] = False
     limit: int | None = None
 
 
-class FolderParams(Params, kw_only=True):
-    """Parameters of operations on one folder's research record."""
+class GroupParams(Params, kw_only=True):
+    """Parameters of operations on one group's research record."""
 
-    folder: Folder = "."
+    group: Group = "."
 
 
-class CheckParams(FolderParams, kw_only=True):
+class CheckParams(GroupParams, kw_only=True):
     """Parameters of ``check``."""
 
     version: Annotated[str | None, msgspec.Meta(description="default: the current one")] = None
@@ -166,23 +168,23 @@ class CheckParams(FolderParams, kw_only=True):
 class NoteAddParams(Params, kw_only=True):
     """Parameters of ``note add``."""
 
-    folder: Folder
+    group: Group
     type: Literal["observation", "decision", "idea", "question", "verdict"]
     description: Annotated[str, msgspec.Meta(description="one line; what listings show")]
     body: Annotated[
-        str | None, msgspec.Meta(description="Markdown; [[run-id]], [[folder#prediction]] link")
+        str | None, msgspec.Meta(description="Markdown; [[run-id]], [[group#prediction]] link")
     ] = None
     resolves: Annotated[list[str], msgspec.Meta(description="ids of notes it answers")] = (
         msgspec.field(default_factory=list)
     )
     supersedes: Annotated[str | None, msgspec.Meta(description="id of a note it corrects")] = None
     completes: Annotated[
-        list[str], msgspec.Meta(description="decisions: folders declared complete")
+        list[str], msgspec.Meta(description="decisions: groups declared complete")
     ] = msgspec.field(default_factory=list)
     evidence: Annotated[
         list[str | dict[str, Any]],
         msgspec.Meta(
-            description="run ids, note ids, folder#prediction, folder@view-version, or "
+            description="run ids, note ids, group#prediction, group@view-version, or "
             "{metric, stat, run, value}"
         ),
     ] = msgspec.field(default_factory=list)
@@ -200,7 +202,7 @@ class NoteAddParams(Params, kw_only=True):
 class ProposalSetParams(Params, kw_only=True):
     """Parameters of ``proposal set``."""
 
-    folder: Folder
+    group: Group
     file: Annotated[str | None, msgspec.Meta(description="a YAML file with the proposal")] = None
     proposal: Annotated[
         dict[str, Any] | str | None,
@@ -216,7 +218,7 @@ class ProposalSetParams(Params, kw_only=True):
 class MemoryUpdateParams(Params, kw_only=True):
     """Parameters of ``memory update``."""
 
-    folder: Folder = "."
+    group: Group = "."
     file: Annotated[str | None, msgspec.Meta(description="a Markdown file")] = None
     body: Annotated[str | None, msgspec.Meta(description="the memory, instead of file")] = None
     covers_until: Annotated[
@@ -235,7 +237,7 @@ class MoveParams(Params, kw_only=True):
     """Parameters of ``mv``."""
 
     run: str
-    folder: str
+    group: str
 
 
 class RemoveParams(Params, kw_only=True):
@@ -313,14 +315,14 @@ OPS = [
         params=KeysParams,
         impl=f"{R}:keys",
         positional=("from_",),
-        summary="Metrics, config keys, data keys and tags: the first call in a folder.",
+        summary="Metrics, config keys, data keys and tags: the first call in a group.",
     ),
     Op(
-        name="folders",
-        params=FoldersParams,
-        impl=f"{R}:folders",
+        name="groups",
+        params=GroupsParams,
+        impl=f"{R}:groups",
         positional=("from_",),
-        summary="The folder tree: research status, check, verdict and run counts.",
+        summary="The group tree: research status, check, verdict and run counts.",
     ),
     Op(
         name="runs",
@@ -341,7 +343,7 @@ OPS = [
         params=SeriesParams,
         impl=f"{R}:series",
         positional=("from_",),
-        summary="Curves of metrics, raw or downsampled, per run or grouped.",
+        summary="Curves of metrics, raw or downsampled, per run or aggregated.",
     ),
     Op(
         name="data",
@@ -380,30 +382,30 @@ OPS = [
     ),
     Op(
         name="proposal show",
-        params=FolderParams,
+        params=GroupParams,
         impl=f"{W}:proposal_show",
-        positional=("folder",),
+        positional=("group",),
         summary="The current proposal, its earlier versions and their checks.",
     ),
     Op(
         name="check",
         params=CheckParams,
         impl=f"{W}:check",
-        positional=("folder",),
+        positional=("group",),
         summary="The predictions of a proposal version and their results, with plan progress.",
     ),
     Op(
         name="memory show",
-        params=FolderParams,
+        params=GroupParams,
         impl=f"{W}:memory_show",
-        positional=("folder",),
-        summary="The memory of a folder and every folder above it; read before designing.",
+        positional=("group",),
+        summary="The memory of a group and every group above it; read before designing.",
     ),
     Op(
         name="note add",
         params=NoteAddParams,
         impl=f"{W}:note_add",
-        positional=("folder",),
+        positional=("group",),
         stdin="body",
         summary="Add a note; verdicts get the check snapshot added automatically.",
     ),
@@ -411,7 +413,7 @@ OPS = [
         name="proposal set",
         params=ProposalSetParams,
         impl=f"{W}:proposal_set",
-        positional=("folder", "file"),
+        positional=("group", "file"),
         stdin="proposal",
         summary="Save a new proposal version; a frozen one is superseded with a reason.",
     ),
@@ -419,7 +421,7 @@ OPS = [
         name="memory update",
         params=MemoryUpdateParams,
         impl=f"{W}:memory_update",
-        positional=("folder", "file"),
+        positional=("group", "file"),
         stdin="body",
         summary="Save a new memory version; warns beyond the size budget.",
     ),
@@ -483,9 +485,9 @@ OPS = [
         name="mv",
         params=MoveParams,
         impl=f"{A}:move",
-        positional=("run", "folder"),
+        positional=("run", "group"),
         user_only=True,
-        summary="Move a run to another folder; running runs are refused.",
+        summary="Move a run to another group; running runs are refused.",
     ),
     Op(
         name="rm",
@@ -493,7 +495,7 @@ OPS = [
         impl=f"{A}:remove",
         positional=("target",),
         user_only=True,
-        summary="Move a run or folder into the trash.",
+        summary="Move a run or group into the trash.",
     ),
     Op(
         name="gc",

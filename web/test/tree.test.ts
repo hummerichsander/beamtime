@@ -12,7 +12,7 @@ const rows = [
   { path: "tokenizer/bpe-vs-unigram", runs: 6 },
 ];
 
-test("the tree nests folders and shows open ones", () => {
+test("the tree nests groups and shows open ones", () => {
   const root = buildTree(rows);
   assert.deepEqual(root.children.map((c) => c.name), ["scaling", "tokenizer"]);
   assert.deepEqual(visible(root, new Set(), "").map((n) => n.path), [".", "scaling", "tokenizer"]);

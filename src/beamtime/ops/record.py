@@ -37,22 +37,22 @@ from beamtime.record.status import research_status
 
 
 @contextmanager
-def target_of(ctx: Context, folder: str, *, create: bool = False) -> Iterator[Target]:
-    """Open the index, catch up, and resolve a folder or run.
+def target_of(ctx: Context, group: str, *, create: bool = False) -> Iterator[Target]:
+    """Open the index, catch up, and resolve a group or run.
 
     :param ctx: The operation context.
-    :param folder: A folder below the log dir, or a run id.
-    :param create: Whether a missing folder is created, for writes before the first run.
+    :param group: A group below the log dir, or a run id.
+    :param create: Whether a missing group is created, for writes before the first run.
     :return: The target, while the index is open."""
     if create:
-        make_folder(ctx, folder)
+        make_group(ctx, group)
     if not ctx.logdir.is_dir():
         raise OpError(f"no log dir at {ctx.logdir}; `beamtime init` sets one up", code=4)
     index = Index(logdir=ctx.logdir)
     try:
         index.catch_up(".", 0.2)
         try:
-            rel, run_id = resolve_from(index, ".", folder)
+            rel, run_id = resolve_from(index, ".", group)
         except QueryError as e:
             raise OpError(str(e), code=4 if e.code == "not_found" else 2) from None
         try:
@@ -63,24 +63,24 @@ def target_of(ctx: Context, folder: str, *, create: bool = False) -> Iterator[Ta
         index.close()
 
 
-def make_folder(ctx: Context, folder: str) -> None:
+def make_group(ctx: Context, group: str) -> None:
     """Create a missing group below the log dir, refusing reserved names and runs.
 
     :param ctx: The operation context.
-    :param folder: The folder relative to the log dir, or a run id."""
-    rel = posixpath.normpath(folder.strip("/") or ".")
+    :param group: The group relative to the log dir, or a run id."""
+    rel = posixpath.normpath(group.strip("/") or ".")
     if is_run_id(rel.rsplit("/", 1)[-1]) or rel == ".":
         return
     if rel.startswith(".."):
-        raise OpError(f"{folder!r} leaves the log dir", code=2)
+        raise OpError(f"{group!r} leaves the log dir", code=2)
     path = ctx.logdir / rel
     if path.is_dir():
         return
     if any(is_reserved(part) for part in rel.split("/")):
-        raise OpError(f"{folder!r}: names starting with _ or . and {sorted(c.AUTHORED)} are "
-                      "reserved; choose another folder name", code=2)  # fmt: skip
+        raise OpError(f"{group!r}: names starting with _ or . and {sorted(c.AUTHORED)} are "
+                      "reserved; choose another group name", code=2)  # fmt: skip
     if any(is_run(parent) for parent in path.parents):
-        raise OpError(f"{folder!r} is inside a run; give the run id instead", code=2)
+        raise OpError(f"{group!r} is inside a run; give the run id instead", code=2)
     path.mkdir(parents=True)
 
 
@@ -99,7 +99,7 @@ def author_of(ctx: Context, author: str | None) -> tuple[str, str]:
 def save(folder: Path, suffix: str, text: str) -> Path:
     """Write a new version of an authored file.
 
-    :param folder: The authored folder, e.g. ``<group>/notes``.
+    :param group: The authored group, e.g. ``<group>/notes``.
     :param suffix: ``.md`` or ``.yaml``.
     :param text: The content.
     :return: The new file."""
@@ -139,7 +139,7 @@ def written(ctx: Context, kind: str, path: Path, lines: list[str]) -> dict[str, 
 
 
 def notes(ctx: Context, p: r.NotesParams) -> dict[str, Any]:
-    """List notes at or below a folder, newest first.
+    """List notes at or below a group, newest first.
 
     :param ctx: The operation context.
     :param p: The parameters.
@@ -149,7 +149,7 @@ def notes(ctx: Context, p: r.NotesParams) -> dict[str, Any]:
     limit = p.limit if p.limit is not None else 30
     answer = {
         "kind": "notes",
-        "folder": target.rel,
+        "group": target.rel,
         "entries": entries[:limit],
         "meta": {"matched": len(entries)},
     }
@@ -158,7 +158,7 @@ def notes(ctx: Context, p: r.NotesParams) -> dict[str, Any]:
     return answer if ctx.caller == "view" else cut(answer, offset_of(p.cursor))
 
 
-def proposal_show(ctx: Context, p: r.FolderParams) -> dict[str, Any]:
+def proposal_show(ctx: Context, p: r.GroupParams) -> dict[str, Any]:
     """Show the current proposal, its earlier versions and their checks.
 
     :param ctx: The operation context.
@@ -166,7 +166,7 @@ def proposal_show(ctx: Context, p: r.FolderParams) -> dict[str, Any]:
     :return: The answer."""
     import yaml
 
-    with target_of(ctx, p.folder) as target:
+    with target_of(ctx, p.group) as target:
         versions = all_versions(target.dir)
         if not versions:
             raise OpError(
@@ -198,7 +198,7 @@ def proposal_show(ctx: Context, p: r.FolderParams) -> dict[str, Any]:
         text = (target.dir / c.PROPOSAL / f"{versions[-1]}.yaml").read_text()
     return {
         "kind": "proposal",
-        "folder": target.rel,
+        "group": target.rel,
         "version": versions[-1],
         "status": status["status"],
         "progress": status["progress_text"],
@@ -214,7 +214,7 @@ def check(ctx: Context, p: r.CheckParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The check."""
-    with target_of(ctx, p.folder) as target:
+    with target_of(ctx, p.group) as target:
         version = p.version or current(target.dir)
         if version is None:
             raise OpError(f"{target.rel} has no proposal to check", code=4)
@@ -224,18 +224,18 @@ def check(ctx: Context, p: r.CheckParams) -> dict[str, Any]:
     return {"kind": "check"} | result | {"meta": {}}
 
 
-def memory_show(ctx: Context, p: r.FolderParams) -> dict[str, Any]:
-    """Show the memory of a folder and every folder above it, root first.
+def memory_show(ctx: Context, p: r.GroupParams) -> dict[str, Any]:
+    """Show the memory of a group and every group above it, root first.
 
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer: ``chain`` with each memory and its staleness."""
-    with target_of(ctx, p.folder) as target:
+    with target_of(ctx, p.group) as target:
         chain = mem.chain(target)
         unread = mem.notes_since(target, target.rel, None) if not chain else 0
     hints = [
-        f"{m['folder']}: {m['notes_since']} note(s) since the last update; "
-        f"update with `beamtime memory update {m['folder']}`"
+        f"{m['group']}: {m['notes_since']} note(s) since the last update; "
+        f"update with `beamtime memory update {m['group']}`"
         for m in chain
         if m.get("notes_since")
     ]
@@ -243,20 +243,20 @@ def memory_show(ctx: Context, p: r.FolderParams) -> dict[str, Any]:
         hints.append(f"no memory yet; {unread} note(s) in scope")
     return {
         "kind": "memory",
-        "folder": target.rel,
+        "group": target.rel,
         "chain": chain,
         "meta": {"hints": hints},
     }
 
 
 def note_add(ctx: Context, p: r.NoteAddParams) -> dict[str, Any]:
-    """Add a note to a folder or run.
+    """Add a note to a group or run.
 
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The new note's path and id."""
     author, user = author_of(ctx, p.author)
-    with target_of(ctx, p.folder, create=True) as target:
+    with target_of(ctx, p.group, create=True) as target:
         meta = build(
             target,
             type=p.type,
@@ -290,7 +290,7 @@ def proposal_set(ctx: Context, p: r.ProposalSetParams) -> dict[str, Any]:
     data, source = read_input(p.file, p.proposal, "proposal", yaml_text=True)
     if isinstance(data, dict) and p.reason and "supersedes" not in data:
         data = data | {"supersedes": {"version": None, "reason": p.reason}}
-    with target_of(ctx, p.folder, create=True) as target:
+    with target_of(ctx, p.group, create=True) as target:
         latest = current(target.dir)
         if isinstance(data, dict) and isinstance(data.get("supersedes"), dict):
             data["supersedes"].setdefault("version", None)
@@ -314,7 +314,7 @@ def proposal_set(ctx: Context, p: r.ProposalSetParams) -> dict[str, Any]:
 def superseding(target: Target, proposal: Proposal, latest: str | None) -> list[str]:
     """Apply the superseding rules: frozen versions are superseded with a reason.
 
-    :param target: The folder or run.
+    :param target: The group or run.
     :param proposal: The new version.
     :param latest: The current version, if any.
     :return: Lines for the answer."""
@@ -338,7 +338,7 @@ def superseding(target: Target, proposal: Proposal, latest: str | None) -> list[
 def metric_warnings(target: Target, proposal: Proposal) -> list[str]:
     """Warn about predictions on metrics no run in scope has logged yet.
 
-    :param target: The folder or run.
+    :param target: The group or run.
     :param proposal: The proposal.
     :return: One line per unknown metric."""
     from beamtime.query.kinds import Context as QueryContext
@@ -357,7 +357,7 @@ def metric_warnings(target: Target, proposal: Proposal) -> list[str]:
 
 
 def memory_update(ctx: Context, p: r.MemoryUpdateParams) -> dict[str, Any]:
-    """Save a new memory version for a folder.
+    """Save a new memory version for a group.
 
     :param ctx: The operation context.
     :param p: The parameters.
@@ -374,7 +374,7 @@ def memory_update(ctx: Context, p: r.MemoryUpdateParams) -> dict[str, Any]:
     if not body:
         raise OpError("memory update: the memory is empty", code=3)
     author, user = author_of(ctx, p.author or meta.get("author"))
-    with target_of(ctx, p.folder, create=True) as target:
+    with target_of(ctx, p.group, create=True) as target:
         covers = p.covers_until or meta.get("covers_until")
         if covers is not None and mem.to_time(covers) is None:
             raise OpError(

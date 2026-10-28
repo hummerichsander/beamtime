@@ -70,11 +70,11 @@ def rounded(x: float | None) -> float | None:
 def evaluate(target: Target, version: str, proposal: Proposal | None = None) -> dict[str, Any]:
     """Check a proposal version against the runs that recorded it.
 
-    :param target: The folder or run.
+    :param target: The group or run.
     :param version: The version id.
     :param proposal: The version, if already read.
     :return: The check: result, provisional, progress and one entry per prediction."""
-    out: dict[str, Any] = {"folder": target.rel, "version": version}
+    out: dict[str, Any] = {"group": target.rel, "version": version}
     members = target.members(version)
     try:
         proposal = proposal or load(target.dir, version)
@@ -119,7 +119,7 @@ def manual(pr: Prediction, verdict: str | None) -> dict[str, Any]:
 def predict(target: Target, version: str, pr: Prediction, level: float | None) -> dict[str, Any]:
     """Evaluate one automatic prediction.
 
-    :param target: The folder or run.
+    :param target: The group or run.
     :param version: The version id.
     :param pr: The prediction.
     :param level: The confidence level, or ``None`` for ``significance: none``.
@@ -163,7 +163,7 @@ def each(
 ) -> dict[str, Any]:
     """Test that every point satisfies the comparison.
 
-    :param target: The folder or run, for reading a reference run.
+    :param target: The group or run, for reading a reference run.
     :param pr: The prediction.
     :param runs: The finished runs with a value.
     :param field: The reduced field.
@@ -317,7 +317,7 @@ def reference(target: Target, run_id: str, field: str) -> float | None:
 def newest_verdict(target: Target, version: str) -> dict[str, Any] | None:
     """Find the newest verdict note on a proposal version.
 
-    :param target: The folder or run.
+    :param target: The group or run.
     :param version: The version id.
     :return: Its fields plus ``id``, or ``None``."""
     row = target.index.store.db.execute(

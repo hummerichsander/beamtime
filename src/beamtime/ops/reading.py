@@ -66,13 +66,13 @@ def keys(ctx: Context, p: r.KeysParams) -> dict[str, Any]:
     return ask(ctx, {"keys": selection(p)})
 
 
-def folders(ctx: Context, p: r.FoldersParams) -> dict[str, Any]:
-    """Show the folder tree with proposals and run counts.
+def groups(ctx: Context, p: r.GroupsParams) -> dict[str, Any]:
+    """Show the group tree with proposals and run counts.
 
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer."""
-    return ask(ctx, {"folders": selection(p)}, p.cursor)
+    return ask(ctx, {"groups": selection(p)}, p.cursor)
 
 
 def runs(ctx: Context, p: r.RunsParams) -> dict[str, Any]:
@@ -101,7 +101,7 @@ def series(ctx: Context, p: r.SeriesParams) -> dict[str, Any]:
         "x": p.x,
         "steps": p.steps,
         "points": p.points,
-        "group": p.group,
+        "by": p.by,
         "seeds": p.seeds,
         "band": p.band,
         "smooth": {"ema": p.smooth} if p.smooth is not None else None,
@@ -244,8 +244,8 @@ def run_proposals(index: Index, run_dir: Path, recorded: dict[str, str]) -> list
 
     :param index: The open index.
     :param run_dir: The run directory.
-    :param recorded: The run's ``proposals``: folder (``.`` for its own) to version.
-    :return: Per version: folder, version, whether it is current, check and verdict."""
+    :param recorded: The run's ``proposals``: group (``.`` for its own) to version.
+    :return: Per version: group, version, whether it is current, check and verdict."""
     from beamtime.record.check import evaluate, newest_verdict
     from beamtime.record.proposals import RecordError, Target, current, load
 
@@ -257,7 +257,7 @@ def run_proposals(index: Index, run_dir: Path, recorded: dict[str, str]) -> list
         try:
             proposal = load(target.dir, version)
         except RecordError as e:
-            out.append({"folder": key, "version": version, "check": "invalid", "problem": str(e)})
+            out.append({"group": key, "version": version, "check": "invalid", "problem": str(e)})
             continue
         if own and proposal.blank:
             continue
@@ -265,7 +265,7 @@ def run_proposals(index: Index, run_dir: Path, recorded: dict[str, str]) -> list
         verdict = newest_verdict(target, version)
         out.append(
             {
-                "folder": key,
+                "group": key,
                 "version": version,
                 "statement": proposal.statement,
                 "current": version == current(target.dir),

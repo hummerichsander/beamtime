@@ -60,7 +60,7 @@ def table(columns: list[str], rows: list[list[Any]]) -> list[str]:
     order = [i for i, col in enumerate(columns) if col != "run.id"]
     order += [i for i, col in enumerate(columns) if col == "run.id"]
     cells = [[header(columns[i]) for i in order]]
-    # seed groups list their run ids; in text, how many is enough.
+    # seed means list their run ids; in text, how many is enough.
     cells += [[count_or_num(columns[i], row[i]) for i in order] for row in rows]
     widths = [max(len(r[k]) for r in cells) for k in range(len(order))]
     return ["  ".join(c.ljust(w) for c, w in zip(r, widths, strict=True)).rstrip() for r in cells]
@@ -119,15 +119,15 @@ def curve_line(curve: dict[str, Any]) -> str:
 
     :param curve: A curve of a ``series`` answer.
     :return: Label, first, min, max, last, trend and a sparkline."""
-    if "group" in curve:
-        label = num(curve["group"]) or "all"
+    if "by" in curve:
+        label = num(curve["by"]) or "all"
         ys = curve.get("mean", [])
         extra = f"  runs {len(curve['runs'])}"
     else:
         label = curve.get("name") or curve["run"]
         ys = curve["y"] if curve.get("raw") else curve.get("last", [])
         extra = ""
-    if "group" in curve:
+    if "by" in curve:
         mins = maxs = ys
     elif curve.get("raw"):
         mins = maxs = ys
@@ -155,7 +155,7 @@ def meta_line(answer: dict[str, Any], noun: str, shown: int) -> str:
     meta = answer.get("meta", {})
     parts = []
     matched = meta.get("matched")
-    if noun in ("groups", "curves"):
+    if noun in ("seed means", "curves"):
         parts.append(f"{shown} {noun} from {matched} runs")
     elif matched is not None and matched != shown:
         parts.append(f"{shown} of {matched} {noun}")
@@ -177,12 +177,12 @@ def render(answer: dict[str, Any]) -> str:
     :return: The text."""
     kind = answer.get("kind")
     match kind:
-        case "runs" | "folders" | "file" | "settings" | "doctor":
+        case "runs" | "groups" | "file" | "settings" | "doctor":
             lines = table(answer["columns"], answer["rows"])
-            noun = {"runs": "runs", "folders": "folders"}.get(kind, "rows")
-            if kind == "runs" and answer["meta"].get("groups") is not None:
-                noun = "groups"
-            if kind in ("runs", "folders", "file"):
+            noun = {"runs": "runs", "groups": "groups"}.get(kind, "rows")
+            if kind == "runs" and answer["meta"].get("means") is not None:
+                noun = "seed means"
+            if kind in ("runs", "groups", "file"):
                 lines.append(meta_line(answer, noun, len(answer["rows"])))
             for problem in answer.get("problems", []):
                 lines.append(f"problem: {problem}")
@@ -233,7 +233,7 @@ def timeline_line(entry: dict[str, Any]) -> str:
     :param entry: An entry of a ``timeline`` answer.
     :return: The text."""
     when = entry["t"][:16].replace("T", " ")
-    where = entry.get("run") or entry.get("folder") or ""
+    where = entry.get("run") or entry.get("group") or ""
     line = f"{when}  {entry['kind']} {entry['type'] or ''}  {where}  "
     description = entry.get("description") or ""
     if description != (entry["type"] or "").replace("_", " "):
@@ -298,7 +298,7 @@ def render_card(answer: dict[str, Any]) -> str:
     if answer.get("proposals"):
         lines += ["", "proposals"]
         for prop in answer["proposals"]:
-            line = f"  {prop['folder']} {prop['version']}  check "
+            line = f"  {prop['group']} {prop['version']}  check "
             line += result_text(prop["check"], prop.get("provisional"))
             if prop.get("verdict"):
                 line += f"  verdict {prop['verdict']}"
@@ -394,7 +394,7 @@ def render_check(answer: dict[str, Any]) -> str:
     :param answer: The answer.
     :return: The text."""
     lines = [
-        f"{answer['folder']}  proposal {answer['version']}  "
+        f"{answer['group']}  proposal {answer['version']}  "
         f"{result_text(answer['result'], answer.get('provisional'))}"
     ]
     if answer.get("problem"):
@@ -435,7 +435,7 @@ def note_line(entry: dict[str, Any]) -> str:
     :return: The text, with the body if it was asked for."""
     state = f" [{entry['state']}]" if entry.get("state") else ""
     verdict = f" {entry['overall']} on {entry['proposal']}" if entry.get("overall") else ""
-    line = f"{entry['id']}  {entry['type']}{state}{verdict}  {entry['folder']}  "
+    line = f"{entry['id']}  {entry['type']}{state}{verdict}  {entry['group']}  "
     line += entry.get("description") or ""
     return line + (f"\n{entry['body'].strip()}\n" if entry.get("body") else "")
 
@@ -448,7 +448,7 @@ def render_proposal(answer: dict[str, Any]) -> str:
     import yaml
 
     lines = [
-        f"{answer['folder']}  {answer['status']}  version {answer['version']}"
+        f"{answer['group']}  {answer['status']}  version {answer['version']}"
         + (f"  ({answer['progress']})" if answer.get("progress") else ""),
         "",
         yaml.safe_dump(answer["proposal"], sort_keys=False, allow_unicode=True).rstrip(),
@@ -471,7 +471,7 @@ def render_memory(answer: dict[str, Any]) -> str:
     :return: The text."""
     lines = []
     for m in answer["chain"]:
-        head = f"# memory of {m['folder']}  ({m['version']}, notes until {m.get('covers_until')})"
+        head = f"# memory of {m['group']}  ({m['version']}, notes until {m.get('covers_until')})"
         lines += [head, "", (m.get("body") or m.get("problem") or "").strip(), ""]
     lines += answer["meta"].get("hints", [])
     return "\n".join(lines).strip()

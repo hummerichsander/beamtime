@@ -1,10 +1,10 @@
-// Research context blocks: proposal, memory, folders, output and note.
+// Research context blocks: proposal, memory, groups, output and note.
 
 import { html } from "htm/preact";
 
 import { useData, type Node } from "../bt/index.ts";
 import { value } from "../bt/fmt.ts";
-import { folderUrl, runUrl, isRunId } from "../router.ts";
+import { groupUrl, runUrl, isRunId } from "../router.ts";
 import { Dot, Notice, Panel, rows } from "./common.ts";
 
 export function Badge(props: { prediction: any }) {
@@ -34,7 +34,7 @@ export function Proposal({ node }: { node: Node }) {
   if (!p) return html`<${Panel} result=${proposal}><div class="skeleton" style="height: 64px"></div><//>`;
   const doc = p.proposal ?? {};
   const older = (p.versions ?? []).filter((v: any) => v.version !== p.version);
-  // the frame already states the viewed folder's proposal; a block about another folder repeats it.
+  // the frame already states the viewed group's proposal; a block about another group repeats it.
   const own = !node.props.of || node.props.of === ".";
   return html`<${Panel} title="Proposal" result=${proposal} wide>
     ${own ? null : html`<p class="statement">${doc.statement}</p>`}
@@ -74,7 +74,7 @@ function describe(pr: any): string {
 export function Memory({ node }: { node: Node }) {
   const result = useData("main");
   const chain: any[] = result.data?.chain ?? [];
-  const own = chain.filter((m) => m.folder === result.data?.folder || chain.length === 1);
+  const own = chain.filter((m) => m.group === result.data?.group || chain.length === 1);
   return html`<${Panel} title=${node.props.title ?? "Memory"} result=${result} wide>
     ${own.map(
       (m) => html`<div class="memory" key=${m.version}>
@@ -86,18 +86,18 @@ export function Memory({ node }: { node: Node }) {
   <//>`;
 }
 
-export function Folders({ node }: { node: Node }) {
+export function Groups({ node }: { node: Node }) {
   const result = useData("main");
   const self = (node.data?.main.params.from as string) ?? ".";
   const data = rows(result.data).filter((r) => r.path !== self);
   return html`<${Panel} title=${node.props.title} result=${result} wide>
-    ${result.data && !data.length ? html`<${Notice}>No subfolders.<//>` : null}
+    ${result.data && !data.length ? html`<${Notice}>No subgroups.<//>` : null}
     ${data.length
       ? html`<div class="table-wrap"><table class="runs">
-          <thead><tr><th>folder</th><th>status</th><th>check</th><th>verdict</th><th class="num">runs</th><th>progress</th></tr></thead>
+          <thead><tr><th>group</th><th>status</th><th>check</th><th>verdict</th><th class="num">runs</th><th>progress</th></tr></thead>
           <tbody>${data.map(
             (r) => html`<tr key=${r.path}>
-              <td class="name"><a href=${folderUrl(r.path)}>${r.path}</a>
+              <td class="name"><a href=${groupUrl(r.path)}>${r.path}</a>
                 ${r.proposal ? html`<div class="muted small clip">${r.proposal}</div>` : null}</td>
               <td><span class=${`chip status-${r.status}`}>${r.status}</span></td>
               <td>${r.check ? html`<span class=${`chip result-${r.check.split(" ")[0]}`}>${r.check}</span>` : null}</td>
@@ -146,14 +146,14 @@ export function Markdown(props: { text: string }) {
   })}</div>`;
 }
 
-// [[run-id]], [[folder]] and [[folder#prediction]] become links; `code` stays code.
+// [[run-id]], [[group]] and [[group#prediction]] become links; `code` stays code.
 export function inline(text: string) {
   const parts = text.split(/(\[\[[^\]]+\]\]|`[^`]+`)/g);
   return parts.map((part) => {
     if (part.startsWith("[[")) {
       const target = part.slice(2, -2);
       const [path] = target.split(/[#@]/);
-      const href = isRunId(path.split("/").pop() ?? "") ? runUrl(path.split("/").pop()!) : folderUrl(path);
+      const href = isRunId(path.split("/").pop() ?? "") ? runUrl(path.split("/").pop()!) : groupUrl(path);
       return html`<a href=${href}>${target}</a>`;
     }
     if (part.startsWith("`")) return html`<code>${part.slice(1, -1)}</code>`;

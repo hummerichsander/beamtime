@@ -238,7 +238,7 @@ Every query has the shape `<kind>: {from, where, …}`. It starts by selecting r
 for all kinds:
 
 ```yaml
-from: .                        # a folder; a run id also works
+from: .                        # a group; a run id also works
 depth: all                     # all (default) | 1: only direct children
 where:
   config.lr: {lt: 1.0e-3}
@@ -249,9 +249,9 @@ where:
     - config.warmup: 1000
 ```
 
-- **Paths.** In a view, `from` is relative to the viewed folder (`.`, `..`, `lr-sweep`). In the CLI
+- **Paths.** In a view, `from` is relative to the viewed group (`.`, `..`, `lr-sweep`). In the CLI
   and MCP, it is relative to the log dir; `.` covers the local log dir and all connected remotes, and
-  `@cluster/scaling` names a remote folder ([layer 4](04-remotes.md#naming-remote-folders)).
+  `@cluster/scaling` names a remote group ([layer 4](04-remotes.md#naming-remote-groups)).
 - **Filters** are a mapping from field to condition, combined with AND. A plain value means
   equality. Operators: `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in`, `nin`, `has` (list contains),
   `exists`, `glob` (string pattern). `any` and `not` combine conditions.
@@ -266,7 +266,7 @@ where:
 There are eight kinds of queries. All share the selection above.
 
 **`keys`**: what exists in a selection. This is the first call an agent makes in an unfamiliar
-folder.
+group.
 
 ```yaml
 keys: {from: scaling/}
@@ -305,9 +305,10 @@ series:
   **downsampled** as min, max and last per bucket, with the bucket edges. The answer always says
   which.
 - A metric as `x` pairs each point with that metric's most recent value at or before the same step.
-- With `group: [fields]`, curves of each group come back aggregated per bucket: mean, a band
-  (`band: minmax | std | stderr | none`) and the number of contributing runs. `seeds: config.seed` is
-  the shorthand for grouping by every config key except the seed.
+- With `by: [fields]`, the runs sharing the fields' values come back as one aggregated curve per
+  bucket: mean, a band (`band: minmax | std | stderr | none`) and the number of contributing runs.
+  `seeds: config.seed` is the shorthand for aggregating by every config key except the seed. (The
+  parameter is `by`, not `group`, since a group is a folder of runs.)
 - Each chart has a point budget of about 30k; `points` per curve shrinks when a chart requests many
   curves.
 
@@ -328,10 +329,10 @@ timeline: {from: scaling/, types: [verdict, decision], since: 2026-10-01, limit:
 `types` filters note types and event kinds. Each entry carries its one-line description; note
 bodies are loaded only when asked for.
 
-**`folders`**: the folder tree with what's attached to it.
+**`groups`**: the group tree with what's attached to it.
 
 ```yaml
-folders: {from: ., depth: 2}
+groups: {from: ., depth: 2}
 ```
 
 Returns each group with its research status, proposal statement, check, plan progress, current
@@ -354,7 +355,7 @@ file: {path: data/3f9a21c0-fit.parquet}
 ```
 
 The path is relative to the `view/` folder of the view that declares the query, not to the viewed
-folder. Returns the table as columns, labelled with the folder it belongs to.
+group. Returns the table as columns, labelled with the group it belongs to.
 
 ### Answers
 
@@ -383,7 +384,7 @@ beamtime query query.yaml          # or --json '{...}': the object form directly
 Condition strings use `= != < <= > >=`, `~` for glob, and `in` with a comma list. Output is a
 readable table by default, `--json` gives the canonical answer.
 
-MCP has one tool per kind (`keys`, `runs`, `series`, `data`, `timeline`, `folders`, `importance`,
+MCP has one tool per kind (`keys`, `runs`, `series`, `data`, `timeline`, `groups`, `importance`,
 `file`) plus `query` for the object form of any kind ([layer 8](08-cli-mcp.md)).
 
 ## Implementation notes
@@ -427,20 +428,20 @@ Decided while building the index and the queries (milestone M2):
   while another process holds the lock.
 - **`proposal.*` fields** (M4) are computed in Python after the SQL selection, like windowed
   statistics: on a `runs` row they describe the run's own proposal (a blank one is `open`), on a
-  `folders` row the folder's current proposal. `proposal.progress` is a fraction from 0 to 1;
-  `folders` shows the progress as text ("9 of 15 grid points") and filters on `path` and
+  `groups` row the group's current proposal. `proposal.progress` is a fraction from 0 to 1;
+  `groups` shows the progress as text ("9 of 15 grid points") and filters on `path` and
   `proposal.*`.
 - **Links** (M4): a `links` table (source note, kind, target) is filled at note ingest from the
   `[[...]]` links in bodies and from `evidence`, `resolves` and `supersedes`; it gives the backlinks of
   runs and predictions. The index schema version is 2; older caches are rebuilt.
 - **Change reports** (M5): `catch_up` lists the runs it ingested in `Freshness.changed`; the
-  daemon's also lists folders whose `notes/`, `proposal/`, `memory/` or `view/` changed since its
+  daemon's also lists groups whose `notes/`, `proposal/`, `memory/` or `view/` changed since its
   last poll. `Daemon(on_change=...)` receives them after every poll (every 2 s); `serve` turns them
   into live updates ([layer 7](07-web-ui.md#implementation-notes)).
 - **Deferred streams** (fixed in M5): a run whose streams a time budget deferred has no `indexed_at`
   yet, and the next catch-up with time to spare reads them, also for runs that have ended.
 - **Reserved names are not scopes**: `from` naming an authored or machine folder (`proposal/`,
-  `notes/`, `_trash/`, …) is refused like a missing folder.
+  `notes/`, `_trash/`, …) is refused like a missing group.
 - **Not yet**: remote sources (`@name/…`) wait for M8; `importance` for v1.1.
 
 ## Decisions

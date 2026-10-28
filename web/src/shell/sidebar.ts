@@ -1,11 +1,11 @@
-// The sidebar: the folder tree with run counts and status dots, filterable and keyboard-driven.
+// The sidebar: the group tree with run counts and status dots, filterable and keyboard-driven.
 
 import { html } from "htm/preact";
 import { useRef, useState } from "preact/hooks";
 
 import { prefetch, useCall } from "../api.ts";
 import { Dot, rows } from "../blocks/common.ts";
-import { folderUrl, navigate, route } from "../router.ts";
+import { groupUrl, navigate, route } from "../router.ts";
 import { stored, store, useStore } from "../state.ts";
 import * as calls from "./calls.ts";
 import { buildTree, depth, visible, type TreeNode } from "./tree.ts";
@@ -16,7 +16,7 @@ export function Sidebar() {
   const [open, setOpen] = useState<Set<string>>(() => new Set(stored<string[]>("open", [])));
   const [filter, setFilter] = useState("");
   const list = useRef<HTMLDivElement>(null);
-  const current = r.page === "folder" ? r.path : null;
+  const current = r.page === "group" ? r.path : null;
   const root = buildTree(rows(result.data));
   const shown = visible(root, withAncestors(open, current), filter);
 
@@ -52,8 +52,8 @@ export function Sidebar() {
     e.preventDefault();
   };
 
-  return html`<nav class="sidebar" aria-label="Folders">
-    <input class="filter" type="search" placeholder="Filter folders" value=${filter}
+  return html`<nav class="sidebar" aria-label="Groups">
+    <input class="filter" type="search" placeholder="Filter groups" value=${filter}
       onInput=${(e: Event) => setFilter((e.target as HTMLInputElement).value)} />
     <div class="tree" ref=${list} onKeyDown=${onKey} role="tree">
       ${shown.map((n) => html`<${Item} key=${n.path} node=${n} current=${n.path === current}
@@ -66,15 +66,15 @@ function Item(props: { node: TreeNode; current: boolean; open: boolean; onToggle
   const n = props.node;
   const hover = () => {
     prefetch(calls.view(n.path));
-    prefetch(calls.folder(n.path));
+    prefetch(calls.group(n.path));
   };
-  return html`<a class=${`tree-item${props.current ? " current" : ""}`} href=${folderUrl(n.path)}
+  return html`<a class=${`tree-item${props.current ? " current" : ""}`} href=${groupUrl(n.path)}
       role="treeitem" aria-current=${props.current ? "page" : undefined}
       style=${`padding-left:${8 + depth(n.path) * 12}px`} onMouseEnter=${hover} onFocus=${hover}
       onClick=${(e: MouseEvent) => {
         if (e.metaKey || e.ctrlKey) return;
         e.preventDefault();
-        navigate(folderUrl(n.path));
+        navigate(groupUrl(n.path));
       }}>
     <span class="twisty" onClick=${(e: Event) => { e.preventDefault(); e.stopPropagation(); props.onToggle(); }}>
       ${n.children.length && n.path !== "." ? (props.open ? "▾" : "▸") : ""}</span>

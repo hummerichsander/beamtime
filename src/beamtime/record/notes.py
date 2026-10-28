@@ -17,8 +17,8 @@ VERDICTS = ("confirmed", "refuted", "inconclusive")
 def evidence_entry(item: str | dict[str, Any]) -> dict[str, Any]:
     """Turn an evidence item into a typed entry.
 
-    :param item: A typed entry, or a run id, note id, ``folder#prediction`` or
-        ``folder@view-version``.
+    :param item: A typed entry, or a run id, note id, ``group#prediction`` or
+        ``group@view-version``.
     :return: The typed entry, e.g. ``{run: <id>}``."""
     if isinstance(item, dict):
         if not item or not any(k in item for k in (*EVIDENCE_KINDS, "metric")):
@@ -30,7 +30,7 @@ def evidence_entry(item: str | dict[str, Any]) -> dict[str, Any]:
     kind = link_kind(item)
     if kind == "folder":
         raise RecordError(
-            f"evidence {item!r}: give a run id, a note id, folder#prediction or folder@view-version"
+            f"evidence {item!r}: give a run id, a note id, group#prediction or group@view-version"
         )
     return {kind: item}
 
@@ -50,12 +50,12 @@ def build(
 ) -> dict[str, Any]:
     """Validate a new note's fields and add the check snapshot to verdicts.
 
-    :param target: The folder or run the note goes into.
+    :param target: The group or run the note goes into.
     :param type: The note type.
     :param description: The one-line description.
     :param resolves: Ids of notes it answers.
     :param supersedes: The id of a note it corrects.
-    :param completes: Folders it declares complete (decisions).
+    :param completes: Groups it declares complete (decisions).
     :param evidence: What it rests on.
     :param proposal: The judged proposal version (verdicts).
     :param verdicts: Prediction name to verdict (verdicts).
@@ -76,7 +76,7 @@ def build(
         problems.append("completes belongs to decision notes")
     for folder in completes:
         if not target.index.folder_path(folder.strip("/")).is_dir():
-            problems.append(f"completes: no folder {folder!r} below the log dir")
+            problems.append(f"completes: no group {folder!r} below the log dir")
     meta: dict[str, Any] = {"description": description, "type": type}
     if type == "verdict":
         problems += judge(target, proposal, verdicts, overall)
@@ -118,7 +118,7 @@ def judge(
 ) -> list[str]:
     """Check a verdict: the version exists and every prediction is judged.
 
-    :param target: The folder or run.
+    :param target: The group or run.
     :param proposal: The judged version.
     :param verdicts: Prediction name to verdict.
     :param overall: The overall verdict.
@@ -158,9 +158,9 @@ def listing(
     only_open: bool,
     full: bool,
 ) -> list[dict[str, Any]]:
-    """List the notes at or below a folder with their derived states, newest first.
+    """List the notes at or below a group with their derived states, newest first.
 
-    :param target: The folder or run.
+    :param target: The group or run.
     :param types: Note types to keep, or ``None`` for all.
     :param only_open: Keep only open questions.
     :param full: Include the bodies.
@@ -198,7 +198,7 @@ def listing(
             continue
         entry = {
             "id": note_id,
-            "folder": folder,
+            "group": folder,
             "type": type_,
             "description": description,
             "state": state,

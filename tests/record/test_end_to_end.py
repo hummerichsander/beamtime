@@ -79,28 +79,28 @@ def test_proposal_sweep_check_verdict_memory(tmp_path: Path, monkeypatch: pytest
     (project / "beamtime").mkdir()
     ctx = Context.make(caller="mcp")
 
-    saved = call("proposal set", {"folder": "toy/sweep", "proposal": PROPOSAL, "author": "m"}, ctx)
+    saved = call("proposal set", {"group": "toy/sweep", "proposal": PROPOSAL, "author": "m"}, ctx)
     version = saved["version"]
-    assert call("folders", {"from": "toy"}, ctx)["rows"][-1][2] == "proposed"
+    assert call("groups", {"from": "toy"}, ctx)["rows"][-1][2] == "proposed"
 
     for seed in range(3):
         train(project, 0.5, seed)
-    early = call("check", {"folder": "toy/sweep"}, ctx)
+    early = call("check", {"group": "toy/sweep"}, ctx)
     assert early["provisional"] and early["progress"]["text"] == "3 of 6 grid points"
     assert [p["result"] for p in early["predictions"]] == ["pass", "pending"]
-    assert call("folders", {"from": "toy"}, ctx)["rows"][-1][2] == "running"
+    assert call("groups", {"from": "toy"}, ctx)["rows"][-1][2] == "running"
 
     for seed in range(3):
         train(project, 0.05, seed)
-    final = call("check", {"folder": "toy/sweep"}, ctx)
+    final = call("check", {"group": "toy/sweep"}, ctx)
     assert final["result"] == "pass" and not final["provisional"]
     assert final["predictions"][1]["n"] == {"pairs": 3}
-    assert call("folders", {"from": "toy"}, ctx)["rows"][-1][2:4] == ["evaluable", "pass"]
+    assert call("groups", {"from": "toy"}, ctx)["rows"][-1][2:4] == ["evaluable", "pass"]
 
     verdict = call(
         "note add",
         {
-            "folder": "toy/sweep",
+            "group": "toy/sweep",
             "type": "verdict",
             "description": "lr 0.5 reaches 0.95 and beats 0.05 in every seed.",
             "proposal": version,
@@ -114,22 +114,22 @@ def test_proposal_sweep_check_verdict_memory(tmp_path: Path, monkeypatch: pytest
     )
     doc = read_markdown_doc(ctx.logdir / verdict["path"], kind="note")
     assert doc.meta["check"]["reaches"]["result"] == "pass"
-    assert call("folders", {"from": "toy"}, ctx)["rows"][-1][2] == "concluded"
+    assert call("groups", {"from": "toy"}, ctx)["rows"][-1][2] == "concluded"
 
-    assert call("memory show", {"folder": "toy/sweep"}, ctx)["meta"]["hints"]
+    assert call("memory show", {"group": "toy/sweep"}, ctx)["meta"]["hints"]
     call(
         "memory update",
-        {"folder": "toy", "body": f"## Current understanding\n- lr 0.5 is best [[{doc.id}]]\n"},
+        {"group": "toy", "body": f"## Current understanding\n- lr 0.5 is best [[{doc.id}]]\n"},
         ctx,
     )
-    chain = call("memory show", {"folder": "toy/sweep"}, ctx)["chain"]
-    assert chain[-1]["folder"] == "toy" and chain[-1]["notes_since"] == 0
+    chain = call("memory show", {"group": "toy/sweep"}, ctx)["chain"]
+    assert chain[-1]["group"] == "toy" and chain[-1]["notes_since"] == 0
 
     run = next((ctx.logdir / "toy" / "sweep").glob("2*"))
     card = call("card", {"run": run.name}, ctx)
     assert card["proposals"] == [
         {
-            "folder": "toy/sweep",
+            "group": "toy/sweep",
             "version": version,
             "statement": PROPOSAL["statement"],
             "current": True,
@@ -160,4 +160,4 @@ def test_own_proposal_of_a_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     rows = call("runs", {"select": ["proposal.status", "proposal.progress"]}, ctx)["rows"]
     assert [r[1:] for r in rows] == [["evaluable", 1.0]]
     card = call("card", {"run": rows[0][0]}, ctx)
-    assert card["proposals"][0]["folder"] == "." and card["proposals"][0]["check"] is None
+    assert card["proposals"][0]["group"] == "." and card["proposals"][0]["check"] is None

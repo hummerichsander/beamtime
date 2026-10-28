@@ -1,6 +1,6 @@
 # Quickstart
 
-Beamtime records your training runs as plain folders in your repository and lets you and your coding
+Beamtime records your training runs as plain groups in your repository and lets you and your coding
 agent look at them from the command line or through MCP.
 
 ## Install and set up a project
@@ -24,7 +24,7 @@ for step in range(1000):
 run.finish()
 ```
 
-Every run is a folder below `beamtime/`: `_run.json`, `_metrics.jsonl`, `_output.log` and friends.
+Every run is a group below `beamtime/`: `_run.json`, `_metrics.jsonl`, `_output.log` and friends.
 Output, crashes, `SIGTERM` and resumes are recorded without further code. On a cluster, point
 `BEAMTIME_LOGDIR` at scratch space.
 
@@ -50,9 +50,9 @@ beamtime serve                                  # indexes live and prints http:/
 beamtime demo                                   # or: a sample log dir to look around in
 ```
 
-Open the printed URL once; the browser stays signed in. The sidebar holds your folders, each page
-shows the folder's proposal, check and verdict, its curves and its runs, and running curves grow as
-the runs log. ⌘K searches folders, runs and commands; `?` lists the shortcuts. Every page has a URL
+Open the printed URL once; the browser stays signed in. The sidebar holds your groups, each page
+shows the group's proposal, check and verdict, its curves and its runs, and running curves grow as
+the runs log. ⌘K searches groups, runs and commands; `?` lists the shortcuts. Every page has a URL
 you can paste to a colleague or an agent. `beamtime serve --no-ui` only keeps the index live.
 
 ## Propose, check, conclude
@@ -79,7 +79,7 @@ beamtime check scaling/lr-sweep                 # results with t-intervals; prov
 beamtime note add scaling/lr-sweep --type verdict --proposal <version> \
     --verdict best-beats-high=confirmed --overall confirmed \
     --description 'lr 3e-4 wins by about a point' < findings.md
-beamtime folders .                              # status, check and verdict of every folder
+beamtime groups .                              # status, check and verdict of every group
 beamtime memory update . memory.md              # the compressed summary agents read first
 ```
 

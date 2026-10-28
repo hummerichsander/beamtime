@@ -95,7 +95,8 @@ Settings work like VS Code's: user settings are the default for every project, a
 ## Folders
 
 Below the log dir, the user organizes runs in ordinary folders. A folder that contains a `_run.json`
-is a **run**; every other folder is a **group**. Directions, sweeps and ablations are all groups:
+is a **run**; every other folder is a **group** (Beamtime's commands, tools and UI always say
+*group*). Directions, sweeps and ablations are all groups:
 
 ```
 beamtime/
@@ -118,11 +119,11 @@ Folders carry authored files, each kind in its own folder and versioned by new f
 
 | Folder | On | Contents |
 |---|---|---|
-| `proposal/<id>.yaml` | groups and runs | what is expected for the runs in this folder, and why |
+| `proposal/<id>.yaml` | groups and runs | what is expected for the runs in this group, and why |
 | `notes/<id>.md` | groups and runs | observations, decisions, ideas, questions, verdicts |
-| `view/<id>.yaml` | groups and runs | the folder's view; the newest version is shown |
+| `view/<id>.yaml` | groups and runs | the group's view; the newest version is shown |
 | `memory/<id>.md` | groups and the log dir | a compressed summary of the notes below |
-| `blocks/<name>/<id>.yaml` | groups and the log dir | reusable view blocks for this folder and below |
+| `blocks/<name>/<id>.yaml` | groups and the log dir | reusable view blocks for this group and below |
 
 `<id>` is a version id (`20261025-091200-x8k2`: UTC time plus 4 random base32 characters). Proposals,
 notes and memory are specified in [the research record](09-research-record.md), views and blocks in
@@ -134,7 +135,7 @@ This covers what other tools model as separate concepts:
 - **Sweeps** are groups whose runs come from one launch; scheduler job information is recorded per
   run.
 - **The journal** is the notes on a group, or on the log dir itself for project-wide entries.
-- **Reports and dashboards** are views, one per folder.
+- **Reports and dashboards** are views, one per group.
 
 **Reserved names** never count as groups: the authored folders above, every name starting with `_`
 (including `_trash/` in the log dir) or `.` (hidden folders such as `.ipynb_checkpoints/`), and inside
@@ -146,8 +147,8 @@ The **timeline** is not stored. The index builds it from run events and notes.
 
 How views look and behave is [layer 5](05-views.md). For storage:
 
-- **Inheritance.** A folder shows its own newest view, else the nearest ancestor's, else Beamtime's
-  built-in default. A view is rendered relative to the folder being viewed.
+- **Inheritance.** A group or run shows its own newest view, else the nearest ancestor's, else
+  Beamtime's built-in default. A view is rendered relative to the group being viewed.
 - **Versions.** Each save is a new file in `view/`; the newest counts. Drafts live outside `view/`
   until saved.
 - **Files belonging to a view version** are stored next to it and named by content hash, so they are
@@ -167,7 +168,7 @@ How views look and behave is [layer 5](05-views.md). For storage:
 - **Run name:** a human-readable label (`lr-3e-4-warmup`). If missing, one is generated from
   high-energy physics vocabulary: `boosted-kaon-42`, `prompt-photon-7`. The name lives in `_run.json`
   and can change; the id never does.
-- The run directory is named by its id. Runs can be moved between folders (`beamtime mv`); the id and
+- The run directory is named by its id. Runs can be moved between groups (`beamtime mv`); the id and
   everything recorded in the run travel with it.
 
 ### Directory
@@ -430,7 +431,7 @@ On Windows, a replace that a reader blocks is retried briefly; it never fails th
 Files are immutable while they matter, but a project must stay manageable, and a leaked secret in a
 log or a note must be removable.
 
-- **`beamtime rm <run or folder>`** moves it into `_trash/<timestamp>/` in the log dir; `beamtime gc`
+- **`beamtime rm <run or group>`** moves it into `_trash/<timestamp>/` in the log dir; `beamtime gc`
   empties the trash and removes crashed runs that never logged a metric. Both are user commands;
   agents never run them ([layer 8](08-cli-mcp.md#policy)).
 - **Deleting by hand** is supported too. The index notices vanished folders and forgets them

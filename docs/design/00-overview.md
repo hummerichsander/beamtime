@@ -9,7 +9,7 @@ canonical names that every layer uses, the scope of v1, and the cross-cutting ru
 
 | # | Document | Covers |
 |---|---|---|
-| 1 | [01-storage.md](01-storage.md) | the file format: root, settings, folders, runs, write protocol |
+| 1 | [01-storage.md](01-storage.md) | the file format: root, settings, groups, runs, write protocol |
 | 2 | [02-sdk.md](02-sdk.md) | the Python SDK that writes runs, including PyTorch Lightning |
 | 3 | [03-index.md](03-index.md) | the index cache and the query language |
 | 4 | [04-remotes.md](04-remotes.md) | runs on other machines: remote queries, port forwarding, pulls |
@@ -33,8 +33,9 @@ canonical names that every layer uses, the scope of v1, and the cross-cutting ru
 | reserved names in a log dir | the authored folders above, every name starting with `_` or `.`, `artifacts/`, `checkpoints/` |
 | schema version | a `schema` field in every JSON file and every YAML or frontmatter file |
 | identity on authored files | `author` (person or model id) and `user` (the account) |
-| remote folders | `@<source>/<path>`, e.g. `@cluster/scaling` |
-| research status of a folder | `open`, `proposed`, `running`, `evaluable`, `concluded` |
+| group | a folder below the log dir that is not a run; the only hierarchy (`beamtime groups`) |
+| remote groups | `@<source>/<path>`, e.g. `@cluster/scaling` |
+| research status of a group | `open`, `proposed`, `running`, `evaluable`, `concluded` |
 | run status | `running`, `finished`, `failed`, `killed`; derived: `lost` |
 | check outcomes | `pass`, `fail`, `inconclusive`, `insufficient`, `pending`; marked provisional until the plan is complete |
 | verdicts | `confirmed`, `refuted`, `inconclusive` |
@@ -52,14 +53,14 @@ means designed in outline, built when needed.
 | SDK | runs, data, card, preview, capture, resume by id, ranks, Lightning, notebooks | auto resume | other framework adapters, uploader |
 | Index | metadata in SQLite, column files, one pure-Python read path, all query kinds | | smaller cache, precomputed levels, auto-started daemon |
 | Remotes | remote queries over ssh (listings federated, aggregates per source), port forwarding with token, pulls | | |
-| Research record | versioned proposals, plans, predictions `each` and `compare` with t-intervals, manual predictions, notes, links, folder status, memory | `trend` and `best` predictions | calibration from `confidence` |
+| Research record | versioned proposals, plans, predictions `each` and `compare` with t-intervals, manual predictions, notes, links, group status, memory | `trend` and `best` predictions | calibration from `confidence` |
 | Views | YAML widgets (wave 1), `vega`, custom blocks on the kit, library and pinning, theme files, static validation plus one render | wave 2 widgets, linked selection, packages | migrations for block upgrades, VS Code theme import, high-contrast and print themes, community gallery, params |
 | Web UI | the shell, URLs, SSE invalidation with refetch, HTML and figure export | | PDF export, rearrangeable panels |
 | CLI and MCP | all commands and tools for v1 features, eight prompts, stdio MCP | | MCP over HTTP |
 | Server | `author`/`user` on authored files, no network code in the SDK | | the server itself |
 
 Wave 1 widgets: `line`, `scatter`, `bar`, `table`, `stat`, `images`, `text`, `data_table`,
-`histogram`, `proposal`, `note`, `memory`, `folders`, `timeline`, `output`, `vega`, `custom`, and the
+`histogram`, `proposal`, `note`, `memory`, `groups`, `timeline`, `output`, `vega`, `custom`, and the
 layout blocks `section`, `row`, `grid`, `tabs`. Wave 2: `importance`, `heatmap`, `parallel`,
 `compare`, `repeat`, `facet`, baselines with matching, linked selection.
 

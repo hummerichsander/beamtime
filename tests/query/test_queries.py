@@ -55,7 +55,7 @@ def ask(logdir: Path, tmp_path_factory: pytest.TempPathFactory):
 def table(answer: dict) -> list[dict]:
     """Turn a columnar answer into row dicts.
 
-    :param answer: A ``runs`` or ``folders`` answer.
+    :param answer: A ``runs`` or ``groups`` answer.
     :return: One dict per row."""
     return [dict(zip(answer["columns"], row, strict=True)) for row in answer["rows"]]
 
@@ -192,13 +192,13 @@ def test_grouped_series_show_the_tokenizer_gap(ask) -> None:
             "series": {
                 "from": "tokenizer",
                 "y": ["val/ppl"],
-                "group": ["config.tokenizer"],
+                "by": ["config.tokenizer"],
                 "band": "stderr",
                 "points": 8,
             }
         }
     )
-    final = {c["group"]["config.tokenizer"]: c["mean"][-1] for c in a["curves"]}
+    final = {c["by"]["config.tokenizer"]: c["mean"][-1] for c in a["curves"]}
     assert 0.2 < final["bpe"] - final["unigram"] < 0.6
     assert all(n == 3 for c in a["curves"] for n in c["n"])
     seeded = ask({"series": {"from": "tokenizer", "y": ["val/ppl"], "seeds": "config.seed"}})
@@ -238,25 +238,25 @@ def test_timeline(ask, roles) -> None:
     assert later["entries"] == []
 
 
-def test_folders(ask) -> None:
-    """Folders carry proposal statements and run counts by status."""
-    rows = {r["path"]: r for r in table(ask({"folders": {"from": "."}}))}
+def test_groups(ask) -> None:
+    """Groups carry proposal statements and run counts by status."""
+    rows = {r["path"]: r for r in table(ask({"groups": {"from": "."}}))}
     sweep = rows["scaling/lr-sweep"]
     assert sweep["proposal"].startswith("lr 0.0003") and sweep["runs"] == 17
     assert sweep["failed"] == 1 and sweep["killed"] == 1
     assert rows["."]["runs"] == 26 and rows["scaling"]["direct"] == 0
-    shallow = ask({"folders": {"from": ".", "depth": 1}})
+    shallow = ask({"groups": {"from": ".", "depth": 1}})
     assert {r[0] for r in shallow["rows"]} == {".", "scaling", "tokenizer"}
 
 
 def test_research_fields(ask) -> None:
-    """Folders carry their research status; proposal.* fields filter folders and runs."""
-    rows = {r["path"]: r for r in table(ask({"folders": {"from": "."}}))}
+    """Groups carry their research status; proposal.* fields filter groups and runs."""
+    rows = {r["path"]: r for r in table(ask({"groups": {"from": "."}}))}
     assert rows["tokenizer/bpe-vs-unigram"]["status"] == "evaluable"
     assert rows["tokenizer/bpe-vs-unigram"]["check"] == "pass"
     assert rows["tokenizer/bpe-vs-unigram"]["progress"] == "6 of 6 grid points"
     assert rows["scaling"]["status"] == "open" and rows["scaling"]["check"] is None
-    done = ask({"folders": {"where": {"proposal.status": {"in": ["evaluable", "concluded"]}}}})
+    done = ask({"groups": {"where": {"proposal.status": {"in": ["evaluable", "concluded"]}}}})
     assert {r[0] for r in done["rows"]} == {
         "scaling/lr-sweep",
         "scaling/long-context",
@@ -290,7 +290,7 @@ def test_file(ask) -> None:
         ({"data": {"from": ".", "key": "sample"}}, "not_found", "'samples'"),
         ({"runs": {"from": "@cluster/x"}}, "invalid", "M8"),
         ({"runs": {"where": {"proposal.chek": "pass"}}}, "invalid", "proposal.check"),
-        ({"folders": {"where": {"config.lr": 1}}}, "invalid", "proposal.*"),
+        ({"groups": {"where": {"config.lr": 1}}}, "invalid", "proposal.*"),
         ({"importance": {"target": "metric.val/acc.max"}}, "invalid", "v1.1"),
         ({"runs": {"from": "../.."}}, "invalid", "leaves the log dir"),
         ({"runs": {"where": {"config.lr": {"less": 1}}}}, "invalid", "operators"),

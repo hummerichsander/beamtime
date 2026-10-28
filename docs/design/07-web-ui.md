@@ -4,7 +4,7 @@ Status: **reviewed; v1 scope per the [overview](00-overview.md#scope)**
 
 The web UI is what `beamtime serve` shows in a browser: locally, on a remote reached by port
 forwarding ([layer 4](04-remotes.md)), and later on a self-hosted server ([layer 6](06-server.md)).
-It is a reader for views ([layer 5](05-views.md)) and a navigator through folders, runs and notes.
+It is a reader for views ([layer 5](05-views.md)) and a navigator through groups, runs and notes.
 
 ## Principles
 
@@ -14,7 +14,7 @@ It is a reader for views ([layer 5](05-views.md)) and a navigator through folder
    the views. Rearrangeable panels (e.g. with dockview) are deferred until users need them.
 3. **The theme colors everything.** The shell, the frame, built-in blocks and custom blocks all read
    the same tokens.
-4. **Every state has a URL.** Folders, runs, view versions, selections and comparisons can be linked,
+4. **Every state has a URL.** Groups, runs, view versions, selections and comparisons can be linked,
    so people and agents can point at exactly what they mean.
 5. **Fast first, exact on demand.** Pages render from run cards and previews; exact data loads when a
    block needs it.
@@ -35,7 +35,7 @@ These qualities are made concrete as budgets and rules, and checked like correct
 | Shell JavaScript | ≤ 120 KB compressed | Preact and `htm` instead of a large framework; no UI kit dependency |
 | Charting code | loaded only when a chart is on screen | Vega/Vega-Lite (the largest libraries) and uPlot load lazily and stay cached |
 | First view, local, warm cache | < 300 ms to a complete frame and visible blocks | rendered from run cards and previews; exact data follows |
-| Folder to folder | < 100 ms | client-side navigation, no page reload; the tree prefetches folders on hover |
+| Group to group | < 100 ms | client-side navigation, no page reload; the tree prefetches groups on hover |
 | Selection, hover, toggles | < 50 ms | handled in the page, no server round trip |
 | Layout shift | none | blocks reserve their size before data arrives; live updates never move content |
 | Spinners | none under 300 ms | content appears in place; a skeleton with the final layout only when it takes longer |
@@ -55,7 +55,7 @@ These qualities are made concrete as budgets and rules, and checked like correct
 
 - **The frame fits in two or three lines**: breadcrumb, proposal with check badges, verdict and run
   counts, finding. Details open in the context drawer.
-- **Empty things disappear.** A folder without a proposal shows no proposal row; a section without
+- **Empty things disappear.** A group without a proposal shows no proposal row; a section without
   data collapses into one line.
 - **Numbers are compact** (`3e-4`, `93.1 %`, `12.4k steps`, `4h 12m`), with full values in tooltips.
 - **No redundant labels**: a chart's caption replaces a title that would only repeat the axes.
@@ -66,7 +66,7 @@ These qualities are made concrete as budgets and rules, and checked like correct
 
 - **Back and forward restore everything**: scroll position, selection, open drawer, chart zoom.
 - **Live data arrives without flicker** ([Live updates](#live-updates)).
-- **Remote latency is hidden**: remote run cards and previews are cached, so remote folders open as
+- **Remote latency is hidden**: remote run cards and previews are cached, so remote groups open as
   fast as local ones and refine when fresh data arrives. Losing a connection shows a quiet marker on
   the source, not a blocking message.
 - **Writes feel instant**: a note appears immediately and is confirmed in the background; a failed
@@ -91,13 +91,13 @@ These qualities are made concrete as budgets and rules, and checked like correct
 ├──────────────┬─────────────────────────────────────────────┬─────────────────┤
 │ sidebar      │ frame:  breadcrumb · status · proposal ·    │ context drawer  │
 │              │         verdict · runs · finding            │ (toggle)        │
-│ folder tree  ├─────────────────────────────────────────────┤                 │
+│ group tree  ├─────────────────────────────────────────────┤                 │
 │ per source:  │                                             │ selected runs:  │
 │  local       │ view body                                   │ run card,       │
 │  @cluster    │ (built-in blocks, custom blocks)            │ config, notes,  │
 │              │                                             │ output tail     │
 │ status dots  │                                             │                 │
-│ run counts   │                                             │ or: folder      │
+│ run counts   │                                             │ or: group      │
 │              │                                             │ notes, timeline │
 ├──────────────┴─────────────────────────────────────────────┴─────────────────┤
 │ status bar: daemon and indexer · freshness · remotes · selection             │
@@ -106,19 +106,19 @@ These qualities are made concrete as budgets and rules, and checked like correct
 
 - **Top bar**: project name, the command palette (⌘K), the state of each source (local, connected or
   unreachable remotes), a light/dark/theme switch, settings.
-- **Sidebar**: the folder tree, one top-level entry per source ([layer 4](04-remotes.md#naming-remote-folders)),
+- **Sidebar**: the group tree, one top-level entry per source ([layer 4](04-remotes.md#naming-remote-groups)),
   with run counts and status dots (running, failed, lost). It loads lazily and can be filtered.
 - **Frame**, owned by Beamtime and identical on every view, in two or three lines:
-  - the breadcrumb and the folder's research status (`open`, `proposed`, `running`, `evaluable`,
-    `concluded`; [research record](09-research-record.md#folder-status));
+  - the breadcrumb and the group's research status (`open`, `proposed`, `running`, `evaluable`,
+    `concluded`; [research record](09-research-record.md#group-status));
   - the proposal's statement with a badge per prediction and the plan's progress, and the current
     verdict;
   - run counts by status, and the view's `finding`.
 
   Below it, small view metadata: author, when saved, outdated block pins.
-- **View body**: the folder's view, inherited or its own.
+- **View body**: the group's view, inherited or its own.
 - **Context drawer**, opened on demand: for selected runs their run card, config, latest notes and
-  output tail; with no selection, the folder's notes and timeline.
+  output tail; with no selection, the group's notes and timeline.
 - **Status bar**: whether the daemon runs, how fresh the data is, remote connections, and how many
   runs are selected.
 
@@ -129,12 +129,12 @@ the frame and the view.
 
 | URL | Page |
 |---|---|
-| `/f/<source>/<path>` | a folder with its view (`/f/local/scaling/lr-sweep`, `/f/@cluster/scaling`) |
-| `/r/<run-id>` | a run, by id; redirects to its folder URL, so links survive moves |
-| `/f/...?v=<version>` | a specific saved version of the folder's view |
+| `/f/<source>/<path>` | a group with its view (`/f/local/scaling/lr-sweep`, `/f/@cluster/scaling`) |
+| `/r/<run-id>` | a run, by id; redirects to its group URL, so links survive moves |
+| `/f/...?v=<version>` | a specific saved version of the group's view |
 | `/f/.../history` | the view's version list; any two versions side by side with their YAML diff and screenshots |
 | `/compare?runs=<a>,<b>` | two runs side by side: config diff, card values, curves (v1.1 with the `compare` block) |
-| `/search?q=…` | folders, runs, notes and blocks matching the query |
+| `/search?q=…` | groups, runs, notes and blocks matching the query |
 | `/settings/...` | appearance (themes), blocks, remotes, about |
 
 Selections live in the URL (`?sel=<ids>`) once linked blocks arrive
@@ -143,9 +143,9 @@ can hand users a link to exactly the view or run they talk about.
 
 ## Navigation
 
-- **Command palette (⌘K)**: folders, runs by name or id, notes by description, library blocks, and
+- **Command palette (⌘K)**: groups, runs by name or id, notes by description, library blocks, and
   commands (switch theme, export, copy link).
-- **Keyboard**: arrow keys in the tree, `[`/`]` for previous and next sibling folder, `Esc` clears the
+- **Keyboard**: arrow keys in the tree, `[`/`]` for previous and next sibling group, `Esc` clears the
   selection, `?` lists shortcuts.
 - **Breadcrumb** in the frame for moving up.
 
@@ -279,25 +279,25 @@ Decided while building the shell (milestone M5):
   numbers are `null`. The web UI is a caller of its own (`view`): its answers use the view defaults
   of [layer 3](03-index.md#implementation-notes) and are never cut at the token budget. Three methods
   serve the shell only: `meta` (project, version, the resolved theme pair), `view` (the view of a
-  folder or run, with a run id resolved to its path) and `watch`. Logged images come from
+  group or run, with a run id resolved to its path) and `watch`. Logged images come from
   `GET /api/file/<run-id>/<path>`, confined to the run's directory.
 - **Live updates**: the page opens one `EventSource` on `/api/subscribe?client=<id>` and tells the
-  server with `watch` which calls it shows, each with its scope (a folder or run path). The daemon
-  reports changed run and folder paths after every poll; a call is stale when the changed path is its
-  scope, lies below it, or lies above it (a folder's notes and proposal reach the runs below). The
+  server with `watch` which calls it shows, each with its scope (a group or run path). The daemon
+  reports changed run and group paths after every poll; a call is stale when the changed path is its
+  scope, lies below it, or lies above it (a group's notes and proposal reach the runs below). The
   stream sends `stale` events with call ids, at most one a second per page; the page refetches those
   calls, keeps the old answer on screen while it does, and updates charts through Vega's data API.
   After a reconnect it refetches everything on screen.
 - **The built-in default view** is built on the server as a block tree (`{block, id, props, data,
   children}`, where `data` names API calls), the same tree authored views will compile to in M6. A
-  folder with runs gets its proposal, stat tiles (runs, running, failed, the best value of the main
+  group with runs gets its proposal, stat tiles (runs, running, failed, the best value of the main
   metric), a grid of `line` blocks (validation metrics first, at most eight; averaged over
   `config.seed` beyond eight runs), the run table with the varying config keys, and its own memory.
-  A folder whose runs live in subfolders gets a `folders` block instead of curves. A run gets stat
+  A group whose runs live in subgroups gets a `groups` block instead of curves. A run gets stat
   tiles, a curve per metric, its logged images and text, and its output (expanded when it failed).
   The proposal block leaves out the statement the frame already shows.
-- **URLs**: `/f/local/<path>` for folders and runs (a run's path ends in its id), `?run=<id>` for the
-  run open in the drawer, `?drawer=1` for the folder's notes and timeline, `/r/<id>` resolving to the
+- **URLs**: `/f/local/<path>` for groups and runs (a run's path ends in its id), `?run=<id>` for the
+  run open in the drawer, `?drawer=1` for the group's notes and timeline, `/r/<id>` resolving to the
   run's path, `/settings/appearance`. `?v=`, `/history`, `/search` and `/compare` come with the
   milestones that add views and comparisons.
 - **Keyboard**: ⌘K or `/` for the palette, arrows in the tree, `[` and `]` for siblings, `i` for the
@@ -309,7 +309,7 @@ Decided while building the shell (milestone M5):
   interpreter and the tooltip handler form one lazy chunk (about 270 KB compressed); the shell is
   about 24 KB compressed. Charts draw on canvas.
 - **Measured** on the generator's scale-M log dir (495 runs, `bench/web/timing.py`, local, warm
-  cache): first view median 135 ms (budget 300 ms), folder to folder median 53 ms (budget 100 ms).
+  cache): first view median 135 ms (budget 300 ms), group to group median 53 ms (budget 100 ms).
 - **Not yet**: custom-block iframes and the `postMessage` bridge, the headless renderer and static
   export (M6), remote sources in the tree and status bar (M7), uPlot, D3 and KaTeX.
 
@@ -318,7 +318,7 @@ Decided while building the shell (milestone M5):
 - The UI must feel seamless, light and concise, with budgets: shell ≤ 120 KB, first view < 300 ms,
   navigation < 100 ms, interactions < 50 ms, no layout shift, no spinners under 300 ms. Bundle size
   is tested in CI; timings are measured before releases.
-- A fixed shell: top bar, sidebar with the folder tree per source, frame and view, a context drawer,
+- A fixed shell: top bar, sidebar with the group tree per source, frame and view, a context drawer,
   a status bar. The frame is defined here.
 - The theme colors the whole app; shell tokens follow VS Code's workbench colors.
 - Every state has a URL, including view versions.

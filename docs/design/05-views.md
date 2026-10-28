@@ -2,7 +2,7 @@
 
 Status: **reviewed; v1 scope per the [overview](00-overview.md#scope)**
 
-A view is what a folder shows: a page that agents build freely, from declarative widgets and from
+A view is what a group shows: a page that agents build freely, from declarative widgets and from
 their own code.
 [Layer 1](01-storage.md#views-in-storage) fixes where views live and how they are inherited and
 versioned; [layer 3](03-index.md#query-language) defines the queries they get their data from.
@@ -11,7 +11,7 @@ versioned; [layer 3](03-index.md#query-language) defines the queries they get th
 
 | Tool | Format and layout | Data binding | Interactivity | Lesson |
 |---|---|---|---|---|
-| W&B workspaces and reports | Server-held JSON, editable via Pydantic classes; sections of panels, reports as blocks plus panel grids with `x, y, w, h` | the container owns a run set (filters, grouping); panels only name metric keys | run selection, grouping and smoothing cascade to all panels | closest to Beamtime's folder-relative views; not diffable; panels with unknown keys render blank |
+| W&B workspaces and reports | Server-held JSON, editable via Pydantic classes; sections of panels, reports as blocks plus panel grids with `x, y, w, h` | the container owns a run set (filters, grouping); panels only name metric keys | run selection, grouping and smoothing cascade to all panels | closest to Beamtime's group-relative views; not diffable; panels with unknown keys render blank |
 | TensorBoard custom scalars | `Layout → Category → Chart` with regex-matched tags; written into the event log | regex over tags | none | tiny schema; a value-plus-band chart as a first-class type |
 | Grafana | JSON with a 24-column grid; v2 separates an `elements` map from a `layout` (grid, auto-grid, rows, tabs) | panels hold queries; per-field config (unit, decimals, thresholds) | typed variables interpolated into queries, `repeat` panels per value, conditional rendering when empty | variables and repeat are the most copied pattern; absolute grids cause noisy diffs; library panels outside files are painful |
 | Evidence.dev | Markdown with named SQL blocks; components reference queries by name | query-then-component | inputs feed `${inputs.x}` into queries; optional clauses vanish when unset | an unset filter should drop its clause |
@@ -57,7 +57,7 @@ versioned; [layer 3](03-index.md#query-language) defines the queries they get th
 1. **Agents build views freely; robustness comes from contracts, building blocks and checks.** Custom
    code is a first-class part of a view. What keeps views correct and consistent is the data contract
    (declared queries), Beamtime's kit and theme, the sandbox, and validation before saving.
-2. **The view owns the data context.** A view's scope is the viewed folder plus view-level filters.
+2. **The view owns the data context.** A view's scope is the viewed group plus view-level filters.
    All data, for widgets and custom code alike, comes through declared queries relative to that
    scope, so inheritance and live updates work everywhere.
 3. **Two ways to build, freely mixed.** Declarative widgets are the fast path: the agent states intent
@@ -71,7 +71,7 @@ versioned; [layer 3](03-index.md#query-language) defines the queries they get th
    suggested fix. Screenshots come after, as the agent's own check.
 7. **Everything addressable.** Every node can carry an `id`, used by validation errors, screenshots
    and edits.
-8. **Degrade, never break.** A block without data in the viewed folder shows a one-line notice; a
+8. **Degrade, never break.** A block without data in the viewed group shows a one-line notice; a
    custom block that throws shows an error panel; the frame and every other block stay intact.
 
 ## The view format
@@ -102,7 +102,7 @@ body:
       queries:
         runs:   {runs: {select: [run.id, config.weight_decay, config.n_params, metric.val/acc.max]}}
         detail: {series: {from: $run, y: [train/acc, val/acc]}}
-  - line: {id: by-wd, y: val/acc, group: [config.weight_decay], band: std,
+  - line: {id: by-wd, y: val/acc, by: [config.weight_decay], band: std,
            caption: Validation accuracy per weight decay, mean and spread over runs.}
   - phase-map: {x: config.weight_decay, y: config.n_params, value: metric.val/acc.max}
 
@@ -123,7 +123,7 @@ uses:                                    # written by view_save
 ### Data
 
 - Every query a block uses is **declared in the YAML**, in the object form of
-  [layer 3](03-index.md#query-language), relative to the viewed folder. Widgets declare theirs
+  [layer 3](03-index.md#query-language), relative to the viewed group. Widgets declare theirs
   implicitly; custom blocks list them under `queries`.
 - Queries without placeholders are **prefetched** and kept live: when runs change, the affected
   queries are re-run and the block re-renders.
@@ -132,7 +132,7 @@ uses:                                    # written by view_save
   against the placeholder's type. This covers clicking into a run, step-window sliders and
   selections.
 - **Data files** stored with the view (`view/data/<sha8>-<name>.parquet`) are read through the `file`
-  query ([layer 3](03-index.md#query-kinds)). They describe the folder that defines the view; when
+  query ([layer 3](03-index.md#query-kinds)). They describe the group that defines the view; when
   the view is inherited, blocks using them carry a label such as "data from `scaling/`". Their
   provenance (the script that made them) is recorded in a note.
 - There is no free query API: code cannot read files, call the network or query anything it hasn't
@@ -164,13 +164,13 @@ Wave 1 is in v1; wave 2 follows in v1.1 ([overview](00-overview.md#scope)).
 
 **Layout**: `section` (titled, collapsible), `row` (side by side, wrapping), `grid` (auto-fitting by
 `min_width`, or fixed `columns`), `tabs` (not nested); wave 2: `repeat` (a block of widgets per value
-of a field or per subfolder, each narrowed to its runs; `$value` names the value in captions).
+of a field or per subgroup, each narrowed to its runs; `$value` names the value in captions).
 
 **Curves over steps**
 
 | Block | Wave | Purpose | Key props |
 |---|---|---|---|
-| `line` | 1 | metric curves over steps, time or another metric | `y`, `x`, `color`, `group`, `band`, `seeds`, `smooth`, `scale`, `steps`, `highlight`; wave 2: `facet` |
+| `line` | 1 | metric curves over steps, time or another metric | `y`, `x`, `color`, `by`, `band`, `seeds`, `smooth`, `scale`, `steps`, `highlight`; wave 2: `facet` |
 | `histogram` | 1 | logged distributions over steps | `key`, `step` (`last`, a step, or `all` as a step-by-bin heatmap) |
 
 **One value per run**
@@ -178,7 +178,7 @@ of a field or per subfolder, each narrowed to its runs; `$value` names the value
 | Block | Wave | Purpose | Key props |
 |---|---|---|---|
 | `scatter` | 1 | two fields against each other | `x`, `y`, `color`, `size`, `x_scale`, `y_scale`, `fit` (`linear`, `log`, `power`), `seeds` |
-| `bar` | 1 | a field per category | `x`, `y`, `group`, `error` (`std`, `stderr`, `minmax`), `sort` |
+| `bar` | 1 | a field per category | `x`, `y`, `by`, `error` (`std`, `stderr`, `minmax`), `sort` |
 | `stat` | 1 | one number | `field`, `aggregate` (`best`, `mean`, `last`, `count`); wave 2: `delta` against the baseline |
 | `table` | 1 | runs as rows, fields as columns | `columns`, `sort`, `limit`, `highlight_best`, `sparkline` (a metric per row, from previews) |
 | `heatmap` | 2 | a value over two config axes | `x`, `y`, `value`, `aggregate` (`mean`, `max`, `min`) |
@@ -193,9 +193,9 @@ of a field or per subfolder, each narrowed to its runs; `$value` names the value
 
 | Block | Purpose | Key props |
 |---|---|---|
-| `proposal` | the folder's proposal: statement, each prediction with result, effect and interval, plan progress, research status, verdict, superseded versions | `of` (default `.`) |
-| `memory` | the folder's memory, with its links | `of` |
-| `folders` | the child groups with status, check, verdict, run counts and a chosen field | `field`, `depth` |
+| `proposal` | the group's proposal: statement, each prediction with result, effect and interval, plan progress, research status, verdict, superseded versions | `of` (default `.`) |
+| `memory` | the group's memory, with its links | `of` |
+| `groups` | the child groups with status, check, verdict, run counts and a chosen field | `field`, `depth` |
 | `timeline` | notes and run events in time order | `types`, `limit` |
 | `note` | a short text, optionally as a callout (`info`, `warning`, `success`) | `text`, `kind` |
 | `output` | the tail of a run's captured output | `run`, `lines`, `stream` (`main` or a rank) |
@@ -223,7 +223,7 @@ selection per view (a set of run ids, kept in the URL); interactive blocks (`tab
 |---|---|
 | no run in scope logs the field or key | a one-line notice naming what is missing |
 | a single run | curves, `stat`, `table`, logged data and context blocks render normally; `scatter`, `bar`, `heatmap`, `parallel` show a notice that they compare runs |
-| more than about eight curves | rendered, plus a `validate` lint suggesting `color`, `group`, `seeds` or `facet` |
+| more than about eight curves | rendered, plus a `validate` lint suggesting `color`, `by`, `seeds` or `facet` |
 | more rows than `limit` | the first rows and a count of the rest |
 | a running run | rendered from current data; values that can still change are marked |
 
@@ -244,16 +244,16 @@ curves that stops being readable:
 
 | Option | Result | Runs visible | Good for |
 |---|---|---|---|
-| `color: <field>` | curves colored by the field's value | yes | spread and outliers within groups |
-| `group: [<fields>]` | one curve per group: mean plus a band (`band: minmax \| std \| stderr \| none`) | no | comparing groups |
-| `seeds: config.seed` | grouping by every config key except the seed | no | merging repetitions |
-| `facet: <field>` (wave 2) | one small chart per value, shared axes | yes | structure within each group |
+| `color: <field>` | curves colored by the field's value | yes | spread and outliers within a setting |
+| `by: [<fields>]` | one curve per combination of values: mean plus a band (`band: minmax \| std \| stderr \| none`) | no | comparing settings |
+| `seeds: config.seed` | aggregating by every config key except the seed | no | merging repetitions |
+| `facet: <field>` (wave 2) | one small chart per value, shared axes | yes | structure within each value |
 
-- **Grouping only makes sense over runs that differ in noise.** `validate` warns when keys other than
-  the seed vary within a group.
-- **Groups are averaged per bucket**, on the fixed bucket edges of previews and downsampling.
+- **Aggregating only makes sense over runs that differ in noise.** `validate` warns when keys other
+  than the seed vary within an aggregate.
+- **Aggregates are averaged per bucket**, on the fixed bucket edges of previews and downsampling.
 - **Runs of different length**: the tooltip shows how many runs contribute per bucket, and the band
-  fades where fewer than half of the group's runs contribute.
+  fades where fewer than half of the aggregate's runs contribute.
 
 ## Baselines (wave 2)
 
@@ -335,7 +335,7 @@ and takes its data as a prop. Interactive components report `onSelect(row)` and 
 | `bt.fmt.value(field, v)`, `bt.fmt.delta(field, v)` | values and differences formatted with the view's `metrics` |
 | `bt.fmt.step(n)`, `bt.fmt.duration(s)`, `bt.label(field)` | readable steps, durations and labels |
 | `bt.plot(el, spec, {data})` | renders a Vega-Lite spec with the theme merged in; `data` maps dataset names to results |
-| `bt.link.run(id)`, `bt.link.folder(path)` | URLs to runs and folders, opened in the main window |
+| `bt.link.run(id)`, `bt.link.group(path)` | URLs to runs and groups, opened in the main window |
 | `bt.useSize()` | the block's width |
 | `bt.warn(message)` | a warning shown by `validate` and on the block |
 | `bt.useSelection()` (wave 2) | the view's shared run selection |
@@ -454,7 +454,7 @@ examples:
 queries:
   runs:   {runs: {select: [run.id, $x, $y, $value]}}
   detail: {series: {from: $run, y: $curves}}      # $run remains a runtime placeholder
-code: code/3f9a21c0-phase-map.js                  # relative to the block's folder
+code: code/3f9a21c0-phase-map.js                  # relative to the block's group
 kit: 1
 libs: [vega]
 derived_from: null
@@ -474,14 +474,14 @@ blocks with their descriptions.
   names cannot be overridden.
 - Blocks live in the same source as the views using them, so a remote view finds its blocks on the
   remote.
-- `beamtime block export <name> <folder>` and `beamtime block import <folder>` copy blocks between
+- `beamtime block export <name> <group>` and `beamtime block import <group>` copy blocks between
   projects.
 
 ### Creating and reusing blocks
 
 | CLI | MCP | Does |
 |---|---|---|
-| `beamtime block list [folder]` | `block_list` | blocks available in a folder, with descriptions |
+| `beamtime block list [group]` | `block_list` | blocks available in a group, with descriptions |
 | `beamtime block promote <view> <block-id> <name>` | `block_promote` | turns a view's working custom block into a library block |
 | `beamtime block fork <name> <new-name>` | `block_fork` | copies a block as a starting point; records `derived_from` |
 | `beamtime block validate <draft>` | `block_validate` | checks a block draft |
@@ -493,7 +493,7 @@ blocks with their descriptions.
   flagged ("`val/acc` is hard-coded; make it a param").
 - **A description** with when to use and when not to use.
 - **At least two `examples`**, each validated statically and, where a browser is available, rendered
-  once in the folder the block is saved in.
+  once in the group the block is saved in.
 - **No duplicate queries**: a block whose declared queries equal an existing block's is pointed out.
 
 ### Pinning and upgrades
@@ -502,7 +502,7 @@ Views are **pinned** to the block versions they were saved with, so a view looks
 today unless someone decides to change it.
 
 - `view_save` writes the resolved versions into `uses`; referenced block versions are never deleted.
-- `beamtime view outdated [folder]` lists views pinned to older block versions; the UI marks them.
+- `beamtime view outdated [group]` lists views pinned to older block versions; the UI marks them.
 - `beamtime view upgrade <view> [--block <name>]` re-pins to the newest version and validates the
   view. If the new version's params differ, validation reports what to change, the agent adjusts
   the view, and saves it. Automatic param migrations are a later addition.
@@ -514,8 +514,8 @@ The loop is available as MCP tools and CLI commands ([layer 8](08-cli-mcp.md)):
 
 | MCP | CLI | Does |
 |---|---|---|
-| `keys`, `guide` | `beamtime keys`, `beamtime guide` | what exists in the folder; the design guide |
-| `view_new` | `beamtime view new <folder> [--from <example>]` | starts a draft, optionally from an example |
+| `keys`, `guide` | `beamtime keys`, `beamtime guide` | what exists in the group; the design guide |
+| `view_new` | `beamtime view new <group> [--from <example>]` | starts a draft, optionally from an example |
 | `view_validate` | `beamtime view validate <draft>` | structured findings: error or warning, block id, location, suggested fix |
 | `view_render` | `beamtime view render <draft>` | screenshots of the page and of each block; MCP returns images, the CLI writes PNGs |
 | `view_save` | `beamtime view save <draft>` | writes the draft as a new version into `view/` |
@@ -528,7 +528,7 @@ The loop is available as MCP tools and CLI commands ([layer 8](08-cli-mcp.md)):
 
 **Drafts** live outside `view/` (in the cache, or a path the agent chooses), so iterating creates no
 versions. **Rendering runs where the agent works**, with the headless renderer of
-[layer 7](07-web-ui.md#screenshots-and-the-headless-renderer); for a remote folder, data comes
+[layer 7](07-web-ui.md#screenshots-and-the-headless-renderer); for a remote group, data comes
 through remote queries and `save` sends the version to the remote.
 
 ### Validation
@@ -537,7 +537,7 @@ through remote queries and `save` sends the version to the remote.
    sound; custom code parses, exports `render`, imports nothing outside `bt`, uses no network APIs,
    stays below a size limit, contains no inline numeric data beyond a small limit, and uses no color
    literals outside `bt.theme`.
-2. **One render, when a browser is available.** The draft is rendered headless once, in the folder it
+2. **One render, when a browser is available.** The draft is rendered headless once, in the group it
    is saved for: no exceptions, no console errors, rendering within a time limit, no blank blocks,
    placeholder queries exercised once with example values. In the same render, layout is measured
    without a model: content overflowing its block, clipped text, overlapping elements, charts with
@@ -568,11 +568,11 @@ research shows work better than long rule lists.
 | `guide queries` | the query language | ~1.5k |
 | `guide checklist` | the screenshot checklist | ~300 |
 | `guide anti-patterns` | common mistakes with fixes | ~800 |
-| `guide <folder>` | additionally: library blocks there, the inherited view and its pins, outdated pins | – |
+| `guide <group>` | additionally: library blocks there, the inherited view and its pins, outdated pins | – |
 
 ### Workflow
 
-1. Look at the folder: `memory_show`, `keys`, its proposal and notes, the inherited view.
+1. Look at the group: `memory_show`, `keys`, its proposal and notes, the inherited view.
 2. Check the library for blocks that fit (default: reuse first).
 3. Write a draft: the question the view answers decides the blocks.
 4. `view_validate` until it passes; `view_render` and the checklist, at most two rounds.
@@ -594,9 +594,9 @@ research shows work better than long rule lists.
   | Which hyperparameters matter? | `importance`, then `parallel` (wave 2) |
   | Does a change help? | `bar` or `table` grouped by the change; baselines with `match` (wave 2) |
   | What does the model produce? | `images`, `text`, `data_table` |
-  | Where does the research stand? | `proposal`, `folders`, `timeline`, `memory` |
+  | Where does the research stand? | `proposal`, `groups`, `timeline`, `memory` |
 
-- **Tame many runs** with `color`, `group` or `seeds`.
+- **Tame many runs** with `color`, `by` or `seeds`.
 - **State the setup in captions**: what was varied, what was held fixed, how many runs.
 - **Units, labels and scales** go into the view's `metrics` once.
 - **Don't overclaim.** If the proposal's check is pending, provisional, insufficient or failed, the
@@ -626,7 +626,7 @@ Five complete example views ship with Beamtime, each with a commentary, and doub
 | `sweep` | a learning-rate sweep: finding, best-run stat, curves colored by the swept field, accuracy against learning rate with seeds merged, run table |
 | `ablation` | runs grouped by the change, grouped bars with error bars, the proposal with its predictions and checks |
 | `run` | a view written to be inherited by single runs: all logged metrics, output tail when failed, logged samples |
-| `direction` | a research direction: `folders` overview of its sweeps, `timeline` of decisions and verdicts, memory, proposal |
+| `direction` | a research direction: `groups` overview of its sweeps, `timeline` of decisions and verdicts, memory, proposal |
 | `custom` | a custom block with click-to-detail, theme colors and graceful degradation |
 
 ### Screenshot checklist
@@ -647,8 +647,8 @@ Answered yes or no for every block in the screenshots:
 
 | Mistake | Fix |
 |---|---|
-| ✓ more than about eight curves in one chart | `color`, `group`, `seeds` |
-| ✓ grouping runs that differ in more than noise | group by the varying key too |
+| ✓ more than about eight curves in one chart | `color`, `by`, `seeds` |
+| ✓ aggregating runs that differ in more than noise | aggregate by the varying key too |
 | ✓ colors, fonts or sizes in custom code | `bt.theme`, `bt.fmt`, CSS variables |
 | ✓ numbers written into code | declare a query |
 | ✓ a block that breaks without data | handle `status` and empty results |
@@ -695,7 +695,7 @@ experiment and ArtifactsBench (render, screenshot, judge against a per-task chec
 | Validity | does the saved view validate; how many rounds | deterministic |
 | Fidelity | do the queries cover the required runs and metrics; does `finding` state the truth without overclaiming | queries deterministic; a model judge for the finding |
 | Checklist | the task's items, yes or no | a vision model on the screenshots, item by item |
-| Robustness | does the view render in a single run, a subfolder and without data | deterministic |
+| Robustness | does the view render in a single run, a subgroup and without data | deterministic |
 | Preference | which of two views a researcher prefers | humans, occasionally, to calibrate the judge |
 
 Item-by-item judging is used because vision models agree with experts on concrete questions but not
@@ -720,7 +720,7 @@ Decided while building themes (milestone M5):
   choice (kept in the browser).
 - **Run colors**: an FNV-1a hash of the run id picks a slot of the categorical palette; runs are
   placed in id order and move to the next free slot on a collision, over all runs of the viewed
-  folder, so a run keeps its color across the blocks of a view. Beyond the palette's size, colors
+  group, so a run keeps its color across the blocks of a view. Beyond the palette's size, colors
   repeat. Group values use the categorical palette in sorted order, or the sequential ramp for more
   numeric values than the palette has colors.
 
@@ -730,7 +730,7 @@ Decided while building themes (milestone M5):
   linked selection.
 - **Packages** (v1.1): themes and block libraries shared as packages, installed pi-style:
   `beamtime install git:github.com/lab/beamtime-physics-blocks@v1.2 [-l]`, `npm:` sources, local
-  folders; conventional `themes/` and `blocks/` folders with an optional manifest; personal by
+  groups; conventional `themes/` and `blocks/` folders with an optional manifest; personal by
   default, per project with `-l` (recorded in the settings with a pin); per-package filters;
   package blocks used with the package name as prefix (`physics-blocks/phase-map`); nothing runs at
   install time; failures degrade to error panels; npm's `beamtime-package` keyword as the gallery

@@ -1,4 +1,4 @@
-// The context drawer: the selected run's card, config, notes and output; else the folder's notes.
+// The context drawer: the selected run's card, config, notes and output; else the group's notes.
 
 import { html } from "htm/preact";
 
@@ -6,17 +6,17 @@ import { useCall } from "../api.ts";
 import { Dot } from "../blocks/common.ts";
 import { inline } from "../blocks/context.ts";
 import { ago, duration, value } from "../bt/fmt.ts";
-import { folderUrl, navigate, runUrl } from "../router.ts";
+import { groupUrl, navigate, runUrl } from "../router.ts";
 import * as calls from "./calls.ts";
 
 export function Drawer(props: { path: string; run: string | null }) {
-  const close = () => navigate(folderUrl(props.path), { replace: true });
+  const close = () => navigate(groupUrl(props.path), { replace: true });
   return html`<aside class="drawer" aria-label="Context">
     <div class="drawer-head">
       <span>${props.run ? "Run" : "Notes and timeline"}</span>
       <button class="icon" title="Close (Esc)" onClick=${close}>×</button>
     </div>
-    ${props.run ? html`<${RunContext} id=${props.run} scope=${props.path} />` : html`<${FolderContext} path=${props.path} />`}
+    ${props.run ? html`<${RunContext} id=${props.run} scope=${props.path} />` : html`<${GroupContext} path=${props.path} />`}
   </aside>`;
 }
 
@@ -47,7 +47,7 @@ function RunContext({ id, scope }: { id: string; scope: string }) {
   </div>`;
 }
 
-function FolderContext({ path }: { path: string }) {
+function GroupContext({ path }: { path: string }) {
   const notes = useCall(calls.notes(path)).data;
   const timeline = useCall(calls.timeline(path)).data;
   return html`<div class="drawer-body">
@@ -56,7 +56,7 @@ function FolderContext({ path }: { path: string }) {
     ${(notes?.entries ?? []).map((n: any) => html`<div class="note-item" key=${n.id}>
       <span class=${`chip note-${n.type}`}>${n.type}</span>${n.state ? html` <span class="muted small">${n.state}</span>` : null}
       <p>${inline(n.description)}</p>
-      <p class="muted small">${n.folder} · ${n.id.slice(0, 13).replace(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/, "$1-$2-$3 $4:$5")}</p>
+      <p class="muted small">${n.group} · ${n.id.slice(0, 13).replace(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/, "$1-$2-$3 $4:$5")}</p>
     </div>`)}
     <h4>Timeline</h4>
     ${(timeline?.entries ?? []).map((e: any) => html`<p class="small">

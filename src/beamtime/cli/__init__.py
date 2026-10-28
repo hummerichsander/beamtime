@@ -20,9 +20,9 @@ EXAMPLES = """examples:
 
 GROUPS = {
     "mcp": "the MCP server over stdio (for agent clients)",
-    "note": "add notes to a folder or run",
-    "proposal": "show or save a folder's proposal",
-    "memory": "show or update a folder's memory",
+    "note": "add notes to a group or run",
+    "proposal": "show or save a group's proposal",
+    "memory": "show or update a group's memory",
 }
 
 

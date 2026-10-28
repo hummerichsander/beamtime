@@ -15,9 +15,9 @@ export function typing(e: Event): boolean {
 }
 
 export const SHORTCUTS: [string, string][] = [
-  ["⌘K, /", "search folders, runs and commands"],
-  ["↑ ↓ ← →", "move in the folder tree"],
-  ["[  ]", "previous and next sibling folder"],
+  ["⌘K, /", "search groups, runs and commands"],
+  ["↑ ↓ ← →", "move in the group tree"],
+  ["[  ]", "previous and next sibling group"],
   ["i", "open or close the context drawer"],
   ["⌘B", "show or hide the sidebar"],
   ["p", "pause or resume live updates"],

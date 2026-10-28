@@ -35,7 +35,7 @@ def test_default_pair_is_complete(root: Path) -> None:
         t = themes[mode]
         assert t["type"] == mode
         assert set(CORE) | set(SHELL) == set(t["colors"])
-        assert len(t["data"]["categorical"]) == 10 and t["fonts"]["mono"]
+        assert len(t["data"]["categorical"]) == 8 and t["fonts"]["serif"]
     assert themes["dark"]["sizes"] == themes["light"]["sizes"]
 
 
@@ -44,9 +44,9 @@ def test_a_dozen_colors_make_a_theme(root: Path) -> None:
     write(root, "night", name="Night", type="dark", colors={"bg": "#000000", "surface": "#111111",
                                                              "accent": "#ff8800"})  # fmt: skip
     t = resolve("night", root)
-    assert t["colors"]["bg"] == "#000000" and t["colors"]["fg"] == "#f0f6fc"
+    assert t["colors"]["bg"] == "#000000" and t["colors"]["fg"] == "#eceae4"
     assert t["colors"]["sidebar.bg"] == "#111111" and t["colors"]["focus"] == "#ff8800"
-    assert t["data"]["categorical"][0] == "#4493f8"
+    assert t["data"]["categorical"][0] == "#3987e5"
     assert t["problems"] == []
 
 

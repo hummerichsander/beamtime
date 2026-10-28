@@ -27,7 +27,7 @@ nothing else: no network, no database, no server.
 import beamtime
 
 run = beamtime.init(
-    dir="scaling/lr-sweep",          # folder below the log dir; created if missing
+    dir="scaling/lr-sweep",          # group below the log dir; created if missing
     name="lr-3e-4-warmup",           # optional
     tags=["resnet18"],
     config=cfg,                      # dict, dataclass, Pydantic model, Namespace, OmegaConf

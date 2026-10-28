@@ -1,4 +1,4 @@
-// The command palette (⌘K): folders, runs by name or id, and commands.
+// The command palette (⌘K): groups, runs by name or id, and commands.
 
 import { html } from "htm/preact";
 import { useEffect, useRef, useState } from "preact/hooks";
@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { paused, useCall } from "../api.ts";
 import { rows } from "../blocks/common.ts";
 import { setMode } from "../bt/index.ts";
-import { folderUrl, navigate, route } from "../router.ts";
+import { groupUrl, navigate, route } from "../router.ts";
 import * as calls from "./calls.ts";
 import { help, palette, sidebar } from "./ui.ts";
 
@@ -32,7 +32,7 @@ export function Palette() {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
-  const folders = rows(useCall(calls.tree()).data);
+  const groups = rows(useCall(calls.tree()).data);
   const runs = rows(useCall(calls.allRuns()).data);
   useEffect(() => input.current?.focus(), []);
 
@@ -42,21 +42,21 @@ export function Palette() {
     navigate(url);
   };
   const r = route.value;
-  const here = r.page === "folder" ? r.path : ".";
+  const here = r.page === "group" ? r.path : ".";
   const commands: Item[] = [
     { kind: "command", label: "Theme: light", detail: "", run: () => setMode("light") },
     { kind: "command", label: "Theme: dark", detail: "", run: () => setMode("dark") },
     { kind: "command", label: "Theme: follow the system", detail: "", run: () => setMode("system") },
     { kind: "command", label: "Copy link", detail: "this page", run: () => void navigator.clipboard?.writeText(location.href) },
-    { kind: "command", label: "Toggle context drawer", detail: "i", run: go(folderUrl(here, { drawer: !(r.page === "folder" && r.drawer) })) },
+    { kind: "command", label: "Toggle context drawer", detail: "i", run: go(groupUrl(here, { drawer: !(r.page === "group" && r.drawer) })) },
     { kind: "command", label: "Toggle sidebar", detail: "⌘B", run: () => sidebar.set(!sidebar.value) },
     { kind: "command", label: paused.value ? "Resume live updates" : "Pause live updates", detail: "p", run: () => paused.set(!paused.value) },
     { kind: "command", label: "Keyboard shortcuts", detail: "?", run: () => help.set(true) },
     { kind: "command", label: "Settings", detail: "", run: go("/settings/appearance") },
   ];
   const items: Item[] = [
-    ...folders.map((f) => ({ kind: "folder", label: f.path === "." ? "local" : f.path, detail: `${f.runs} runs`, run: go(folderUrl(f.path)) })),
-    ...runs.map((x) => ({ kind: "run", label: x["run.name"] ?? x["run.id"], detail: `${x["run.path"]}`, run: go(folderUrl(x["run.path"])) })),
+    ...groups.map((f) => ({ kind: "group", label: f.path === "." ? "local" : f.path, detail: `${f.runs} runs`, run: go(groupUrl(f.path)) })),
+    ...runs.map((x) => ({ kind: "run", label: x["run.name"] ?? x["run.id"], detail: `${x["run.path"]}`, run: go(groupUrl(x["run.path"])) })),
     ...commands,
   ];
   const ranked = items
@@ -80,7 +80,7 @@ export function Palette() {
   };
   return html`<div class="overlay" onClick=${close}>
     <div class="palette" role="dialog" aria-label="Search" onClick=${(e: Event) => e.stopPropagation()}>
-      <input ref=${input} value=${query} placeholder="Folders, runs by name or id, commands"
+      <input ref=${input} value=${query} placeholder="Groups, runs by name or id, commands"
         onInput=${(e: Event) => { setQuery((e.target as HTMLInputElement).value); setActive(0); }} onKeyDown=${onKey} />
       <ul role="listbox">
         ${ranked.map((it, i) => html`<li role="option" aria-selected=${i === active} class=${i === active ? "active" : ""}

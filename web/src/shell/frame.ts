@@ -6,7 +6,7 @@ import { useCall } from "../api.ts";
 import { Badge, Progress } from "../blocks/context.ts";
 import { Dot, rows } from "../blocks/common.ts";
 import { duration, value } from "../bt/fmt.ts";
-import { folderUrl, isRunId } from "../router.ts";
+import { groupUrl, isRunId } from "../router.ts";
 import * as calls from "./calls.ts";
 
 const COUNTS = ["running", "finished", "failed", "killed", "lost"];
@@ -14,35 +14,35 @@ const COUNTS = ["running", "finished", "failed", "killed", "lost"];
 export function Frame(props: { path: string; finding?: string | null; source?: string }) {
   const parts = props.path === "." ? [] : props.path.split("/");
   const runId = parts.length && isRunId(parts[parts.length - 1]) ? parts[parts.length - 1] : null;
-  const folderPath = runId ? parts.slice(0, -1).join("/") || "." : props.path;
+  const groupPath = runId ? parts.slice(0, -1).join("/") || "." : props.path;
   return html`<header class="frame">
     <div class="frame-line">
       <nav class="breadcrumb" aria-label="Breadcrumb">
-        <a href=${folderUrl(".")}>local</a>
+        <a href=${groupUrl(".")}>local</a>
         ${parts.map((p, i) => html`<span class="sep">/</span>${i === parts.length - 1
           ? html`<span aria-current="page">${runId && i === parts.length - 1 ? html`<${RunName} id=${runId} scope=${props.path} />` : p}</span>`
-          : html`<a href=${folderUrl(parts.slice(0, i + 1).join("/"))}>${p}</a>`}`)}
+          : html`<a href=${groupUrl(parts.slice(0, i + 1).join("/"))}>${p}</a>`}`)}
       </nav>
-      ${runId ? html`<${RunStatus} id=${runId} scope=${props.path} />` : html`<${FolderStatus} path=${folderPath} />`}
+      ${runId ? html`<${RunStatus} id=${runId} scope=${props.path} />` : html`<${GroupStatus} path=${groupPath} />`}
     </div>
-    ${runId ? html`<${RunLine} id=${runId} scope=${props.path} />` : html`<${FolderLines} path=${folderPath} />`}
+    ${runId ? html`<${RunLine} id=${runId} scope=${props.path} />` : html`<${GroupLines} path=${groupPath} />`}
     ${props.finding ? html`<p class="finding">${props.finding}</p>` : null}
   </header>`;
 }
 
-function useFolder(path: string): Record<string, any> | null {
-  const result = useCall(calls.folder(path));
+function useGroup(path: string): Record<string, any> | null {
+  const result = useCall(calls.group(path));
   return rows(result.data)[0] ?? null;
 }
 
-function FolderStatus({ path }: { path: string }) {
-  const row = useFolder(path);
+function GroupStatus({ path }: { path: string }) {
+  const row = useGroup(path);
   if (!row) return null;
   return html`<span class=${`chip status-${row.status}`}>${row.status}</span>`;
 }
 
-function FolderLines({ path }: { path: string }) {
-  const row = useFolder(path);
+function GroupLines({ path }: { path: string }) {
+  const row = useGroup(path);
   const check = useCall(row?.proposal ? calls.check(path) : null);
   if (!row) return html`<div class="frame-line placeholder"></div>`;
   const c = check.data;
@@ -88,7 +88,7 @@ function RunLine({ id, scope }: { id: string; scope: string }) {
     ${r.host ? html`<span class="muted">${r.host}</span>` : null}
     ${r.git?.commit ? html`<span class="muted">git ${r.git.commit}${r.git.dirty ? " (dirty)" : ""}</span>` : null}
     ${(card.proposals ?? []).map((p: any) => html`<span class=${`chip result-${p.check}`} title=${p.statement}>
-      ${p.folder}${p.check ? `: check ${p.check}` : ""}${p.verdict ? `, ${p.verdict}` : ""}</span>`)}
+      ${p.group}${p.check ? `: check ${p.check}` : ""}${p.verdict ? `, ${p.verdict}` : ""}</span>`)}
     ${r.error ? html`<span class="bad-text" title=${r.error}>${r.error.split("\n")[0].slice(0, 120)}</span>` : null}
   </div>`;
 }

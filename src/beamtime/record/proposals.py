@@ -247,7 +247,7 @@ def load(folder_dir: Path, version: str) -> Proposal:
 
 
 def current(folder_dir: Path) -> str | None:
-    """Find the current proposal version of a folder.
+    """Find the current proposal version of a group.
 
     :param folder_dir: The group or run directory.
     :return: The newest version id, or ``None``."""
@@ -255,7 +255,7 @@ def current(folder_dir: Path) -> str | None:
 
 
 def all_versions(folder_dir: Path) -> list[str]:
-    """List a folder's proposal versions.
+    """List a group's proposal versions.
 
     :param folder_dir: The group or run directory.
     :return: The version ids, oldest first."""
@@ -263,7 +263,7 @@ def all_versions(folder_dir: Path) -> list[str]:
 
 
 class Target:
-    """A folder or run whose proposal is looked at."""
+    """A group or run whose proposal is looked at."""
 
     def __init__(self, *, index: Index, rel: str, run_id: str | None) -> None:
         """Name the target.

@@ -1,4 +1,4 @@
-"""The research status of a folder or run, derived from its proposal, runs and notes."""
+"""The research status of a group or run, derived from its proposal, runs and notes."""
 
 from typing import Any
 
@@ -7,9 +7,9 @@ from beamtime.record.proposals import RecordError, Target, current, load
 
 
 def research_status(target: Target) -> dict[str, Any]:
-    """Derive a folder's (or run's) research status from its current proposal.
+    """Derive a group's (or run's) research status from its current proposal.
 
-    :param target: The folder or run.
+    :param target: The group or run.
     :return: ``status`` (open, proposed, running, evaluable, concluded), ``version``,
         ``statement``, ``check``, ``provisional``, ``progress`` (0 to 1),
         ``progress_text`` and ``verdict`` (the overall verdict on the current version)."""

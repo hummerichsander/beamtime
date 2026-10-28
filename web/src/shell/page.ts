@@ -1,4 +1,4 @@
-// Pages: a folder or run with its view, the /r/<id> redirect, and settings.
+// Pages: a group or run with its view, the /r/<id> redirect, and settings.
 
 import { html } from "htm/preact";
 import { useEffect, useMemo } from "preact/hooks";
@@ -7,13 +7,13 @@ import { fetchCall, useCall } from "../api.ts";
 import { Block } from "../blocks/index.ts";
 import { Notice, rows } from "../blocks/common.ts";
 import { runColors, setMode, useTheme, ViewCtx, mode } from "../bt/index.ts";
-import { folderUrl, navigate, restoreScroll } from "../router.ts";
+import { groupUrl, navigate, restoreScroll } from "../router.ts";
 import { useStore } from "../state.ts";
 import * as calls from "./calls.ts";
 import { Frame } from "./frame.ts";
 import { meta, SHORTCUTS } from "./ui.ts";
 
-export function FolderPage(props: { path: string }) {
+export function GroupPage(props: { path: string }) {
   const view = useCall(calls.view(props.path));
   const ids = useCall(calls.runIds(props.path));
   const theme = useTheme();
@@ -43,7 +43,7 @@ export function FolderPage(props: { path: string }) {
 export function RunRedirect(props: { id: string }) {
   useEffect(() => {
     fetchCall(calls.view(props.id))
-      .then((v) => navigate(folderUrl(v.path), { replace: true }))
+      .then((v) => navigate(groupUrl(v.path), { replace: true }))
       .catch(() => {});
   }, [props.id]);
   const view = useCall(calls.view(props.id));

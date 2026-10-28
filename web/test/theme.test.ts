@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { assignColors, cssVariables, groupColors, ramp, vegaConfig } from "../src/bt/theme.ts";
-import { folderUrl, parse } from "../src/router.ts";
+import { groupUrl, parse } from "../src/router.ts";
 
 const palette = ["#a", "#b", "#c", "#d"];
 const theme = {
@@ -43,11 +43,11 @@ test("css variables and the Vega-Lite config come from the tokens", () => {
 
 test("URLs round-trip", () => {
   assert.deepEqual(parse("/f/local/scaling/lr-sweep", "?run=20261020-080300-aaaaaaaa"), {
-    page: "folder", source: "local", path: "scaling/lr-sweep", run: "20261020-080300-aaaaaaaa", drawer: true,
+    page: "group", source: "local", path: "scaling/lr-sweep", run: "20261020-080300-aaaaaaaa", drawer: true,
   });
-  assert.equal(parse("/f/local", "").page, "folder");
+  assert.equal(parse("/f/local", "").page, "group");
   assert.equal((parse("/f/local", "") as any).path, ".");
   assert.deepEqual(parse("/r/20261020-080300-aaaaaaaa", ""), { page: "run", id: "20261020-080300-aaaaaaaa" });
-  assert.equal(folderUrl("scaling/lr-sweep", { drawer: true }), "/f/local/scaling/lr-sweep?drawer=1");
-  assert.equal(folderUrl("."), "/f/local");
+  assert.equal(groupUrl("scaling/lr-sweep", { drawer: true }), "/f/local/scaling/lr-sweep?drawer=1");
+  assert.equal(groupUrl("."), "/f/local");
 });

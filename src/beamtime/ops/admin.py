@@ -174,7 +174,7 @@ def refuse_running(run_dir: Path, verb: str) -> None:
 
 
 def move(ctx: Context, p: r.MoveParams) -> dict[str, Any]:
-    """Move a run to another folder below the log dir.
+    """Move a run to another group below the log dir.
 
     :param ctx: The operation context.
     :param p: The parameters.
@@ -182,12 +182,12 @@ def move(ctx: Context, p: r.MoveParams) -> dict[str, Any]:
     index, run_dir = find_run(ctx, p.run)
     index.close()
     refuse_running(run_dir, "move")
-    target = (ctx.logdir / p.folder).resolve()
+    target = (ctx.logdir / p.group).resolve()
     if ctx.logdir not in [target, *target.parents]:
-        raise OpError(f"{p.folder!r} is outside the log dir {ctx.logdir}", code=2)
+        raise OpError(f"{p.group!r} is outside the log dir {ctx.logdir}", code=2)
     rel = target.relative_to(ctx.logdir)
     if any(is_reserved(part) for part in rel.parts) or (target / c.RUN).exists():
-        raise OpError(f"{p.folder!r} is a reserved folder or a run; choose a group", code=2)
+        raise OpError(f"{p.group!r} is a reserved name or a run; choose a group", code=2)
     target.mkdir(parents=True, exist_ok=True)
     dest = target / run_dir.name
     shutil.move(str(run_dir), str(dest))
@@ -202,7 +202,7 @@ def move(ctx: Context, p: r.MoveParams) -> dict[str, Any]:
 
 
 def remove(ctx: Context, p: r.RemoveParams) -> dict[str, Any]:
-    """Move a run or folder into the trash.
+    """Move a run or group into the trash.
 
     :param ctx: The operation context.
     :param p: The parameters.

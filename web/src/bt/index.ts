@@ -6,7 +6,7 @@ import { useContext, useEffect, useRef, useState } from "preact/hooks";
 import { html } from "htm/preact";
 
 import { type Call, type Result, useCall } from "../api.ts";
-import { folderUrl, runUrl } from "../router.ts";
+import { groupUrl, runUrl } from "../router.ts";
 import { Store, stored, store, useStore } from "../state.ts";
 import * as fmt from "./fmt.ts";
 import { plot } from "./plot.ts";
@@ -124,6 +124,6 @@ export const bt = {
   fmt,
   label: fmt.label,
   plot,
-  link: { run: runUrl, folder: folderUrl },
+  link: { run: runUrl, group: groupUrl },
   useSize,
 };

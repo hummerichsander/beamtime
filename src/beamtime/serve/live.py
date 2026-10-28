@@ -13,11 +13,11 @@ KEEPALIVE_S = 15.0
 def affects(changed: str, scope: str) -> bool:
     """Tell whether a change of one path makes an answer about a scope stale.
 
-    A run's change affects its folder and every folder above; a folder's change (notes,
-    proposals) affects the folders and runs below it too, whose answers cite them.
+    A run's change affects its group and every group above; a group's change (notes,
+    proposals) affects the groups and runs below it too, whose answers cite them.
 
-    :param changed: The changed run or folder path, relative to the log dir.
-    :param scope: The folder or run path an answer is about.
+    :param changed: The changed run or group path, relative to the log dir.
+    :param scope: The group or run path an answer is about.
     :return: Whether the answer is stale."""
     if scope in (".", "") or changed == scope:
         return True
@@ -62,14 +62,14 @@ class Hub:
     def changed(self, paths: set[str]) -> None:
         """Hand over changed paths from the indexing thread.
 
-        :param paths: Run and folder paths relative to the log dir."""
+        :param paths: Run and group paths relative to the log dir."""
         if self.loop is not None:
             self.loop.call_soon_threadsafe(self.dispatch, set(paths))
 
     def dispatch(self, paths: set[str]) -> None:
         """Queue the ids of affected calls for every page.
 
-        :param paths: Run and folder paths relative to the log dir."""
+        :param paths: Run and group paths relative to the log dir."""
         for client in self.clients.values():
             stale = {
                 qid

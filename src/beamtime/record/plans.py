@@ -15,7 +15,7 @@ def progress(
 ) -> dict[str, Any]:
     """Measure a version's progress against its plan.
 
-    :param target: The folder or run.
+    :param target: The group or run.
     :param version: The version id.
     :param proposal: The version.
     :param members: Its runs, from ``Target.members``.
@@ -39,7 +39,7 @@ def progress(
         case "children":
             done, total = children(target)
             complete = total > 0 and done == total
-            noun = "subfolders complete"
+            noun = "subgroups complete"
             out["form"] = "children"
         case {"runs": int(n)}:
             done, total = min(len(finished), n), n
@@ -72,7 +72,7 @@ def progress(
 def grid_points(target: Target, version: str, grid: dict[str, list[Any]]) -> tuple[int, int]:
     """Count the grid points that have a finished run.
 
-    :param target: The folder or run.
+    :param target: The group or run.
     :param version: The version id.
     :param grid: Field to its planned values.
     :return: Points done and points planned."""
@@ -91,10 +91,10 @@ def grid_points(target: Target, version: str, grid: dict[str, list[Any]]) -> tup
 
 
 def children(target: Target) -> tuple[int, int]:
-    """Count the subfolders with a proposal whose plans are complete.
+    """Count the subgroups with a proposal whose plans are complete.
 
     :param target: The group.
-    :return: Complete subfolders and subfolders with a proposal."""
+    :return: Complete subgroups and subgroups with a proposal."""
     row = target.index.store.folder(target.rel)
     names = json.loads(row["children"]) if row and row["children"] else []
     done = total = 0
@@ -113,9 +113,9 @@ def children(target: Target) -> tuple[int, int]:
 
 
 def completed_by_decision(target: Target) -> bool:
-    """Tell whether a decision note declares a folder's experiment complete.
+    """Tell whether a decision note declares a group's experiment complete.
 
-    :param target: The folder.
+    :param target: The group.
     :return: Whether any decision lists it in ``completes``."""
     row = target.index.store.db.execute(
         "SELECT 1 FROM notes, json_each(notes.meta, '$.completes') j "

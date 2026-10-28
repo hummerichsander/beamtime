@@ -22,7 +22,7 @@ test("grouped curves are labelled by what differs", () => {
     groupLabels([{ "config.lr": 0.001, "config.model": "r18" }, { "config.lr": 0.0003, "config.model": "r18" }]),
     ["lr=0.001", "lr=0.0003"],
   );
-  const out = reshape({ curves: [{ group: { "config.lr": 1 }, runs: ["a"], metric: "m", x: [0], mean: [1], lo: [0], hi: [2], n: [3] }] });
+  const out = reshape({ curves: [{ by: { "config.lr": 1 }, runs: ["a"], metric: "m", x: [0], mean: [1], lo: [0], hi: [2], n: [3] }] });
   assert.equal(out.points[0].label, "lr=1");
   assert.equal(out.grouped, true);
 });

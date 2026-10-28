@@ -4,24 +4,26 @@
   "type": "light",
   "extends": null,
   "colors": {
-    "bg": "#ffffff", "surface": "#f6f8fa", "surface-raised": "#ffffff", "border": "#d0d7de",
-    "grid": "#eaeef2", "fg": "#1f2328", "muted": "#59636e", "subtle": "#818b98", "link": "#0969da",
-    "accent": "#0969da", "selection": "#ddf4ff", "dim": 0.25,
-    "good": "#1a7f37", "bad": "#cf222e", "warn": "#9a6700", "info": "#0969da",
-    "running": "#0969da", "finished": "#1a7f37", "failed": "#cf222e", "killed": "#9a6700",
-    "lost": "#bc4c00"
+    "bg": "#faf9f6", "surface": "#f2f0eb", "surface-raised": "#ffffff", "border": "#e3e0d8",
+    "grid": "#ebe8e1", "fg": "#1c1d20", "muted": "#64625c", "subtle": "#8f8c84", "link": "#2f5aa8",
+    "accent": "#2f5aa8", "selection": "#e3eaf5", "dim": 0.2,
+    "good": "#3f7d3a", "bad": "#b8433a", "warn": "#a06a12", "info": "#2f5aa8",
+    "running": "#2f5aa8", "finished": "#3f7d3a", "failed": "#b8433a", "killed": "#a06a12",
+    "lost": "#7a5aa0"
   },
   "data": {
-    "categorical": ["#0969da", "#d1242f", "#1a7f37", "#bf8700", "#8250df", "#bc4c00", "#1b7c83",
-                    "#bf3989", "#59636e", "#2da44e"],
-    "sequential": ["#ddf4ff", "#0969da", "#0a3069"],
-    "diverging": ["#cf222e", "#f6f8fa", "#0969da"],
-    "baseline": {"color": "#59636e", "dash": [4, 3]}
+    "categorical": ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6",
+                    "#e34948"],
+    "sequential": ["#e3eaf5", "#2f5aa8", "#142c5c"],
+    "diverging": ["#b8433a", "#f2f0eb", "#2f5aa8"],
+    "baseline": {"color": "#8f8c84", "dash": [4, 3]}
   },
   "fonts": {
     "sans": "system-ui, -apple-system, 'Segoe UI', sans-serif",
+    "serif": "Charter, 'Bitstream Charter', 'Iowan Old Style', Georgia, serif",
     "mono": "ui-monospace, 'SF Mono', Menlo, monospace"
   },
-  "sizes": {"xs": 11, "sm": 12, "md": 13, "lg": 15, "xl": 18},
-  "shape": {"radius": 6, "line": 1.5, "point": 3, "space": [2, 4, 8, 12, 16, 24]}
+  "sizes": {"xs": 10.5, "sm": 12.5, "md": 15, "lg": 19, "xl": 23.5, "xxl": 36.5},
+  "shape": {"radius": 9, "line": 1.6, "point": 3, "density": 0.9, "column": 900,
+            "space": [2, 4, 8, 12, 16, 24, 32]}
 }

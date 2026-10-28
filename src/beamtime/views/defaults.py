@@ -1,7 +1,7 @@
-"""The built-in default view, built as a block tree from what a folder or run logged.
+"""The built-in default view, built as a block tree from what a group or run logged.
 
 A block tree node is ``{block, id, props, data, children}``; ``data`` maps names to API
-calls ``{method, params, scope}``, where ``scope`` is the folder or run path whose
+calls ``{method, params, scope}``, where ``scope`` is the group or run path whose
 changes make the call stale. Authored views (M6) compile to the same tree."""
 
 from typing import Any
@@ -17,24 +17,24 @@ LOWER_IS_BETTER = ("loss", "err", "ppl", "perplexity", "nll", "mse", "mae", "wer
 
 
 def default_view(ctx: Context, path: str) -> dict[str, Any]:
-    """Build the default view of a folder or run.
+    """Build the default view of a group or run.
 
     :param ctx: The operation context.
-    :param path: The folder below the log dir (``.`` for the log dir), or a run's path.
+    :param path: The group below the log dir (``.`` for the log dir), or a run's path.
     :return: The root node of the block tree."""
     if is_run_id(path.rsplit("/", 1)[-1]):
         return run_view(ctx, path)
-    return folder_view(ctx, path)
+    return group_view(ctx, path)
 
 
-def folder_view(ctx: Context, path: str) -> dict[str, Any]:
-    """Build the default view of a folder.
+def group_view(ctx: Context, path: str) -> dict[str, Any]:
+    """Build the default view of a group.
 
     :param ctx: The operation context.
-    :param path: The folder below the log dir.
+    :param path: The group below the log dir.
     :return: The root node."""
-    folder = call("folders", {"from": path, "depth": 0}, ctx)
-    row = dict(zip(folder["columns"], folder["rows"][0], strict=True)) if folder["rows"] else {}
+    group = call("groups", {"from": path, "depth": 0}, ctx)
+    row = dict(zip(group["columns"], group["rows"][0], strict=True)) if group["rows"] else {}
     children: list[dict[str, Any]] = []
     if row.get("proposal"):
         children.append(proposal_block(path))
@@ -44,10 +44,10 @@ def folder_view(ctx: Context, path: str) -> dict[str, Any]:
     if row.get("direct", 0) < row["runs"]:
         children.append(
             node(
-                "folders",
-                "subfolders",
-                title="Folders",
-                data={"main": api("folders", {"from": path, "depth": 1}, path)},
+                "groups",
+                "subgroups",
+                title="Groups",
+                data={"main": api("groups", {"from": path, "depth": 1}, path)},
             )
         )
     keys = call("keys", {"from": path}, ctx)
@@ -58,7 +58,7 @@ def folder_view(ctx: Context, path: str) -> dict[str, Any]:
     main = metrics[0] if metrics else None
     children.append(stats(path, main, row["runs"]))
     if direct := row.get("direct", 0):
-        # curves show only the folder's own runs; runs in subfolders belong to their folders.
+        # curves show only the group's own runs; runs in subgroups belong to their groups.
         own = direct < row["runs"]
         if own:
             keys = call("keys", {"from": path, "depth": 1}, ctx)
@@ -89,14 +89,14 @@ def folder_view(ctx: Context, path: str) -> dict[str, Any]:
             },  # fmt: skip
         )
     )
-    chain = call("memory show", {"folder": path}, ctx)["chain"]
-    if any(m["folder"] == path for m in chain):
+    chain = call("memory show", {"group": path}, ctx)["chain"]
+    if any(m["group"] == path for m in chain):
         children.append(
             node(
                 "memory",
                 "memory",
                 title="Memory",
-                data={"main": api("memory_show", {"folder": path}, path)},
+                data={"main": api("memory_show", {"group": path}, path)},
             )
         )
     return node("section", "root", children=children)
@@ -141,7 +141,7 @@ def run_view(ctx: Context, path: str) -> dict[str, Any]:
 
 
 EMPTY = (
-    "No runs here yet. Runs appear once a script calls beamtime.init() with this folder as its dir."
+    "No runs here yet. Runs appear once a script calls beamtime.init() with this group as its dir."
 )
 
 
@@ -168,22 +168,22 @@ def api(method: str, params: dict[str, Any], scope: str) -> dict[str, Any]:
 
     :param method: The API method (an MCP tool name).
     :param params: Its parameters.
-    :param scope: The folder or run path whose changes make the answer stale.
+    :param scope: The group or run path whose changes make the answer stale.
     :return: The call."""
     return {"method": method, "params": params, "scope": scope}
 
 
 def proposal_block(path: str) -> dict[str, Any]:
-    """Make the proposal block of a folder.
+    """Make the proposal block of a group.
 
-    :param path: The folder.
+    :param path: The group.
     :return: The node."""
     return node(
         "proposal",
         "proposal",
         data={
-            "proposal": api("proposal_show", {"folder": path}, path),
-            "check": api("check", {"folder": path}, path),
+            "proposal": api("proposal_show", {"group": path}, path),
+            "check": api("check", {"group": path}, path),
         },
     )
 
@@ -191,7 +191,7 @@ def proposal_block(path: str) -> dict[str, Any]:
 def stats(path: str, main: str | None, runs: int) -> dict[str, Any]:
     """Make the row of stat tiles: run counts and the best value of the main metric.
 
-    :param path: The folder or run path.
+    :param path: The group or run path.
     :param main: The main metric, if any.
     :param runs: How many runs are in scope.
     :return: The row node."""
@@ -219,10 +219,10 @@ def stats(path: str, main: str | None, runs: int) -> dict[str, Any]:
 def line(path: str, metric: str, seeds: str | None, own: bool = False) -> dict[str, Any]:
     """Make the line block of one metric.
 
-    :param path: The folder or run path.
+    :param path: The group or run path.
     :param metric: The metric key.
     :param seeds: ``config.seed`` to average over seeds, or ``None`` for one curve per run.
-    :param own: Whether to show only the runs directly in the folder.
+    :param own: Whether to show only the runs directly in the group.
     :return: The node."""
     params: dict[str, Any] = {"from": path, "y": [metric], "points": 300}
     if own:
@@ -231,7 +231,7 @@ def line(path: str, metric: str, seeds: str | None, own: bool = False) -> dict[s
         params |= {"seeds": seeds, "band": "minmax"}
     scale = "log" if lower_is_better(metric) and "loss" in metric else "linear"
     caption = f"{metric} over steps" + (", mean and range over seeds" if seeds else "")
-    caption += ", runs directly in this folder" if own else ""
+    caption += ", runs directly in this group" if own else ""
     return node(
         "line",
         f"line-{slug(metric)}",
@@ -243,7 +243,7 @@ def line(path: str, metric: str, seeds: str | None, own: bool = False) -> dict[s
 
 
 def ordered_metrics(keys: dict[str, Any]) -> list[str]:
-    """Order a folder's metrics for display: validation and test first, then the rest.
+    """Order a group's metrics for display: validation and test first, then the rest.
 
     :param keys: The ``keys`` answer.
     :return: The metric keys."""

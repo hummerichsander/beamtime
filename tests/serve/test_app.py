@@ -38,8 +38,8 @@ def test_api_answers_equal_the_operations(api, project: Path) -> None:
     ctx = Context.make(caller="view")
     for method, params in [
         ("runs", {"from": "scaling/lr-sweep", "select": ["run.name", "config.lr"]}),
-        ("folders", {"from": "."}),
-        ("check", {"folder": "scaling/lr-sweep"}),
+        ("groups", {"from": "."}),
+        ("check", {"group": "scaling/lr-sweep"}),
         ("series", {"from": "scaling/lr-sweep", "y": ["val/acc"], "points": 20}),
     ]:
         got = api(method, **params)
@@ -61,7 +61,7 @@ def test_view_answers_are_not_cut(api) -> None:
 def test_errors_and_user_only_operations(api) -> None:
     """Operation errors keep their code; user-only operations are not in the API."""
     r = api("runs", **{"from": "nowhere"})
-    assert r.status_code == 404 and "no folder" in r.json()["error"]
+    assert r.status_code == 404 and "no group" in r.json()["error"]
     r = api("runs", bogus=1)
     assert r.status_code == 400
     user_only = [op.tool for op in OPS if op.user_only]
@@ -70,8 +70,8 @@ def test_errors_and_user_only_operations(api) -> None:
         assert api(method).status_code == 404, method
 
 
-def test_view_of_folders_and_runs(api, roles: dict[str, str]) -> None:
-    """The default view fits the folder: proposal, curves, table; subfolders at the top."""
+def test_view_of_groups_and_runs(api, roles: dict[str, str]) -> None:
+    """The default view fits the group: proposal, curves, table; subgroups at the top."""
     sweep = api("view", path="scaling/lr-sweep").json()
     blocks = [c["block"] for c in sweep["view"]["children"]]
     assert blocks[0] == "proposal" and {"row", "grid", "table"} <= set(blocks)
@@ -80,7 +80,7 @@ def test_view_of_folders_and_runs(api, roles: dict[str, str]) -> None:
     assert curves["children"][0]["props"]["y"] == "val/acc"
 
     top = api("view", path="").json()
-    assert top["path"] == "." and top["view"]["children"][0]["block"] == "folders"
+    assert top["path"] == "." and top["view"]["children"][0]["block"] == "groups"
 
     failed = roles["diverging"]
     run = api("view", path=failed).json()
@@ -115,7 +115,7 @@ def test_meta_has_the_theme_pair(api) -> None:
     meta = api("meta").json()
     assert meta["project"] == "proj"
     assert meta["theme"]["light"]["type"] == "light"
-    assert meta["theme"]["dark"]["colors"]["sidebar.bg"] == "#151b23"
+    assert meta["theme"]["dark"]["colors"]["sidebar.bg"] == "#252523"
 
 
 def test_serve_refuses_a_second_daemon(project: Path) -> None:

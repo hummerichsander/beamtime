@@ -15,8 +15,8 @@ export type Curves = { points: Point[]; keys: string[]; labels: Map<string, stri
 
 export function reshape(answer: { curves: any[] }, opts: { log?: boolean } = {}): Curves {
   const curves = answer.curves ?? [];
-  const grouped = curves.some((c) => "group" in c);
-  const labels = grouped ? groupLabels(curves.map((c) => c.group)) : runLabels(curves);
+  const grouped = curves.some((c) => "by" in c);
+  const labels = grouped ? groupLabels(curves.map((c) => c.by)) : runLabels(curves);
   const points: Point[] = [];
   const keys: string[] = [];
   curves.forEach((c, i) => {

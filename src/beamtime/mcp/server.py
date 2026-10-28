@@ -15,8 +15,8 @@ from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import BY_TOOL, Op
 
 INSTRUCTIONS = (
-    "Beamtime records ML experiments as run folders below a log dir. Start in an "
-    "unfamiliar folder with `keys`; check `status` before working with live runs. "
+    "Beamtime records ML experiments as runs in groups below a log dir. Start in an "
+    "unfamiliar group with `keys`; check `status` before working with live runs. "
     "Before designing an experiment read `memory_show`; before a launch write the "
     "proposal with `proposal_set`; judge results with `check` and a verdict note "
     "(`note_add`), never claiming more than the check says. Writes are additive and pass "
@@ -61,13 +61,13 @@ def text(paragraph: str) -> str:
 
 PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
     "review": (
-        "Summarize what changed in a folder since a date: new runs, checks, failures.",
+        "Summarize what changed in a group since a date: new runs, checks, failures.",
         [
-            ("folder", "the folder, e.g. scaling/lr-sweep", False),
+            ("group", "the group, e.g. scaling/lr-sweep", False),
             ("since", "a date like 2026-10-25; default: the last day", False),
         ],
         text(
-            """Review what happened in Beamtime folder {folder} since {since}. Use
+            """Review what happened in Beamtime group {group} since {since}. Use
             `timeline` (from, since) for events and notes, `runs` sorted by
             -run.created_at for new runs with their key metrics, and `card` plus
             `output` (tail) for every failed, killed or lost run. Report what ran,
@@ -87,26 +87,26 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
         ),
     ),
     "compare": (
-        "Compare two runs, groups or folders: config differences and metric deltas.",
-        [("a", "a run id or folder", True), ("b", "a run id or folder", True)],
+        "Compare two runs or groups: config differences and metric deltas.",
+        [("a", "a run id or group", True), ("b", "a run id or group", True)],
         text(
             """Compare {a} and {b} in Beamtime. For runs, read both `card`s and list
-            config differences and metric deltas (last, max, min). For folders, use
+            config differences and metric deltas (last, max, min). For groups, use
             `keys` and `runs` with the shared metrics (seeds: config.seed when there
-            are seeds) and `series` grouped by the differing config key. Say which is
+            are seeds) and `series` with `by` the differing config key. Say which is
             better, by how much, and how sure that is given the number of runs."""
         ),
     ),
     "proposal": (
         "Write a proposal with a plan and checkable predictions before a launch.",
         [
-            ("folder", "the folder the runs will go into", True),
+            ("group", "the group the runs will go into", True),
             ("idea", "what the experiment is meant to show", False),
         ],
         text(
-            """Write the Beamtime proposal for folder {folder} before any run starts, so
-            every run records it. Idea: {idea}. First read `memory_show` {folder} and the
-            open questions (`notes`, open) it points to, and `keys` of related folders for
+            """Write the Beamtime proposal for group {group} before any run starts, so
+            every run records it. Idea: {idea}. First read `memory_show` {group} and the
+            open questions (`notes`, open) it points to, and `keys` of related groups for
             the exact metric and config names. The proposal has a one-sentence
             `statement`, a `rationale`, an optional `confidence` (0 to 1, your belief
             before any data), a `plan` (`{{runs: N}}` or `{{grid: {{config.lr: [...],
@@ -117,16 +117,16 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
             `b`, `op`, `margin` and optional `pair_by`. Plan at least three seeds per point:
             the check uses t-intervals and gives `insufficient` with fewer than two. Use
             `kind: manual` with a `description` for claims a number can't decide. Save it
-            with `proposal_set` (folder, proposal, author) and show the user the launch
+            with `proposal_set` (group, proposal, author) and show the user the launch
             command; you don't launch runs yourself unless asked."""
         ),
     ),
     "verdict": (
         "Judge a proposal against its check and write a verdict note.",
-        [("folder", "the folder whose proposal is judged", True)],
+        [("group", "the group whose proposal is judged", True)],
         text(
-            """Write the verdict on the Beamtime proposal of {folder}. Read `proposal_show`
-            and `check` {folder}: each prediction's result, effect, interval and points, and
+            """Write the verdict on the Beamtime proposal of {group}. Read `proposal_show`
+            and `check` {group}: each prediction's result, effect, interval and points, and
             whether the result is provisional (plan not complete). Look at the evidence:
             `runs` with the predicted metrics, `series` of the key curves, and `card` plus
             `output` of failed runs. Judge every prediction as confirmed, refuted or
@@ -135,22 +135,22 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
             `insufficient`, `inconclusive` and provisional results stay that way. Write
             the note with `note_add` (type verdict, proposal = the version, verdict per
             prediction, overall, a one-line description, evidence with run ids and
-            folder#prediction links, author); the check snapshot is added automatically.
+            group#prediction links, author); the check snapshot is added automatically.
             Then update the memory (the `memory` prompt)."""
         ),
     ),
     "memory": (
-        "Update and compact a folder's memory from the notes since its last update.",
-        [("folder", "the folder; . for the project", False)],
+        "Update and compact a group's memory from the notes since its last update.",
+        [("group", "the group; . for the project", False)],
         text(
-            """Update the Beamtime memory of {folder}. Read `memory_show` {folder} (the
-            current memory and how many notes came since) and `notes` {folder} with full
+            """Update the Beamtime memory of {group}. Read `memory_show` {group} (the
+            current memory and how many notes came since) and `notes` {group} with full
             bodies for the new ones. Rewrite the memory, don't append: keep the sections
             Current understanding, Decisions and conventions, Dead ends, Open questions and
             Active; fold concluded experiments into one line each; drop what no longer
             matters. Every line ends with a link to its evidence, like
             [[20261025-170200-m4p7]] or [[scaling/warmup#warmup-helps]]. Stay under about
-            1.5k tokens. Save it with `memory_update` (folder, body, author)."""
+            1.5k tokens. Save it with `memory_update` (group, body, author)."""
         ),
     ),
 }
@@ -205,7 +205,7 @@ def build(root: str | Path | None = None) -> Server:
         description, arguments, template = PROMPTS[params.name]
         given = params.arguments or {}
         values = {
-            "folder": given.get("folder") or ".",
+            "group": given.get("group") or ".",
             "since": given.get("since") or "the last day",
             "idea": given.get("idea") or "ask the user if it is unclear",
             **{k: v for k, v in given.items() if v},

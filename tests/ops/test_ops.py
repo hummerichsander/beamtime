@@ -87,12 +87,12 @@ def test_reading_operations_wrap_queries(ctx: Context) -> None:
     b = run_query({"runs": {"from": "scaling/lr-sweep", "select": ["config.lr"], "limit": 5}},
                   logdir=ctx.logdir)  # fmt: skip
     assert a["rows"] == b["rows"]
-    s = call("series", {"from": "tokenizer", "y": ["val/ppl"], "group": ["config.tokenizer"]}, ctx)
+    s = call("series", {"from": "tokenizer", "y": ["val/ppl"], "by": ["config.tokenizer"]}, ctx)
     assert len(s["curves"]) == 2
     assert call("keys", {}, ctx)["runs"] == 26
     assert call("timeline", {"limit": 3}, ctx)["entries"]
-    q = call("query", {"query": {"folders": {"from": "."}}}, ctx)
-    assert q["kind"] == "folders"
+    q = call("query", {"query": {"groups": {"from": "."}}}, ctx)
+    assert q["kind"] == "groups"
 
 
 def test_errors_carry_exit_codes(ctx: Context) -> None:
@@ -144,10 +144,10 @@ def test_init_is_idempotent(ctx: Context, project: Path) -> None:
 def test_mv_rm_gc(ctx: Context, roles: dict[str, str]) -> None:
     """Runs move and go to the trash; running runs are refused; gc needs yes."""
     with pytest.raises(OpError, match="still running"):
-        call("mv", {"run": roles["running"], "folder": "archive"}, ctx)
+        call("mv", {"run": roles["running"], "group": "archive"}, ctx)
     with pytest.raises(OpError, match="reserved"):
-        call("mv", {"run": roles["killed"], "folder": "notes"}, ctx)
-    moved = call("mv", {"run": roles["killed"], "folder": "archive/old"}, ctx)
+        call("mv", {"run": roles["killed"], "group": "notes"}, ctx)
+    moved = call("mv", {"run": roles["killed"], "group": "archive/old"}, ctx)
     assert (ctx.logdir / moved["path"] / "_run.json").exists()
     with pytest.raises(OpError, match="still running"):
         call("rm", {"target": "scaling/long-context"}, ctx)

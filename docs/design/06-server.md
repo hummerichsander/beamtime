@@ -60,7 +60,7 @@ idempotent:
 
 Trailing partial lines are never sent, as readers never read them. The uploader runs as:
 
-- `beamtime push --follow <folder>`: a separate process, e.g. on a login node that has outbound
+- `beamtime push --follow <group>`: a separate process, e.g. on a login node that has outbound
   network access while compute nodes don't;
 - a thread started by the SDK when `BEAMTIME_SERVER` is set, for jobs with network access.
 
@@ -101,5 +101,5 @@ upload operations of the `files` method, and MCP over HTTP.
 
 1. **Server-side storage layout.** One log dir per project on local disk, or object storage (S3) for
    large deployments?
-2. **Folder-level permissions.** Are project-level permissions enough, or do teams need them per
-   folder?
+2. **Group-level permissions.** Are project-level permissions enough, or do teams need them per
+   group?

@@ -11,7 +11,7 @@ from beamtime.serve.live import Hub, affects
 
 
 def test_affects() -> None:
-    """A run's change reaches its folders; a folder's change reaches what is below it."""
+    """A run's change reaches its groups; a group's change reaches what is below it."""
     run = "scaling/lr-sweep/20261020-080300-ysdn9hmc"
     assert affects(run, run) and affects(run, "scaling/lr-sweep") and affects(run, "scaling")
     assert affects(run, ".")
@@ -49,7 +49,7 @@ def test_hub_sends_only_affected_calls_at_most_once_a_second() -> None:
     assert json.loads(second.split("data: ")[1]) == ["all", "tok"]
 
 
-def test_daemon_reports_changed_runs_and_folders(project: Path) -> None:
+def test_daemon_reports_changed_runs_and_groups(project: Path) -> None:
     """New metric lines, new notes and new proposal versions are reported by path."""
     logdir = project / "beamtime"
     seen: list[set[str]] = []
@@ -82,7 +82,7 @@ def test_daemon_reports_changed_runs_and_folders(project: Path) -> None:
         daemon.stop()
 
 
-def test_clients_collect_runs_but_not_folders(project: Path) -> None:
+def test_clients_collect_runs_but_not_groups(project: Path) -> None:
     """Outside the daemon, catch-up names ingested runs only."""
     index = Index(logdir=project / "beamtime")
     try:

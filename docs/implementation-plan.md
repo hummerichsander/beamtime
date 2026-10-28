@@ -41,7 +41,7 @@ src/beamtime/
   synth/           # synthetic log-dir generator with planted effects       (Python 3.10, stdlib + PyYAML)
 web/               # TypeScript: shell, bt kit, built-in blocks, sandbox bridge; esbuild → serve/static
 bench/             # benchmarks, query-form experiment, view evaluation harness
-tests/             # unit, property, crash, capture, golden-folder and end-to-end tests
+tests/             # unit, property, crash, capture, golden-group and end-to-end tests
 ```
 
 - `sdk/`, `format/` and `synth/` never import from the other packages, so the SDK runs on Python 3.10
@@ -66,7 +66,7 @@ tests/             # unit, property, crash, capture, golden-folder and end-to-en
   tests.
 - Golden run folders for schema 1, checked in.
 
-*Done when*: CI runs on all jobs, the generator writes folders that `format/` reads back.
+*Done when*: CI runs on all jobs, the generator writes groups that `format/` reads back.
 
 ### M1: SDK (2–3 weeks) — implemented; the SLURM check is pending
 
@@ -84,9 +84,9 @@ POSIX on macOS, Python 3.10 and 3.11, Lightning 2.6); the run on a cluster with
 - Resume by id: attempts, rebuilding card and preview.
 - Distributed: the rank-0 rule, `NullRun`, per-rank capture via `BEAMTIME_RUN_DIR` and `job_key`.
 - `BeamtimeLogger` for Lightning, with a version matrix including SLURM requeue.
-- Crash tests: a writer killed mid-line, mid-replace and mid-resume leaves readable folders.
+- Crash tests: a writer killed mid-line, mid-replace and mid-resume leaves readable groups.
 
-*Done when*: a real training script, locally and on a cluster under SLURM, produces correct folders,
+*Done when*: a real training script, locally and on a cluster under SLURM, produces correct groups,
 including a preempted and requeued job and a killed run that shows as `lost`.
 
 ### M2: Index and queries (1.5–2 weeks) — done
@@ -96,7 +96,7 @@ Implements [layer 3](design/03-index.md).
 - SQLite metadata, column files with manifests, incremental ingest, attempt truncation, discovery by
   subtree with modification-time pruning, removal of vanished runs.
 - The query language as msgspec models with helpful errors and numeric coercion; the kinds `keys`,
-  `runs`, `series` (downsampling, `group`, `seeds`, `smooth`), `data`, `timeline`, `folders`, `file`.
+  `runs`, `series` (downsampling, `by`, `seeds`, `smooth`), `data`, `timeline`, `groups`, `file`.
   `importance` follows in v1.1.
 - One pure-Python read path with `math.fsum`; property tests of downsampling and aggregates against
   exact recomputation; answers from previews where they suffice.
@@ -131,7 +131,7 @@ Implements [the research record](design/09-research-record.md). Can run in paral
 - Proposal versions, membership from `_run.json`, freezing and superseding, plans and progress.
 - Predictions `each` and `compare`; t-intervals (Welch and paired) with t quantiles computed in pure
   Python (inverse regularized incomplete beta), tested against reference values.
-- Checks with `insufficient`, `inconclusive` and provisional results; folder status.
+- Checks with `insufficient`, `inconclusive` and provisional results; group status.
 - Notes with types, typed fields, link resolution and backlinks; memory with staleness.
 - The writing operations (`note add`, `proposal set`, `memory update`), the `proposal`, `verdict` and
   `memory` prompts.
@@ -150,7 +150,7 @@ start after M2.
 
 - `serve` on Starlette: API routes for the operations, SSE notifications, static files, the token, the
   lock.
-- The TypeScript frontend with esbuild: shell, folder tree, frame, context drawer, status bar, URLs,
+- The TypeScript frontend with esbuild: shell, group tree, frame, context drawer, status bar, URLs,
   command palette, keyboard navigation.
 - Theme tokens, the default light and dark theme, theme files with `extends`, run colors.
 - The `bt` kit core and the first widgets needed by the built-in default view: `line`, `table`,
@@ -158,13 +158,13 @@ start after M2.
 - The built-in default view; live updates with in-place chart updates.
 - The bundle-size budget in CI.
 
-*Done when*: `beamtime serve` shows the folder tree, the frame and the default view of any folder or
+*Done when*: `beamtime serve` shows the group tree, the frame and the default view of any group or
 run, with every state in the URL, and running curves grow in place.
 
 Checked by `tests/serve/test_browser.py` (a real `serve` and headless Chromium: navigation without
 reloads, the proposal and its badges, a curve refetched after new metric lines) and the timing script
-`bench/web/timing.py` (scale M: first view 135 ms, folder to folder 53 ms). The `folders` block came
-early, for folders whose runs live in subfolders. Fixed on the way: runs whose streams a time budget
+`bench/web/timing.py` (scale M: first view 135 ms, group to group 53 ms). The `groups` block came
+early, for groups whose runs live in subgroups. Fixed on the way: runs whose streams a time budget
 had deferred were never stream-indexed once they had ended.
 
 **Milestone A2, after about 9–11 weeks: the UI in daily use.**

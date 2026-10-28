@@ -19,7 +19,7 @@ export function TopBar() {
     <button class="icon" title="Sidebar (⌘B)" onClick=${() => sidebar.set(!sidebar.value)}>☰</button>
     <a class="project" href="/f/local">${info?.project ?? "Beamtime"}</a>
     <button class="search" onClick=${() => palette.set(true)}>
-      <span>Search folders, runs, commands</span><kbd>⌘K</kbd>
+      <span>Search groups, runs, commands</span><kbd>⌘K</kbd>
     </button>
     <span class="source" title="Sources; remotes come with M7"><span class="dot finished"></span> local</span>
     <button class="icon" title=${`Theme: ${m} (click for ${NEXT[m]})`} onClick=${() => setMode(NEXT[m])}>${ICON[m]}</button>
@@ -41,7 +41,7 @@ export function StatusBar() {
     </span>
     ${daemon ? null : html`<span class="muted">${status?.meta?.freshness?.text ?? ""}</span>`}
     <span class="spacer"></span>
-    ${r.page === "folder" && r.run ? html`<span>1 run selected</span>` : null}
+    ${r.page === "group" && r.run ? html`<span>1 run selected</span>` : null}
     <button class="link" title="Pause live updates (p)" onClick=${() => paused.set(!isPaused)}>
       ${isPaused ? "▶ resume" : "❚❚ pause"}</button>
   </footer>`;

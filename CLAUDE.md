@@ -205,7 +205,7 @@ sync.
   overviews cheap without an index.
 - **The research record** (`docs/design/09-research-record.md`): versioned proposals frozen once a run
   records them, optional plans, named predictions (`each`, `compare`) checked with t-intervals,
-  immutable typed notes with per-prediction verdicts, a derived folder status, and a versioned
+  immutable typed notes with per-prediction verdicts, a derived group status, and a versioned
   compressed memory.
 - **The index** (`docs/design/03-index.md`): SQLite for metadata plus raw column files, one pure-Python
   read path with `math.fsum` everywhere, discovery by walking only the queried subtree, one
@@ -250,7 +250,7 @@ sync.
 - `src/beamtime/query/`: the query language; `beamtime.query.run(query, logdir=...)` answers any kind;
   `read.py` is the one read path every number goes through
 - `src/beamtime/record/`: the research record: proposal models and membership (`Target`), the check
-  (`check.py`), t-intervals in pure Python (`stats.py`), plans, notes, folder status and memory;
+  (`check.py`), t-intervals in pure Python (`stats.py`), plans, notes, group status and memory;
   tests in `tests/record/`, the done criterion in `test_end_to_end.py`
 - `src/beamtime/ops/`: the operation set; `registry.py` lists every operation (CLI path, msgspec
   params, summary, user-only flag) and is the single source for CLI flags and MCP tools
@@ -267,7 +267,7 @@ sync.
   kit, `src/blocks/` the built-in blocks. After any change in `web/`, run
   `cd web && npm ci && npm test && npm run build` and commit the rebuilt `src/beamtime/serve/static/`
   with it (CI fails when the bundle is stale; the shell must stay under 120 KB compressed)
-- `bench/web/timing.py`: the UI's timing budgets on a scale-M log dir (first view, folder to folder)
+- `bench/web/timing.py`: the UI's timing budgets on a scale-M log dir (first view, group to group)
 - Keep the CLI path light: no module-level imports of PyYAML, NumPy or `importlib.metadata` in
   modules a plain `beamtime runs` loads (`tests/test_budgets.py`)
 - Tests never touch `~/.cache`: `tests/conftest.py` points `BEAMTIME_CACHE` at a temporary directory

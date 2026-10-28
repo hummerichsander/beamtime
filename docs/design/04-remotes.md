@@ -8,9 +8,9 @@ defines how the laptop sees and annotates runs whose files live elsewhere.
 ## Principles
 
 1. **The remote is the source of truth.** Run files, notes, proposals, views, blocks and memory of a
-   remote folder live on the remote and nowhere else. There is no second writable copy.
+   remote group live on the remote and nowhere else. There is no second writable copy.
 2. **Data flows one way.** Answers and pulled snapshots travel from the remote to the laptop. Writes
-   to a remote folder are executed by Beamtime on the remote, so nothing is ever synced back.
+   to a remote group are executed by Beamtime on the remote, so nothing is ever synced back.
 3. **Only what is asked for travels.** A query moves its answer (rows, about 1000 points per curve),
    not the run files. The size of the remote log dir doesn't matter.
 4. **One server, two transports.** The same `beamtime serve` code runs locally and remotely and
@@ -33,7 +33,7 @@ Beamtime follows the common pattern: data stays where it is produced; questions 
 |---|---|---|
 | **1. Remote query** | the laptop's `serve` starts `beamtime serve --stdio` on the remote over ssh and merges its answers with local runs | the default: the local UI and agents see local and remote runs together |
 | **2. Port forwarding** | `beamtime serve` on the login node, its web UI reached through `ssh -L` | TensorBoard style: nothing needed on the laptop |
-| **3. Pull** | `beamtime pull` copies a folder to the laptop as a read-only snapshot | offline work, archives |
+| **3. Pull** | `beamtime pull` copies a group to the laptop as a read-only snapshot | offline work, archives |
 
 ### Mode 1: remote query
 
@@ -47,14 +47,14 @@ beamtime serve login.hpc.de:/scratch/me/beamtime # ad hoc, no settings needed
 - **One connection per remote.** The local `serve` opens a long-lived ssh connection and runs
   `beamtime serve --stdio` there. No port is opened on the cluster, nothing passes a firewall, and
   with ssh `ControlMaster` a two-factor login is needed only once.
-- **The remote indexes in memory** by default, lazily: a folder is indexed when it is first queried.
+- **The remote indexes in memory** by default, lazily: a group is indexed when it is first queried.
   Most requests need no index at all, since run tables come from run cards and overview charts from
   previews; only zooms and exact statistics build index data, kept for the session.
 - **A persistent index** is used only where one is configured (`cache` below). Login nodes often have
   a small, purged `/tmp`, several nodes behind one host name, and home directories on NFS, where
   SQLite is unsafe; so nothing is written unless the user names a suitable disk. If two remote
   processes share a cache, the second falls back to memory.
-- **Writes** (notes, proposals, view versions, blocks, memory) to a remote folder are executed by the
+- **Writes** (notes, proposals, view versions, blocks, memory) to a remote group are executed by the
   remote process under the usual rules. Without a connection the write fails with a clear message;
   nothing is queued.
 - **Status is computed where the files are.** The remote judges heartbeats against its own clock. If
@@ -70,11 +70,11 @@ beamtime serve login.hpc.de:/scratch/me/beamtime # ad hoc, no settings needed
 
 The local `serve`, CLI and MCP send each query to every source in scope and combine the answers:
 
-- **Listings are merged**: run rows, curves, logged data, timeline entries, folders. Run ids are unique
+- **Listings are merged**: run rows, curves, logged data, timeline entries, groups. Run ids are unique
   across machines, so merging is concatenation. Sorting is applied after merging; for `limit`, each
   source returns its top `limit` rows by the same sort, so the merged top rows are exact.
 - **Aggregates are computed per source**: group and seed means, `importance`, value ranges in `keys`,
-  and prediction checks. A proposal belongs to a folder and a folder to one source, so checks never
+  and prediction checks. A proposal belongs to a group and a group to one source, so checks never
   span sources. A query over several sources returns aggregates per source, labelled.
 
 ### Mode 2: port forwarding
@@ -98,7 +98,7 @@ beamtime serve --port 8080                       # on the login node
 beamtime pull cluster:scaling/lr-sweep
 ```
 
-- Copies **every file of the folder** and below, plus the `view/`, `blocks/` and `memory/` folders of
+- Copies **every file of the group** and below, plus the `view/`, `blocks/` and `memory/` groups of
   its ancestors, so inherited views and their blocks keep working. Large data stays behind:
   `_data/` files above a size limit, `artifacts/` and `checkpoints/`.
 - Copies incrementally: appended files transfer only their new bytes.
@@ -106,10 +106,10 @@ beamtime pull cluster:scaling/lr-sweep
   the user's log dir. They appear in queries as their remote, marked with the snapshot's time; run
   status is judged relative to that time.
 - `beamtime pull` again refreshes; `beamtime pull --drop` removes the snapshot. Writing to a pulled
-  folder is refused.
+  group is refused.
 - The transfer uses the same API (`files`: list, and read from an offset), so it needs no rsync.
 
-## Naming remote folders
+## Naming remote groups
 
 Every source is mounted under its own prefix in queries, the UI and links:
 
@@ -119,8 +119,8 @@ from: scaling/lr-sweep      # local
 from: "@cluster/scaling"    # the remote "cluster"
 ```
 
-Sources are separate trees, even if their folder names match: a folder that exists locally and on the
-cluster is two folders, each with its own proposal, notes and view. Inheritance of views and blocks
+Sources are separate trees, even if their folder names match: a group that exists locally and on the
+cluster is two groups, each with its own proposal, notes and view. Inheritance of views and blocks
 stays within a source. Run ids are unique across sources, so links like `[[20261024-101532-k3m9xq2a]]`
 work wherever the run is. In URLs, the local source is called `local` (`/f/local/scaling`).
 
@@ -170,7 +170,7 @@ Three methods exist only in the API:
 | Method | Purpose |
 |---|---|
 | `hello` | version handshake; refuses incompatible major versions with both versions and the upgrade command |
-| `subscribe` | notifications when runs or folders change, for live views ([layer 7](07-web-ui.md#live-updates)) |
+| `subscribe` | notifications when runs or groups change, for live views ([layer 7](07-web-ui.md#live-updates)) |
 | `files` | list files, and read a file from a byte offset, for `pull` |
 
 Compatibility: the same protocol major version on both sides; minor versions only add.
@@ -186,7 +186,7 @@ Compatibility: the same protocol major version on both sides; minor versions onl
 
 ## Decisions
 
-- The remote is the source of truth; data flows one way; writes to remote folders run on the remote.
+- The remote is the source of truth; data flows one way; writes to remote groups run on the remote.
 - Three modes on one server and one API: remote query over ssh stdio, port forwarding with a token,
   and read-only pulls of whole folders.
 - Listings are federated across sources; aggregates are computed per source.
