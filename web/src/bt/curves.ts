@@ -148,3 +148,12 @@ export function logTicks(min: number, max: number): number[] {
   }
   return out.filter((v) => v >= min && v <= max);
 }
+
+// a symlog threshold: the power of ten at about the smallest tenth of the absolute values, so
+// small values stay readable and large ones are compressed.
+export function linthresh(series: (number | null)[][]): number {
+  const abs = series.flat().filter((v): v is number => v !== null && Number.isFinite(v) && v !== 0).map(Math.abs);
+  if (!abs.length) return 1;
+  abs.sort((a, b) => a - b);
+  return 10 ** Math.floor(Math.log10(abs[Math.floor(abs.length * 0.1)]));
+}

@@ -142,12 +142,6 @@ table.runs td.spark { padding-block: 0; line-height: 0; }
   &.off { opacity: 0.45; text-decoration: line-through; }
 }
 .legend-dot { inline-size: 9px; block-size: 9px; border-radius: 50%; }
-.view-bar {
-  display: flex; flex-wrap: wrap; align-items: end; gap: 10px 22px; padding: 10px 14px; margin-block-end: 18px;
-  border-radius: var(--bt-radius); background: color-mix(in srgb, var(--bt-fg) 3%, transparent);
-  & .field { margin: 0; }
-  & > :last-child { margin-inline-start: auto; }
-}
 .field {
   display: flex; flex-direction: column; gap: 4px; margin-block-end: 12px; font-size: var(--bt-size-sm);
   &.inline { flex-direction: row; align-items: center; gap: 6px; }
@@ -156,8 +150,57 @@ table.runs td.spark { padding-block: 0; line-height: 0; }
   & input[type=checkbox] { accent-color: var(--bt-accent); }
 }
 .field-label { color: var(--bt-muted); & b { color: var(--bt-fg); font-weight: 600; } }
-.checks { display: flex; flex-direction: column; gap: 3px; max-block-size: 180px; overflow: auto; & label { display: flex; gap: 6px; align-items: center; } }
-.chart-settings { inline-size: 280px; }
+/* a chart's settings: sections of label and control, two columns */
+.chart-settings { inline-size: 380px; max-block-size: min(80vh, 640px); overflow: auto; }
+.settings-grid {
+  display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 7px 12px; align-items: center; font-size: var(--bt-size-sm);
+  & h5 {
+    grid-column: 1 / -1; margin: 10px 0 0; padding-block-start: 8px; border-block-start: 1px solid var(--bt-border);
+    font-size: var(--bt-size-xs); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--bt-muted);
+    &:first-child { margin-block-start: 0; padding-block-start: 0; border: 0; }
+  }
+  & select, & input[type="number"] {
+    inline-size: 100%; padding: 4px 6px; border: 1px solid var(--bt-input-border); border-radius: calc(var(--bt-radius) - 4px);
+    background: var(--bt-input-bg); font: inherit;
+  }
+  & .pair { display: flex; align-items: center; gap: 6px; & input { min-inline-size: 0; } }
+  & .check { display: flex; align-items: center; gap: 6px; }
+  & .segmented { justify-self: start; }
+}
+.chart-settings .reset { margin-block-start: 12px; }
+.segmented.small button { padding: 3px 10px; font-size: var(--bt-size-sm); }
+
+/* the metric picker: chosen metrics as chips, a search field, a filtered list */
+.multiselect { position: relative; min-inline-size: 0; }
+.ms-field {
+  display: flex; flex-wrap: wrap; gap: 4px; padding: 3px 4px; border: 1px solid var(--bt-input-border);
+  border-radius: calc(var(--bt-radius) - 4px); background: var(--bt-input-bg); cursor: text;
+  &:focus-within { outline: 2px solid color-mix(in srgb, var(--bt-accent) 45%, transparent); outline-offset: 1px; }
+  & input { flex: 1; min-inline-size: 70px; padding: 2px 4px; border: 0; background: none; font: inherit; outline: none; }
+}
+.ms-chip {
+  display: inline-flex; align-items: center; gap: 2px; padding: 1px 4px 1px 8px; border-radius: 999px;
+  background: color-mix(in srgb, var(--bt-accent) 12%, transparent); font-size: var(--bt-size-sm); white-space: nowrap;
+  & button { display: inline-flex; padding: 2px; border-radius: 50%; color: var(--bt-muted); &:hover { color: var(--bt-fg); } }
+}
+.ms-list {
+  position: absolute; z-index: 10; inset-inline: 0; margin: 4px 0 0; padding: 4px; list-style: none; max-block-size: 220px; overflow: auto;
+  border: 1px solid var(--bt-border); border-radius: calc(var(--bt-radius) - 3px); background: var(--bt-tooltip-bg);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--bt-fg) 12%, transparent);
+  & li { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 4px; cursor: pointer; font-size: var(--bt-size-sm); }
+  & li.active { background: color-mix(in srgb, var(--bt-accent) 12%, transparent); }
+  & .ms-tick { inline-size: 14px; display: inline-flex; color: var(--bt-accent); }
+  & .ms-empty { color: var(--bt-muted); cursor: default; }
+}
+
+/* the last cell of a grid of curves: add a chart for another metric */
+.add-chart {
+  display: flex; flex-direction: column; justify-content: center; gap: 10px; min-block-size: 200px; padding: 18px;
+  border: 1.5px dashed var(--bt-border); border-radius: var(--bt-radius); color: var(--bt-muted);
+  & .add-chart-label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+  &:focus-within { border-color: color-mix(in srgb, var(--bt-accent) 50%, var(--bt-border)); }
+}
+.bt-tip-hint { margin-block-start: 4px; padding-block-start: 4px; border-block-start: 1px solid var(--bt-border); color: var(--bt-muted); font-size: var(--bt-size-xs); }
 .menu-list {
   display: flex; flex-direction: column; min-inline-size: 180px;
   & button { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: calc(var(--bt-radius) - 3px); text-align: start; }

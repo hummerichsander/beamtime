@@ -5,11 +5,10 @@ import { useContext, useState } from "preact/hooks";
 
 import { useCall } from "../api.ts";
 import { ViewCtx, type Node } from "../bt/index.ts";
-import { setView, update, usePrefs, type ChartPrefs } from "../bt/prefs.ts";
+import { update, usePrefs } from "../bt/prefs.ts";
 import { Icon } from "../ui/icons.ts";
-import { Popover } from "../ui/primitives.ts";
+import { MultiSelect } from "../ui/multiselect.ts";
 import { Block } from "./index.ts";
-import { Controls } from "./line.ts";
 
 export function Section({ node }: { node: Node }) {
   const [open, setOpen] = useState(node.props.open !== false);
@@ -49,13 +48,22 @@ export function Grid({ node }: { node: Node }) {
           data: { main: { ...node.props.template, params: { ...node.props.template.params, y: [m] } } },
         }))
     : [];
-  return html`${node.props.addable
-      ? html`<${ViewBar} path=${view.path} shown=${[...shown, ...prefs.added]} metrics=${node.props.metrics ?? null}
-          varying=${node.props.varying ?? null} />`
-      : null}
-    <div class="grid" style=${style}>
-      ${[...(node.children ?? []), ...added].map((c) => html`<${Block} key=${c.id} node=${c} />`)}
-    </div>`;
+  return html`<div class="grid" style=${style}>
+    ${[...(node.children ?? []), ...added].map((c) => html`<${Block} key=${c.id} node=${c} />`)}
+    ${node.props.addable ? html`<${AddChart} path=${view.path} shown=${[...shown, ...prefs.added]} />` : null}
+  </div>`;
+}
+
+// the last cell of a grid of curves: pick a metric to add a chart for it.
+function AddChart(props: { path: string; shown: string[] }) {
+  const keys = useCall({ method: "keys", params: { from: props.path }, scope: props.path }).data;
+  const more: string[] = (keys?.metrics?.rows ?? []).map((r: unknown[]) => r[0] as string).filter((m: string) => !props.shown.includes(m));
+  if (keys && !more.length) return null;
+  return html`<div class="add-chart">
+    <span class="add-chart-label"><${Icon} name="plus" size=${16} /> Add a chart</span>
+    <${MultiSelect} single options=${more} value=${[]} label="Metric for a new chart" placeholder="Search metrics"
+      onChange=${([m]: string[]) => update(props.path, (p) => ({ added: [...p.added, m] }))} />
+  </div>`;
 }
 
 // sections as tabs; only the open tab renders (and fetches). The open tab is in the URL: #tab=<id>.
@@ -77,34 +85,6 @@ export function Tabs({ node }: { node: Node }) {
       ? html`<div class="stack" role="tabpanel" id=${`panel-${active.id}`} aria-labelledby=${`tab-${active.id}`}>
           ${(active.children ?? []).map((c) => html`<${Block} key=${c.id} node=${c} />`)}
         </div>`
-      : null}
-  </div>`;
-}
-
-// options for every chart of the view, hidden runs, and adding a chart.
-function ViewBar(props: { path: string; shown: string[]; metrics: string[] | null; varying: string[] | null }) {
-  const prefs = usePrefs(props.path);
-  // an authored view doesn't list them; they are asked for once.
-  const keys = useCall(props.metrics ? null : { method: "keys", params: { from: props.path }, scope: props.path }).data;
-  const metrics: string[] = props.metrics ?? keys?.metrics?.rows.map((r: unknown[]) => r[0]) ?? [];
-  const varying: string[] =
-    props.varying ??
-    (keys?.config?.rows ?? []).filter((r: any[]) => Array.isArray(r[2]) && r[2].length > 1 && r[0] !== "config.seed").map((r: any[]) => r[0]);
-  const more = metrics.filter((m) => !props.shown.includes(m));
-  const add = (m: string) => update(props.path, (p) => ({ added: [...p.added, m] }));
-  return html`<div class="view-bar" role="toolbar" aria-label="All charts">
-    <${Controls} prefs=${prefs.view} varying=${varying} compact set=${(v: ChartPrefs) => setView(props.path, v)} />
-    ${prefs.hidden.length
-      ? html`<button type="button" class="link small" onClick=${() => update(props.path, () => ({ hidden: [] }))}>
-          <${Icon} name="eye" size=${14} /> show ${prefs.hidden.length} hidden</button>`
-      : null}
-    ${Object.keys(prefs.view).length || Object.keys(prefs.charts).length
-      ? html`<button type="button" class="link small" onClick=${() => update(props.path, () => ({ view: {}, charts: {} }))}>reset</button>`
-      : null}
-    ${more.length
-      ? html`<${Popover} icon="plus" label="Add a chart" title="Add a chart">
-          <div class="menu-list">${more.map((m) => html`<button type="button" onClick=${() => add(m)}>${m}</button>`)}</div>
-        <//>`
       : null}
   </div>`;
 }

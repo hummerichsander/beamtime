@@ -177,7 +177,7 @@ of a field or per subgroup, each narrowed to its runs; `$value` names the value 
 
 | Block | Wave | Purpose | Key props |
 |---|---|---|---|
-| `line` | 1 | metric curves over steps, time or another metric | `y`, `x`, `color`, `by`, `band`, `seeds`, `smooth`, `scale`, `steps`, `outliers`; wave 2: `facet`, `highlight` |
+| `line` | 1 | metric curves over steps, time or another metric | `y`, `x`, `color`, `by`, `band`, `seeds`, `smooth`, `raw`, `scale` (`linear`, `log`, `symlog`), `ymin`, `ymax`, `steps`, `outliers`, `legend`; wave 2: `facet`, `highlight` |
 | `histogram` | 1 | a logged distribution (a table with `bin_start`, `bin_end`, `count`), one outline per run | `key`, `step` (`last` or a step); wave 2: `all` as a step-by-bin heatmap |
 
 **One value per run**
@@ -381,8 +381,8 @@ with hundreds of runs and thousands of points per curve.
   run colors from the categorical palette, bands from the run color with transparency.
 - **Interactions** (synced crosshair, hover focus, legend toggles, zoom with exact refetch, smoothing,
   aggregation, settings per chart and per view) are described in [layer 7](07-web-ui.md#charts).
-- **Figures** are high-resolution PNG, with the chart's data as CSV for vector figures made
-  elsewhere.
+- **Figures** leave in the light theme: PNG on a transparent or white background, CSV, and a
+  vector PDF drawn by the server with matplotlib in the scienceplots style (the `figures` extra).
 - Wave-1 widgets beyond curves (`scatter`, `bar`, `histogram`) use uPlot's point and bar paths.
 
 ## Theme

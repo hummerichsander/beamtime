@@ -226,6 +226,10 @@ class Compiler:
             smooth=n.smooth or None,
             x=n.x if n.x != "_step" else None,
             outliers=n.outliers or None,
+            ymin=n.ymin,
+            ymax=n.ymax,
+            raw=None if n.raw else False,
+            legend=None if n.legend else False,
             color=n.color,
             **common,
         )
@@ -395,8 +399,22 @@ def settle(props: dict[str, Any], settings: dict[str, Any]) -> None:
             case "scale":
                 # explicit, since a loss without a scale is drawn on a log axis.
                 props["scale"] = value
-            case "x" | "smooth" | "band" | "outliers":
-                default = {"x": "_step", "smooth": 0, "band": "minmax", "outliers": False}[key]
+            case "steps":
+                if value and any(v is not None for v in value):
+                    props["steps"] = list(value)
+                else:
+                    props.pop("steps", None)
+            case "x" | "smooth" | "band" | "outliers" | "raw" | "legend" | "ymin" | "ymax":
+                default = {
+                    "x": "_step",
+                    "smooth": 0,
+                    "band": "minmax",
+                    "outliers": False,
+                    "raw": True,
+                    "legend": True,
+                    "ymin": None,
+                    "ymax": None,
+                }[key]
                 if value == default:
                     props.pop(key, None)
                 else:
@@ -410,8 +428,10 @@ def clean(settings: dict[str, Any]) -> dict[str, Any]:
 
     :param settings: The settings.
     :return: Those with a value, and ``by`` when set to none."""
-    # by: null is a choice: each run, even where the view aggregates.
-    return {k: v for k, v in settings.items() if v is not None or k == "by"}
+    # by: null is a choice (each run, even where the view aggregates); so are cleared limits.
+    return {
+        k: v for k, v in settings.items() if v is not None or k in ("by", "ymin", "ymax", "steps")
+    }
 
 
 def yaml_walk(body: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:

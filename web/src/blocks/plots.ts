@@ -2,18 +2,19 @@
 // (grouped, with error bars) and `histogram` (logged distributions as outlines per run).
 
 import { html } from "htm/preact";
-import { useContext, useEffect, useRef } from "preact/hooks";
+import { useContext, useEffect, useRef, useState } from "preact/hooks";
 
 import { hovered, useData, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { label, step, value } from "../bt/fmt.ts";
 import { plotChart, type Plot, type PlotSpec } from "../bt/plot.ts";
 import { bars, extent, fit, histograms, logSplits, points, type Bar, type Point } from "../bt/shapes.ts";
+import { linthresh } from "../bt/curves.ts";
+import { fileName, light, offscreen, pdf, recolor, save, type Background } from "../bt/export.ts";
 import { alpha, chartStyle, groupColors, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate } from "../router.ts";
-import { Icon } from "../ui/icons.ts";
-import { Popover } from "../ui/primitives.ts";
 import type { TipRow } from "../bt/uplot.ts";
 import { Notice, Panel } from "./common.ts";
+import { Downloads } from "./line.ts";
 
 const HEIGHT = 260;
 
@@ -25,6 +26,8 @@ export function Scatter({ node }: { node: Node }) {
   const pts = points(result.data, p.x, p.y, p.color);
   const xLog = p.x_scale === "log";
   const yLog = p.y_scale === "log";
+  const xSym = p.x_scale === "symlog" ? linthresh([pts.map((q) => q.x)]) : undefined;
+  const ySym = p.y_scale === "symlog" ? linthresh([pts.map((q) => q.y)]) : undefined;
   const make = (theme: Theme): PlotSpec | null => {
     const xr = extent(pts.map((q) => q.x), xLog);
     const yr = extent(pts.flatMap((q) => (q.err ? [q.y - q.err, q.y + q.err] : [q.y])), yLog);
@@ -37,8 +40,8 @@ export function Scatter({ node }: { node: Node }) {
     return {
       style: chartStyle(theme),
       height: HEIGHT,
-      x: { range: xr, log: xLog, format: value, ...(xLog ? { splits: logSplits(xr) } : {}) },
-      y: { range: yr, log: yLog, format: value, ...(yLog ? { splits: logSplits(yr) } : {}) },
+      x: { range: xr, log: xLog, symlog: xSym, format: value, ...(xLog ? { splits: logSplits(xr) } : {}) },
+      y: { range: yr, log: yLog, symlog: ySym, format: value, ...(yLog ? { splits: logSplits(yr) } : {}) },
       draw: ({ ctx, x, y, px, focused }) => {
         if (line) {
           ctx.beginPath();
@@ -91,9 +94,31 @@ export function Scatter({ node }: { node: Node }) {
       onClick: (key) => navigate(groupUrl(view.path, { run: key }), { replace: true }),
     };
   };
+  const figure = (t: Theme) => {
+    const byValue = p.color ? groupColors(pts.map((q) => q.color), t) : null;
+    const groups = new Map<string, Point[]>();
+    for (const q of pts) groups.set(JSON.stringify(q.color), [...(groups.get(JSON.stringify(q.color)) ?? []), q]);
+    const line = p.fit ? fit(pts, p.fit) : null;
+    const xr = extent(pts.map((q) => q.x), xLog);
+    return {
+      kind: "scatter",
+      xlabel: label(p.x),
+      ylabel: label(p.y),
+      xscale: p.x_scale,
+      yscale: p.y_scale,
+      series: [...groups.entries()].map(([k, qs]) => ({
+        label: p.color ? `${label(p.color)}=${value(JSON.parse(k))}` : null,
+        color: byValue?.get(k) ?? t.data.categorical[0],
+        x: qs.map((q) => q.x),
+        y: qs.map((q) => q.y),
+        err: qs.map((q) => q.err),
+      })),
+      fit: line && xr ? { x: samples(xr, xLog), y: samples(xr, xLog).map(line) } : null,
+    };
+  };
   const few = result.data && pts.length < 2;
   const legend = p.color && pts.length ? html`<${ValueLegend} values=${pts.map((q) => q.color)} field=${p.color} />` : null;
-  return html`<${PlotFrame} node=${node} result=${result} make=${few ? null : make}
+  return html`<${PlotFrame} node=${node} result=${result} make=${few ? null : make} figure=${few ? undefined : figure}
       deps=${[result.data, colors]} empty=${few ? `Fewer than two runs log ${label(p.x)} and ${label(p.y)}.` : null}
       legend=${legend} />`;
 }
@@ -160,8 +185,27 @@ export function BarBlock({ node }: { node: Node }) {
       },
     };
   };
+  const figure = (t: Theme) => {
+    const byValue = groupColors(p.by ? groups : cats.map(numberOr), t);
+    return {
+      kind: "bar",
+      xlabel: label(p.x),
+      ylabel: label(p.y),
+      categories: cats,
+      groups: groups.map((g) => {
+        const of = (c: string) => items.find((b) => b.label === c && b.group === g) ?? null;
+        return {
+          label: p.by ? `${label(p.by)}=${g}` : null,
+          colors: cats.map((c) => byValue.get(JSON.stringify(p.by ? g : numberOr(c))) ?? t.data.categorical[0]),
+          value: cats.map((c) => of(c)?.value ?? null),
+          lo: cats.map((c) => (p.error === "none" ? null : of(c)?.lo ?? null)),
+          hi: cats.map((c) => (p.error === "none" ? null : of(c)?.hi ?? null)),
+        };
+      }),
+    };
+  };
   const legend = p.by ? html`<${ValueLegend} values=${groups} field=${p.by} />` : null;
-  return html`<${PlotFrame} node=${node} result=${result} make=${make} deps=${[result.data]}
+  return html`<${PlotFrame} node=${node} result=${result} make=${make} figure=${figure} deps=${[result.data]}
       empty=${result.data && !items.length ? `No run logs ${label(p.y)}.` : null} legend=${legend} />`;
 }
 
@@ -169,12 +213,24 @@ export function HistogramBlock({ node }: { node: Node }) {
   const result = useData("main");
   const view = useContext(ViewCtx);
   const colors = useRunColors();
+  const page = useTheme();
   const hs = histograms(result.data);
+  // run colors are the page theme's; an exported figure takes the same slots of its own.
+  const runColor = (run: string, i: number, t: Theme) => {
+    const c = colors.get(run);
+    return c && page ? recolor(c, page, t) : t.data.categorical[i % t.data.categorical.length];
+  };
+  const figure = (t: Theme) => ({
+    kind: "histogram",
+    xlabel: node.props.key,
+    ylabel: "count",
+    series: hs.map((h, i) => ({ label: view.names.get(h.run) ?? h.run, color: runColor(h.run, i, t), start: h.start, end: h.end, count: h.count })),
+  });
   const make = (theme: Theme): PlotSpec | null => {
     const xr = extent(hs.flatMap((h) => [...h.start, ...h.end]), false, 0);
     const top = Math.max(0, ...hs.flatMap((h) => h.count));
     if (!xr || !top) return null;
-    const colorOf = (run: string, i: number) => colors.get(run) ?? theme.data.categorical[i % theme.data.categorical.length];
+    const colorOf = (run: string, i: number) => runColor(run, i, theme);
     return {
       style: chartStyle(theme),
       height: HEIGHT,
@@ -215,7 +271,7 @@ export function HistogramBlock({ node }: { node: Node }) {
   };
   const steps = [...new Set(hs.map((h) => h.step))];
   const note = steps.length === 1 && steps[0] !== null ? `step ${step(steps[0])}` : null;
-  return html`<${PlotFrame} node=${node} result=${result} make=${make} deps=${[result.data, colors]} note=${note}
+  return html`<${PlotFrame} node=${node} result=${result} make=${make} figure=${figure} deps=${[result.data, colors]} note=${note}
       empty=${result.data && !hs.length ? `No run logs ${node.props.key} as a histogram (bin_start, bin_end, count).` : null} />`;
 }
 
@@ -224,6 +280,8 @@ function PlotFrame(props: {
   node: Node;
   result: any;
   make: ((theme: Theme) => PlotSpec | null) | null;
+  // the figure the server draws as PDF, in the given (light) theme's colors.
+  figure?: (theme: Theme) => Record<string, unknown> | null;
   deps: unknown[];
   empty?: string | null;
   note?: string | null;
@@ -258,25 +316,34 @@ function PlotFrame(props: {
     el.current?.replaceChildren();
   }, [theme]);
   useEffect(() => hovered.subscribe((run) => plot.current?.focus(run)), []);
-  const download = () => {
-    const href = plot.current?.png(String(theme?.colors.bg ?? "#fff"));
-    if (!href) return;
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = `${(node.props.title ?? node.id).replace(/[^\w.-]+/g, "_")}.png`;
-    a.click();
-  };
+  const [problem, setProblem] = useState<string | null>(null);
   const title = node.props.title ?? defaultTitle(node);
+  const exportPng = async (background: Background) => {
+    const t = light();
+    const spec = t && props.make ? props.make(t) : null;
+    if (!spec || !el.current) return;
+    save(await offscreen(el.current.clientWidth, (div) => plotChart(div, spec), background), fileName(title, "png"));
+  };
+  const exportPdf = async () => {
+    const t = light();
+    const spec = t && props.figure ? props.figure(t) : null;
+    if (!spec) return;
+    setProblem(null);
+    try {
+      await pdf({ title, ...spec }, fileName(title, "pdf"));
+    } catch (err) {
+      setProblem((err as Error).message);
+    }
+  };
   return html`<div class="block chart-block chart-frame" ref=${box}>
     <div class="chart-head">
       <span class="chart-title">${title}</span>
       ${props.note ? html`<span class="muted small">${props.note}</span>` : null}
       <span class="chart-tools">
-        <${Popover} icon="download" label="Download" title="Download">
-          <div class="menu-list"><button type="button" onClick=${download}><${Icon} name="image" size=${15} /> PNG image</button></div>
-        <//>
+        <${Downloads} png=${exportPng} pdf=${props.figure ? exportPdf : undefined} />
       </span>
     </div>
+    ${problem ? html`<p class="block-error">${problem}</p>` : null}
     <${Panel} result=${result} caption=${node.props.caption}>
       ${props.empty
         ? html`<${Notice}>${props.empty}<//>`

@@ -261,3 +261,18 @@ def test_header_follows_the_views_lead_metric(ctx: Context) -> None:
     (folder / "20991231-000000-zzzz.yaml").write_text(yaml.safe_dump(data))
     best = summary_of(ctx, SWEEP)["summary"]
     assert (best["metric"], best["stat"]) == ("train/loss", "min")
+
+
+def test_new_chart_settings_save_and_compile() -> None:
+    """Symlog, y limits, a step range, legend and raw-curve settings fold in and compile."""
+    body = [{"grid": {"id": "g", "children": [{"line": {"id": "c", "y": "val/loss"}}]}}]
+    prefs = {"charts": {"c": {"scale": "symlog", "ymin": 0.1, "ymax": None, "steps": [100, None],
+                              "legend": False, "raw": False}}}  # fmt: skip
+    folded = apply_prefs(body, prefs)
+    props = folded[0]["grid"]["children"][0]["line"]
+    assert props == {"id": "c", "y": "val/loss", "scale": "symlog", "ymin": 0.1, "steps": [100, None],
+                     "legend": False, "raw": False}  # fmt: skip
+    tree = compile_view(m.parse({"body": folded}, source="t"), path="g")
+    line = tree["children"][0]["children"][0]
+    assert line["props"]["scale"] == "symlog" and line["props"]["legend"] is False
+    assert line["data"]["main"]["params"]["steps"] == [100, None]

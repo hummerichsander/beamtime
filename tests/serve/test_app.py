@@ -153,3 +153,26 @@ def test_save_view_from_the_ui(api, project: Path) -> None:
     history = api("view_history", group="scaling/lr-sweep").json()["entries"]
     assert history[0]["message"] == "saved from the web UI"
     assert api("save_view", path="nope", prefs={}).status_code == 404
+
+
+@pytest.mark.parametrize(
+    "figure",
+    [
+        {"kind": "line", "xlabel": "step", "ylabel": "loss", "yscale": "log", "series": [
+            {"label": "a", "color": "#2a78d6", "x": [0, 1, 2], "y": [1.0, 0.5, None], "lo": [0.9, 0.4, None], "hi": [1.1, 0.6, None]},
+            {"label": "b", "color": "#eb6834", "x": [0, 1, 2], "y": [0.8, 0.3, 0.2]}]},
+        {"kind": "scatter", "xscale": "log", "yscale": "symlog", "series": [
+            {"color": "#2a78d6", "x": [0.001, 0.01], "y": [0.9, -0.2], "err": [0.01, None]}],
+         "fit": {"x": [0.001, 0.01], "y": [0.9, 0.8]}},
+        {"kind": "bar", "categories": ["sgd", "adam"], "groups": [
+            {"label": None, "colors": ["#2a78d6", "#eb6834"], "value": [0.5, 0.7], "lo": [0.4, 0.6], "hi": [0.6, 0.8]}]},
+        {"kind": "histogram", "series": [{"label": "r", "color": "#2a78d6", "start": [0, 1], "end": [1, 2], "count": [3, 4]}]},
+    ],
+)  # fmt: skip
+def test_figures_are_pdfs(api, figure: dict) -> None:
+    """Every chart kind is drawn as a vector PDF."""
+    pytest.importorskip("scienceplots")
+    r = api("figure", **figure)
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"] == "application/pdf" and r.content.startswith(b"%PDF")
+    assert api("figure", kind="pie").status_code == 400

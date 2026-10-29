@@ -55,7 +55,7 @@ means designed in outline, built when needed.
 | Remotes | remote queries over ssh (listings federated, aggregates per source), port forwarding with token, pulls | | |
 | Research record | versioned proposals, plans, predictions `each` and `compare` with t-intervals, manual predictions, notes, links, group status, memory | `trend` and `best` predictions | calibration from `confidence` |
 | Views | YAML widgets (wave 1), custom blocks on the kit, library and pinning, theme files, static validation plus one render | wave 2 widgets, linked selection, packages | migrations for block upgrades, VS Code theme import, high-contrast and print themes, community gallery, params |
-| Web UI | the shell, URLs, SSE invalidation with refetch, W&B-like charts on uPlot, editing written texts in place, saving views from the UI, HTML and figure export | | PDF export, vector chart export, rearrangeable panels |
+| Web UI | the shell, URLs, SSE invalidation with refetch, W&B-like charts on uPlot, editing written texts in place, saving views from the UI, reordering and resizing panels, HTML and figure export (PNG, CSV, vector PDF) | | free-form panel grids |
 | CLI and MCP | all commands and tools for v1 features, eight prompts, stdio MCP | | MCP over HTTP |
 | Server | `author`/`user` on authored files, no network code in the SDK | | the server itself |
 
@@ -70,7 +70,8 @@ layout blocks `section`, `row`, `grid`, `tabs`. Wave 2: `importance`, `heatmap`,
 |---|---|---|---|
 | SDK (`import beamtime`) | 3.10+ | standard library and PyYAML; NumPy, Pillow, PyArrow, Matplotlib only when a data wrapper needs them | Linux, macOS, Windows |
 | CLI (`beamtime`) | 3.11+ | PyYAML, msgspec | Linux, macOS (POSIX-first) |
-| `beamtime[serve]` | 3.11+ | Starlette, uvicorn, the MCP SDK, Playwright (Chromium downloaded on first use) | Linux, macOS |
+| `beamtime[serve]` | 3.11+ | Starlette, uvicorn, the MCP SDK, Playwright (with an installed Chromium, Chrome or Edge) | Linux, macOS |
+| `beamtime[figures]` | 3.11+ | Matplotlib, SciencePlots: vector PDF figures from the web UI | Linux, macOS |
 
 The SDK modules never import CLI or server modules, so the SDK can run in older training
 environments. On Windows, the SDK captures output through a pipe, retries file replacements that a

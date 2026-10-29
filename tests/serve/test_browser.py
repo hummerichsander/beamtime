@@ -87,9 +87,13 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     page.wait_for_timeout(1000)
     assert any(q.get("steps") for q in asked), "drag-zoom refetches the window"
     asked.clear()
-    page.select_option(".view-bar select >> nth=1", "")
+    first = page.locator(".chart-frame").first
+    first.hover()
+    first.locator("button[aria-label='Chart settings']").click()
+    page.locator(".chart-settings:popover-open select").first.select_option("_t")
     page.wait_for_timeout(1000)
-    assert asked and all("seeds" not in q for q in asked), "aggregation applies to every chart"
+    assert asked and all(q["x"] == "_t" for q in asked), "a chart's own settings refetch only it"
+    page.keyboard.press("Escape")
     page.click("table.runs tbody tr:nth-child(1) .swatch")
     assert page.locator("table.runs tbody tr.hidden-run").count() == 1
     page.click(".notes .note >> nth=0 >> .note-toggle")

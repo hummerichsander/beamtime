@@ -303,22 +303,32 @@ page are then cleared. Hidden runs stay the viewer's own. The header names the s
 Line charts behave like W&B's panels:
 
 - **Hover**: a crosshair synced across the view; the tooltip lists every curve at that step, sorted,
-  with its color; hovering a curve dims the others, and the run under the pointer is highlighted in
-  every block (table rows, legends, other charts).
-- **Legend**: click hides or shows a curve, shift-click shows only it; the run table's color dots do
-  the same for runs. Hidden runs apply to every chart of the view.
+  with its color. Hovering a curve dims the others in every chart of the view, and highlights its
+  run in the table and legends; an aggregated curve matches by its group and by the runs in it.
+- **Click**: clicking a curve (or a point) opens its run in the side panel.
+- **Legend**: click hides or shows a curve, double-click shows only it (again: all). The run table's
+  color dots do the same for runs. Hidden runs apply to every chart of the view; a chart with hidden
+  runs says so and shows them again on click.
 - **Zoom**: drag zooms one chart's x axis and refetches that step window for exact points;
   double-click or the reset button zooms out. Live data keeps the zoom.
-- **Settings per chart**: the metrics shown, x axis (step, wall time, elapsed time), smoothing
-  (TensorBoard's debiased EMA, computed in the page over the curve, with the raw curve faint behind),
-  log scale, an outlier-robust y range (1st to 99th percentile), aggregation over seeds or by a
-  varying config key, and the band (min to max, ± std, ± std error, none).
-- **View-wide**: a bar above the charts sets smoothing, x axis, aggregation and outliers for every
-  chart (a chart's own setting wins), shows hidden runs again, and adds a chart for another metric.
-- **Tools on hover**: download as PNG or CSV, and expand into a large dialog.
+- **Settings per chart**, in sections; there are no view-wide chart settings:
+  - data: the metrics (a searchable multi-select), the x axis (step, wall time, elapsed time), a
+    step range;
+  - aggregation: each run, over seeds or by a varying config key, and the band (min to max, ± std,
+    ± std error, none);
+  - smoothing: TensorBoard's debiased EMA, computed in the page; the band is smoothed with the
+    curve; the raw curve faint behind, optionally;
+  - axes: linear, log or symlog (linear near zero, logarithmic beyond; for values that cross zero),
+    a fixed y range, an outlier-robust auto range (1st to 99th percentile), the legend.
+- **Adding charts**: the last cell of a grid of curves picks a metric for a new chart.
+- **Tools on hover**: settings, download, expand into a large dialog.
+- **Downloads** never use the viewer's theme: PNG in the light theme on a transparent or a white
+  background, CSV of the shown curves, and PDF drawn by the server with matplotlib in the
+  scienceplots style (3.3 × 2.5 in, vector). PDF needs the `figures` extra; without it the menu
+  says how to install it.
 
-Settings, added charts and hidden runs are kept per viewer in the browser, by group; "reset" returns
-to the view's defaults.
+Settings, added charts and hidden runs are kept per viewer in the browser, by group; "reset this
+chart" returns to the view's defaults, and "Save as view" writes them into the view.
 
 ## Accessibility
 

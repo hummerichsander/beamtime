@@ -13,7 +13,7 @@ from beamtime.format.schema import SchemaError
 
 Field = Annotated[str, msgspec.Meta(description="e.g. config.lr, metric.val/acc.max, run.status")]
 Metric = Annotated[str, msgspec.Meta(description="a metric key, e.g. val/loss")]
-Scale = Literal["linear", "log"]
+Scale = Literal["linear", "log", "symlog"]
 Step = Literal["last"] | int
 
 
@@ -51,10 +51,17 @@ class Line(Node, tag="line"):
     smooth: Annotated[float, msgspec.Meta(ge=0, lt=1, description="EMA weight")] = 0.0
     scale: Annotated[
         Scale | None,
-        msgspec.Meta(description="default: the view's metrics, else log for losses, else linear"),
+        msgspec.Meta(
+            description="default: the view's metrics, else log for losses, else linear; symlog "
+            "is linear near zero and logarithmic beyond"
+        ),
     ] = None
-    steps: list[int | None] | None = None
+    steps: Annotated[list[int | None] | None, msgspec.Meta(description="[first, last] step")] = None
+    ymin: float | None = None
+    ymax: float | None = None
     outliers: Annotated[bool, msgspec.Meta(description="y range ignores outliers")] = False
+    raw: Annotated[bool, msgspec.Meta(description="when smoothing, the raw curve faintly")] = True
+    legend: bool = True
 
 
 class Scatter(Node, tag="scatter"):

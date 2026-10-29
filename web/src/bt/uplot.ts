@@ -13,9 +13,12 @@ export type LineSpec = {
   hidden: Set<string>;
   style: ChartStyle;
   height: number;
-  log: boolean;
+  scale: "linear" | "log" | "symlog";
+  // symlog: values within ± this stay linear.
+  asinh: number;
   band: boolean;
-  range: [number, number] | null;
+  // fixed y limits; null ends follow the data.
+  range: [number | null, number | null] | null;
   // the zoomed x range; when the data was fetched for it, the data's own range already is it.
   zoom: [number, number] | null;
   zoomFetched: boolean;
@@ -24,12 +27,14 @@ export type LineSpec = {
   formatY: (v: number) => string;
   onFocus?: (curve: Curve | null) => void;
   onZoom?: (window: [number, number] | null) => void;
+  onClick?: (curve: Curve) => void;
 };
 
 export type LineChart = {
   update(spec: LineSpec): boolean;
   focus(key: string | null): void;
-  png(background: string): string;
+  // the canvas as a PNG data URL; null keeps the background transparent.
+  png(background: string | null): string;
   destroy(): void;
 };
 
@@ -82,17 +87,33 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       scales: {
         x: { time: false },
         y: {
-          ...(spec.log ? { distr: 3 } : {}),
-          range: (_self, min, max) =>
-            current.range ??
-            (current.log && min > 0 ? logRange(min, max) : uPlot.rangeNum(min, max, 0.06, true)),
+          ...(spec.scale === "log" ? { distr: 3 } : spec.scale === "symlog" ? { distr: 4, asinh: spec.asinh } : {}),
+          range: (_self, min, max) => {
+            const auto =
+              current.scale === "log" && min > 0
+                ? logRange(min, max)
+                : current.scale === "symlog"
+                  ? uPlot.rangeAsinh(min, max, 10, true)
+                  : uPlot.rangeNum(min, max, 0.06, true);
+            const [lo, hi] = current.range ?? [null, null];
+            return [lo ?? auto[0], hi ?? auto[1]] as uPlot.Range.MinMax;
+          },
         },
       },
       axes: [
         { ...axisOf(spec.style, spec.formatX), size: 30 },
-        { ...axisOf(spec.style, spec.formatY), size: 52, splits: (_u, _i, min, max) => (current.log ? logTicks(min, max) : niceTicks(min, max)),
-          // uPlot thins log ticks to 1 and 5 per decade by default; ours are already chosen.
-          filter: (_u, splits) => splits },
+        {
+          ...axisOf(spec.style, spec.formatY),
+          size: 52,
+          // symlog keeps uPlot's own ticks; log and linear get ours, which uPlot mustn't thin.
+          ...(spec.scale === "symlog"
+            ? {}
+            : {
+                splits: (_u: uPlot, _i: number, min: number, max: number) =>
+                  current.scale === "log" ? logTicks(min, max) : niceTicks(min, max),
+                filter: (_u: uPlot, splits: number[]) => splits,
+              }),
+        },
       ],
       focus: { alpha: spec.style.dim },
       cursor: {
@@ -115,6 +136,13 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
           (self) => {
             self.over.append(tip);
             self.over.addEventListener("dblclick", () => current.onZoom?.(null));
+            // a click (not the end of a drag-zoom) opens the curve under the pointer.
+            let down: [number, number] | null = null;
+            self.over.addEventListener("mousedown", (e) => (down = [e.clientX, e.clientY]));
+            self.over.addEventListener("click", (e) => {
+              const still = down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 4;
+              if (still && focused !== null) current.onClick?.(current.curves[focused]);
+            });
           },
         ],
       },
@@ -188,6 +216,12 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       tip.append(line(current.curves[i].label, current.formatY(v), current.colors[i], i === nearest));
     }
     if (rows.length > 12) tip.append(line(`and ${rows.length - 12} more`, "", null, false));
+    if (nearest !== null && current.curves[nearest].run && current.onClick) {
+      const hint = document.createElement("div");
+      hint.className = "bt-tip-hint";
+      hint.textContent = "click for the run's details";
+      tip.append(hint);
+    }
     place(tip, self, self.cursor.left ?? 0, top);
   }
 
@@ -213,7 +247,8 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
         next.curves.length === current.curves.length &&
         next.curves.every((c, i) => c.key === current.curves[i].key && next.colors[i] === current.colors[i]) &&
         next.band === current.band &&
-        next.log === current.log &&
+        next.scale === current.scale &&
+        next.asinh === current.asinh &&
         !!next.raw === !!current.raw &&
         next.height === current.height;
       if (!same) return false;
@@ -232,22 +267,26 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
         (c.group !== null && key === `by:${c.group}`) || c.runs.includes(key));  // prettier-ignore
       setFocus(i < 0 ? null : i);
     },
-    png(background: string): string {
-      const src = u.ctx.canvas;
-      const out = document.createElement("canvas");
-      out.width = src.width;
-      out.height = src.height;
-      const ctx = out.getContext("2d")!;
-      ctx.fillStyle = background;
-      ctx.fillRect(0, 0, out.width, out.height);
-      ctx.drawImage(src, 0, 0);
-      return out.toDataURL("image/png");
-    },
+    png: (background) => png(u, background),
     destroy(): void {
       ro.disconnect();
       u.destroy();
     },
   };
+}
+
+function png(u: uPlot, background: string | null): string {
+  const src = u.ctx.canvas;
+  const out = document.createElement("canvas");
+  out.width = src.width;
+  out.height = src.height;
+  const ctx = out.getContext("2d")!;
+  if (background) {
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, out.width, out.height);
+  }
+  ctx.drawImage(src, 0, 0);
+  return out.toDataURL("image/png");
 }
 
 function axisOf(style: ChartStyle, format: (v: number) => string, splits?: number[]): uPlot.Axis {
@@ -275,6 +314,8 @@ function place(tip: HTMLElement, u: uPlot, left: number, top: number): void {
 export type PlotAxis = {
   range: [number, number];
   log: boolean;
+  // linear near zero, logarithmic beyond this.
+  symlog?: number;
   format: (v: number) => string;
   // fixed tick positions, e.g. one per category.
   splits?: number[];
@@ -299,7 +340,7 @@ export type PlotSpec = {
   onFocus?: (key: string | null) => void;
   onClick?: (key: string) => void;
 };
-export type Plot = { update(spec: PlotSpec): void; focus(key: string | null): void; png(background: string): string; destroy(): void };
+export type Plot = { update(spec: PlotSpec): void; focus(key: string | null): void; png(background: string | null): string; destroy(): void };
 
 // a chart whose marks are drawn by the caller (points, bars, outlines) on uPlot's axes and grid.
 export function plotChart(el: HTMLElement, spec: PlotSpec): Plot {
@@ -312,7 +353,7 @@ export function plotChart(el: HTMLElement, spec: PlotSpec): Plot {
   const width = () => Math.max(120, Math.floor(el.getBoundingClientRect().width));
   const scale = (axis: () => PlotAxis): uPlot.Scale => ({
     time: false,
-    ...(axis().log ? { distr: 3 } : {}),
+    ...(axis().log ? { distr: 3 } : axis().symlog ? { distr: 4, asinh: axis().symlog } : {}),
     range: () => axis().range,
   });
   const u = new uPlot(
@@ -392,17 +433,7 @@ export function plotChart(el: HTMLElement, spec: PlotSpec): Plot {
       u.setData([next.x.range, [null, null]] as unknown as uPlot.AlignedData, true);
     },
     focus: setFocus,
-    png(background: string): string {
-      const src = u.ctx.canvas;
-      const out = document.createElement("canvas");
-      out.width = src.width;
-      out.height = src.height;
-      const ctx = out.getContext("2d")!;
-      ctx.fillStyle = background;
-      ctx.fillRect(0, 0, out.width, out.height);
-      ctx.drawImage(src, 0, 0);
-      return out.toDataURL("image/png");
-    },
+    png: (background) => png(u, background),
     destroy(): void {
       ro.disconnect();
       u.destroy();

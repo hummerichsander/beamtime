@@ -1,17 +1,20 @@
-// `line`: metric curves on uPlot, W&B-style: synced crosshair, hover focus, legend toggles,
-// drag-zoom with an exact refetch of the window, smoothing, and settings per chart or view.
+// `line`: metric curves on uPlot, W&B-style: synced crosshair, shared hover focus, legend
+// toggles, drag-zoom with an exact refetch of the window, smoothing, and settings per chart.
 
 import { html } from "htm/preact";
 import { useContext, useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { type Call, useCall } from "../api.ts";
 import { hovered, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
-import { align, reshape, robustRange, smooth, type Curves } from "../bt/curves.ts";
+import { align, linthresh, reshape, robustRange, smooth, type Curve, type Curves } from "../bt/curves.ts";
+import { fileName, light, offscreen, pdf, recolor, save, type Background } from "../bt/export.ts";
 import { duration, label, step, value } from "../bt/fmt.ts";
 import { lineChart, type LineChart, type LineSpec } from "../bt/plot.ts";
-import { effective, setChart, toggleRun, update, usePrefs, type ChartPrefs } from "../bt/prefs.ts";
+import { effective, setChart, toggleRun, update, usePrefs, type ChartPrefs, type Effective } from "../bt/prefs.ts";
 import { chartStyle, groupColors, type Theme } from "../bt/theme.ts";
+import { groupUrl, navigate } from "../router.ts";
 import { Icon } from "../ui/icons.ts";
+import { MultiSelect } from "../ui/multiselect.ts";
 import { IconButton, Popover } from "../ui/primitives.ts";
 import { Notice, Panel } from "./common.ts";
 
@@ -47,7 +50,7 @@ function Expanded(props: { node: Node; path: string; onClose: () => void }) {
 }
 
 // the series call a chart makes: the node's call with the viewer's settings applied.
-export function seriesCall(node: Node, prefs: ReturnType<typeof effective>, zoom: [number, number] | null, width: number): Call {
+export function seriesCall(node: Node, prefs: Effective, zoom: [number, number] | null, width: number): Call {
   const base = node.data!.main;
   const params: Record<string, unknown> = { ...base.params };
   params.y = prefs.y?.length ? prefs.y : metricsOf(node);
@@ -56,9 +59,11 @@ export function seriesCall(node: Node, prefs: ReturnType<typeof effective>, zoom
   params.band = prefs.band;
   delete params.seeds;
   delete params.by;
+  delete params.steps;
   if (prefs.by === "seeds") params.seeds = "config.seed";
   else if (prefs.by) params.by = [prefs.by];
   if (zoom && prefs.x === "_step") params.steps = [Math.floor(zoom[0]), Math.ceil(zoom[1])];
+  else if (prefs.steps && (prefs.steps[0] !== null || prefs.steps[1] !== null)) params.steps = prefs.steps;
   return { ...base, params };
 }
 
@@ -74,9 +79,14 @@ function defaultsOf(node: Node): ChartPrefs {
     smooth: p.smooth ?? undefined,
     x: p.x ?? undefined,
     outliers: p.outliers ?? undefined,
-    scale: p.scale === "log" ? "log" : "linear",
+    raw: p.raw ?? undefined,
+    legend: p.legend ?? undefined,
+    ymin: p.ymin ?? undefined,
+    ymax: p.ymax ?? undefined,
+    scale: p.scale === "log" || p.scale === "symlog" ? p.scale : "linear",
     by: params.seeds ? "seeds" : Array.isArray(params.by) ? (params.by as string[])[0] : null,
     band: (params.band as ChartPrefs["band"]) ?? "minmax",
+    steps: Array.isArray(params.steps) ? (params.steps as [number | null, number | null]) : null,
   };
 }
 
@@ -94,6 +104,7 @@ function Chart(props: {
   const [box, visible] = useVisible();
   const [width, setWidth] = useState(0);
   const [zoom, setZoom] = useState<[number, number] | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
   const call = visible ? seriesCall(node, prefs, zoom, Math.round(width / 50) * 50) : null;
   const result = useCall(call);
   const theme = useTheme();
@@ -111,6 +122,33 @@ function Chart(props: {
   const curves = last.current ? reshape(last.current, { log }) : null;
   const smoothed = curves && prefs.smooth > 0 ? smooth(curves, prefs.smooth) : curves;
   const hidden = new Set(all.hidden);
+  const isShown = (c: Curve) => !hidden.has(c.key) && !(c.run && hidden.has(c.run));
+
+  // the spec for a theme: the page's, or the light one for exported figures.
+  const specFor = (t: Theme, height: number, palette: string[]): LineSpec | null => {
+    if (!smoothed || !curves || !smoothed.curves.length) return null;
+    const shown = smoothed.curves.filter(isShown);
+    const fixed = prefs.ymin !== undefined && prefs.ymin !== null || prefs.ymax !== undefined && prefs.ymax !== null;
+    const range = fixed ? [prefs.ymin ?? null, prefs.ymax ?? null] as [number | null, number | null]
+      : prefs.outliers ? robustRange(align(shown).y, log) : null;  // prettier-ignore
+    return {
+      curves: smoothed.curves,
+      raw: prefs.smooth > 0 && prefs.raw ? curves.curves : null,
+      colors: palette,
+      hidden,
+      style: chartStyle(t),
+      height,
+      scale: prefs.scale,
+      asinh: prefs.scale === "symlog" ? linthresh(align(shown).y) : 1,
+      band: (smoothed.aggregated || smoothed.curves.length === 1) && prefs.band !== "none",
+      range,
+      zoom,
+      zoomFetched: prefs.x === "_step",
+      sync: `view:${path}`,
+      formatX: formatterFor(prefs.x),
+      formatY: (v) => value(v),
+    };
+  };
   const palette = curves && theme ? colorsFor(curves, theme, colors) : [];
 
   useEffect(() => {
@@ -121,26 +159,14 @@ function Chart(props: {
   }, [el.current]);
 
   useEffect(() => {
-    if (!result.data || !smoothed || !theme || !el.current || !smoothed.curves.length) return;
-    const shown = smoothed.curves.filter((c) => !hidden.has(c.key) && !(c.run && hidden.has(c.run)));
-    const range = prefs.outliers ? robustRange(align(shown).y, log) : null;
+    if (!result.data || !theme || !el.current) return;
+    const base = specFor(theme, props.height, palette);
+    if (!base) return;
     const spec: LineSpec = {
-      curves: smoothed.curves,
-      raw: prefs.smooth > 0 ? curves!.curves : null,
-      colors: palette,
-      hidden,
-      style: chartStyle(theme),
-      height: props.height,
-      log,
-      band: (smoothed.aggregated || smoothed.curves.length === 1) && prefs.band !== "none",
-      range,
-      zoom,
-      zoomFetched: prefs.x === "_step",
-      sync: `view:${path}`,
-      formatX: formatterFor(prefs.x),
-      formatY: (v) => value(v),
+      ...base,
       onFocus: (c) => hovered.set(c ? (c.run ?? (c.group !== null ? `by:${c.group}` : null)) : null),
       onZoom: (w) => setZoom(w),
+      onClick: (c) => c.run && navigate(groupUrl(path, { run: c.run }), { replace: true }),
     };
     if (chart.current?.update(spec)) return;
     let cancelled = false;
@@ -166,44 +192,61 @@ function Chart(props: {
   );
 
   const metrics = useContext(ViewCtx).metrics;
-  const shown = prefs.y?.length ? prefs.y : metricsOf(node);
-  const named = shown.map((m) => metrics[m]?.label ?? m).join(", ");
+  const shownMetrics = prefs.y?.length ? prefs.y : metricsOf(node);
+  const named = shownMetrics.map((m) => metrics[m]?.label ?? m).join(", ");
   const title = prefs.y?.length ? named : node.props.title ?? named;
+  const keys = curves?.curves.map((c) => c.run ?? c.key) ?? [];
+  const off = curves ? curves.curves.filter((c) => !isShown(c)).length : 0;
   const notes = [
     prefs.by === "seeds" ? "seed mean" : prefs.by ? `by ${label(prefs.by)}` : null,
     prefs.smooth > 0 ? `smoothed ${prefs.smooth.toFixed(2)}` : null,
     prefs.x !== "_step" ? X_AXES.find(([k]) => k === prefs.x)?.[1] : null,
+    prefs.scale !== "linear" ? prefs.scale : null,
     node.props.note && !prefs.by && !node.props.note.startsWith("seed") ? node.props.note : null,
     node.props.color ? `colored by ${label(node.props.color)}` : null,
   ].filter(Boolean);
-  const keys = curves?.curves.map((c) => c.run ?? c.key) ?? [];
   const empty = curves && !curves.curves.length;
-  const download = (kind: "png" | "csv") => {
-    if (!smoothed) return;
-    const name = title.replace(/[^\w.-]+/g, "_");
-    const href = kind === "png" ? chart.current?.png(String(theme?.colors.bg ?? "#fff")) : csv(smoothed);
-    if (!href) return;
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = `${name}.${kind}`;
-    a.click();
+
+  const exportPng = async (background: Background) => {
+    const t = light();
+    if (!t || !theme || !el.current) return;
+    const spec = specFor(t, props.height, palette.map((c) => recolor(c, theme, t)));
+    if (!spec) return;
+    save(await offscreen(el.current.clientWidth, (div) => lineChart(div, spec), background), fileName(title, "png"));
   };
+  const exportPdf = async () => {
+    const t = light();
+    if (!t || !theme || !smoothed) return;
+    const band = (smoothed.aggregated || smoothed.curves.length === 1) && prefs.band !== "none";
+    const series = smoothed.curves.map((c, i) => ({ c, color: recolor(palette[i], theme, t) })).filter(({ c }) => isShown(c));
+    setProblem(null);
+    try {
+      await pdf({
+        kind: "line",
+        title,
+        xlabel: X_AXES.find(([k]) => k === prefs.x)?.[1] ?? prefs.x,
+        ylabel: named,
+        yscale: prefs.scale,
+        ylim: [prefs.ymin ?? null, prefs.ymax ?? null],
+        series: series.map(({ c, color }) => ({ label: c.label, color, x: c.x, y: c.y, ...(band ? { lo: c.lo, hi: c.hi } : {}) })),
+      }, fileName(title, "pdf"));  // prettier-ignore
+    } catch (err) {
+      setProblem((err as Error).message);
+    }
+  };
+  const exportCsv = () => smoothed && save(csv(smoothed), fileName(title, "csv"));
 
   // what the renderer's layout check counts; aggregated or colored charts tame many runs.
-  const visibleCurves = curves?.aggregated || node.props.color ? 0 : curves?.curves.filter((c) => !hidden.has(c.key) && !(c.run && hidden.has(c.run))).length;
+  const visibleCurves = curves?.aggregated || node.props.color ? 0 : curves?.curves.filter(isShown).length;
   return html`<div ref=${box} class=${`chart-frame${props.expanded ? " expanded" : ""}`} data-curves=${visibleCurves}>
     <div class="chart-head">
       <span class="chart-title">${title}</span>
       ${notes.length ? html`<span class="muted small">${notes.join(" · ")}</span>` : null}
+      ${off ? html`<button type="button" class="link small" onClick=${() => update(path, () => ({ hidden: [] }))}>${off} hidden · show all</button>` : null}
       <span class="chart-tools">
         ${zoom ? html`<${IconButton} icon="reset" label="Reset zoom (double-click)" onClick=${() => setZoom(null)} />` : null}
         <${Settings} node=${node} path=${path} prefs=${prefs} />
-        <${Popover} icon="download" label="Download" title="Download">
-          <div class="menu-list">
-            <button type="button" onClick=${() => download("png")}><${Icon} name="image" size=${15} /> PNG image</button>
-            <button type="button" onClick=${() => download("csv")}><${Icon} name="file-text" size=${15} /> CSV data</button>
-          </div>
-        <//>
+        <${Downloads} png=${exportPng} pdf=${exportPdf} csv=${exportCsv} />
         ${props.onExpand ? html`<${IconButton} icon="maximize" label="Expand" onClick=${props.onExpand} />` : null}
         ${props.onClose ? html`<${IconButton} icon="x" label="Close (Esc)" onClick=${props.onClose} />` : null}
         ${node.props.added
@@ -211,21 +254,24 @@ function Chart(props: {
           : null}
       </span>
     </div>
+    ${problem ? html`<p class="block-error">${problem}</p>` : null}
     <${Panel} result=${result} caption=${props.expanded ? undefined : node.props.caption}>
       ${empty
         ? html`<${Notice}>No run in scope logs ${title}.<//>`
         : html`<div class=${`chart${result.status === "ready" && !result.refreshing ? "" : " pending"}`} ref=${el}
             style=${`min-block-size:${props.height}px`}></div>`}
     <//>
-    ${curves && curves.curves.length > 1 && curves.curves.length <= LEGEND_MAX
+    ${prefs.legend && curves && curves.curves.length > 1 && curves.curves.length <= LEGEND_MAX
       ? html`<div class="legend" role="group" aria-label="Show or hide curves">
           ${curves.curves.map((c, i) => {
             const k = c.run ?? c.key;
-            const off = hidden.has(k);
-            return html`<button type="button" class=${`legend-item${off ? " off" : ""}`} aria-pressed=${!off}
-                data-tip="Click to hide or show; shift-click to show only this"
-                onPointerEnter=${() => c.run && hovered.set(c.run)} onPointerLeave=${() => hovered.set(null)}
-                onClick=${(e: MouseEvent) => toggleRun(path, k, keys, e.shiftKey)}>
+            const isOff = hidden.has(k);
+            return html`<button type="button" class=${`legend-item${isOff ? " off" : ""}`} aria-pressed=${!isOff}
+                data-tip="Click to hide or show; double-click to show only this"
+                onPointerEnter=${() => hovered.set(c.run ?? (c.group !== null ? `by:${c.group}` : null))}
+                onPointerLeave=${() => hovered.set(null)}
+                onClick=${(e: MouseEvent) => e.detail < 2 && toggleRun(path, k, keys)}
+                onDblClick=${() => toggleRun(path, k, keys, true)}>
               <span class="legend-dot" style=${`background:${palette[i]}`}></span>${c.label}</button>`;
           })}
         </div>`
@@ -233,7 +279,20 @@ function Chart(props: {
   </div>`;
 }
 
-function Settings(props: { node: Node; path: string; prefs: ReturnType<typeof effective> }) {
+export function Downloads(props: { png: (b: Background) => void; pdf?: () => void; csv?: () => void }) {
+  // a choice closes the menu.
+  const close = (e: Event) => (e.target as Element).closest<HTMLElement>("[popover]")?.hidePopover();
+  return html`<${Popover} icon="download" label="Download" title="Download">
+    <div class="menu-list" onClick=${close}>
+      <button type="button" onClick=${() => props.png("transparent")}><${Icon} name="image" size=${15} /> PNG, transparent</button>
+      <button type="button" onClick=${() => props.png("white")}><${Icon} name="image" size=${15} /> PNG, white background</button>
+      ${props.pdf ? html`<button type="button" onClick=${props.pdf}><${Icon} name="file-text" size=${15} /> PDF (vector)</button>` : null}
+      ${props.csv ? html`<button type="button" onClick=${props.csv}><${Icon} name="file-text" size=${15} /> CSV data</button>` : null}
+    </div>
+  <//>`;
+}
+
+function Settings(props: { node: Node; path: string; prefs: Effective }) {
   const { node, path, prefs } = props;
   const [opened, setOpened] = useState(false);
   // what to offer comes from keys, asked only once the settings are opened.
@@ -245,51 +304,72 @@ function Settings(props: { node: Node; path: string; prefs: ReturnType<typeof ef
     .filter((k: string) => k !== "config.seed");
   const set = (p: ChartPrefs) => setChart(path, node.id, p);
   const y = prefs.y?.length ? prefs.y : metricsOf(node);
-  const toggleMetric = (m: string) => {
-    const next = y.includes(m) ? y.filter((x) => x !== m) : [...y, m];
-    if (next.length) set({ y: next });
-  };
+  const num = (v: string) => (v.trim() === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+  const steps = prefs.steps ?? [null, null];
   return html`<${Popover} icon="sliders" label="Chart settings" title="This chart" class="chart-settings"
       onOpen=${() => setOpened(true)}>
-    <div class="field"><span class="field-label">Metrics</span>
-      <div class="checks">${metrics.map((m) => html`<label><input type="checkbox" checked=${y.includes(m)} onChange=${() => toggleMetric(m)} /> ${m}</label>`)}</div>
-    </div>
-    <${Controls} prefs=${prefs} varying=${varying} set=${set} />
-    <button type="button" class="link small" onClick=${() => setChart(path, node.id, null)}>Reset this chart</button>
-  <//>`;
-}
-
-// the controls shared by a chart's settings and the view-wide bar.
-export function Controls(props: { prefs: ChartPrefs; varying: string[]; set: (p: ChartPrefs) => void; compact?: boolean }) {
-  const { prefs, set } = props;
-  const by = prefs.by ?? "";
-  return html`
-    <label class="field"><span class="field-label">Smoothing <b class="num">${(prefs.smooth ?? 0).toFixed(2)}</b></span>
-      <input type="range" min="0" max="0.99" step="0.01" value=${prefs.smooth ?? 0}
-        onInput=${(e: Event) => set({ smooth: Number((e.target as HTMLInputElement).value) })} /></label>
-    <label class="field"><span class="field-label">x axis</span>
-      <select value=${prefs.x ?? "_step"} onChange=${(e: Event) => set({ x: (e.target as HTMLSelectElement).value as ChartPrefs["x"] })}>
+    <div class="settings-grid">
+      <h5>Data</h5>
+      <span class="field-label">Metrics</span>
+      <${MultiSelect} options=${metrics} value=${y} label="Metrics" placeholder="Add a metric" onChange=${(v: string[]) => set({ y: v })} />
+      <span class="field-label">x axis</span>
+      <select value=${prefs.x} onChange=${(e: Event) => set({ x: (e.target as HTMLSelectElement).value as ChartPrefs["x"] })}>
         ${X_AXES.map(([k, l]) => html`<option value=${k}>${l}</option>`)}
-      </select></label>
-    <label class="field"><span class="field-label">Aggregate</span>
-      <select value=${by} onChange=${(e: Event) => set({ by: (e.target as HTMLSelectElement).value || null })}>
+      </select>
+      <span class="field-label">Steps</span>
+      <span class="pair">
+        <input type="number" placeholder="first" value=${steps[0] ?? ""} aria-label="First step"
+          onChange=${(e: Event) => set({ steps: [num((e.target as HTMLInputElement).value), steps[1]] })} />
+        <span class="muted">to</span>
+        <input type="number" placeholder="last" value=${steps[1] ?? ""} aria-label="Last step"
+          onChange=${(e: Event) => set({ steps: [steps[0], num((e.target as HTMLInputElement).value)] })} />
+      </span>
+
+      <h5>Aggregation</h5>
+      <span class="field-label">Runs</span>
+      <select value=${prefs.by ?? ""} onChange=${(e: Event) => set({ by: (e.target as HTMLSelectElement).value || null })}>
         <option value="">each run</option>
         <option value="seeds">mean over seeds</option>
-        ${props.varying.map((k) => html`<option value=${k}>by ${label(k)}</option>`)}
-      </select></label>
-    ${by && !props.compact
-      ? html`<label class="field"><span class="field-label">Band</span>
-          <select value=${prefs.band ?? "minmax"} onChange=${(e: Event) => set({ band: (e.target as HTMLSelectElement).value as ChartPrefs["band"] })}>
-            <option value="minmax">min to max</option><option value="std">± std</option>
-            <option value="stderr">± std error</option><option value="none">none</option>
-          </select></label>`
-      : null}
-    ${props.compact
-      ? null
-      : html`<label class="field inline"><input type="checkbox" checked=${prefs.scale === "log"}
-          onChange=${(e: Event) => set({ scale: (e.target as HTMLInputElement).checked ? "log" : "linear" })} /> log scale</label>`}
-    <label class="field inline"><input type="checkbox" checked=${!!prefs.outliers}
-      onChange=${(e: Event) => set({ outliers: (e.target as HTMLInputElement).checked })} /> ignore outliers</label>`;
+        ${varying.map((k) => html`<option value=${k}>mean by ${label(k)}</option>`)}
+      </select>
+      <span class="field-label">Band</span>
+      <select value=${prefs.band} disabled=${!prefs.by} onChange=${(e: Event) => set({ band: (e.target as HTMLSelectElement).value as ChartPrefs["band"] })}>
+        <option value="minmax">min to max</option><option value="std">± std</option>
+        <option value="stderr">± std error</option><option value="none">none</option>
+      </select>
+
+      <h5>Smoothing</h5>
+      <span class="field-label">EMA <b class="num">${prefs.smooth.toFixed(2)}</b></span>
+      <input type="range" min="0" max="0.99" step="0.01" value=${prefs.smooth}
+        onInput=${(e: Event) => set({ smooth: Number((e.target as HTMLInputElement).value) })} />
+      <span></span>
+      <label class="check"><input type="checkbox" checked=${prefs.raw} disabled=${!prefs.smooth}
+        onChange=${(e: Event) => set({ raw: (e.target as HTMLInputElement).checked })} /> show the raw curve faintly</label>
+
+      <h5>Axes</h5>
+      <span class="field-label">y scale</span>
+      <div class="segmented small" role="radiogroup" aria-label="y scale">
+        ${(["linear", "log", "symlog"] as const).map((k) => html`<button type="button" role="radio" aria-checked=${prefs.scale === k}
+            data-tip=${k === "symlog" ? "linear near zero, logarithmic beyond: for values that cross zero" : undefined}
+            onClick=${() => set({ scale: k })}>${k}</button>`)}
+      </div>
+      <span class="field-label">y range</span>
+      <span class="pair">
+        <input type="number" step="any" placeholder="auto" value=${prefs.ymin ?? ""} aria-label="y minimum"
+          onChange=${(e: Event) => set({ ymin: num((e.target as HTMLInputElement).value) })} />
+        <span class="muted">to</span>
+        <input type="number" step="any" placeholder="auto" value=${prefs.ymax ?? ""} aria-label="y maximum"
+          onChange=${(e: Event) => set({ ymax: num((e.target as HTMLInputElement).value) })} />
+      </span>
+      <span></span>
+      <label class="check"><input type="checkbox" checked=${prefs.outliers}
+        onChange=${(e: Event) => set({ outliers: (e.target as HTMLInputElement).checked })} /> ignore outliers in the auto range</label>
+      <span></span>
+      <label class="check"><input type="checkbox" checked=${prefs.legend}
+        onChange=${(e: Event) => set({ legend: (e.target as HTMLInputElement).checked })} /> legend</label>
+    </div>
+    <button type="button" class="link small reset" onClick=${() => setChart(path, node.id, null)}>Reset this chart</button>
+  <//>`;
 }
 
 function formatterFor(x: string): (v: number) => string {

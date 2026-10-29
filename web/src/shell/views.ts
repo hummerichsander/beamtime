@@ -10,7 +10,7 @@ import { Notice, rows } from "../blocks/common.ts";
 import { diffLines, fold } from "../bt/diff.ts";
 import { ago } from "../bt/fmt.ts";
 import { runColors, useTheme, ViewCtx } from "../bt/index.ts";
-import { update, usePrefs } from "../bt/prefs.ts";
+import { changed, update, usePrefs } from "../bt/prefs.ts";
 import { groupUrl, navigate, route } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
@@ -58,19 +58,19 @@ export function ViewSource(props: { path: string; view: any }) {
 // the viewer's chart settings and added charts, the title and the finding, as a new version.
 function SaveView(props: { path: string; view: any }) {
   const prefs = usePrefs(props.path);
-  const changed = Object.keys(prefs.view).length || Object.keys(prefs.charts).length || prefs.added.length;
+  const edited = changed(prefs);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState(props.view.title ?? "");
   const [finding, setFinding] = useState(props.view.finding ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  if (!changed && !open) return null;
+  if (!edited && !open) return null;
   const save = async (e: Event) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await post("save_view", { path: props.path, prefs, title, finding });
+      await post("save_view", { path: props.path, prefs: { charts: prefs.charts, added: prefs.added }, title, finding });
       // the saved view now shows what the viewer had set; their own settings would repeat it.
       update(props.path, () => ({ view: {}, charts: {}, added: [] }));
       invalidate((c) => ["view", "view_history", "summary"].includes(c.method) && c.scope === props.path);

@@ -241,6 +241,6 @@ table.kv {
 /* the headless renderer's page: the view alone, nothing moving */
 .rendering, .rendering * { transition: none !important; animation: none !important; }
 .render-main { padding: 24px 28px; overflow: visible; }
-.rendering .view-bar, .rendering .save-view, .rendering .chart-tools { display: none !important; }
-.side-by-side .view-bar, .side-by-side .save-view { display: none; }
+.rendering .add-chart, .rendering .save-view, .rendering .chart-tools { display: none !important; }
+.side-by-side .add-chart, .side-by-side .save-view { display: none; }
 .run-details { min-inline-size: 280px; & .kv { margin-block-end: 8px; font-size: var(--bt-size-sm); } & .kv td { padding: 2px 10px 2px 0; } }
