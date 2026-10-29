@@ -189,3 +189,18 @@ def test_text_rendering(ctx: Context) -> None:
     text = render(call("series", {"from": "tokenizer", "y": ["val/ppl"]}, ctx))
     assert text.count("val/ppl") == 6 and "curves from 6 runs" in text
     assert "3 of 26 runs" in render(call("runs", {"limit": 3}, ctx))
+
+
+def test_note_rm_moves_the_note_and_its_versions_to_the_trash(ctx: Context, project: Path) -> None:
+    """Removing a note removes its earlier versions too; listings forget them."""
+    first = call("note add", {"group": "scaling/lr-sweep", "type": "idea", "description": "a"}, ctx)
+    second = call("note add", {"group": "scaling/lr-sweep", "type": "idea", "description": "b",
+                               "supersedes": first["version"]}, ctx)  # fmt: skip
+    answer = call("note rm", {"note": second["version"]}, ctx)
+    assert answer["notes"] == [second["version"], first["version"]]
+    trash = list((project / "beamtime" / "_trash").rglob("*.md"))
+    assert sorted(t.stem for t in trash) == sorted(answer["notes"])
+    ids = [e["id"] for e in call("notes", {"from": "scaling/lr-sweep", "limit": 100}, ctx)["entries"]]
+    assert first["version"] not in ids and second["version"] not in ids
+    with pytest.raises(OpError, match="no note"):
+        call("note rm", {"note": "20990101-000000-zzzz"}, ctx)

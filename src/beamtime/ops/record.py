@@ -283,6 +283,38 @@ def note_add(ctx: Context, p: r.NoteAddParams) -> dict[str, Any]:
     return written(ctx, "note add", path, lines)
 
 
+def note_rm(ctx: Context, p: r.NoteRmParams) -> dict[str, Any]:
+    """Move a note into the trash, with the versions it superseded, so it is gone everywhere.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: What moved where."""
+    import json
+    import shutil
+    from datetime import datetime, timezone
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    lines = []
+    with target_of(ctx, ".") as target:
+        db = target.index.store.db
+        rows = {i: (path, json.loads(meta or "{}")) for path, i, meta in db.execute(
+            "SELECT path, id, meta FROM notes")}  # fmt: skip
+        if p.note not in rows:
+            raise OpError(f"no note {p.note!r}; `beamtime notes` lists them", code=4)
+        chain, note = [], p.note
+        while note in rows and note not in chain:
+            chain.append(note)
+            note = rows[note][1].get("supersedes")
+        for note in chain:
+            rel = Path(rows[note][0])
+            dest = ctx.logdir / c.TRASH / stamp / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(ctx.logdir / rel), str(dest))
+            lines.append(f"moved {rel.as_posix()} to {dest.relative_to(ctx.logdir).as_posix()}")
+    lines.append("`beamtime gc --yes` deletes the trash for good")
+    return {"kind": "note rm", "lines": lines, "notes": chain, "meta": {}}
+
+
 def proposal_set(ctx: Context, p: r.ProposalSetParams) -> dict[str, Any]:
     """Save a new proposal version, refusing to silently replace a frozen one.
 

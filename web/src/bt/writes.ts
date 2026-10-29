@@ -47,3 +47,9 @@ export async function editStatement(group: string, statement: string): Promise<v
   await post("proposal_set", { group, proposal: { ...doc, statement } });
   refresh(group, ["groups", "proposal_show", "check", "summary"]);
 }
+
+// deleting is the user's alone: the note and its earlier versions move to the trash.
+export async function deleteNote(note: any): Promise<void> {
+  await post("note_rm", { note: note.id });
+  refresh(note.group, NOTE_ANSWERS);
+}

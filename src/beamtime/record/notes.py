@@ -191,6 +191,9 @@ def listing(
         "ORDER BY id DESC",
         params,
     ):
+        # removed since the index last looked; it is gone, not broken.
+        if not (target.index.logdir / path).is_file():
+            continue
         state = None
         if type_ == "question":
             state = "resolved" if note_id in resolved else "open"

@@ -358,6 +358,13 @@ Decided while building the research record (milestone M4):
 - **Verdicts must judge every prediction** of the version they name; evidence ids must exist.
 - **A run's own proposal** is complete once the run has finished, whatever its plan; a blank one (no
   statement, plan or predictions) leaves the run `open`.
+- **How many**: a group or run has any number of notes, each an immutable file; editing writes a
+  new note that supersedes the old one, and listings show the current versions. A group has one
+  memory at a time, kept as versions in `memory/` (the newest counts); runs have notes but no
+  memory.
+- **Deleting a note** is a user command, `beamtime note rm <id>` (also offered by the web UI): the
+  note and the versions it superseded move to `_trash/`, where `beamtime gc --yes` deletes them for
+  good. Agents never delete; notes that linked to a deleted one keep the link text.
 - **Backlinks** come from the index's links table: `card` lists the notes citing a run
   (`cited_by`), and `check` the notes citing each prediction.
 - **Memory**: the size budget is measured in characters, 6000 (about 1.5k tokens); `covers_until`

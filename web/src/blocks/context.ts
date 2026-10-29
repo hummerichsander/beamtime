@@ -5,7 +5,7 @@ import { useState } from "preact/hooks";
 
 import { useData, type Node } from "../bt/index.ts";
 import { ago, value } from "../bt/fmt.ts";
-import { addNote, editMemory, editNote } from "../bt/writes.ts";
+import { addNote, deleteNote, editMemory, editNote } from "../bt/writes.ts";
 import { groupUrl, isRunId, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { Markdown } from "../ui/markdown.ts";
@@ -65,23 +65,34 @@ export function Proposal({ node }: { node: Node }) {
   <//>`;
 }
 
+// one memory per group: a short text rewritten as new versions, summarizing the notes below.
 export function Memory({ node }: { node: Node }) {
   const result = useData("main");
+  const group = (node.data?.main.params.group as string) ?? ".";
   const chain: any[] = result.data?.chain ?? [];
-  const own = chain.filter((m) => m.group === result.data?.group || chain.length === 1);
-  const stale = own.some((m) => m.notes_since);
+  const own = chain.find((m) => m.group === group) ?? null;
+  const above = chain.filter((m) => m.group !== group);
+  const count = own?.notes_since ? "out of date" : own ? `version ${own.versions ?? 1}` : "none yet";
   return html`<${Collapsible} id=${`memory:${node.data?.main.scope ?? node.id}`} title=${node.props.title ?? "Memory"}
-      count=${stale ? "out of date" : undefined} open=${false} result=${result} class="memory-block">
-    ${own.map(
-      (m) => html`<div key=${m.version}>
-        <${Editable} value=${m.body ?? ""} label="the memory" multiline class="markdown"
-          render=${(text: string) => html`<${Markdown} text=${text} />`} onSave=${(body: string) => editMemory(m.group, body)} />
-        <p class="memory-meta">${m.author} · covers notes until ${m.covers_until?.slice(0, 10)}
-          ${m.notes_since ? html` · <span class="warn-text">${m.notes_since} newer note${m.notes_since > 1 ? "s" : ""}</span>` : null}</p>
-      </div>`,
-    )}
+      count=${result.data ? count : undefined} open=${false} result=${result} class="memory-block"
+      action=${html`<${Sym} spec=${{ icon: "circle-help", tone: "muted", label: MEMORY_HELP }} />`}>
+    <${Editable} value=${own?.body ?? ""} label="the memory" multiline class="markdown"
+      placeholder="No memory yet: write what this group has established, in a few lines."
+      render=${(text: string) => html`<${Markdown} text=${text} />`} onSave=${(body: string) => editMemory(group, body)} />
+    ${own
+      ? html`<p class="memory-meta">${own.author} · covers notes until ${own.covers_until?.slice(0, 10)}
+          ${own.notes_since ? html` · <span class="warn-text">${own.notes_since} newer note${own.notes_since > 1 ? "s" : ""}</span>` : null}</p>`
+      : null}
+    ${above.length
+      ? html`<p class="memory-meta">Memory above this group: ${above.map((m, i) => html`${i ? ", " : ""}<a href=${groupUrl(m.group)}>${m.group === "." ? "local" : m.group}</a>`)}</p>`
+      : null}
   <//>`;
 }
+
+const MEMORY_HELP =
+  "One memory per group: a short summary of what its notes established, rewritten as new versions (the newest counts). Groups above have their own.";
+const NOTES_HELP =
+  "Notes at or below this page: each is its own file. Editing writes a new version that replaces it; deleting moves it to the trash.";
 
 export function Groups({ node }: { node: Node }) {
   const result = useData("main");
@@ -120,10 +131,12 @@ export function Notes({ node }: { node: Node }) {
   const entries: any[] = (result.data?.entries ?? []).filter((n: any) => !String(n.state ?? "").startsWith("superseded"));
   return html`<${Collapsible} id=${`notes:${node.data?.main.scope ?? node.id}`} title=${node.props.title ?? "Notes"}
       count=${result.data ? String(entries.length) : undefined} result=${result}
-      action=${html`<${IconButton} icon="plus" label="Add a note" onClick=${() => setAdding(true)} />`}>
+      action=${html`<${Sym} spec=${{ icon: "circle-help", tone: "muted", label: NOTES_HELP }} />
+        <${IconButton} icon="plus" label="Add a note" onClick=${() => setAdding(true)} />`}>
     <div class="notes">
       ${adding ? html`<${NewNote} group=${group} onDone=${() => setAdding(false)} />` : null}
-      ${entries.map((n) => html`<${NoteItem} key=${n.id} note=${n} />`)}
+      ${result.data && !entries.length && !adding ? html`<p class="muted small">No notes yet.</p>` : null}
+      ${entries.map((n) => html`<${NoteItem} key=${n.id} note=${n} scope=${group} />`)}
     </div>
   <//>`;
 }
@@ -173,9 +186,12 @@ function NewNote(props: { group: string; onDone: () => void }) {
 }
 
 // one line per note: type, title, who and when; the body opens below. Both edit in place.
-export function NoteItem(props: { note: any; open?: boolean }) {
+export function NoteItem(props: { note: any; open?: boolean; scope?: string }) {
   const n = props.note;
   const [open, setOpen] = useState(!!props.open);
+  const [confirming, setConfirming] = useState(false);
+  // a note from a subgroup (or a run) says where it is from.
+  const from = props.scope !== undefined && n.group && n.group !== props.scope ? n.group : null;
   const when = n.id.slice(0, 15).replace(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6Z");
   const author = n.meta?.author;
   return html`<article class=${`note${open ? " open" : ""}`}>
@@ -187,7 +203,14 @@ export function NoteItem(props: { note: any; open?: boolean }) {
         onSave=${(description: string) => editNote(n, { description })} />
       ${n.overall ? html`<${Sym} spec=${symbolFor("verdict", n.overall)} />` : null}
       ${n.state ? html`<span class="tag tone-warn">${n.state}</span>` : null}
+      ${from ? html`<a class="note-group" href=${groupUrl(from)} data-tip="from this group">${shortPath(from, props.scope!)}</a>` : null}
       <span class="note-meta">${author ? `${author} · ` : ""}${ago(when)}</span>
+      ${confirming
+        ? html`<span class="note-confirm">delete?
+            <button type="button" class="link small bad-text" onClick=${() => void deleteNote(n)}>yes</button>
+            <button type="button" class="link small" onClick=${() => setConfirming(false)}>no</button></span>`
+        : html`<${IconButton} icon="trash" label="Delete this note (moves it to the trash)" class="note-delete"
+            onClick=${(e: MouseEvent) => { e.stopPropagation(); setConfirming(true); }} />`}
     </div>
     ${open
       ? html`<${Editable} value=${n.body ?? ""} label="the note" multiline class="note-body markdown"
@@ -195,6 +218,13 @@ export function NoteItem(props: { note: any; open?: boolean }) {
           onSave=${(body: string) => editNote(n, { body })} />`
       : null}
   </article>`;
+}
+
+// a subgroup's path below the page's group, or a run's id, shortly.
+function shortPath(path: string, scope: string): string {
+  const rel = scope === "." ? path : path.startsWith(`${scope}/`) ? path.slice(scope.length + 1) : path;
+  const last = rel.split("/").pop() ?? rel;
+  return isRunId(last) ? last.slice(-8) : rel;
 }
 
 export function Output({ node }: { node: Node }) {

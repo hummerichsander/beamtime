@@ -287,7 +287,14 @@ it back. Files are never changed ([layer 1](01-storage.md)), so every edit is a 
 | the memory | a new memory version |
 | a proposal's statement | a new proposal version, but only while no run has recorded it; a frozen statement is locked and says how to supersede it |
 
-New notes (observation, idea, question, decision) are added from the Notes heading. Superseded notes
+Every page shows the same Notes block (the notes at or below it; a note from a subgroup or run
+carries its group) and every group its Memory (one per group, rewritten as versions; the newest
+counts; groups above have their own). A help mark on each heading says so. A note can be deleted
+from its line, after a confirmation: the note and the earlier versions it replaced move to the
+trash (`beamtime note rm`, a user command the UI offers its user).
+
+New notes (observation, idea, question, decision) are added from the Notes heading, in a small form
+with type, title and an optional Markdown body. Superseded notes
 are hidden; `beamtime notes --current` does the same for agents. The author is the local account;
 agents keep writing through the CLI and MCP with their model id. A save shows at once, is confirmed
 when the refetched answer arrives, and a failed save reopens the field with the error.

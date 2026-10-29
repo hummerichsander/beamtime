@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from beamtime.format import constants as c
-from beamtime.format.authored import newest, read_markdown_doc
+from beamtime.format.authored import newest, read_markdown_doc, versions
 from beamtime.format.schema import SchemaError
 from beamtime.index.store import in_scope
 from beamtime.record.proposals import Target
@@ -63,6 +63,7 @@ def chain(target: Target) -> list[dict[str, Any]]:
                 "author": doc.meta.get("author"),
                 "notes_since": notes_since(target, rel, covers),
                 "chars": len(doc.body),
+                "versions": len(versions(target.index.folder_path(rel) / c.MEMORY)),
                 "body": doc.body,
             }
         )

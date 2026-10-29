@@ -7,7 +7,7 @@ import {
   CircleHelp, CircleMinus, CircleX, Clock, CloudOff, Copy, Download, Ellipsis, Eye, EyeOff, FileText,
   FolderTree, GitCommitHorizontal, History, Hourglass, Image, LayoutPanelTop, Keyboard, Lightbulb, Link, Maximize2, Minus,
   Lock, Monitor, Moon, PanelLeft, PanelRight, Pause, Pencil, Play, Plus, RotateCcw, Scale, Search, Server, Settings,
-  Save, Signpost, SlidersHorizontal, Square, Sun, Target, Terminal, TriangleAlert, X,
+  Save, Signpost, SlidersHorizontal, Square, Sun, Target, Terminal, Trash2, TriangleAlert, X,
 } from "lucide-preact";
 
 import type { SymbolSpec } from "./symbols.ts";
@@ -22,7 +22,7 @@ const ICONS: Record<string, FunctionComponent<any>> = {
   maximize: Maximize2, minus: Minus, monitor: Monitor, moon: Moon, "panel-left": PanelLeft,
   "panel-right": PanelRight, pause: Pause, pencil: Pencil, play: Play, plus: Plus, reset: RotateCcw, scale: Scale,
   save: Save, search: Search, server: Server, settings: Settings, signpost: Signpost, sliders: SlidersHorizontal,
-  square: Square, sun: Sun, target: Target, terminal: Terminal, "triangle-alert": TriangleAlert, x: X,
+  square: Square, sun: Sun, target: Target, terminal: Terminal, trash: Trash2, "triangle-alert": TriangleAlert, x: X,
 };
 
 export function Icon(props: { name: string; size?: number; class?: string; label?: string }) {

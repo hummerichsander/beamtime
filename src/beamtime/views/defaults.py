@@ -41,7 +41,7 @@ def group_view(ctx: Context, path: str) -> dict[str, Any]:
     children: list[dict[str, Any]] = []
     if not runs:
         children.append(node("note", "empty", text=EMPTY, kind="info"))
-        return node("section", "root", children=children)
+        return node("section", "root", children=[*children, *record(path)])
     if direct < runs:
         children.append(
             node(
@@ -83,22 +83,23 @@ def group_view(ctx: Context, path: str) -> dict[str, Any]:
             },
         )
     )  # fmt: skip
-    chain = call("memory show", {"group": path}, ctx)["chain"]
-    if any(m["group"] == path for m in chain):
-        children.append(
-            node(
-                "memory",
-                "memory",
-                title="Memory",
-                data={"main": api("memory_show", {"group": path}, path)},
-            )
-        )
-    notes = call("notes", {"from": path, "limit": 1}, ctx)
-    if notes["meta"]["matched"]:
-        params = {"from": path, "limit": NOTES, "full": True, "current": True}
-        latest = api("notes", params, path)
-        children.append(node("notes", "notes", title="Notes", data={"main": latest}))
+    children += record(path)
     return node("section", "root", children=children)
+
+
+def record(path: str, run: str | None = None) -> list[dict[str, Any]]:
+    """Make the notes and memory blocks every page has, so they look the same at every level.
+
+    :param path: The group or run path.
+    :param run: The run id on a run page, which has notes but no memory.
+    :return: The nodes."""
+    params = {"from": run or path, "limit": NOTES, "full": True, "current": True}
+    notes = node("notes", "notes", title="Notes", data={"main": api("notes", params, path)})
+    if run is not None:
+        return [notes]
+    memory = node("memory", "memory", title="Memory",
+                  data={"main": api("memory_show", {"group": path}, path)})  # fmt: skip
+    return [memory, notes]
 
 
 def run_view(ctx: Context, path: str) -> dict[str, Any]:
@@ -123,6 +124,7 @@ def run_view(ctx: Context, path: str) -> dict[str, Any]:
                 continue
         children.append(node(block, f"{block}-{slug(key)}", title=key,
                              data={"main": api("data", params, path)}))  # fmt: skip
+    children += record(path, run_id)
     children.append(
         node(
             "output",

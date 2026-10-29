@@ -53,6 +53,7 @@ wherever a group does.
 | CLI | MCP | Does |
 |---|---|---|
 | `beamtime note add <group>` | `note_add` | a note: `--type`, `--description`, `--resolves`, `--supersedes`, `--completes`, `--evidence`; for verdicts `--proposal <version>`, `--verdict <prediction>=<verdict>`, `--overall`; the check snapshot is added automatically; body from stdin |
+| `beamtime note rm <id>` | – | user only: moves a note and the versions it replaced to the trash |
 | `beamtime proposal set <group> <file>` | `proposal_set` | saves a new proposal version; superseding a frozen version requires `--reason` |
 | `beamtime memory update <group> <file>` | `memory_update` | saves a new memory version; warns beyond the size budget |
 

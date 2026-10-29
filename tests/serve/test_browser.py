@@ -124,6 +124,14 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     text = added.pop().read_text()
     assert "type: idea" in text and "Maybe **500** steps." in text
 
+    # deleting asks once, then moves the note to the trash.
+    row = page.locator(".notes .note:has(.note-title:has-text('Try a warmup.'))")
+    row.hover()
+    row.locator("button[aria-label^='Delete this note']").click()
+    row.locator(".note-confirm button:has-text('yes')").click()
+    page.wait_for_selector(".notes .note-title:has-text('Try a warmup.')", state="detached")
+    assert list((project / "beamtime" / "_trash").rglob("*.md"))
+
     running = roles["running"]
     page.goto(f"{base}/r/{running}")
     page.wait_for_url(re.compile(rf".*/f/local/.+/{running}$"))

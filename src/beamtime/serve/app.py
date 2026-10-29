@@ -62,6 +62,9 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
                         body.get("title"),
                         body.get("finding"),
                     )
+                case "note_rm":
+                    # deleting is the user's: the browser is, agents never use this API.
+                    answer = await run_in_threadpool(call, "note rm", body, ctx)
                 case "figure":
                     from beamtime.views.figure import pdf
 

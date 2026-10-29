@@ -203,6 +203,12 @@ class NoteAddParams(Params, kw_only=True):
     author: Author = None
 
 
+class NoteRmParams(Params, kw_only=True):
+    """Parameters of ``note rm``."""
+
+    note: Annotated[str, msgspec.Meta(description="the note's id")]
+
+
 class ProposalSetParams(Params, kw_only=True):
     """Parameters of ``proposal set``."""
 
@@ -618,6 +624,14 @@ OPS = [
         positional=("target",),
         user_only=True,
         summary="Move a run or group into the trash.",
+    ),
+    Op(
+        name="note rm",
+        params=NoteRmParams,
+        impl=f"{W}:note_rm",
+        positional=("note",),
+        user_only=True,
+        summary="Move a note, with the earlier versions it replaced, into the trash.",
     ),
     Op(
         name="gc",

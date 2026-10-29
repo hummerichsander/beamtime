@@ -880,6 +880,9 @@ def timeline_kind(ctx: Context, q: m.Timeline) -> dict[str, Any]:
     ):
         if (types and type_ not in types) or (since and t < since):
             continue
+        # a note removed since the index last looked is gone from the timeline too.
+        if not (ctx.index.logdir / path).is_file():
+            continue
         entry = {
             "t": t,
             "kind": "note",
