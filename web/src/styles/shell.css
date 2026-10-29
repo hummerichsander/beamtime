@@ -264,3 +264,8 @@ table.kv {
   &:hover { background: color-mix(in srgb, var(--bt-bad) 88%, var(--bt-fg)); }
 }
 .locked-why { display: flex; align-items: center; gap: 4px; margin-block-start: 4px; font-family: var(--bt-font-sans); font-style: normal; color: var(--bt-muted); }
+.settings-rows {
+  display: grid; grid-template-columns: 120px minmax(0, 420px); gap: 10px 16px; align-items: center; margin-block: 8px 10px;
+  & select { padding: 4px 8px; border: 1px solid var(--bt-input-border); border-radius: calc(var(--bt-radius) - 4px); background: var(--bt-input-bg); font: inherit; }
+  & .segmented { justify-self: start; }
+}

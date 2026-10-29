@@ -1,5 +1,6 @@
 """The Starlette app: the operations as API, live updates, run files and the frontend."""
 
+import re
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -64,9 +65,10 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
                         body.get("title"),
                         body.get("finding"),
                     )
-                case "note_rm":
-                    # a user command the UI offers its user; agents never use this API.
-                    answer = await run_in_threadpool(call, "note rm", body, ctx)
+                case "note_rm" | "set":
+                    # user commands the UI offers its user (deleting a note, its settings page);
+                    # agents never use this API.
+                    answer = await run_in_threadpool(call, method.replace("_", " "), body, ctx)
                 case "view_text":
                     from beamtime.ops.views import edit_text
 
@@ -80,7 +82,8 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
                 case "figure":
                     from beamtime.views.figure import pdf
 
-                    content = await run_in_threadpool(pdf, body)
+                    styles = list(ctx.settings.get("figure_style") or [])
+                    content = await run_in_threadpool(pdf, body, styles)
                     return Response(content, media_type="application/pdf")
                 case "summary":
                     answer = await run_in_threadpool(summary_of, ctx, body.get("path", "."))
@@ -173,7 +176,8 @@ def meta(ctx: Context) -> dict[str, Any]:
 
     :param ctx: The operation context.
     :return: The answer."""
-    from beamtime.views.theme import pair
+    from beamtime.ops.admin import figure_styles
+    from beamtime.views.theme import available, pair
 
     return {
         "kind": "meta",
@@ -185,6 +189,14 @@ def meta(ctx: Context) -> dict[str, Any]:
         # a frontend rebuilt after the server started (an editable install) may call
         # methods this server doesn't know yet; the shell then asks for a restart.
         "outdated": (STATIC / "app.js").is_file() and (STATIC / "app.js").stat().st_mtime > STARTED,
+        "settings": {
+            "theme": ctx.settings.get("theme"),
+            "theme_mode": ctx.settings.get("theme_mode"),
+            "figure_style": ctx.settings.get("figure_style"),
+            "file": str(ctx.root / "beamtime.yaml"),
+        },
+        "themes": sorted({re.sub(r"-(light|dark)$", "", n) for n in available(ctx.root)}),
+        "figure_styles": figure_styles(),
     }
 
 

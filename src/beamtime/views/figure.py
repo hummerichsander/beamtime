@@ -1,17 +1,19 @@
-"""Vector PDF figures of charts, drawn with matplotlib in the scienceplots style.
+"""Vector PDF figures of charts, drawn with matplotlib in the project's style sheets.
 
-The web UI sends what a chart shows (its curves, points, bars or histograms, already smoothed,
-filtered and colored in the light theme); this module only draws. It needs the ``figures`` extra."""
+The web UI sends what a chart shows (its curves, points, bars or histograms, already smoothed and
+filtered); this module only draws, entirely in the style sheets of the ``figure_style`` setting
+(scienceplots' ``[science, nature]`` by default): size, fonts, line widths and the color cycle all
+come from them. It needs the ``figures`` extra."""
 
 import io
 import math
+import shutil
 from typing import Any, Literal
 
 import msgspec
 
 from beamtime.ops.context import OpError
 
-SIZE = (3.3, 2.5)
 LEGEND_MAX = 12
 Scale = Literal["linear", "log", "symlog"]
 
@@ -32,10 +34,11 @@ class Figure(msgspec.Struct, kw_only=True):
     fit: dict[str, Any] | None = None
 
 
-def pdf(data: dict[str, Any]) -> bytes:
+def pdf(data: dict[str, Any], styles: list[str]) -> bytes:
     """Draw a chart as a PDF.
 
     :param data: The figure as the UI sends it.
+    :param styles: Style sheets for ``plt.style.use``, e.g. ``["science", "nature"]``.
     :return: The PDF."""
     try:
         import matplotlib
@@ -53,8 +56,14 @@ def pdf(data: dict[str, Any]) -> bytes:
         fig_spec = msgspec.convert(data, Figure)
     except msgspec.ValidationError as e:
         raise OpError(f"figure: {e}", code=2) from None
-    with plt.style.context(["science", "nature", "no-latex"]):
-        fig, ax = plt.subplots(figsize=SIZE)
+    unknown = [x for x in styles if x not in plt.style.available]
+    if unknown:
+        raise OpError(f"figure_style: unknown style(s) {', '.join(unknown)}", code=3)
+    # science renders text with LaTeX; where there is none, scienceplots' no-latex sheet stands in.
+    if "science" in styles and "no-latex" not in styles and shutil.which("latex") is None:
+        styles = [*styles, "no-latex"]
+    with plt.style.context(styles):
+        fig, ax = plt.subplots()
         match fig_spec.kind:
             case "line":
                 line(ax, fig_spec)
@@ -80,9 +89,10 @@ def line(ax: Any, f: Figure) -> None:
     :param f: The figure."""
     for s in f.series:
         x = s["x"]
-        ax.plot(x, nums(s["y"]), color=s.get("color"), label=s.get("label"))
+        (drawn,) = ax.plot(x, nums(s["y"]), label=s.get("label"))
         if s.get("lo") and s.get("hi"):
-            ax.fill_between(x, nums(s["lo"]), nums(s["hi"]), color=s.get("color"), alpha=0.2, lw=0)
+            # a band is a range, not a style: it takes its line's color, faint.
+            ax.fill_between(x, nums(s["lo"]), nums(s["hi"]), color=drawn.get_color(), alpha=0.2)
 
 
 def scatter(ax: Any, f: Figure) -> None:
@@ -93,9 +103,9 @@ def scatter(ax: Any, f: Figure) -> None:
     for s in f.series:
         err = s.get("err") or []
         yerr = [e or 0 for e in err] if any(err) else None
-        ax.errorbar(s["x"], s["y"], yerr=yerr, fmt="o", color=s.get("color"), label=s.get("label"))
+        ax.errorbar(s["x"], s["y"], yerr=yerr, fmt="o", label=s.get("label"))
     if f.fit:
-        ax.plot(f.fit["x"], f.fit["y"], ls="--", color="0.5")
+        ax.plot(f.fit["x"], f.fit["y"], label="fit")
 
 
 def bar(ax: Any, f: Figure) -> None:
@@ -115,7 +125,7 @@ def bar(ax: Any, f: Figure) -> None:
             below = [v - a for v, a in zip(values, lo, strict=True)]
             above = [b - v for v, b in zip(values, hi, strict=True)]
             yerr = [[0.0 if math.isnan(e) else max(0.0, e) for e in row] for row in (below, above)]
-        ax.bar(xs, values, width * 0.9, yerr=yerr, color=g.get("colors"), label=g.get("label"))
+        ax.bar(xs, values, width * 0.9, yerr=yerr, label=g.get("label"))
     ax.set_xticks(range(len(f.categories)), f.categories)
 
 
@@ -126,9 +136,8 @@ def histogram(ax: Any, f: Figure) -> None:
     :param f: The figure."""
     for s in f.series:
         edges = [*s["start"], s["end"][-1]]
-        alpha = 0.25 if len(f.series) == 1 else 0.1
-        ax.stairs(s["count"], edges, color=s.get("color"), label=s.get("label"))
-        ax.stairs(s["count"], edges, color=s.get("color"), fill=True, alpha=alpha)
+        outline = ax.stairs(s["count"], edges, label=s.get("label"))
+        ax.stairs(s["count"], edges, color=outline.get_edgecolor(), fill=True, alpha=0.15)
 
 
 def axes(ax: Any, f: Figure) -> None:

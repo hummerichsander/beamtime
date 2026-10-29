@@ -383,7 +383,8 @@ with hundreds of runs and thousands of points per curve.
 - **Interactions** (synced crosshair, hover focus, legend toggles, zoom with exact refetch, smoothing,
   aggregation, settings per chart and per view) are described in [layer 7](07-web-ui.md#charts).
 - **Figures** leave in the light theme: PNG on a transparent or white background, CSV, and a
-  vector PDF drawn by the server with matplotlib in the scienceplots style (the `figures` extra).
+  vector PDF drawn by the server with matplotlib in the project's `figure_style` style sheets
+  (scienceplots' `[science, nature]` by default; the `figures` extra).
 - Wave-1 widgets beyond curves (`scatter`, `bar`, `histogram`) use uPlot's point and bar paths.
 
 ## Theme

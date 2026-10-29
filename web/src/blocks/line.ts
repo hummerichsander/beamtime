@@ -218,7 +218,7 @@ function Chart(props: {
     const t = light();
     if (!t || !theme || !smoothed) return;
     const band = (smoothed.aggregated || smoothed.curves.length === 1) && prefs.band !== "none";
-    const series = smoothed.curves.map((c, i) => ({ c, color: recolor(palette[i], theme, t) })).filter(({ c }) => isShown(c));
+    const series = smoothed.curves.filter(isShown);
     setProblem(null);
     try {
       await pdf({
@@ -228,7 +228,7 @@ function Chart(props: {
         ylabel: named,
         yscale: prefs.scale,
         ylim: [prefs.ymin ?? null, prefs.ymax ?? null],
-        series: series.map(({ c, color }) => ({ label: c.label, color, x: c.x, y: c.y, ...(band ? { lo: c.lo, hi: c.hi } : {}) })),
+        series: series.map((c) => ({ label: c.label, x: c.x, y: c.y, ...(band ? { lo: c.lo, hi: c.hi } : {}) })),
       }, fileName(title, "pdf"));  // prettier-ignore
     } catch (err) {
       setProblem((err as Error).message);

@@ -70,3 +70,9 @@ export async function editText(path: string, id: string | null, text: string): P
 
 // the text panel just added, which opens ready to type.
 export const fresh = new Store<string | null>(null);
+
+// a setting from the UI goes into the project's beamtime.yaml; the shell then reloads its meta.
+export async function saveSetting(key: "theme" | "theme_mode" | "figure_style", value: unknown): Promise<any> {
+  await post("set", { key, value });
+  return post("meta");
+}

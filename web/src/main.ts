@@ -4,10 +4,10 @@ import { render } from "preact";
 import { html } from "htm/preact";
 
 import { busy, connect, post } from "./api.ts";
-import { applyTheme, mode, pair } from "./bt/index.ts";
+import { mode } from "./bt/index.ts";
 import { listen, rendering } from "./router.ts";
 import { App } from "./shell/app.ts";
-import { meta } from "./shell/ui.ts";
+import { applyMeta } from "./shell/settings.ts";
 import { installTips } from "./ui/tip.ts";
 import "./styles/index.css";
 
@@ -23,8 +23,8 @@ if (rendering) {
 }
 installTips();
 post("meta").then((m) => {
-  meta.set(m);
-  pair.set(m.theme);
-  applyTheme();
+  // the renderer's theme wins over the project's mode.
+  if (rendering) m = { ...m, settings: { ...m.settings, theme_mode: mode.value } };
+  applyMeta(m);
 });
 render(html`<${App} />`, document.getElementById("app")!);

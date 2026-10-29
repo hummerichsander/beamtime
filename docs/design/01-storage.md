@@ -83,6 +83,8 @@ Settings work like VS Code's: user settings are the default for every project, a
   schema: 1
   logdir: beamtime
   theme: beamtime
+  theme_mode: system            # system, light or dark
+  figure_style: [science, nature]   # matplotlib style sheets for PDF figures, as for plt.style.use
   remotes:
     cluster: {path: /scratch/{user}/proj/beamtime}
   ```
@@ -90,7 +92,9 @@ Settings work like VS Code's: user settings are the default for every project, a
 - Both files have the same schema. A key that only makes sense in one of them (`logdir` in the
   project) is reported when it appears in the other.
 - `beamtime settings` shows the effective settings and, for each value, which level it came from.
-- The theme a viewer picks in the web UI is stored in their browser and wins for that viewer.
+- Settings changed in the web UI (theme, mode, figure styles) are written to the project's
+  `beamtime.yaml` with `beamtime set <key> <value>`, a user command; the file keeps its other keys
+  and comments.
 
 ## Folders
 

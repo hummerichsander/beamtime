@@ -310,6 +310,11 @@ the top, it is edited in place, and emptying it removes it; each change is a new
 grid, each block has a handle to drag it elsewhere and a width (1, 2 or all columns); the order and
 widths are the viewer's until "Save as view" writes them into the view.
 
+The **settings page** (`/settings`) sets the project's theme, mode (system, light, dark; also the
+top bar's toggle) and figure style sheets (an ordered multi-select of matplotlib's and scienceplots'
+sheets). Every change is written to the project's `beamtime.yaml` (`beamtime set`), which the page
+names.
+
 The **timeline** (`/timeline`, `?from=<group>`, the clock in the top bar) draws runs as bars from
 start to end, colored by status, and notes as marks above them. The wheel zooms around the pointer,
 dragging pans, buttons pick the last day, week, month or everything; clicking a run opens it,
@@ -349,9 +354,11 @@ Line charts behave like W&B's panels:
 - **Adding charts**: the last cell of a grid of curves picks a metric for a new chart.
 - **Tools on hover**: settings, download, expand into a large dialog.
 - **Downloads** never use the viewer's theme: PNG in the light theme on a transparent or a white
-  background, CSV of the shown curves, and PDF drawn by the server with matplotlib in the
-  scienceplots style (3.3 × 2.5 in, vector). PDF needs the `figures` extra; without it the menu
-  says how to install it.
+  background, CSV of the shown curves, and a vector PDF drawn by the server with matplotlib, entirely
+  in the style sheets of the `figure_style` setting (`[science, nature]` by default, used as with
+  `plt.style.use`): size, fonts, line widths and colors come from them, not from the UI. Without LaTeX,
+  `no-latex` is added for `science`. PDF needs the `figures` extra; without it the menu says how to
+  install it.
 
 Settings, added charts and hidden runs are kept per viewer in the browser, by group; "reset this
 chart" returns to the view's defaults, and "Save as view" writes them into the view.

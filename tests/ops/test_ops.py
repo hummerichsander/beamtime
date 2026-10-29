@@ -232,3 +232,23 @@ def test_naming_a_run(ctx: Context, roles: dict) -> None:
     assert rows[0][1] == "warmup baseline"
     with pytest.raises(OpError, match="groups are renamed"):
         call("name", {"run": "scaling", "name": "x"}, ctx)
+
+
+def test_set_writes_beamtime_yaml_and_keeps_the_rest(ctx: Context, project: Path) -> None:
+    """Settings from the UI land in beamtime.yaml; other keys and comments stay."""
+    path = project / "beamtime.yaml"
+    path.write_text("schema: 1\n# where runs go\nlogdir: beamtime\nfigure_style:\n  - science\n")
+    call("set", {"key": "figure_style", "value": "[science, ieee]"}, ctx)
+    call("set", {"key": "theme_mode", "value": "dark"}, ctx)
+    text = path.read_text()
+    assert "# where runs go\nlogdir: beamtime\n" in text
+    assert "figure_style: [science, ieee]\n" in text and text.count("figure_style") == 1
+    assert ctx.settings.get("figure_style") == ["science", "ieee"]
+    assert ctx.settings.get("theme_mode") == "dark"
+    with pytest.raises(OpError, match="theme_mode is"):
+        call("set", {"key": "theme_mode", "value": "sepia"}, ctx)
+    with pytest.raises(OpError, match="no theme"):
+        call("set", {"key": "theme", "value": "nope"}, ctx)
+    if pytest.importorskip("scienceplots"):
+        with pytest.raises(OpError, match="unknown style"):
+            call("set", {"key": "figure_style", "value": ["science", "nope"]}, ctx)

@@ -60,16 +60,16 @@ def test_view_answers_are_not_cut(api) -> None:
 
 def test_errors_and_user_only_operations(api) -> None:
     """Operation errors keep their code; user-only operations are not in the API, except those
-    the web UI offers its user (deleting a note)."""
+    the web UI offers its user (deleting a note, its settings)."""
     r = api("runs", **{"from": "nowhere"})
     assert r.status_code == 404 and "no group" in r.json()["error"]
     r = api("runs", bogus=1)
     assert r.status_code == 400
     user_only = [op.tool for op in OPS if op.user_only]
     assert {"serve", "demo", "rm", "gc", "mv"} <= set(user_only)
-    for method in set(user_only) - {"note_rm"}:
+    for method in set(user_only) - {"note_rm", "set"}:
         assert api(method).status_code == 404, method
-    assert api("note_rm").status_code == 400
+    assert api("note_rm").status_code == 400 and api("set").status_code == 400
 
 
 def test_view_of_groups_and_runs(api, roles: dict[str, str]) -> None:
@@ -174,7 +174,18 @@ def test_save_view_from_the_ui(api, project: Path) -> None:
 def test_figures_are_pdfs(api, figure: dict) -> None:
     """Every chart kind is drawn as a vector PDF."""
     pytest.importorskip("scienceplots")
-    r = api("figure", **figure)
+    r = api("figure", **figure)  # drawn in the project's figure_style, [science, nature]
     assert r.status_code == 200, r.text
     assert r.headers["content-type"] == "application/pdf" and r.content.startswith(b"%PDF")
     assert api("figure", kind="pie").status_code == 400
+
+
+def test_meta_lists_settings_and_styles(api) -> None:
+    """The settings page gets the project's settings, themes and figure styles."""
+    pytest.importorskip("scienceplots")
+    m = api("meta").json()
+    assert m["settings"]["figure_style"] == ["science", "nature"]
+    assert "beamtime" in m["themes"] and "science" in m["figure_styles"]
+    assert api("set", key="figure_style", value=["science", "ieee"]).status_code == 200
+    assert api("meta").json()["settings"]["figure_style"] == ["science", "ieee"]
+    assert api("figure", kind="line", series=[{"x": [0, 1], "y": [1, 2]}]).status_code == 200

@@ -313,6 +313,15 @@ class GuideParams(Params, kw_only=True):
     group: Annotated[str | None, msgspec.Meta(description="fill examples with its keys")] = None
 
 
+class SetParams(Params, kw_only=True):
+    """Parameters of ``set``."""
+
+    key: Literal["theme", "theme_mode", "figure_style"]
+    value: Annotated[
+        Any, msgspec.Meta(description="e.g. beamtime, dark, or [science, nature] (YAML)")
+    ]
+
+
 class InitParams(Params, kw_only=True):
     """Parameters of ``init``."""
 
@@ -604,6 +613,14 @@ OPS = [
         impl=f"{A}:settings",
         user_only=True,
         summary="The effective settings and the level each value comes from.",
+    ),
+    Op(
+        name="set",
+        params=SetParams,
+        impl=f"{A}:set_setting",
+        positional=("key", "value"),
+        user_only=True,
+        summary="Set theme, theme_mode or figure_style in this project's beamtime.yaml.",
     ),
     Op(
         name="doctor",

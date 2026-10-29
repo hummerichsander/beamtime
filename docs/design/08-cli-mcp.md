@@ -96,6 +96,7 @@ the user the command ([Policy](#policy)).
 | `beamtime gc` | empties the trash and removes crashed runs without metrics |
 | `beamtime reindex` | rebuilds the index from the files |
 | `beamtime block export <name> <group>`, `beamtime block import <group>` | copy blocks between projects |
+| `beamtime set <key> <value>` | writes `theme`, `theme_mode` or `figure_style` into the project's `beamtime.yaml` (the web UI's settings page does the same) |
 | `beamtime theme list`, `beamtime theme use <name>` | themes ([layer 5](05-views.md#theme)) |
 
 Internal entry points: `beamtime serve --stdio` (started by a laptop over ssh) and `beamtime mcp` (the

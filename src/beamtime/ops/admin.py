@@ -2,9 +2,11 @@
 
 Agents never run these; they hand the user the command."""
 
+import functools
 import json
 import os
 import platform
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -85,6 +87,62 @@ def settings(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         "problems": ctx.settings.problems,
         "meta": {},
     }
+
+
+def set_setting(ctx: Context, p: r.SetParams) -> dict[str, Any]:
+    """Write one setting into the project's ``beamtime.yaml`` and use it from now on.
+
+    :param ctx: The operation context; its settings are reloaded.
+    :param p: The parameters.
+    :return: What was written where."""
+    import yaml
+
+    from beamtime.settings import load, write_project
+    from beamtime.views.theme import available
+
+    value = yaml.safe_load(p.value) if isinstance(p.value, str) else p.value
+    match p.key:
+        case "theme":
+            # a pair is chosen by its name without -light or -dark.
+            names = sorted({re.sub(r"-(light|dark)$", "", n) for n in available(ctx.root)})
+            if value not in names:
+                raise OpError(f"no theme {value!r}; themes: {', '.join(names)}", code=2)
+        case "theme_mode":
+            if value not in ("system", "light", "dark"):
+                raise OpError("theme_mode is system, light or dark", code=2)
+        case "figure_style":
+            if isinstance(value, str):
+                value = [value]
+            if (
+                not isinstance(value, list)
+                or not value
+                or not all(isinstance(v, str) for v in value)
+            ):
+                raise OpError(
+                    "figure_style is a list of style names, e.g. [science, nature]", code=2
+                )
+            if (known := figure_styles()) and (unknown := [v for v in value if v not in known]):
+                raise OpError(
+                    f"unknown style(s) {', '.join(unknown)}; styles: {', '.join(known)}", code=2
+                )
+        case other:
+            raise ValueError(f"no setting {other!r}")
+    path = write_project(ctx.root, p.key, value)
+    ctx.settings = load(ctx.root)
+    return answer("set", [f"{p.key}: {value} in {path}"], key=p.key, value=value)
+
+
+@functools.cache
+def figure_styles() -> list[str]:
+    """List the matplotlib style sheets figures can use, scienceplots' included.
+
+    :return: Style names, or an empty list without the figures extra."""
+    try:
+        import matplotlib.pyplot as plt
+        import scienceplots  # noqa: F401
+    except ImportError:
+        return []
+    return sorted(s for s in plt.style.available if not s.startswith("_"))
 
 
 def doctor(ctx: Context, p: r.NoParams) -> dict[str, Any]:

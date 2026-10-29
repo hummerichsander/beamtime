@@ -7,7 +7,17 @@ from typing import Any, Literal
 
 Level = Literal["built-in", "user", "project", "flag"]
 
-DEFAULTS: dict[str, Any] = {"logdir": "beamtime", "theme": "beamtime", "remotes": {}}
+DEFAULTS: dict[str, Any] = {
+    "logdir": "beamtime",
+    "theme": "beamtime",
+    # system, light or dark: the web UI's mode, unless a viewer picks another for themselves.
+    "theme_mode": "system",
+    # matplotlib style sheets for figures (scienceplots' and matplotlib's), as for plt.style.use.
+    "figure_style": ["science", "nature"],
+    "remotes": {},
+}
+# what `beamtime set` (and the web UI's settings page) may write into beamtime.yaml.
+SETTABLE = ("theme", "theme_mode", "figure_style")
 REMOTE_KEYS = ("host", "command", "cache", "path")
 PROJECT_ONLY = ("logdir",)
 
@@ -80,6 +90,17 @@ def read_level(path: Path, level: Level, problems: list[str]) -> dict[str, Any]:
         elif level == "user" and key in PROJECT_ONLY:
             problems.append(f"{path}: {key!r} belongs in the project's beamtime.yaml; ignored")
             del data[key]
+    if "figure_style" in data and not (
+        isinstance(data["figure_style"], list)
+        and all(isinstance(x, str) for x in data["figure_style"])
+    ):
+        problems.append(
+            f"{path}: figure_style is a list of style names, e.g. [science, nature]; ignored"
+        )
+        del data["figure_style"]
+    if data.get("theme_mode", "system") not in ("system", "light", "dark"):
+        problems.append(f"{path}: theme_mode is system, light or dark; ignored")
+        del data["theme_mode"]
     for name, remote in (data.get("remotes") or {}).items():
         if not isinstance(remote, dict):
             problems.append(f"{path}: remote {name!r} must be a mapping")
@@ -151,3 +172,38 @@ def load(root: Path | None, flags: dict[str, Any] | None = None) -> Settings:
         values = merge(values, project, "project", levels)
     values = merge(values, flags or {}, "flag", levels)
     return Settings(values=values, levels=levels, problems=problems)
+
+
+def write_project(root: Path, key: str, value: Any) -> Path:
+    """Set one top-level setting in the project's ``beamtime.yaml``, keeping the rest as written.
+
+    :param root: The project root.
+    :param key: The setting, one of ``SETTABLE``.
+    :param value: Its value.
+    :return: The file."""
+    import re
+
+    import yaml
+
+    path = root / "beamtime.yaml"
+    text = path.read_text() if path.is_file() else "schema: 1\n"
+    # flow style keeps a list on one line ([science, nature]); dumping it inside a list leaves the
+    # value without YAML's document end marker.
+    flow = yaml.safe_dump([value], default_flow_style=True, allow_unicode=True).strip()
+    entry = f"{key}: {flow[1:-1]}\n"
+    lines = text.splitlines(keepends=True)
+    start = next(
+        (i for i, line in enumerate(lines) if re.match(rf"{re.escape(key)}\s*:", line)), None
+    )
+    if start is None:
+        text = text + ("" if text.endswith("\n") else "\n") + entry
+    else:
+        # the key's block: its line and the indented or blank lines after it.
+        end = start + 1
+        while end < len(lines) and (
+            lines[end].startswith((" ", "\t", "-")) or not lines[end].strip()
+        ):
+            end += 1
+        text = "".join([*lines[:start], entry, *lines[end:]])
+    path.write_text(text)
+    return path

@@ -53,3 +53,5 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# scienceplots registers its styles with functions matplotlib 3.11 deprecates; not ours to fix.
+filterwarnings = ["ignore::DeprecationWarning:scienceplots"]

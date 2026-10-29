@@ -94,8 +94,7 @@ export function Scatter({ node }: { node: Node }) {
       onClick: (key) => navigate(groupUrl(view.path, { run: key }), { replace: true }),
     };
   };
-  const figure = (t: Theme) => {
-    const byValue = p.color ? groupColors(pts.map((q) => q.color), t) : null;
+  const figure = () => {
     const groups = new Map<string, Point[]>();
     for (const q of pts) groups.set(JSON.stringify(q.color), [...(groups.get(JSON.stringify(q.color)) ?? []), q]);
     const line = p.fit ? fit(pts, p.fit) : null;
@@ -108,7 +107,6 @@ export function Scatter({ node }: { node: Node }) {
       yscale: p.y_scale,
       series: [...groups.entries()].map(([k, qs]) => ({
         label: p.color ? `${label(p.color)}=${value(JSON.parse(k))}` : null,
-        color: byValue?.get(k) ?? t.data.categorical[0],
         x: qs.map((q) => q.x),
         y: qs.map((q) => q.y),
         err: qs.map((q) => q.err),
@@ -185,8 +183,7 @@ export function BarBlock({ node }: { node: Node }) {
       },
     };
   };
-  const figure = (t: Theme) => {
-    const byValue = groupColors(p.by ? groups : cats.map(numberOr), t);
+  const figure = () => {
     return {
       kind: "bar",
       xlabel: label(p.x),
@@ -196,7 +193,6 @@ export function BarBlock({ node }: { node: Node }) {
         const of = (c: string) => items.find((b) => b.label === c && b.group === g) ?? null;
         return {
           label: p.by ? `${label(p.by)}=${g}` : null,
-          colors: cats.map((c) => byValue.get(JSON.stringify(p.by ? g : numberOr(c))) ?? t.data.categorical[0]),
           value: cats.map((c) => of(c)?.value ?? null),
           lo: cats.map((c) => (p.error === "none" ? null : of(c)?.lo ?? null)),
           hi: cats.map((c) => (p.error === "none" ? null : of(c)?.hi ?? null)),
@@ -220,11 +216,11 @@ export function HistogramBlock({ node }: { node: Node }) {
     const c = colors.get(run);
     return c && page ? recolor(c, page, t) : t.data.categorical[i % t.data.categorical.length];
   };
-  const figure = (t: Theme) => ({
+  const figure = () => ({
     kind: "histogram",
     xlabel: node.props.key,
     ylabel: "count",
-    series: hs.map((h, i) => ({ label: view.names.get(h.run) ?? h.run, color: runColor(h.run, i, t), start: h.start, end: h.end, count: h.count })),
+    series: hs.map((h) => ({ label: view.names.get(h.run) ?? h.run, start: h.start, end: h.end, count: h.count })),
   });
   const make = (theme: Theme): PlotSpec | null => {
     const xr = extent(hs.flatMap((h) => [...h.start, ...h.end]), false, 0);

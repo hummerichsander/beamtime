@@ -5,12 +5,13 @@ import { useEffect, useState } from "preact/hooks";
 
 import { connection, paused, updated, useCall } from "../api.ts";
 import { rows } from "../blocks/common.ts";
-import { mode, setMode } from "../bt/index.ts";
+import { mode } from "../bt/index.ts";
 import { ago } from "../bt/fmt.ts";
 import { route } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
 import { IconButton } from "../ui/primitives.ts";
+import { change } from "./settings.ts";
 import { timelineUrl } from "./timeline.ts";
 import * as calls from "./calls.ts";
 import { lastVisit, meta, palette, sidebar } from "./ui.ts";
@@ -32,7 +33,7 @@ export function TopBar() {
     <div class="topbar-actions">
       <span class="source" data-tip="Sources: this machine. Remote sources come later."><${Icon} name="server" size=${15} /> local</span>
       <${IconButton} icon=${MODE_ICON[m]} label=${`Theme: ${m === "system" ? "follows the system" : m} (switch to ${NEXT[m]})`}
-        onClick=${() => setMode(NEXT[m])} />
+        onClick=${() => void change("theme_mode", NEXT[m])} />
       <a class="icon-button" href=${timelineUrl(route.value.page === "group" ? route.value.path : ".")} aria-label="Timeline"
         data-tip="Timeline of runs and notes"><${Icon} name="clock" size=${16} /></a>
       <a class="icon-button" href="/settings/appearance" aria-label="Settings" data-tip="Settings"><${Icon} name="settings" size=${16} /></a>
