@@ -84,25 +84,12 @@ export function setScroller(get: () => HTMLElement | null): void {
 export function navigate(url: string, opts: { replace?: boolean } = {}): void {
   const el = scroller();
   if (el) scrolls.set(location.pathname + location.search, el.scrollTop);
-  const swap = () => {
-    if (opts.replace) history.replaceState(null, "", url);
-    else history.pushState(null, "", url);
-    route.set(parse(location.pathname, location.search));
-    if (!opts.replace && el) el.scrollTop = 0;
-  };
-  // only page changes cross-fade; drawer and selection changes (replace) are instant.
-  if (opts.replace || !document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    swap();
-    if (!opts.replace) requestAnimationFrame(focusPage);
-    return;
-  }
-  // frames are paused while the transition updates the DOM, so wait for Preact's render (a
-  // microtask) with a task, never with requestAnimationFrame, or the transition times out.
-  const t = document.startViewTransition(async () => {
-    swap();
-    await new Promise((r) => setTimeout(r, 0));
-  });
-  void t.finished.then(focusPage);
+  if (opts.replace) history.replaceState(null, "", url);
+  else history.pushState(null, "", url);
+  route.set(parse(location.pathname, location.search));
+  if (opts.replace) return;
+  if (el) el.scrollTop = 0;
+  requestAnimationFrame(focusPage);
 }
 
 // after a page change, focus goes to the new heading, unless it stayed somewhere still on screen

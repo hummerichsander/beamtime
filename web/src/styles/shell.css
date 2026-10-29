@@ -79,7 +79,7 @@
 .live-dot.paused { background: var(--bt-subtle); box-shadow: none; }
 
 /* the page: a notebook column; charts and tables may use the full width */
-.page { max-inline-size: 1280px; margin-inline: auto; padding: 30px 44px 56px; view-transition-name: page; }
+.page { max-inline-size: 1280px; margin-inline: auto; padding: 30px 44px 56px; }
 @media (width < 700px) { .page { padding: 18px 16px 40px; } }
 
 .header { margin-block-end: 30px; max-inline-size: var(--bt-column, 900px); }
@@ -192,13 +192,6 @@ table.kv {
   & td, & th { padding: 3px 14px 3px 0; vertical-align: top; text-align: start; font-weight: 400; }
   & th { color: var(--bt-muted); }
   & td.num, & th.num { text-align: end; font-variant-numeric: tabular-nums; }
-}
-
-/* view transitions: only the page cross-fades; the shell stays put */
-::view-transition-old(root), ::view-transition-new(root) { animation: none; }
-::view-transition-old(page), ::view-transition-new(page) { animation-duration: 140ms; }
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
 
 /* where the view comes from, and saving the viewer's charts as a view */
