@@ -1,5 +1,6 @@
 """The Starlette app: the operations as API, live updates, run files and the frontend."""
 
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from importlib.metadata import version
@@ -27,6 +28,7 @@ from beamtime.serve.live import Hub
 
 STATIC = Path(__file__).parent / "static"
 STATUS = {1: 400, 2: 400, 3: 422, 4: 404}
+STARTED = time.time()
 
 
 def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
@@ -62,9 +64,9 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
                         body.get("title"),
                         body.get("finding"),
                     )
-                case "note_rm" | "mv":
-                    # user commands the UI offers its user; agents never use this API.
-                    answer = await run_in_threadpool(call, method.replace("_", " "), body, ctx)
+                case "note_rm":
+                    # a user command the UI offers its user; agents never use this API.
+                    answer = await run_in_threadpool(call, "note rm", body, ctx)
                 case "view_text":
                     from beamtime.ops.views import edit_text
 
@@ -180,6 +182,9 @@ def meta(ctx: Context) -> dict[str, Any]:
         "logdir": str(ctx.logdir),
         "version": version("beamtime"),
         "theme": pair(str(ctx.settings.get("theme") or "beamtime"), ctx.root),
+        # a frontend rebuilt after the server started (an editable install) may call
+        # methods this server doesn't know yet; the shell then asks for a restart.
+        "outdated": (STATIC / "app.js").is_file() and (STATIC / "app.js").stat().st_mtime > STARTED,
     }
 
 

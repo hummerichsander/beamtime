@@ -2,6 +2,7 @@
 // the old one, an edited memory or proposal a new version. The author is the local account.
 
 import { type Call, invalidate, post } from "../api.ts";
+import { Store } from "../state.ts";
 
 // a group's answers that a write below or at `group` makes stale.
 function refresh(group: string, methods: string[]): void {
@@ -54,14 +55,6 @@ export async function deleteNote(note: any): Promise<void> {
   refresh(note.group, NOTE_ANSWERS);
 }
 
-// a group is renamed by moving it (the old path keeps resolving); the page follows it.
-export async function renameGroup(path: string, name: string): Promise<string> {
-  const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
-  const answer = await post("mv", { source: path, to: parent ? `${parent}/${name}` : name });
-  invalidate(() => true);
-  return answer.path;
-}
-
 // a run keeps its id; the name it shows is a new version.
 export async function renameRun(run: string, scope: string, name: string): Promise<void> {
   await post("name", { run, name });
@@ -69,7 +62,11 @@ export async function renameRun(run: string, scope: string, name: string): Promi
 }
 
 // a text panel of the page's view: added (id null), edited, or removed (empty text); each a version.
-export async function editText(path: string, id: string | null, text: string): Promise<void> {
-  await post("view_text", { path, id, text });
+export async function editText(path: string, id: string | null, text: string): Promise<string> {
+  const answer = await post("view_text", { path, id, text });
   invalidate((c: Call) => ["view", "view_history"].includes(c.method) && c.scope === path);
+  return answer.id;
 }
+
+// the text panel just added, which opens ready to type.
+export const fresh = new Store<string | null>(null);

@@ -125,8 +125,9 @@ def shown(
     :param version: A saved version to show instead of the newest.
     :param draft_name: A draft to show, for the renderer.
     :return: ``{view, source, version, author, user, title, finding, metrics, versions}``."""
+    from beamtime.format.ids import is_run_id
     from beamtime.views.compile import compile_view
-    from beamtime.views.defaults import default_view, node
+    from beamtime.views.defaults import default_view, node, record
 
     files = saved(ctx, path)
     out: dict[str, Any] = {"source": "default", "version": None, "versions": len(files)}
@@ -149,8 +150,14 @@ def shown(
         notice = node("note", "invalid-view", kind="warning", text=f"{e} Showing the default view.")
         tree["children"].insert(0, notice)
         return out | {"view": tree, "source": "default", "invalid": str(e)}
+    tree = compile_view(view, path=path, draft=draft_name)
+    # every page shows its notes and memory; a view only decides where, by including them.
+    blocks = {n.get("block") for n in walk_tree(tree)}
+    leaf = path.rsplit("/", 1)[-1]
+    tree["children"] += [n for n in record(path, leaf if is_run_id(leaf) else None)
+                         if n["block"] not in blocks]  # fmt: skip
     return out | {
-        "view": compile_view(view, path=path, draft=draft_name),
+        "view": tree,
         "author": view.author,
         "user": view.user,
         "title": view.title,
@@ -177,3 +184,11 @@ def lead(ctx: Context, path: str) -> tuple[str, bool] | None:
         given = info.higher_is_better
         return metric, (lower_is_better(metric) if given is None else not given)
     return None
+
+
+def walk_tree(t: dict[str, Any]) -> list[dict[str, Any]]:
+    """List a block tree's nodes, depth first.
+
+    :param t: The root.
+    :return: Every node."""
+    return [t, *(x for k in t.get("children", []) for x in walk_tree(k))]

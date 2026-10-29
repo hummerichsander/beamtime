@@ -5,6 +5,8 @@ import type { ComponentChildren } from "preact";
 import { html } from "htm/preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 
+import { Icon } from "./icons.ts";
+
 export function Editable(props: {
   value: string;
   onSave: (value: string) => Promise<unknown>;
@@ -31,11 +33,16 @@ export function Editable(props: {
   useEffect(() => {
     if (!editing || !field.current) return;
     field.current.focus();
-    field.current.setSelectionRange(field.current.value.length, field.current.value.length);
+    // a field opened for a new text has its placeholder selected, to type over it.
+    if (props.startEditing) field.current.select();
+    else field.current.setSelectionRange(field.current.value.length, field.current.value.length);
   }, [editing]);
 
+  const [explained, setExplained] = useState(false);
   const start = (e: MouseEvent | KeyboardEvent) => {
-    if (props.locked || (e.target as Element).closest("a, button, input, summary")) return;
+    if ((e.target as Element).closest("a, button, input, summary")) return;
+    // a text that can't change says why when clicked, instead of ignoring the click.
+    if (props.locked) return setExplained(true);
     e.preventDefault();
     setDraft(saving ?? props.value);
     setError(null);
@@ -89,9 +96,10 @@ export function Editable(props: {
   }
   const shown = saving ?? props.value;
   return html`<div class=${`editable${props.locked ? " locked" : ""}${saving !== null ? " saving" : ""} ${props.class ?? ""}`}
-      tabindex=${props.locked ? undefined : 0} role=${props.locked ? undefined : "button"}
-      aria-label=${props.locked ? undefined : `Edit ${props.label}`} data-tip=${props.locked}
-      onClick=${start} onKeyDown=${(e: KeyboardEvent) => e.key === "Enter" && e.target === e.currentTarget && start(e)}>
-    ${shown ? (props.render ? props.render(shown) : shown) : html`<span class="subtle">${props.placeholder ?? "Click to write"}</span>`}
+      tabindex=${0} role="button" aria-label=${props.locked ? `${props.label}: ${props.locked}` : `Edit ${props.label}`}
+      data-tip=${props.locked} onClick=${start} onBlur=${() => setExplained(false)}
+      onKeyDown=${(e: KeyboardEvent) => e.key === "Enter" && e.target === e.currentTarget && start(e)}>
+    ${shown.trim() ? (props.render ? props.render(shown) : shown) : html`<span class="subtle">${props.placeholder ?? "Click to write"}</span>`}
+    ${explained && props.locked ? html`<span class="edit-hint locked-why" role="status"><${Icon} name="lock" size=${12} /> ${props.locked}</span>` : null}
   </div>`;
 }

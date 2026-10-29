@@ -128,9 +128,18 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     row = page.locator(".notes .note:has(.note-title:has-text('Try a warmup.'))")
     row.hover()
     row.locator("button[aria-label^='Delete this note']").click()
-    row.locator(".note-confirm button:has-text('yes')").click()
+    row.locator(".note-confirm button:has-text('Delete')").click()
     page.wait_for_selector(".notes .note-title:has-text('Try a warmup.')", state="detached")
     assert list((project / "beamtime" / "_trash").rglob("*.md"))
+
+    # "add text" puts a text panel at the top, open for typing; saving writes a view version.
+    page.goto(f"{base}/f/local/scaling/lr-sweep")
+    page.click(".view-source button:has-text('add text')")
+    page.wait_for_selector(".markdown-block textarea:focus")
+    page.keyboard.type("A *first* look.")
+    page.keyboard.press("ControlOrMeta+Enter")
+    page.wait_for_selector(".markdown-block em:has-text('first')")
+    assert list((project / "beamtime" / "scaling" / "lr-sweep" / "view").glob("*.yaml"))
 
     # the timeline draws runs and notes, and zooms with the wheel.
     page.goto(f"{base}/timeline?from=scaling")

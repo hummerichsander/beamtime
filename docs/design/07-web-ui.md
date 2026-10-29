@@ -288,7 +288,8 @@ it back. Files are never changed ([layer 1](01-storage.md)), so every edit is a 
 | the memory | a new memory version |
 | a proposal's statement | a new proposal version, but only while no run has recorded it; a frozen statement is locked and says how to supersede it |
 
-Every page shows the same Notes block (the notes at or below it; a note from a subgroup or run
+Every page shows the same Notes block, whatever its view (a view that includes `notes` or `memory`
+places them itself) (the notes at or below it; a note from a subgroup or run
 carries its group) and every group its Memory (one per group, rewritten as versions; the newest
 counts; groups above have their own). A help mark on each heading says so. A note can be deleted
 from its line, after a confirmation: the note and the earlier versions it replaced move to the
@@ -297,10 +298,12 @@ trash (`beamtime note rm`, a user command the UI offers its user).
 New notes (observation, idea, question, decision) are added from the Notes heading, in a small form
 with type, title and an optional Markdown body.
 
-A group's or run's title is edited in place too. Renaming a group moves it (`beamtime mv`, a user
-command the UI offers its user); `_moves.jsonl` records the move, so runs, notes and links that name
-the old path still find it. Renaming a run gives it a display name (`beamtime name`), a new version
-in its `name/` folder; its id never changes.
+Every text edited in the UI is a file: a new note, proposal, memory or view version, or a run's
+display name (`beamtime name`, a new version in its `name/` folder; the run id never changes). What
+no file can change is not editable: group names are folder names (`beamtime mv` moves a group from
+the command line), and a frozen proposal's statement says, when clicked, how to supersede it. A text
+that is blank shows its placeholder, so it can always be clicked. When the server is older than the
+page it serves (a rebuild after `beamtime serve` started), the status bar asks for a restart.
 
 Text panels (`markdown` blocks) are written into the view: "add text" under the header puts one at
 the top, it is edited in place, and emptying it removes it; each change is a new view version. In a

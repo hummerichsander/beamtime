@@ -304,3 +304,16 @@ def test_layout_prefs_fold_into_the_view() -> None:
     kids = folded[0]["grid"]["children"]
     assert [next(iter(k.values()))["id"] for k in kids] == ["c", "a", "b"]
     assert kids[1]["line"]["span"] == "full" and "span" not in kids[2]["line"]
+
+
+def test_authored_views_keep_notes_and_memory(ctx: Context) -> None:
+    """A view without notes or memory blocks still shows them, after its own blocks."""
+    from beamtime.ops.views import write_version
+
+    write_version(ctx, SWEEP, m.parse({"body": [{"line": {"y": "val/acc"}}]}, source="t"), None, None)
+    blocks = [n["block"] for n in page_view(ctx, SWEEP)["view"]["children"]]
+    assert blocks == ["line", "memory", "notes"]
+    placed = {"body": [{"notes": {"id": "mine", "limit": 9}}, {"line": {"y": "val/acc"}}]}
+    write_version(ctx, SWEEP, m.parse(placed, source="t"), None, None)
+    blocks = [n["block"] for n in page_view(ctx, SWEEP)["view"]["children"]]
+    assert blocks == ["notes", "line", "memory"]

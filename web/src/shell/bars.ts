@@ -96,6 +96,10 @@ export function StatusBar() {
     ${r.page === "group" && r.run ? html`<span class="status-item"><${Icon} name="activity" size=${14} />1 run selected</span>` : null}
     <${IconButton} icon=${isPaused ? "play" : "pause"} label=${isPaused ? "Resume live updates (p)" : "Pause live updates (p)"}
       pressed=${isPaused} onClick=${() => paused.set(!isPaused)} />
+    ${info?.outdated
+      ? html`<span class="status-item warn-text" data-tip="The page was rebuilt after this server started; some actions need the new server code.">
+          restart <code>beamtime serve</code> to update</span>`
+      : null}
     <span class="status-item subtle">${info?.version ? `beamtime ${info.version}` : ""}</span>
   </footer>`;
 }

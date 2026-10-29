@@ -11,7 +11,7 @@ import { diffLines, fold } from "../bt/diff.ts";
 import { ago } from "../bt/fmt.ts";
 import { runColors, useTheme, ViewCtx } from "../bt/index.ts";
 import { changed, update, usePrefs } from "../bt/prefs.ts";
-import { editText } from "../bt/writes.ts";
+import { editText, fresh } from "../bt/writes.ts";
 import { groupUrl, navigate, route } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
@@ -54,11 +54,24 @@ export function ViewSource(props: { path: string; view: any }) {
     ${history}
     ${v.source === "draft" || old
       ? null
-      : html`<button type="button" class="link small" onClick=${() => void editText(props.path, null, "")}
-            data-tip="Add a text panel at the top of this page's view">
-          <${Icon} name="file-text" size=${14} /> add text</button>
+      : html`<${AddText} path=${props.path} />
         <${SaveView} path=${props.path} view=${v} />`}
   </div>`;
+}
+
+function AddText(props: { path: string }) {
+  const [error, setError] = useState<string | null>(null);
+  const add = async () => {
+    setError(null);
+    try {
+      fresh.set(await editText(props.path, null, ""));
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+  return html`<button type="button" class="link small" onClick=${add} data-tip="Add a text panel at the top of this page's view">
+      <${Icon} name="file-text" size=${14} /> add text</button>
+    ${error ? html`<span class="bad-text small">${error}</span>` : null}`;
 }
 
 // the viewer's chart settings and added charts, the title and the finding, as a new version.

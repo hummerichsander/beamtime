@@ -11,7 +11,7 @@ import { groupUrl, isRunId, navigate, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { Editable } from "../ui/editable.ts";
 import { IconButton, Meter, Popover } from "../ui/primitives.ts";
-import { editStatement, renameGroup, renameRun } from "../bt/writes.ts";
+import { editStatement, renameRun } from "../bt/writes.ts";
 import { symbolFor } from "../ui/symbols.ts";
 import * as calls from "./calls.ts";
 
@@ -34,9 +34,8 @@ export function Header(props: { path: string; finding?: string | null }) {
 function GroupHeader({ path }: { path: string }) {
   const row = rows(useCall(calls.group(path)).data)[0] ?? null;
   const check = useCall(row?.proposal ? calls.check(path) : null).data;
-  // the rationale shows as the statement's tooltip; it is asked for on the first hover.
-  const [curious, setCurious] = useState(false);
-  const shown = useCall(row?.proposal && curious ? calls.proposal(path) : null).data;
+  // the rationale (the statement's tooltip) and whether the statement is frozen.
+  const shown = useCall(row?.proposal ? calls.proposal(path) : null).data;
   const rationale = shown?.proposal?.rationale;
   // runs recorded a frozen version; a changed statement would be a version none of them ran under.
   const frozen = shown?.versions?.find((v: any) => v.version === shown.version)?.frozen
@@ -49,14 +48,10 @@ function GroupHeader({ path }: { path: string }) {
   const [progress, more] = progressText(check?.progress?.text ?? row.progress);
   const ended = ENDED.reduce((n, k) => n + (row[k] ?? 0), 0);
   return html`
-    <h1 class="title" tabindex="-1">${path === "."
-        ? name
-        : html`<${Editable} value=${name} label="the group's name" class="title-edit"
-            onSave=${async (next: string) => navigate(groupUrl(await renameGroup(path, next.trim())), { replace: true })} />`}
-      <${Sym} spec=${symbolFor("research", row.status)} word /></h1>
+    <h1 class="title" tabindex="-1">${name} <${Sym} spec=${symbolFor("research", row.status)} word /></h1>
     ${row.proposal
-      ? html`<div class="statement" onPointerEnter=${() => setCurious(true)} onFocusIn=${() => setCurious(true)}>
-          <${Editable} value=${row.proposal} label="the proposal's statement" locked=${frozen ?? undefined}
+      ? html`<div class="statement">
+          <${Editable} value=${row.proposal} label="the proposal's statement" locked=${shown ? frozen : "Loading the proposal…"}
             render=${(text: string) => html`<span data-tip=${frozen ? undefined : rationale}>${text}</span>`}
             onSave=${(statement: string) => editStatement(path, statement)} />
         </div>`

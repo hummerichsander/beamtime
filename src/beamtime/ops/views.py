@@ -369,7 +369,8 @@ def edit_text(ctx: Context, path: str, node_id: str | None, text: str) -> dict[s
     body = data.get("body") or []
     if node_id is None:
         taken = {props.get("id") for _, props in yaml_walk(body)}
-        body.insert(0, {"markdown": {"id": m.unique("text", taken), "text": text or "Write here."}})
+        node_id = m.unique("text", taken)
+        body.insert(0, {"markdown": {"id": node_id, "text": text or "Write here."}})
         message = "added a text panel in the web UI"
     elif not drop_or_set(body, node_id, text.strip()):
         raise OpError(f"no text panel {node_id!r} in the view of {path}", code=4)
@@ -380,7 +381,9 @@ def edit_text(ctx: Context, path: str, node_id: str | None, text: str) -> dict[s
         view = m.parse(data, source="the page")
     except SchemaError as e:
         raise OpError(str(e), code=3) from None
-    return written(ctx, "view save", write_version(ctx, path, view, None, message), [])
+    return written(ctx, "view save", write_version(ctx, path, view, None, message), []) | {
+        "id": node_id
+    }
 
 
 def drop_or_set(nodes: list[Any], node_id: str, text: str) -> bool:

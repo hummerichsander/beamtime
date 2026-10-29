@@ -5,7 +5,7 @@ import { useContext, useState } from "preact/hooks";
 
 import { useData, ViewCtx, type Node } from "../bt/index.ts";
 import { ago, value } from "../bt/fmt.ts";
-import { addNote, deleteNote, editMemory, editNote, editText } from "../bt/writes.ts";
+import { addNote, deleteNote, editMemory, editNote, editText, fresh } from "../bt/writes.ts";
 import { groupUrl, isRunId, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { Markdown } from "../ui/markdown.ts";
@@ -195,7 +195,7 @@ export function NoteItem(props: { note: any; open?: boolean; scope?: string }) {
   const when = n.id.slice(0, 15).replace(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6Z");
   const author = n.meta?.author;
   return html`<article class=${`note${open ? " open" : ""}`}>
-    <div class="note-line" onClick=${(e: MouseEvent) => !(e.target as Element).closest(".editable, a") && setOpen(!open)}>
+    <div class="note-line" onClick=${(e: MouseEvent) => !(e.target as Element).closest(".editable, a, .note-delete") && setOpen(!open)}>
       <button type="button" class="note-toggle" aria-expanded=${open} aria-label=${open ? "Close the note" : "Open the note"}>
         <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${14} /></button>
       <${Sym} spec=${symbolFor("note", n.type)} />
@@ -205,13 +205,16 @@ export function NoteItem(props: { note: any; open?: boolean; scope?: string }) {
       ${n.state ? html`<span class="tag tone-warn">${n.state}</span>` : null}
       ${from ? html`<a class="note-group" href=${groupUrl(from)} data-tip="from this group">${shortPath(from, props.scope!)}</a>` : null}
       <span class="note-meta">${author ? `${author} · ` : ""}${ago(when)}</span>
-      ${confirming
-        ? html`<span class="note-confirm">delete?
-            <button type="button" class="link small bad-text" onClick=${() => void deleteNote(n)}>yes</button>
-            <button type="button" class="link small" onClick=${() => setConfirming(false)}>no</button></span>`
-        : html`<${IconButton} icon="trash" label="Delete this note (moves it to the trash)" class="note-delete"
-            onClick=${(e: MouseEvent) => { e.stopPropagation(); setConfirming(true); }} />`}
+      <${IconButton} icon="trash" label="Delete this note (moves it to the trash)" class="note-delete" pressed=${confirming}
+        onClick=${(e: MouseEvent) => { e.stopPropagation(); setConfirming(!confirming); }} />
     </div>
+    ${confirming
+      ? html`<div class="note-confirm" role="alertdialog" aria-label="Delete this note?">
+          <span>Delete this note${n.meta?.supersedes ? " and its earlier versions" : ""}? It moves to the trash.</span>
+          <button type="button" class="button danger" onClick=${() => void deleteNote(n)}>Delete</button>
+          <button type="button" class="link small" onClick=${() => setConfirming(false)}>cancel</button>
+        </div>`
+      : null}
     ${open
       ? html`<${Editable} value=${n.body ?? ""} label="the note" multiline class="note-body markdown"
           placeholder="Add details in Markdown" render=${(text: string) => html`<${Markdown} text=${text} />`}
@@ -245,8 +248,9 @@ export function MarkdownBlock({ node }: { node: Node }) {
   const view = useContext(ViewCtx);
   return html`<${Panel} title=${node.props.title} caption=${node.props.caption} class="markdown-block">
     <${Editable} value=${node.props.text ?? ""} label="the text" multiline class="markdown"
+      startEditing=${fresh.value === node.id} onCancel=${() => fresh.set(null)}
       placeholder="Empty: saving removes the panel" render=${(text: string) => html`<${Markdown} text=${text} />`}
-      onSave=${(text: string) => editText(view.path, node.id, text)} />
+      onSave=${(text: string) => { fresh.set(null); return editText(view.path, node.id, text); }} />
   <//>`;
 }
 
