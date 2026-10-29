@@ -85,6 +85,10 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
                     styles = list(ctx.settings.get("figure_style") or [])
                     content = await run_in_threadpool(pdf, body, styles)
                     return Response(content, media_type="application/pdf")
+                case "code":
+                    from beamtime.views.store import code_text
+
+                    answer = await run_in_threadpool(code_text, ctx, body)
                 case "summary":
                     answer = await run_in_threadpool(summary_of, ctx, body.get("path", "."))
                 case "watch":

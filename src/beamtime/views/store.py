@@ -166,6 +166,23 @@ def shown(
     }
 
 
+def code_text(ctx: Context, ref: dict[str, Any]) -> dict[str, Any]:
+    """Read a custom block's code for the page, which posts it into the block's frame.
+
+    :param ctx: The operation context.
+    :param ref: ``{view, path}`` of a saved view, plus ``draft`` for a draft.
+    :return: ``{kind, path, code}``."""
+    rel = str(ref.get("path") or "")
+    if (name := ref.get("draft")) is not None:
+        folder = draft(ctx, str(name)).dir.resolve()
+    else:
+        folder = view_dir(ctx, str(ref.get("view") or ".")).resolve()
+    file = (folder / rel).resolve()
+    if folder / "code" not in file.parents or file.suffix != ".js" or not file.is_file():
+        raise OpError(f"no code file {rel!r} (code files are code/<name>.js)", code=4)
+    return {"kind": "code", "path": rel, "code": file.read_text()}
+
+
 def lead(ctx: Context, path: str) -> tuple[str, bool] | None:
     """Find the lead metric of a page's newest view: the first under ``metrics:``.
 

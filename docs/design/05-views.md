@@ -781,7 +781,7 @@ Decided while building views (milestone M6):
   normalized to it, and errors name the node path (`body[2].children[0].line.y`).
 - **Compiling** turns a view into the same block tree as the built-in default (`{block, id, props,
   data, children}`, with `data` naming API calls), so the frontend renders both alike.
-- **`custom`** is accepted by the schema and shows a notice until custom blocks arrive (M7).
+- **`custom`** was accepted by the schema in M6 and runs since M7 (see above).
 - **Save as view** in the UI writes the charts with their settings (metrics, x axis, smoothing,
   aggregation, band, scale, outliers), the charts a viewer added, and the title and finding, as a
   new version with the local account as author. Hidden runs stay the viewer's own.

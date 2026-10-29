@@ -86,3 +86,24 @@ def test_without_a_browser_the_render_is_skipped(
     assert result["ok"] and not result["render"]["rendered"]
     assert result["render"]["command"] == "uv run playwright install chromium"
     assert any("render skipped" in line for line in result["lines"])
+
+
+def test_custom_blocks_render_in_their_frame(browser_ok, ctx: Context, project: Path) -> None:
+    """The custom example draws in its frame; errors and blank frames are reported."""
+    call("view new", {"group": SWEEP, "from": "custom", "name": "pm"}, ctx)
+    answer = call("view render", {"draft": "pm"}, ctx)
+    assert answer["rendered"], answer
+    assert answer["findings"] == [], answer["findings"]
+    folder = project / ".beamtime" / "drafts" / "pm"
+    (folder / "code" / "throws.js").write_text("export default function render(root) { throw new Error('boom'); }\n")
+    (folder / "code" / "empty.js").write_text("export default function render(root) {}\n")
+    (folder / "view.yaml").write_text("""schema: 1
+finding: x
+body:
+  - custom: {id: throws, code: code/throws.js}
+  - custom: {id: empty, code: code/empty.js}
+  - stat: {title: Runs, aggregate: count}
+""")
+    findings = call("view render", {"draft": "pm"}, ctx)["findings"]
+    assert any(f.get("message", "").startswith("console: [block throws] Error: boom") for f in findings), findings
+    assert {"level": "error", "id": "empty", "block": "custom", "message": "the custom block draws nothing"} in findings

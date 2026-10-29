@@ -16,6 +16,13 @@ CSP = (
     "img-src 'self' data: blob:; connect-src 'self'; frame-src 'self'; worker-src 'self' blob:; "
     "object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 )
+# the custom-block frame: the kit from serve, the block's code from a blob, no requests at all.
+FRAME = "/static/kit/"
+FRAME_CSP = (
+    "default-src 'none'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; "
+    "img-src data: blob:; font-src 'self'; connect-src 'none'; base-uri 'none'; "
+    "form-action 'none'; frame-ancestors 'self'"
+)
 
 
 def load_token(cache: Path) -> str:
@@ -62,7 +69,9 @@ class TokenGuard:
             return
         request = Request(scope)
         path = request.url.path
-        if not path.startswith(PUBLIC):
+        public = path.startswith(PUBLIC)
+        frame = path.startswith(FRAME)
+        if not public:
             if (given := request.query_params.get("token")) is not None and not path.startswith(
                 "/api/"
             ):
@@ -86,10 +95,13 @@ class TokenGuard:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
                 headers += [
-                    (b"content-security-policy", CSP.encode()),
+                    (b"content-security-policy", (FRAME_CSP if frame else CSP).encode()),
                     (b"x-content-type-options", b"nosniff"),
                     (b"referrer-policy", b"no-referrer"),
                 ]
+                # module scripts and fonts in a sandboxed frame (opaque origin) are CORS requests.
+                if public:
+                    headers.append((b"access-control-allow-origin", b"*"))
                 message = message | {"headers": headers}
             await send(message)
 

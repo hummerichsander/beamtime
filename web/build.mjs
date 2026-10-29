@@ -7,7 +7,7 @@ const out = "../src/beamtime/serve/static";
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 await build({
-  entryPoints: { app: "src/main.ts" },
+  entryPoints: { app: "src/main.ts", kit: "src/kit/frame.ts" },
   bundle: true,
   splitting: true,
   format: "esm",
@@ -40,3 +40,5 @@ await build({
   logLevel: "warning",
 });
 await copyFile("src/index.html", `${out}/index.html`);
+await mkdir(`${out}/kit`, { recursive: true });
+await copyFile("src/kit/frame.html", `${out}/kit/frame.html`);

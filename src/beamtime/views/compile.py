@@ -167,7 +167,11 @@ class Compiler:
                 call = api("output", {"run": run, "tail": n.lines, "rank": n.rank}, self.path)
                 return node("output", n.id, data={"main": call}, open=True, **common)
             case m.Custom():
-                return node("custom", n.id, code=n.code, **common)
+                data = {name: self.declared(q, n) for name, q in n.queries.items()}
+                code = {"view": self.path, "path": n.code} | (
+                    {"draft": self.draft} if self.draft else {}
+                )
+                return node("custom", n.id, data=data, code=code, libs=n.libs, kit=n.kit, **common)
             case m.Section():
                 kids = [self.compile(k) for k in n.children]
                 return node("section", n.id, children=kids, open=n.open, **common)
@@ -235,6 +239,29 @@ class Compiler:
             color=n.color,
             **common,
         )
+
+    def declared(self, query: dict[str, Any], n: m.Node) -> dict[str, Any]:
+        """Compile a custom block's declared query to an API call.
+
+        ``$name`` placeholders stay in the parameters; the frame fills them at runtime.
+
+        :param query: One kind and its parameters, e.g. ``{"runs": {"select": [...]}}``.
+        :param n: The node, for its ``from`` and ``where``.
+        :return: The call."""
+        ((kind, params),) = query.items()
+        params = dict(params or {})
+        if kind == "file":
+            draft = {"draft": self.draft} if self.draft else {}
+            return api("file", {"view": self.path, "path": params["path"]} | draft, self.path)
+        sel = self.selection(n)
+        target = params.pop("from", None)
+        if isinstance(target, str) and not target.startswith("$"):
+            sel["from"] = self.scope_of(target)
+        elif target is not None:
+            sel["from"] = target
+        if where := params.pop("where", None):
+            sel["where"] = sel.get("where", {}) | where
+        return api(kind, sel | params, self.path)
 
     def selection(self, n: m.Node) -> dict[str, Any]:
         """Make the parameters that pick a block's runs.

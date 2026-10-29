@@ -253,3 +253,10 @@ table.data td { white-space: nowrap; }
 .rendering .cell-tools, .side-by-side .cell-tools { display: none; }
 .markdown-block .editable { min-block-size: 1.5em; }
 .title-edit { display: inline; }
+
+/* custom blocks: a borderless frame as wide as its cell; inside, a transparent page */
+.custom-frame iframe { display: block; inline-size: 100%; border: 0; background: transparent; }
+.custom-error pre { margin: 6px 0 0; white-space: pre-wrap; font-size: var(--bt-size-xs, 12px); max-block-size: 12em; overflow: auto; }
+/* the frame's height follows its content, which the page reads to size the iframe */
+html:has(body.kit-frame) { background: transparent; block-size: auto; }
+body.kit-frame { block-size: auto; overflow: hidden; background: transparent; }

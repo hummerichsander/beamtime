@@ -21,7 +21,26 @@ export class ApiError extends Error {
   }
 }
 
+// inside a custom block's frame there is no network: the page answers calls over the bridge,
+// and nothing is written from there.
+type Remote = { subscribe(id: string, call: Call): void; unsubscribe(id: string): void };
+let remote: Remote | null = null;
+
+export function setRemote(r: Remote): void {
+  remote = r;
+}
+
+// an answer the page sent for a call this frame subscribed to.
+export function deliver(id: string, result: Result): void {
+  for (const e of entries.values()) {
+    if (e.id !== id) continue;
+    update(e, result);
+    if (result.status !== "loading") e.settle?.();
+  }
+}
+
 export async function post<T = any>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  if (remote) throw new ApiError(`${method} is not available in a custom block`, 2);
   const r = await fetch(`/api/${method}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -41,6 +60,7 @@ type Entry = {
   stale: boolean;
   inflight: Promise<void> | null;
   used: number;
+  settle?: () => void;
 };
 
 const entries = new Map<string, Entry>();
@@ -73,6 +93,7 @@ export const busy = { n: 0 };
 
 function load(e: Entry): Promise<void> {
   if (e.inflight) return e.inflight;
+  if (remote) return subscribeRemote(e, remote);
   e.stale = false;
   busy.n++;
   if (e.result.status === "ready") update(e, { ...e.result, refreshing: true });
@@ -92,6 +113,21 @@ function load(e: Entry): Promise<void> {
       e.inflight = null;
       if (e.stale && e.listeners.size && !paused.value) void load(e);
     });
+  return e.inflight;
+}
+
+function subscribeRemote(e: Entry, r: Remote): Promise<void> {
+  e.stale = false;
+  busy.n++;
+  e.inflight = new Promise<void>((resolve) => {
+    e.settle = () => {
+      e.settle = undefined;
+      e.inflight = null;
+      busy.n--;
+      resolve();
+    };
+  });
+  r.subscribe(e.id, e.call);
   return e.inflight;
 }
 
@@ -121,20 +157,31 @@ export function useCall<T = any>(call: Call | null): Result<T> {
   const rendered = call ? entryOf(call).result : null;
   useEffect(() => {
     if (!call) return;
-    const e = entryOf(call);
     const fn = () => force((n) => n + 1);
-    e.listeners.add(fn);
-    if (e.result !== rendered) fn();
-    e.used = Date.now();
-    if (e.stale) void load(e);
-    watchChanged();
-    return () => {
-      e.listeners.delete(fn);
-      watchChanged();
-    };
+    if (entryOf(call).result !== rendered) fn();
+    return watch(call, fn);
   }, [key]);
   if (!call) return { status: "loading", data: null, error: null, refreshing: false };
   return entryOf(call).result as Result<T>;
+}
+
+// calls fn on every new answer to a call, fetching it while watched; returns the unwatch.
+export function watch(call: Call, fn: (result: Result) => void): () => void {
+  const e = entryOf(call);
+  const listener = () => fn(e.result);
+  e.listeners.add(listener);
+  e.used = Date.now();
+  if (e.stale) void load(e);
+  watchChanged();
+  return () => {
+    e.listeners.delete(listener);
+    if (remote && !e.listeners.size) {
+      remote.unsubscribe(e.id);
+      e.stale = true;
+      e.settle?.();
+    }
+    watchChanged();
+  };
 }
 
 export const paused = new Store<boolean>(false);
@@ -145,6 +192,7 @@ const client = Math.random().toString(36).slice(2, 10);
 let watchTimer: ReturnType<typeof setTimeout> | null = null;
 
 function watchChanged(): void {
+  if (remote) return;
   if (watchTimer) clearTimeout(watchTimer);
   watchTimer = setTimeout(() => {
     watchTimer = null;

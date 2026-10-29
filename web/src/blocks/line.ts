@@ -396,6 +396,8 @@ function colorsFor(curves: Curves, theme: Theme, colors: Map<string, string>): s
     return curves.curves.map((c) => byLabel.get(JSON.stringify(c.label))!);
   }
   const cat = theme.data.categorical;
+  // one run's several metrics: the metric is what tells the curves apart.
+  if (curves.curves.length > 1 && new Set(curves.curves.map((c) => c.run)).size === 1) return curves.curves.map((_, i) => cat[i % cat.length]);
   return curves.curves.map((c, i) => (c.run && colors.get(c.run)) || cat[i % cat.length]);
 }
 

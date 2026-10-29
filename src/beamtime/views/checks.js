@@ -6,7 +6,12 @@
   for (const n of leaves) {
     const r = n.getBoundingClientRect();
     const drawn = [...n.querySelectorAll("canvas, img, svg")].some((e) => e.getBoundingClientRect().width > 4);
-    if (!n.innerText.trim() && !drawn) add("error", n, "the block is blank");
+    // a custom block's frame measures its own document and reports it on .custom-frame.
+    const frame = n.querySelector(".custom-frame");
+    if (frame) {
+      if (frame.dataset.frameBlank) add("error", n, "the custom block draws nothing");
+      if (frame.dataset.frameOverflow) add("warning", n, "the custom block's content is wider than its frame");
+    } else if (!n.innerText.trim() && !drawn) add("error", n, "the block is blank");
     const notice = n.querySelector(".notice");
     if (notice && !["note", "custom"].includes(n.dataset.block) && !drawn && !n.querySelector("table"))
       add("warning", n, `shows only a notice: ${notice.innerText.trim().slice(0, 160)}`);

@@ -189,7 +189,7 @@ class Output(Node, tag="output"):
 
 
 class Custom(Node, tag="custom"):
-    """Agent code in a sandbox (custom blocks arrive in M7)."""
+    """Agent code on the ``bt`` kit in a sandboxed frame, fed by its declared queries."""
 
     code: str
     kit: int = 1

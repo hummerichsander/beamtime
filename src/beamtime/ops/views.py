@@ -44,7 +44,12 @@ def new(ctx: Context, p: r.ViewNewParams) -> dict[str, Any]:
     (folder / "data").mkdir(parents=True)
     (folder / store.VIEW_FILE).write_text(text)
     for ref in data_refs(text):
-        if (source := store.view_dir(ctx, path) / ref).is_file():
+        if p.from_ is not None:
+            from beamtime.guide import example_file
+
+            if (content := example_file(ref)) is not None:
+                write_created(folder / ref, content)
+        elif (source := store.view_dir(ctx, path) / ref).is_file():
             write_created(folder / ref, source.read_bytes())
     meta = {"schema": 1, "group": path, "from": p.from_ or "current", "created": time.time()}
     (folder / store.DRAFT_META).write_text(json.dumps(meta) + "\n")
@@ -64,20 +69,21 @@ def new(ctx: Context, p: r.ViewNewParams) -> dict[str, Any]:
 
 
 def data_refs(text: str) -> list[str]:
-    """Find the data files a view's YAML refers to.
+    """Find the data and code files a view's YAML refers to.
 
     :param text: The YAML.
-    :return: The ``data/...`` references."""
+    :return: The ``data/...`` and ``code/...`` references."""
     import yaml
 
     from beamtime.views.compile import yaml_walk
 
     try:
         body = (yaml.safe_load(text) or {}).get("body") or []
+        files = {"data_table": "file", "custom": "code"}
         return [
-            props["file"]
+            props[files[b]]
             for b, props in yaml_walk(body)
-            if b == "data_table" and isinstance(props.get("file"), str)
+            if b in files and isinstance(props.get(files[b]), str)
         ]
     except (yaml.YAMLError, AttributeError, ValueError):
         return []
@@ -245,19 +251,22 @@ def write_version(
     for n in m.walk(view.body):
         if isinstance(n, m.DataTable) and n.file is not None and data_dir is not None:
             n.file = copy_data(data_dir / n.file, folder)
+        if isinstance(n, m.Custom) and data_dir is not None:
+            n.code = copy_data(data_dir / n.code, folder, "code")
     return save(folder, ".yaml", m.dump(m.to_yaml_form(view)))
 
 
-def copy_data(source: Path, folder: Path) -> str:
-    """Store a data file next to the view, named by its content hash.
+def copy_data(source: Path, folder: Path, sub: str = "data") -> str:
+    """Store a data or code file next to the view, named by its content hash.
 
     :param source: The draft's file.
     :param folder: The page's ``view/`` folder.
-    :return: The reference relative to ``view/``: ``data/<sha8>-<name>``."""
+    :param sub: ``data`` or ``code``.
+    :return: The reference relative to ``view/``: ``<sub>/<sha8>-<name>``."""
     content = source.read_bytes()
     # a file copied from a saved version already carries a hash prefix.
     stem = re.sub(r"^[0-9a-f]{8}-", "", source.name)
-    ref = f"data/{hashlib.sha256(content).hexdigest()[:8]}-{stem}"
+    ref = f"{sub}/{hashlib.sha256(content).hexdigest()[:8]}-{stem}"
     if not (folder / ref).exists():
         write_created(folder / ref, content)
     return ref

@@ -81,7 +81,15 @@ export function setScroller(get: () => HTMLElement | null): void {
   scroller = get;
 }
 
+// inside a custom block's frame, navigation happens in the page.
+let away: ((url: string) => void) | null = null;
+
+export function setAway(fn: (url: string) => void): void {
+  away = fn;
+}
+
 export function navigate(url: string, opts: { replace?: boolean } = {}): void {
+  if (away) return away(url);
   const el = scroller();
   if (el) scrolls.set(location.pathname + location.search, el.scrollTop);
   if (opts.replace) history.replaceState(null, "", url);

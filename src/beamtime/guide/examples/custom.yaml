@@ -1,18 +1,22 @@
-# Example "custom": a custom block next to built-in ones. Custom blocks (ES modules on the bt
-# kit, in sandboxed iframes) arrive in M7; until then the node is accepted and shows a notice.
+# Example "custom": a custom block next to built-in ones: a phase map of the main metric over two
+# swept configs (a D3 heatmap in code/phase-map.js); clicking a cell shows its best run's curves
+# through a placeholder query. Field names come from the queries, so the code stays generic.
 schema: 1
 title: "{{group}}"
 finding: "TODO: the result in one sentence."
 body:
   - custom:
       id: phase-map
+      title: "{{main}} over {{swept}} and {{swept2}}"
+      caption: "Mean {{main}} ({{stat}}) per cell over seeds; click a cell for the curves of its best run."
       code: code/phase-map.js
-      kit: 1
       libs: [d3]
       queries:
-        runs: {runs: {select: [run.id, "{{swept}}", "metric.{{main}}.{{stat}}"]}}
+        runs: {runs: {select: [run.id, "{{swept}}", "{{swept2}}", "metric.{{main}}.{{stat}}"]}}
+        detail: {series: {from: $run, y: ["{{main}}", "{{loss}}"]}}
   - scatter:
       id: fallback
       x: "{{swept}}"
       y: "metric.{{main}}.{{stat}}"
+      x_scale: "{{swept_scale}}"
       caption: "{{main}} against {{swept}}, one point per run."

@@ -21,6 +21,7 @@ GENERIC = {
     "sort": "-metric.val/acc.max",
     "loss": "train/loss",
     "swept": "config.lr",
+    "swept2": "config.weight_decay",
     "swept_scale": "log",
     "change": "config.optimizer",
     "seeds": "config.seed",
@@ -101,6 +102,15 @@ def example(name: str | None, ctx: Context, group: str | None) -> str:
     return comment + dump(data)
 
 
+def example_file(ref: str) -> bytes | None:
+    """Read a file an example refers to, such as its custom block's code.
+
+    :param ref: The reference in the example, e.g. ``code/phase-map.js``.
+    :return: The content, or ``None`` if the examples have no such file."""
+    file = files(__package__) / "examples" / ref
+    return file.read_bytes() if file.is_file() else None
+
+
 def prune(nodes: list[Any]) -> list[Any]:
     """Drop empty props, and nodes that are incomplete without them.
 
@@ -167,6 +177,10 @@ def values_of(ctx: Context, group: str) -> dict[str, str]:
         "sort": f"{'' if lower else '-'}metric.{main}.{stat}" if main else "",
         "loss": losses[0] if losses else (metrics[1] if len(metrics) > 1 else main),
         "swept": swept,
+        # a second axis: another swept field, else the seed, else the first again.
+        "swept2": varying[1]
+        if len(varying) > 1
+        else ("config.seed" if "config.seed" in config else swept),
         "swept_scale": scale_of(config.get(swept)),
         "change": texts[0] if texts else swept,
         "seeds": "config.seed" if "config.seed" in config else "",

@@ -189,3 +189,28 @@ def test_meta_lists_settings_and_styles(api) -> None:
     assert api("set", key="figure_style", value=["science", "ieee"]).status_code == 200
     assert api("meta").json()["settings"]["figure_style"] == ["science", "ieee"]
     assert api("figure", kind="line", series=[{"x": [0, 1], "y": [1, 2]}]).status_code == 200
+
+
+def test_the_custom_block_frame_has_its_own_policy(client, static: Path) -> None:
+    """The frame may run blob code and be framed by the page; static files allow CORS."""
+    (static / "kit").mkdir()
+    (static / "kit" / "frame.html").write_text("<!doctype html>")
+    frame = client.get("/static/kit/frame.html")
+    csp = frame.headers["content-security-policy"]
+    assert "script-src 'self' blob:" in csp and "connect-src 'none'" in csp
+    assert "frame-ancestors 'self'" in csp
+    assert frame.headers["access-control-allow-origin"] == "*"
+    page = client.get("/static/app.js")
+    assert "frame-ancestors 'none'" in page.headers["content-security-policy"]
+    assert "access-control-allow-origin" not in client.post("/api/runs", json={}).headers
+
+
+def test_code_is_read_with_the_token(api, client) -> None:
+    """Custom-block code comes through the API, never as a public file."""
+    from beamtime.ops import call
+
+    call("view new", {"group": "scaling/lr-sweep", "from": "custom", "name": "pm"}, Context.make())
+    ref = {"view": "scaling/lr-sweep", "path": "code/phase-map.js", "draft": "pm"}
+    assert "export default" in api("code", **ref).json()["code"]
+    assert client.post("/api/code", json=ref).status_code == 401
+    assert api("code", **(ref | {"path": "view.yaml"})).status_code == 404

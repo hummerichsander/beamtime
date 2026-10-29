@@ -121,15 +121,53 @@ def structure(view: m.View, data_dir: Path | None) -> list[Finding]:
                         )
                     )
             case m.Custom():
-                out.append(
-                    Finding(
-                        level="warning",
-                        **at,
-                        message="custom blocks arrive in M7; it shows a notice",
-                    )
-                )
+                out += custom_checks(n, at, data_dir)
             case m.Line() if n.by and n.seeds:
                 out.append(Finding(level="error", **at, message="use by or seeds, not both"))
+    return out
+
+
+def custom_checks(n: m.Custom, at: dict[str, Any], data_dir: Path | None) -> list[Finding]:
+    """Check a custom block: its kit, libraries, declared queries and code.
+
+    :param n: The node.
+    :param at: Its id and block, for findings.
+    :param data_dir: Where its code file is, if known.
+    :return: The findings."""
+    from beamtime.views import code
+
+    out = []
+    if n.kit not in code.KITS:
+        out.append(Finding(level="error", **at, message=f"no kit {n.kit}", fix="kit: 1"))
+    for lib in n.libs:
+        if lib not in code.LIBS:
+            out.append(
+                Finding(
+                    level="error",
+                    **at,
+                    message=f"no library {lib!r}",
+                    fix=f"libs from {', '.join(code.LIBS)}",
+                )
+            )
+    for name, q in n.queries.items():
+        if len(q) != 1 or next(iter(q)) not in code.KINDS:
+            out.append(
+                Finding(
+                    level="error",
+                    **at,
+                    message=f"query {name!r} must name one kind",
+                    fix=f"{name}: {{runs: {{...}}}}; kinds: {', '.join(code.KINDS)}",
+                )
+            )
+    if data_dir is None:
+        return out
+    if not (file := data_dir / n.code).is_file():
+        missing = Finding(
+            level="error", **at, message=f"no code file {n.code!r}", fix=f"put it in {data_dir}"
+        )
+        return [*out, missing]
+    for message, fix in code.problems(file.read_text()):
+        out.append(Finding(level="error", **at, message=f"{n.code}: {message}", fix=fix))
     return out
 
 
@@ -146,8 +184,21 @@ def queries(
     out = []
     at = {"id": n.id, "block": m.block_of(n)}
     for name, c in (t.get("data") or {}).items():
+        params = c["params"]
+        if isinstance(n, m.Custom) and placeholders_of(params):
+            params, rest = example_values(ctx, c["scope"], params, t["props"].get("examples"))
+            if rest:
+                out.append(
+                    Finding(
+                        level="warning",
+                        **at,
+                        message=f"{name}: not run, nothing to fill {', '.join(rest)} with",
+                        fix="give example values: examples: [{run: <id>}]",
+                    )
+                )
+                continue
         try:
-            answer = call(BY_TOOL[c["method"]].name, c["params"], ctx)
+            answer = call(BY_TOOL[c["method"]].name, params, ctx)
         except OpError as e:
             out.append(Finding(level="error", **at, message=f"{name}: {e}"))
             continue
@@ -222,3 +273,39 @@ def tree_walk(t: dict[str, Any]) -> list[dict[str, Any]]:
     :param t: The root.
     :return: Every node."""
     return [t, *(x for k in t.get("children", []) for x in tree_walk(k))]
+
+
+def placeholders_of(params: dict[str, Any]) -> list[str]:
+    """Name a query's open placeholders.
+
+    :param params: The call's parameters.
+    :return: E.g. ``["$run"]``."""
+    from beamtime.views.code import placeholders
+
+    return sorted(f"${p}" for p in placeholders(params))
+
+
+def example_values(
+    ctx: Context,
+    scope: str,
+    params: dict[str, Any],
+    examples: list[dict] | None,
+) -> tuple[dict[str, Any], list[str]]:
+    """Fill a query's placeholders to run it once: from examples, else ``from`` with a run.
+
+    :param ctx: The operation context.
+    :param scope: The page, whose first run stands in for a ``from`` placeholder.
+    :param params: The call's parameters.
+    :param examples: Example values, if the block has any.
+    :return: The filled parameters, and the placeholders left open."""
+    from beamtime.views.code import fill, placeholders
+
+    values = dict((examples or [{}])[0])
+    target = params.get("from")
+    if isinstance(target, str) and target.startswith("$") and target[1:] not in values:
+        page = {k: v for k, v in params.items() if k in ("where", "depth")}
+        answer = call("runs", {"from": scope, "select": ["run.id"], "limit": 1} | page, ctx)
+        if answer["rows"]:
+            values[target[1:]] = answer["rows"][0][0]
+    filled = fill(params, values)
+    return filled, sorted(f"${p}" for p in placeholders(filled))

@@ -58,22 +58,57 @@ def test_one_shot_runs_budget(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 
 STATIC = Path(__file__).parents[1] / "src" / "beamtime" / "serve" / "static"
 SHELL_BUDGET = 120_000
+KIT_BUDGET = 60_000
+
+
+def imports(entry: str) -> tuple[set[str], set[str]]:
+    """Follow a bundle's static imports through the chunks it shares with other entries.
+
+    :param entry: The entry file, e.g. ``app.js``.
+    :return: The files loaded with it (itself included), and the chunks it loads lazily."""
+    import re
+
+    static, lazy, todo = {entry}, set(), [entry]
+    while todo:
+        text = (STATIC / todo.pop()).read_text()
+        for f in re.findall(r'(?:from|import)\s*"\./(?:\.\./)?((?:chunks/)?[\w.-]+\.js)"', text):
+            f = f if f.startswith("chunks/") else f"chunks/{f}"
+            if f not in static:
+                static.add(f)
+                todo.append(f)
+        lazy |= {f if f.startswith("chunks/") else f"chunks/{f}"
+                 for f in re.findall(r'import\("\./(?:\.\./)?((?:chunks/)?[\w.-]+\.js)"\)', text)}
+    return static, lazy - static
+
+
+def gzipped(files: set[str]) -> int:
+    """Measure files compressed.
+
+    :param files: Paths below the static folder.
+    :return: The total size in bytes."""
+    import gzip
+
+    return sum(len(gzip.compress((STATIC / f).read_bytes(), 9)) for f in files)
 
 
 def test_shell_bundle_budget() -> None:
     """The shell (entry, its static imports, CSS) stays within 120 KB compressed; charts,
     Markdown and KaTeX load lazily."""
-    import gzip
     import re
 
-    entry = (STATIC / "app.js").read_text()
-    static = set(re.findall(r'from"\./(chunks/[\w.-]+\.js)"', entry))
-    static |= set(re.findall(r'import"\./(chunks/[\w.-]+\.js)"', entry))
-    lazy = set(re.findall(r'import\("\./(chunks/[\w.-]+\.js)"\)', entry))
-    files = ["app.js", "app.css", *sorted(static)]
-    size = sum(len(gzip.compress((STATIC / f).read_bytes(), 9)) for f in files)
+    static, lazy = imports("app.js")
+    size = gzipped(static | {"app.css"})
     assert size <= SHELL_BUDGET, f"shell is {size / 1000:.1f} KB compressed"
     for lib in ("uplot", "md"):
         assert any(lib in f for f in lazy) and not any(lib in f for f in static), lib
     md = next(f for f in lazy if "md" in f)
     assert re.search(r'import\("\./katex-[\w-]+\.js"\)', (STATIC / md).read_text())
+
+
+def test_kit_bundle_budget() -> None:
+    """A custom block's frame loads the kit within 60 KB compressed; D3 and uPlot only on use."""
+    static, lazy = imports("kit.js")
+    size = gzipped(static)
+    assert size <= KIT_BUDGET, f"the kit is {size / 1000:.1f} KB compressed"
+    for lib in ("d3", "uplot"):
+        assert any(lib in f for f in lazy) and not any(lib in f for f in static), lib

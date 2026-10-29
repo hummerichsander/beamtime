@@ -6,6 +6,7 @@ import { html } from "htm/preact";
 import { BlockCtx, type Node } from "../bt/index.ts";
 import { Notice } from "./common.ts";
 import { Groups, MarkdownBlock, Memory, NoteBlock, Notes, Output, Proposal } from "./context.ts";
+import { Custom } from "./custom.ts";
 import { Images, Text } from "./logged.ts";
 import { DataTable, Timeline } from "./data.ts";
 import { Grid, Row, Section, Tabs } from "./layout.ts";
@@ -38,11 +39,6 @@ const BLOCKS: Record<string, FunctionComponent<{ node: Node }>> = {
   custom: Custom,
   markdown: MarkdownBlock,
 };
-
-function Custom({ node }: { node: Node }) {
-  return html`<${Notice} kind="warning">Custom block <b>${node.id}</b> (${node.props.code}) runs once custom blocks
-    arrive (milestone M7).<//>`;
-}
 
 const SPAN: Record<string, string> = { 2: "span-2", full: "span-full" };
 

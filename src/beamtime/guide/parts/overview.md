@@ -12,8 +12,8 @@ Tools are named as over MCP (`view_new`); on the command line the same operation
    current view.
 2. Decide the one question the view answers; it decides the blocks (table below).
 3. `view_new <group>` starts a draft in `.beamtime/drafts/<name>/view.yaml`: from the page's
-   current view, or `--from sweep|ablation|run|direction` (filled with the group's keys). Edit the
-   file with your own tools.
+   current view, or `--from sweep|ablation|run|direction|custom` (filled with the group's keys).
+   Edit the file with your own tools.
 4. `view_validate <draft>` until no errors remain. It runs every block's queries, so field and key
    names are checked against the real data, with suggestions.
 5. `view_render <draft>`, answer the checklist (`guide checklist`) for every block, fix, render
@@ -80,5 +80,6 @@ These are defaults; the user's own instructions (CLAUDE.md, AGENTS.md) take prec
 ## More
 
 `guide examples [name]` (sweep, ablation, run, direction, custom) · `guide blocks [name]` ·
-`guide queries` · `guide checklist` · `guide anti-patterns` · `guide kit` (custom blocks, M7).
+`guide queries` · `guide checklist` · `guide anti-patterns` · `guide kit` (custom blocks: code for what
+no built-in block shows).
 With a group (`guide examples sweep --group <group>`), examples use its metrics and config.
