@@ -144,10 +144,10 @@ def test_init_is_idempotent(ctx: Context, project: Path) -> None:
 def test_mv_rm_gc(ctx: Context, roles: dict[str, str]) -> None:
     """Runs move and go to the trash; running runs are refused; gc needs yes."""
     with pytest.raises(OpError, match="still running"):
-        call("mv", {"run": roles["running"], "group": "archive"}, ctx)
+        call("mv", {"source": roles["running"], "to": "archive"}, ctx)
     with pytest.raises(OpError, match="reserved"):
-        call("mv", {"run": roles["killed"], "group": "notes"}, ctx)
-    moved = call("mv", {"run": roles["killed"], "group": "archive/old"}, ctx)
+        call("mv", {"source": roles["killed"], "to": "notes"}, ctx)
+    moved = call("mv", {"source": roles["killed"], "to": "archive/old"}, ctx)
     assert (ctx.logdir / moved["path"] / "_run.json").exists()
     with pytest.raises(OpError, match="still running"):
         call("rm", {"target": "scaling/long-context"}, ctx)
@@ -204,3 +204,31 @@ def test_note_rm_moves_the_note_and_its_versions_to_the_trash(ctx: Context, proj
     assert first["version"] not in ids and second["version"] not in ids
     with pytest.raises(OpError, match="no note"):
         call("note rm", {"note": "20990101-000000-zzzz"}, ctx)
+
+
+def test_moving_a_group_keeps_membership_and_old_paths(ctx: Context, project: Path) -> None:
+    """A moved group's proposal still finds its runs, and its old path still resolves."""
+    from beamtime.serve.app import page_of
+
+    before = call("check", {"group": "scaling/lr-sweep"}, ctx)
+    answer = call("mv", {"source": "scaling/lr-sweep", "to": "scaling/learning-rate"}, ctx)
+    assert answer["path"] == "scaling/learning-rate"
+    assert "_moves.jsonl" in answer["lines"][1]
+    after = call("check", {"group": "scaling/learning-rate"}, ctx)
+    assert after["result"] == before["result"] and after["result"] is not None
+    assert len(call("runs", {"from": "scaling/lr-sweep", "limit": 100}, ctx)["rows"]) == 17
+    assert page_of(ctx, "scaling/lr-sweep") == ("scaling/learning-rate", None)
+    with pytest.raises(OpError, match="exists"):
+        call("mv", {"source": "scaling/learning-rate", "to": "tokenizer"}, ctx)
+    with pytest.raises(OpError, match="inside"):
+        call("mv", {"source": "scaling", "to": "scaling/deeper"}, ctx)
+
+
+def test_naming_a_run(ctx: Context, roles: dict) -> None:
+    """A given name shows wherever the run's name does; the id stays."""
+    run = roles["killed"]
+    call("name", {"run": run, "name": "warmup baseline"}, ctx)
+    rows = call("runs", {"from": run, "select": ["run.name"]}, ctx)["rows"]
+    assert rows[0][1] == "warmup baseline"
+    with pytest.raises(OpError, match="groups are renamed"):
+        call("name", {"run": "scaling", "name": "x"}, ctx)

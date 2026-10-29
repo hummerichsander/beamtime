@@ -285,15 +285,33 @@ class Target:
         """The key runs record this target's proposal under in ``_run.json``."""
         return "." if self.run_id is not None else self.rel
 
+    @property
+    def keys(self) -> list[str]:
+        """The key, and the group's paths before it was moved: runs recorded those."""
+        from beamtime.format.moves import earlier
+
+        return (
+            [self.key]
+            if self.run_id is not None
+            else [self.rel, *earlier(self.index.logdir, self.rel)]
+        )
+
     def membership(self, version: str) -> tuple[str, list[Any]]:
         """Build the SQL condition selecting the runs that recorded a version.
 
         :param version: The version id.
         :return: The condition and its parameters."""
-        cond = f"json_extract(runs.info, '{json_path(('proposals', self.key))}') = ?"
+        keys = self.keys
+        cond = (
+            "("
+            + " OR ".join(
+                f"json_extract(runs.info, '{json_path(('proposals', k))}') = ?" for k in keys
+            )
+            + ")"
+        )
         if self.run_id is not None:
             return f"runs.id = ? AND {cond}", [self.run_id, version]
-        return cond, [version]
+        return cond, [version] * len(keys)
 
     def members(self, version: str) -> list[dict[str, Any]]:
         """List the runs that recorded a version.
@@ -304,9 +322,11 @@ class Target:
 
         cond, params = self.membership(version)
         now = time.time()
-        recorded = json_path(("proposal_hashes", self.key))
+        recorded = ", ".join(
+            f"json_extract(info, '{json_path(('proposal_hashes', k))}')" for k in self.keys
+        )
         rows = self.index.store.db.execute(
-            f"SELECT id, path, status, heartbeat, json_extract(info, '{recorded}') "
+            f"SELECT id, path, status, heartbeat, COALESCE({recorded}, NULL) "
             f"FROM runs WHERE {cond}",
             params,
         )

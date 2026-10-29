@@ -351,3 +351,54 @@ def history(ctx: Context, p: r.ViewHistoryParams) -> dict[str, Any]:
             }
         )
     return {"kind": "view history", "group": path, "entries": entries, "meta": {}}
+
+
+def edit_text(ctx: Context, path: str, node_id: str | None, text: str) -> dict[str, Any]:
+    """Add, change or remove a text panel of a page's view (the web UI), as a new version.
+
+    :param ctx: The operation context, with caller ``view``.
+    :param path: The group or run path.
+    :param node_id: The ``markdown`` block to change, or ``None`` to add one at the top.
+    :param text: Its Markdown; empty removes the block.
+    :return: The new version."""
+    import yaml
+
+    from beamtime.views.compile import yaml_walk
+
+    data = yaml.safe_load(current_yaml(ctx, path)[0])
+    body = data.get("body") or []
+    if node_id is None:
+        taken = {props.get("id") for _, props in yaml_walk(body)}
+        body.insert(0, {"markdown": {"id": m.unique("text", taken), "text": text or "Write here."}})
+        message = "added a text panel in the web UI"
+    elif not drop_or_set(body, node_id, text.strip()):
+        raise OpError(f"no text panel {node_id!r} in the view of {path}", code=4)
+    else:
+        message = f"{'edited' if text.strip() else 'removed'} a text panel in the web UI"
+    data["body"] = body
+    try:
+        view = m.parse(data, source="the page")
+    except SchemaError as e:
+        raise OpError(str(e), code=3) from None
+    return written(ctx, "view save", write_version(ctx, path, view, None, message), [])
+
+
+def drop_or_set(nodes: list[Any], node_id: str, text: str) -> bool:
+    """Set a ``markdown`` block's text, or remove the block when the text is empty.
+
+    :param nodes: Nodes in YAML form; changed in place.
+    :param node_id: The block's id.
+    :param text: The new text.
+    :return: Whether the block was found."""
+    for i, n in enumerate(nodes):
+        ((block, props),) = n.items()
+        if block == "markdown" and isinstance(props, dict) and props.get("id") == node_id:
+            if text:
+                props["text"] = text
+            else:
+                del nodes[i]
+            return True
+        kids = props if isinstance(props, list) else (props or {}).get("children")
+        if kids and drop_or_set(kids, node_id, text):
+            return True
+    return False

@@ -60,16 +60,16 @@ def test_view_answers_are_not_cut(api) -> None:
 
 def test_errors_and_user_only_operations(api) -> None:
     """Operation errors keep their code; user-only operations are not in the API, except those
-    the web UI offers its user (deleting a note)."""
+    the web UI offers its user (deleting a note, renaming a group)."""
     r = api("runs", **{"from": "nowhere"})
     assert r.status_code == 404 and "no group" in r.json()["error"]
     r = api("runs", bogus=1)
     assert r.status_code == 400
     user_only = [op.tool for op in OPS if op.user_only]
     assert {"serve", "demo", "rm", "gc", "mv"} <= set(user_only)
-    for method in set(user_only) - {"note_rm"}:
+    for method in set(user_only) - {"note_rm", "mv"}:
         assert api(method).status_code == 404, method
-    assert api("note_rm").status_code == 400
+    assert api("note_rm").status_code == 400 and api("mv").status_code == 400
 
 
 def test_view_of_groups_and_runs(api, roles: dict[str, str]) -> None:

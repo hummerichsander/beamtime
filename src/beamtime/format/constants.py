@@ -16,12 +16,16 @@ OUTPUT_TAIL_PREV = "_output.tail.prev.log"
 ARTIFACTS = "_artifacts.jsonl"
 ENV_DIR = "_env"
 TRASH = "_trash"
+# group moves (old path, new path), so paths recorded before a move still resolve.
+MOVES = "_moves.jsonl"
 
 PROPOSAL = "proposal"
 NOTES = "notes"
 VIEW = "view"
 MEMORY = "memory"
 BLOCKS = "blocks"
+# a run's display name, given after the run; inside runs only, so no group name is reserved.
+NAME = "name"
 AUTHORED = frozenset({PROPOSAL, NOTES, VIEW, MEMORY, BLOCKS})
 RUN_ONLY = frozenset({"artifacts", "checkpoints"})
 

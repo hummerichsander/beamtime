@@ -53,6 +53,7 @@ wherever a group does.
 | CLI | MCP | Does |
 |---|---|---|
 | `beamtime note add <group>` | `note_add` | a note: `--type`, `--description`, `--resolves`, `--supersedes`, `--completes`, `--evidence`; for verdicts `--proposal <version>`, `--verdict <prediction>=<verdict>`, `--overall`; the check snapshot is added automatically; body from stdin |
+| `beamtime name <run> <name>` | `name` | gives a run a display name (a new version in its `name/` folder) |
 | `beamtime note rm <id>` | – | user only: moves a note and the versions it replaced to the trash |
 | `beamtime proposal set <group> <file>` | `proposal_set` | saves a new proposal version; superseding a frozen version requires `--reason` |
 | `beamtime memory update <group> <file>` | `memory_update` | saves a new memory version; warns beyond the size budget |
@@ -90,7 +91,7 @@ the user the command ([Policy](#policy)).
 | `beamtime settings` | the effective settings and the level each value comes from |
 | `beamtime serve [sources…]` | the web UI, indexer and remote connections; `--no-ui`, `--port` (default 8080, else the next free port), `--open` |
 | `beamtime pull <source>:<group>` | a read-only offline snapshot; `--drop` removes it |
-| `beamtime mv <run> <group>` | moves a run; refuses running runs |
+| `beamtime mv <run> <group>`, `beamtime mv <group> <new path>` | moves a run, or moves or renames a group (recorded in `_moves.jsonl`); refuses running runs |
 | `beamtime rm <run or group>` | moves it into `_trash/` ([layer 1](01-storage.md#deleting-and-cleaning-up)) |
 | `beamtime gc` | empties the trash and removes crashed runs without metrics |
 | `beamtime reindex` | rebuilds the index from the files |

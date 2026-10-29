@@ -433,6 +433,16 @@ log or a note must be removable.
 - **`beamtime rm <run or group>`** moves it into `_trash/<timestamp>/` in the log dir; `beamtime gc`
   empties the trash and removes crashed runs that never logged a metric. Both are user commands;
   agents never run them ([layer 8](08-cli-mcp.md#policy)).
+- **`beamtime note rm <id>`** moves a note, with the versions it superseded, into the trash the
+  same way.
+- **`beamtime mv <group> <new path>`** moves or renames a group and appends the move to
+  `_moves.jsonl` in the log dir (`{schema, from, to, t}` per line). Nothing that names the old path is
+  rewritten: runs keep their recorded proposal membership, notes their links and `completes`;
+  readers map old paths through the moves. Moving a run (`beamtime mv <run> <group>`) needs no
+  record, since runs are found by id.
+- **A run's display name** can be changed after the run: `beamtime name <run> <name>` writes a new
+  version in the run's `name/` folder (`{schema, name, author, user}`), which listings show instead of
+  the name in `_run.json`. The run id never changes.
 - **Deleting by hand** is supported too. The index notices vanished folders and forgets them
   ([layer 3](03-index.md#discovery)).
 

@@ -155,6 +155,8 @@ class Compiler:
                 params = {"from": scope, "limit": n.limit, "full": True, "current": True}
                 params |= {"types": n.types} if n.types else {}
                 return node("notes", n.id, data={"main": api("notes", params, scope)}, **common)
+            case m.Markdown():
+                return node("markdown", n.id, text=n.text, **common)
             case m.Note():
                 return node("note", n.id, text=n.text, kind=n.kind, **common)
             case m.Output():
@@ -335,6 +337,8 @@ def yaml_node(t: dict[str, Any], path: str) -> dict[str, Any] | None:
             out["lines"] = params.get("tail", 40)
         case "note":
             out |= {"text": p.get("text", ""), "kind": p.get("kind", "info")}
+        case "markdown":
+            out["text"] = p.get("text", "")
         case "memory" | "groups":
             pass
         case _:
@@ -346,8 +350,16 @@ def apply_prefs(body: list[dict[str, Any]], prefs: dict[str, Any]) -> list[dict[
     """Fold a viewer's chart settings and added charts into a view body.
 
     :param body: The body in YAML form; changed in place.
-    :param prefs: ``{view, charts, added}`` as the web UI keeps them per page.
+    :param prefs: ``{charts, added, order, spans}`` as the web UI keeps them per page.
     :return: The body."""
+    for _, props in yaml_walk(body):
+        if (order := (prefs.get("order") or {}).get(props.get("id"))) and props.get("children"):
+            props["children"] = reorder(props["children"], order)
+        if (span := (prefs.get("spans") or {}).get(props.get("id"))) is not None:
+            if span == 1:
+                props.pop("span", None)
+            else:
+                props["span"] = span
     shared = clean(prefs.get("view") or {})
     charts = prefs.get("charts") or {}
     lines = [props for b, props in yaml_walk(body) if b == "line"]
@@ -377,6 +389,19 @@ def apply_prefs(body: list[dict[str, Any]], prefs: dict[str, Any]) -> list[dict[
         else:
             body.append({"grid": {"id": "added", "children": new}})
     return body
+
+
+def reorder(kids: list[dict[str, Any]], order: list[str]) -> list[dict[str, Any]]:
+    """Put a layout's children in the viewer's order.
+
+    :param kids: The children in YAML form.
+    :param order: Ids in the wanted order; children not listed keep theirs, after them.
+    :return: The children reordered."""
+    at = {id_: i for i, id_ in enumerate(order)}
+    ranked = [
+        (at.get(next(iter(k.values())).get("id"), len(order) + i), k) for i, k in enumerate(kids)
+    ]
+    return [k for _, k in sorted(ranked, key=lambda r: r[0])]
 
 
 def settle(props: dict[str, Any], settings: dict[str, Any]) -> None:

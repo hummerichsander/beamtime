@@ -117,9 +117,10 @@ def completed_by_decision(target: Target) -> bool:
 
     :param target: The group.
     :return: Whether any decision lists it in ``completes``."""
+    keys = target.keys
     row = target.index.store.db.execute(
         "SELECT 1 FROM notes, json_each(notes.meta, '$.completes') j "
-        "WHERE notes.type = 'decision' AND j.value = ? LIMIT 1",
-        (target.rel,),
+        f"WHERE notes.type = 'decision' AND j.value IN ({', '.join('?' * len(keys))}) LIMIT 1",
+        keys,
     ).fetchone()
     return row is not None

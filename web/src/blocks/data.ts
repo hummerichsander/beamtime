@@ -7,6 +7,7 @@ import { useData, ViewCtx, type Node } from "../bt/index.ts";
 import { label, step, value } from "../bt/fmt.ts";
 import { tableOf } from "../bt/shapes.ts";
 import { runUrl } from "../router.ts";
+import { timelineUrl } from "../shell/timeline.ts";
 import { Icon } from "../ui/icons.ts";
 import { eventIcon } from "../ui/symbols.ts";
 import { Notice, Panel } from "./common.ts";
@@ -51,8 +52,10 @@ export function DataTable({ node }: { node: Node }) {
 export function Timeline({ node }: { node: Node }) {
   const result = useData("main");
   const entries: any[] = result.data?.entries ?? [];
+  const from = (node.data?.main.params.from as string) ?? ".";
   return html`<${Panel} title=${node.props.title ?? "Timeline"} caption=${node.props.caption} result=${result}>
     ${result.data && !entries.length ? html`<${Notice}>Nothing happened here yet.<//>` : null}
+    <a class="small" href=${timelineUrl(from)}>Open the interactive timeline</a>
     <div class="timeline">
       ${entries.slice().reverse().map(
         (e) => html`<div class="event">

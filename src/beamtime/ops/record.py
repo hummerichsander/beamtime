@@ -103,8 +103,13 @@ def save(folder: Path, suffix: str, text: str) -> Path:
     :param suffix: ``.md`` or ``.yaml``.
     :param text: The content.
     :return: The new file."""
+    from beamtime.format.authored import newest
+
+    # the newest version counts, so a save must sort after it, also within the same second.
+    latest = (newest(folder) or Path("")).stem
     path = folder / f"{new_version_id()}{suffix}"
-    while path.exists():
+    while path.exists() or path.stem <= latest:
+        time.sleep(0.01)
         path = folder / f"{new_version_id()}{suffix}"
     write_created(path, text.encode())
     return path
@@ -281,6 +286,23 @@ def note_add(ctx: Context, p: r.NoteAddParams) -> dict[str, Any]:
         if p.type in ("verdict", "decision"):
             lines.append(f"next: update the memory (`beamtime memory update {target.rel}`)")
     return written(ctx, "note add", path, lines)
+
+
+def name(ctx: Context, p: r.NameParams) -> dict[str, Any]:
+    """Give a run a display name, as a new version in its ``name/`` folder.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The new version."""
+    if not p.name.strip() or "\n" in p.name:
+        raise OpError("a name is one non-empty line", code=2)
+    author, user = author_of(ctx, p.author)
+    with target_of(ctx, p.run) as target:
+        if target.run_id is None:
+            raise OpError(f"{p.run!r} is a group; groups are renamed with `beamtime mv`", code=2)
+        fields = {"schema": 1, "name": p.name.strip(), "author": author, "user": user}
+        path = save(target.dir / c.NAME, ".yaml", dump(fields))
+    return written(ctx, "name", path, [f"{target.run_id} is now shown as {p.name.strip()!r}"])
 
 
 def note_rm(ctx: Context, p: r.NoteRmParams) -> dict[str, Any]:

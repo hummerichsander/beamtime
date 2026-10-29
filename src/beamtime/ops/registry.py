@@ -203,6 +203,14 @@ class NoteAddParams(Params, kw_only=True):
     author: Author = None
 
 
+class NameParams(Params, kw_only=True):
+    """Parameters of ``name``."""
+
+    run: Annotated[str, msgspec.Meta(description="the run id")]
+    name: Annotated[str, msgspec.Meta(description="the run's new display name")]
+    author: Author = None
+
+
 class NoteRmParams(Params, kw_only=True):
     """Parameters of ``note rm``."""
 
@@ -314,8 +322,10 @@ class InitParams(Params, kw_only=True):
 class MoveParams(Params, kw_only=True):
     """Parameters of ``mv``."""
 
-    run: str
-    group: str
+    source: Annotated[str, msgspec.Meta(description="a run id, or a group to move or rename")]
+    to: Annotated[
+        str, msgspec.Meta(description="a run: the group it goes into; a group: its new path")
+    ]
 
 
 class RemoveParams(Params, kw_only=True):
@@ -613,9 +623,9 @@ OPS = [
         name="mv",
         params=MoveParams,
         impl=f"{A}:move",
-        positional=("run", "group"),
+        positional=("source", "to"),
         user_only=True,
-        summary="Move a run to another group; running runs are refused.",
+        summary="Move a run into a group, or move or rename a group; running runs are refused.",
     ),
     Op(
         name="rm",
@@ -624,6 +634,13 @@ OPS = [
         positional=("target",),
         user_only=True,
         summary="Move a run or group into the trash.",
+    ),
+    Op(
+        name="name",
+        params=NameParams,
+        impl=f"{W}:name",
+        positional=("run", "name"),
+        summary="Give a run a display name (a new version; the id never changes).",
     ),
     Op(
         name="note rm",

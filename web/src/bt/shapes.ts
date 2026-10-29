@@ -161,3 +161,22 @@ export function logSplits(range: [number, number]): number[] {
   for (let e = a; e <= b; e++) for (const m of steps) out.push(m * 10 ** e);
   return out.filter((v) => v >= range[0] && v <= range[1]);
 }
+
+const STEPS_S = [60, 300, 900, 1800, 3600, 3 * 3600, 6 * 3600, 12 * 3600, 86400, 2 * 86400, 7 * 86400, 14 * 86400, 30 * 86400];
+
+// ticks on a time axis (seconds): about six, at round minutes, hours or days in local time.
+export function timeTicks(min: number, max: number): { at: number[]; step: number } {
+  const step = STEPS_S.find((s) => (max - min) / s <= 7) ?? STEPS_S[STEPS_S.length - 1];
+  const offset = step >= 86400 ? new Date(min * 1000).getTimezoneOffset() * 60 : 0;
+  const at: number[] = [];
+  for (let t = Math.ceil((min - offset) / step) * step + offset; t <= max; t += step) at.push(t);
+  return { at, step };
+}
+
+export function timeLabel(t: number, step: number): string {
+  const d = new Date(t * 1000);
+  if (step >= 86400) return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  if (step >= 6 * 3600) return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  const hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return d.getHours() === 0 && d.getMinutes() === 0 ? d.toLocaleDateString([], { month: "short", day: "numeric" }) : hm;
+}

@@ -5,7 +5,7 @@ import { html } from "htm/preact";
 
 import { BlockCtx, type Node } from "../bt/index.ts";
 import { Notice } from "./common.ts";
-import { Groups, Memory, NoteBlock, Notes, Output, Proposal } from "./context.ts";
+import { Groups, MarkdownBlock, Memory, NoteBlock, Notes, Output, Proposal } from "./context.ts";
 import { Images, Text } from "./logged.ts";
 import { DataTable, Timeline } from "./data.ts";
 import { Grid, Row, Section, Tabs } from "./layout.ts";
@@ -36,6 +36,7 @@ const BLOCKS: Record<string, FunctionComponent<{ node: Node }>> = {
   data_table: DataTable,
   timeline: Timeline,
   custom: Custom,
+  markdown: MarkdownBlock,
 };
 
 function Custom({ node }: { node: Node }) {

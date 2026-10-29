@@ -15,6 +15,7 @@ from typing import Any, Literal
 from beamtime.format import constants as c
 from beamtime.format.authored import newest, read_markdown_doc
 from beamtime.format.ids import is_run_id
+from beamtime.format.moves import current
 from beamtime.format.run import read_preview
 from beamtime.format.tree import is_reserved
 from beamtime.index.columns import TIME_KEY, Column, open_columns
@@ -90,6 +91,12 @@ def resolve_from(index: Index, base: str, target: str) -> tuple[str, str | None]
             "name the group above it",
             code="not_found",
         )
+    if (
+        not index.folder_path(rel).is_dir()
+        and index.folder_path(moved := current(index.logdir, rel)).is_dir()
+    ):
+        # a path from before a group was moved names the group where it is now.
+        rel = moved
     if not index.folder_path(rel).is_dir():
         parent = index.folder_path(posixpath.dirname(rel) or ".")
         options = [p.name for p in parent.iterdir() if p.is_dir()] if parent.is_dir() else []

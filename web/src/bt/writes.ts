@@ -53,3 +53,23 @@ export async function deleteNote(note: any): Promise<void> {
   await post("note_rm", { note: note.id });
   refresh(note.group, NOTE_ANSWERS);
 }
+
+// a group is renamed by moving it (the old path keeps resolving); the page follows it.
+export async function renameGroup(path: string, name: string): Promise<string> {
+  const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+  const answer = await post("mv", { source: path, to: parent ? `${parent}/${name}` : name });
+  invalidate(() => true);
+  return answer.path;
+}
+
+// a run keeps its id; the name it shows is a new version.
+export async function renameRun(run: string, scope: string, name: string): Promise<void> {
+  await post("name", { run, name });
+  refresh(scope, ["card", "runs", "groups", "summary", "series"]);
+}
+
+// a text panel of the page's view: added (id null), edited, or removed (empty text); each a version.
+export async function editText(path: string, id: string | null, text: string): Promise<void> {
+  await post("view_text", { path, id, text });
+  invalidate((c: Call) => ["view", "view_history"].includes(c.method) && c.scope === path);
+}

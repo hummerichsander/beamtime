@@ -276,3 +276,31 @@ def test_new_chart_settings_save_and_compile() -> None:
     line = tree["children"][0]["children"][0]
     assert line["props"]["scale"] == "symlog" and line["props"]["legend"] is False
     assert line["data"]["main"]["params"]["steps"] == [100, None]
+
+
+def test_text_panels_from_the_ui(ctx: Context) -> None:
+    """A text panel is added at the top, edited, and removed, each a new version."""
+    from beamtime.ops.views import edit_text
+
+    ui = Context.make(caller="view")
+    edit_text(ui, SWEEP, None, "First *thoughts*.")
+    first = page_view(ctx, SWEEP)["view"]["children"][0]
+    assert (first["block"], first["props"]["text"]) == ("markdown", "First *thoughts*.")
+    edit_text(ui, SWEEP, first["id"], "Better $x^2$.")
+    assert page_view(ctx, SWEEP)["view"]["children"][0]["props"]["text"] == "Better $x^2$."
+    edit_text(ui, SWEEP, first["id"], "")
+    assert page_view(ctx, SWEEP)["view"]["children"][0]["block"] != "markdown"
+    messages = [e["message"] for e in call("view history", {"group": SWEEP}, ctx)["entries"]]
+    assert messages[0] == "removed a text panel in the web UI"
+    with pytest.raises(OpError, match="no text panel"):
+        edit_text(ui, SWEEP, "nope", "x")
+
+
+def test_layout_prefs_fold_into_the_view() -> None:
+    """The viewer's order of a grid's blocks and their widths are saved with the view."""
+    body = [{"grid": {"id": "g", "children": [{"line": {"id": "a", "y": "x"}}, {"line": {"id": "b", "y": "y"}},
+                                              {"stat": {"id": "c"}}]}}]  # fmt: skip
+    folded = apply_prefs(body, {"order": {"g": ["c", "a"]}, "spans": {"a": "full", "b": 1}})
+    kids = folded[0]["grid"]["children"]
+    assert [next(iter(k.values()))["id"] for k in kids] == ["c", "a", "b"]
+    assert kids[1]["line"]["span"] == "full" and "span" not in kids[2]["line"]

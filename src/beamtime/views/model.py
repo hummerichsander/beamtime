@@ -167,6 +167,12 @@ class Note(Node, tag="note"):
     kind: Literal["info", "warning", "success"] = "info"
 
 
+class Markdown(Node, tag="markdown"):
+    """A text panel in Markdown (with math), written into the view and edited in place."""
+
+    text: str
+
+
 class Notes(Node, tag="notes"):
     """The newest notes, current versions only."""
 
@@ -233,6 +239,7 @@ Block = (
     | Groups
     | Timeline
     | Note
+    | Markdown
     | Notes
     | Output
     | Custom

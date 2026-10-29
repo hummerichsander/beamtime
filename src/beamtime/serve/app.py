@@ -62,9 +62,19 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
                         body.get("title"),
                         body.get("finding"),
                     )
-                case "note_rm":
-                    # deleting is the user's: the browser is, agents never use this API.
-                    answer = await run_in_threadpool(call, "note rm", body, ctx)
+                case "note_rm" | "mv":
+                    # user commands the UI offers its user; agents never use this API.
+                    answer = await run_in_threadpool(call, method.replace("_", " "), body, ctx)
+                case "view_text":
+                    from beamtime.ops.views import edit_text
+
+                    answer = await run_in_threadpool(
+                        edit_text,
+                        ctx,
+                        page_of(ctx, str(body.get("path", ".")))[0],
+                        body.get("id"),
+                        str(body.get("text") or ""),
+                    )
                 case "figure":
                     from beamtime.views.figure import pdf
 
@@ -125,6 +135,7 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
             Route("/f", page),
             Route("/f/{path:path}", page),
             Route("/r/{path:path}", page),
+            Route("/timeline", page),
             Route("/settings", page),
             Route("/settings/{path:path}", page),
         ],
@@ -212,8 +223,15 @@ def page_of(ctx: Context, path: str) -> tuple[str, str | None]:
         if found is None:
             raise OpError(f"no run {run!r} below the log dir", code=4)
         path = found.relative_to(ctx.logdir).as_posix()
-    elif not (ctx.logdir / path).is_dir() or ".." in path.split("/"):
+    elif ".." in path.split("/"):
         raise OpError(f"no group {path!r} below the log dir", code=4)
+    elif not (ctx.logdir / path).is_dir():
+        from beamtime.format.moves import current
+
+        # an old link to a moved group shows the group where it is now.
+        if not (ctx.logdir / (moved := current(ctx.logdir, path))).is_dir():
+            raise OpError(f"no group {path!r} below the log dir", code=4)
+        path = moved
     return path, run
 
 

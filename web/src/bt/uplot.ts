@@ -289,7 +289,7 @@ function png(u: uPlot, background: string | null): string {
   return out.toDataURL("image/png");
 }
 
-function axisOf(style: ChartStyle, format: (v: number) => string, splits?: number[]): uPlot.Axis {
+function axisOf(style: ChartStyle, format: (v: number) => string, splits?: () => number[]): uPlot.Axis {
   return {
     stroke: style.axis,
     font: style.font,
@@ -297,7 +297,8 @@ function axisOf(style: ChartStyle, format: (v: number) => string, splits?: numbe
     ticks: { show: false },
     border: { show: false },
     gap: 6,
-    ...(splits ? { splits: () => splits } : {}),
+    // fixed ticks are ours (categories, decades, times); uPlot mustn't thin them.
+    ...(splits ? { splits, filter: (_u: uPlot, at: number[]) => at } : {}),
     values: (_u, at) => at.map((v) => (v === null ? "" : format(v))),
   };
 }
@@ -319,6 +320,10 @@ export type PlotAxis = {
   format: (v: number) => string;
   // fixed tick positions, e.g. one per category.
   splits?: number[];
+  // the axis' room in pixels (labels on the y axis).
+  size?: number;
+  // larger values downward (lanes listed top to bottom).
+  reverse?: boolean;
 };
 export type TipRow = { label: string; value: string; color: string | null; strong?: boolean };
 export type Painter = {
@@ -340,7 +345,16 @@ export type PlotSpec = {
   onFocus?: (key: string | null) => void;
   onClick?: (key: string) => void;
 };
-export type Plot = { update(spec: PlotSpec): void; focus(key: string | null): void; png(background: string | null): string; destroy(): void };
+export type Plot = {
+  update(spec: PlotSpec): void;
+  focus(key: string | null): void;
+  png(background: string | null): string;
+  // the x value under a pointer position (client pixels), for zooming and panning.
+  xAt(clientX: number): number;
+  // x values per CSS pixel.
+  xPerPixel(): number;
+  destroy(): void;
+};
 
 // a chart whose marks are drawn by the caller (points, bars, outlines) on uPlot's axes and grid.
 export function plotChart(el: HTMLElement, spec: PlotSpec): Plot {
@@ -354,6 +368,7 @@ export function plotChart(el: HTMLElement, spec: PlotSpec): Plot {
   const scale = (axis: () => PlotAxis): uPlot.Scale => ({
     time: false,
     ...(axis().log ? { distr: 3 } : axis().symlog ? { distr: 4, asinh: axis().symlog } : {}),
+    ...(axis().reverse ? { dir: -1 as const } : {}),
     range: () => axis().range,
   });
   const u = new uPlot(
@@ -365,8 +380,8 @@ export function plotChart(el: HTMLElement, spec: PlotSpec): Plot {
       padding: [10, 10, 0, 0],
       scales: { x: scale(() => current.x), y: scale(() => current.y) },
       axes: [
-        { ...axisOf(spec.style, (v) => current.x.format(v), spec.x.splits), size: 30 },
-        { ...axisOf(spec.style, (v) => current.y.format(v), spec.y.splits), size: 52 },
+        { ...axisOf(spec.style, (v) => current.x.format(v), spec.x.splits && (() => current.x.splits ?? [])), size: 30 },
+        { ...axisOf(spec.style, (v) => current.y.format(v), spec.y.splits && (() => current.y.splits ?? [])), size: spec.y.size ?? 52 },
       ],
       cursor: { x: false, y: false, points: { show: false }, drag: { x: false, y: false } },
       hooks: {
@@ -434,6 +449,8 @@ export function plotChart(el: HTMLElement, spec: PlotSpec): Plot {
     },
     focus: setFocus,
     png: (background) => png(u, background),
+    xAt: (clientX) => u.posToVal(clientX - u.over.getBoundingClientRect().left, "x"),
+    xPerPixel: () => (current.x.range[1] - current.x.range[0]) / Math.max(1, u.over.clientWidth),
     destroy(): void {
       ro.disconnect();
       u.destroy();

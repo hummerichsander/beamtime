@@ -11,6 +11,7 @@ import { diffLines, fold } from "../bt/diff.ts";
 import { ago } from "../bt/fmt.ts";
 import { runColors, useTheme, ViewCtx } from "../bt/index.ts";
 import { changed, update, usePrefs } from "../bt/prefs.ts";
+import { editText } from "../bt/writes.ts";
 import { groupUrl, navigate, route } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
@@ -51,7 +52,12 @@ export function ViewSource(props: { path: string; view: any }) {
     <${Icon} name="layout" size=${14} /><span>${what}</span>
     ${old ? html`<a href=${groupUrl(props.path)}>an older version · show the current one</a>` : null}
     ${history}
-    ${v.source === "draft" || old ? null : html`<${SaveView} path=${props.path} view=${v} />`}
+    ${v.source === "draft" || old
+      ? null
+      : html`<button type="button" class="link small" onClick=${() => void editText(props.path, null, "")}
+            data-tip="Add a text panel at the top of this page's view">
+          <${Icon} name="file-text" size=${14} /> add text</button>
+        <${SaveView} path=${props.path} view=${v} />`}
   </div>`;
 }
 
@@ -70,9 +76,10 @@ function SaveView(props: { path: string; view: any }) {
     setBusy(true);
     setError(null);
     try {
-      await post("save_view", { path: props.path, prefs: { charts: prefs.charts, added: prefs.added }, title, finding });
+      const keep = { charts: prefs.charts, added: prefs.added, order: prefs.order, spans: prefs.spans };
+      await post("save_view", { path: props.path, prefs: keep, title, finding });
       // the saved view now shows what the viewer had set; their own settings would repeat it.
-      update(props.path, () => ({ view: {}, charts: {}, added: [] }));
+      update(props.path, () => ({ view: {}, charts: {}, added: [], order: {}, spans: {} }));
       invalidate((c) => ["view", "view_history", "summary"].includes(c.method) && c.scope === props.path);
       setOpen(false);
     } catch (err) {

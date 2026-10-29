@@ -236,3 +236,20 @@ dialog.sheet.chart-dialog {
 }
 .timeline { display: flex; flex-direction: column; }
 table.data td { white-space: nowrap; }
+
+/* grid cells: a handle to drag a block elsewhere and its width, shown on hover */
+.cell {
+  position: relative; min-inline-size: 0;
+  & .cell-tools {
+    position: absolute; z-index: 3; inset-block-start: -14px; inset-inline-start: 50%; translate: -50% 0;
+    display: flex; gap: 2px; padding: 2px; border-radius: 999px; background: var(--bt-tooltip-bg);
+    border: 1px solid var(--bt-border); opacity: 0; transition: opacity 120ms;
+  }
+  &:hover > .cell-tools, & > .cell-tools:focus-within { opacity: 1; }
+  & .cell-handle { display: inline-flex; padding: 2px 4px; cursor: grab; color: var(--bt-muted); }
+  & .cell-width { min-inline-size: 22px; padding: 0 6px; border-radius: 999px; font-size: var(--bt-size-xs); color: var(--bt-muted); &:hover { color: var(--bt-fg); } }
+  &.drop { outline: 2px dashed color-mix(in srgb, var(--bt-accent) 55%, transparent); outline-offset: 6px; border-radius: var(--bt-radius); }
+}
+.rendering .cell-tools, .side-by-side .cell-tools { display: none; }
+.markdown-block .editable { min-block-size: 1.5em; }
+.title-edit { display: inline; }

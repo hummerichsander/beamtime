@@ -132,6 +132,15 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     page.wait_for_selector(".notes .note-title:has-text('Try a warmup.')", state="detached")
     assert list((project / "beamtime" / "_trash").rglob("*.md"))
 
+    # the timeline draws runs and notes, and zooms with the wheel.
+    page.goto(f"{base}/timeline?from=scaling")
+    page.wait_for_selector(".timeline-chart canvas")
+    box = page.locator(".timeline-chart .u-over").bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, -400)
+    page.wait_for_timeout(300)
+    assert page.locator(".timeline-chart button[aria-checked='true']").count() == 0, "zoomed in"
+
     running = roles["running"]
     page.goto(f"{base}/r/{running}")
     page.wait_for_url(re.compile(rf".*/f/local/.+/{running}$"))

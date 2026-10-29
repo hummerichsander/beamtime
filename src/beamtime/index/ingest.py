@@ -82,7 +82,7 @@ class Ingester:
         meta = (
             row["path"] != rel
             or run_mtime != row["run_mtime"]
-            or mtime(os.path.join(d, c.NOTES)) != row["notes_mtime"]
+            or authored_mtime(d) != row["notes_mtime"]
         )
         # an ended run whose streams a budget deferred has never been read: indexed_at is None.
         if row["status"] != "running" and not meta and row["indexed_at"] is not None:
@@ -111,7 +111,7 @@ class Ingester:
         fields: dict[str, Any] = {
             "path": rel.as_posix(),
             "folder": rel.parent.as_posix(),
-            "name": info.get("name"),
+            "name": given_name(run_dir) or info.get("name"),
             "status": info.get("status"),
             "created_at": info.get("created_at"),
             "ended_at": info.get("ended_at"),
@@ -127,11 +127,10 @@ class Ingester:
         if (t := mtime(run_dir / c.CARD)) is not None:
             fields["card"] = read_json(run_dir / c.CARD)
             fields["card_mtime"] = t
-        notes_mtime = mtime(run_dir / c.NOTES)
-        fields["notes_mtime"] = notes_mtime
+        fields["notes_mtime"] = authored_mtime(str(run_dir))
         with self.store.transaction():
             self.store.upsert_run(run_id, fields)
-            if notes_mtime is not None:
+            if mtime(run_dir / c.NOTES) is not None:
                 self.store.replace_notes(
                     rel.as_posix(), run_id, read_notes(run_dir / c.NOTES, self.logdir)
                 )
@@ -258,6 +257,33 @@ class Ingester:
                     break
         writer.commit(pos)
         return pos
+
+
+def authored_mtime(run_dir: str) -> float | None:
+    """Tell when a run's authored files last changed: its notes, or the name given to it.
+
+    :param run_dir: The run directory.
+    :return: The newest modification time of ``notes/`` and ``name/``, or ``None``."""
+    times = [
+        t for t in (mtime(os.path.join(run_dir, f)) for f in (c.NOTES, c.NAME)) if t is not None
+    ]
+    return max(times) if times else None
+
+
+def given_name(run_dir: Path) -> str | None:
+    """Read the display name given to a run after it started, if any.
+
+    :param run_dir: The run directory.
+    :return: The newest ``name/`` version's name."""
+    from beamtime.format.authored import newest, read_yaml_doc
+
+    if (path := newest(run_dir / c.NAME)) is None:
+        return None
+    try:
+        name = read_yaml_doc(path, kind="name").meta.get("name")
+    except (SchemaError, ValueError, OSError):
+        return None
+    return name if isinstance(name, str) and name.strip() else None
 
 
 def read_notes(folder: Path, logdir: Path) -> list[dict[str, Any]]:

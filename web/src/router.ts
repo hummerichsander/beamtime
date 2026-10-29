@@ -16,6 +16,7 @@ export type Route =
     }
   | { page: "run"; id: string }
   | { page: "settings"; section: string }
+  | { page: "timeline"; from: string }
   | { page: "missing"; url: string };
 
 const RUN_ID = /^\d{8}-\d{6}-[0-9a-z]{8}$/;
@@ -42,6 +43,7 @@ export function parse(pathname: string, search: string): Route {
   if (parts[0] === "f") return parse("/f/local", search);
   if (parts[0] === "r" && parts[1]) return { page: "run", id: parts[1] };
   if (parts[0] === "settings") return { page: "settings", section: parts[1] ?? "appearance" };
+  if (parts[0] === "timeline") return { page: "timeline", from: q.get("from") ?? "." };
   return { page: "missing", url: pathname };
 }
 

@@ -1,11 +1,11 @@
 // Research context blocks: proposal, memory, groups, notes, output and note.
 
 import { html } from "htm/preact";
-import { useState } from "preact/hooks";
+import { useContext, useState } from "preact/hooks";
 
-import { useData, type Node } from "../bt/index.ts";
+import { useData, ViewCtx, type Node } from "../bt/index.ts";
 import { ago, value } from "../bt/fmt.ts";
-import { addNote, deleteNote, editMemory, editNote } from "../bt/writes.ts";
+import { addNote, deleteNote, editMemory, editNote, editText } from "../bt/writes.ts";
 import { groupUrl, isRunId, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { Markdown } from "../ui/markdown.ts";
@@ -237,6 +237,16 @@ export function Output({ node }: { node: Node }) {
     <${Disclosure} summary=${summary} open=${node.props.open}>
       <pre class="log">${lines.join("\n")}</pre>
     <//>
+  <//>`;
+}
+
+// a text panel written into the view; editing it saves a new view version.
+export function MarkdownBlock({ node }: { node: Node }) {
+  const view = useContext(ViewCtx);
+  return html`<${Panel} title=${node.props.title} caption=${node.props.caption} class="markdown-block">
+    <${Editable} value=${node.props.text ?? ""} label="the text" multiline class="markdown"
+      placeholder="Empty: saving removes the panel" render=${(text: string) => html`<${Markdown} text=${text} />`}
+      onSave=${(text: string) => editText(view.path, node.id, text)} />
   <//>`;
 }
 

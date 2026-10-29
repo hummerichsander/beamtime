@@ -20,9 +20,19 @@ export type ChartPrefs = {
   legend?: boolean;
 };
 
-export type ViewPrefs = { charts: Record<string, ChartPrefs>; view: ChartPrefs; hidden: string[]; added: string[] };
+export type Span = 1 | 2 | "full";
 
-const empty = (): ViewPrefs => ({ charts: {}, view: {}, hidden: [], added: [] });
+export type ViewPrefs = {
+  charts: Record<string, ChartPrefs>;
+  view: ChartPrefs;
+  hidden: string[];
+  added: string[];
+  // a grid's children in the viewer's order, and blocks' widths, by id.
+  order: Record<string, string[]>;
+  spans: Record<string, Span>;
+};
+
+const empty = (): ViewPrefs => ({ charts: {}, view: {}, hidden: [], added: [], order: {}, spans: {} });
 const cache = new Map<string, Store<ViewPrefs>>();
 
 export function prefsOf(path: string): Store<ViewPrefs> {
@@ -77,7 +87,27 @@ export function effective(defaults: ChartPrefs, prefs: ViewPrefs, id: string): E
 
 // whether a viewer changed anything "Save as view" would keep.
 export function changed(prefs: ViewPrefs): boolean {
-  return Object.values(prefs.charts).some((c) => Object.keys(strip(c)).length > 0) || prefs.added.length > 0;
+  return (
+    Object.values(prefs.charts).some((c) => Object.keys(strip(c)).length > 0) ||
+    prefs.added.length > 0 ||
+    Object.keys(prefs.order).length > 0 ||
+    Object.keys(prefs.spans).length > 0
+  );
+}
+
+export function setOrder(path: string, grid: string, ids: string[]): void {
+  update(path, (p) => ({ order: { ...p.order, [grid]: ids } }));
+}
+
+export function setSpan(path: string, id: string, span: Span): void {
+  update(path, (p) => ({ spans: { ...p.spans, [id]: span } }));
+}
+
+// children in the viewer's order: listed ids first, in that order, then the rest as they were.
+export function ordered<T extends { id: string }>(items: T[], order: string[] | undefined): T[] {
+  if (!order?.length) return items;
+  const at = new Map(order.map((id, i) => [id, i]));
+  return [...items].sort((a, b) => (at.get(a.id) ?? order.length + items.indexOf(a)) - (at.get(b.id) ?? order.length + items.indexOf(b)));
 }
 
 function strip(p: ChartPrefs): ChartPrefs {

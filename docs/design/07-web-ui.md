@@ -148,6 +148,7 @@ the header and the view.
 | `/f/<source>/<path>` | a group with its view (`/f/local/scaling/lr-sweep`, `/f/@cluster/scaling`) |
 | `/r/<run-id>` | a run, by id; redirects to its group URL, so links survive moves |
 | `/f/...?v=<version>` | a specific saved version of the group's view |
+| `/timeline?from=<group>` | the interactive timeline of runs and notes |
 | `/f/...?history` | the view's version list; any two versions side by side with their YAML diff |
 | `/f/...?draft=<name>&render=1` | a draft rendered without the shell, for the headless renderer |
 | `/compare?runs=<a>,<b>` | two runs side by side: config diff, card values, curves (v1.1 with the `compare` block) |
@@ -294,7 +295,22 @@ from its line, after a confirmation: the note and the earlier versions it replac
 trash (`beamtime note rm`, a user command the UI offers its user).
 
 New notes (observation, idea, question, decision) are added from the Notes heading, in a small form
-with type, title and an optional Markdown body. Superseded notes
+with type, title and an optional Markdown body.
+
+A group's or run's title is edited in place too. Renaming a group moves it (`beamtime mv`, a user
+command the UI offers its user); `_moves.jsonl` records the move, so runs, notes and links that name
+the old path still find it. Renaming a run gives it a display name (`beamtime name`), a new version
+in its `name/` folder; its id never changes.
+
+Text panels (`markdown` blocks) are written into the view: "add text" under the header puts one at
+the top, it is edited in place, and emptying it removes it; each change is a new view version. In a
+grid, each block has a handle to drag it elsewhere and a width (1, 2 or all columns); the order and
+widths are the viewer's until "Save as view" writes them into the view.
+
+The **timeline** (`/timeline`, `?from=<group>`, the clock in the top bar) draws runs as bars from
+start to end, colored by status, and notes as marks above them. The wheel zooms around the pointer,
+dragging pans, buttons pick the last day, week, month or everything; clicking a run opens it,
+clicking a note opens its group's notes. Superseded notes
 are hidden; `beamtime notes --current` does the same for agents. The author is the local account;
 agents keep writing through the CLI and MCP with their model id. A save shows at once, is confirmed
 when the refetched answer arrives, and a failed save reopens the field with the error.

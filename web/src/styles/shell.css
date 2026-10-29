@@ -251,3 +251,7 @@ table.kv {
   & .note-confirm { display: inline-flex; gap: 6px; align-items: baseline; font-size: var(--bt-size-sm); color: var(--bt-muted); }
 }
 .collapsible .block-action { display: inline-flex; align-items: center; gap: 4px; }
+
+/* the timeline page: a filter line, range buttons, the lanes */
+.timeline-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; & .field { margin: 0; } }
+.timeline-chart { display: flex; flex-direction: column; gap: 12px; & .chart { cursor: grab; touch-action: none; } & .chart:active { cursor: grabbing; } }

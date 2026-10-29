@@ -174,20 +174,20 @@ def refuse_running(run_dir: Path, verb: str) -> None:
 
 
 def move(ctx: Context, p: r.MoveParams) -> dict[str, Any]:
-    """Move a run to another group below the log dir.
+    """Move a run into another group, or move (rename) a group.
 
     :param ctx: The operation context.
     :param p: The parameters.
-    :return: Where the run went."""
-    index, run_dir = find_run(ctx, p.run)
+    :return: Where it went."""
+    source = (ctx.logdir / p.source.strip("/")).resolve()
+    if source.is_dir() and ctx.logdir in source.parents and not (source / c.RUN).exists():
+        return move_group(ctx, source, p.to)
+    index, run_dir = find_run(ctx, p.source)
     index.close()
     refuse_running(run_dir, "move")
-    target = (ctx.logdir / p.group).resolve()
-    if ctx.logdir not in [target, *target.parents]:
-        raise OpError(f"{p.group!r} is outside the log dir {ctx.logdir}", code=2)
-    rel = target.relative_to(ctx.logdir)
-    if any(is_reserved(part) for part in rel.parts) or (target / c.RUN).exists():
-        raise OpError(f"{p.group!r} is a reserved name or a run; choose a group", code=2)
+    target = inside(ctx, p.to)
+    if (target / c.RUN).exists():
+        raise OpError(f"{p.to!r} is a run; choose a group", code=2)
     target.mkdir(parents=True, exist_ok=True)
     dest = target / run_dir.name
     shutil.move(str(run_dir), str(dest))
@@ -199,6 +199,54 @@ def move(ctx: Context, p: r.MoveParams) -> dict[str, Any]:
         ],
         path=dest.relative_to(ctx.logdir).as_posix(),
     )
+
+
+def move_group(ctx: Context, source: Path, to: str) -> dict[str, Any]:
+    """Move or rename a group, and record the move so paths written before it still resolve.
+
+    :param ctx: The operation context.
+    :param source: The group's directory.
+    :param to: Its new path below the log dir.
+    :return: Where it went."""
+    from beamtime.format import moves
+
+    target = inside(ctx, to)
+    old = source.relative_to(ctx.logdir).as_posix()
+    new = target.relative_to(ctx.logdir).as_posix()
+    if target.exists():
+        raise OpError(f"{new!r} exists; choose a new path", code=2)
+    if target == source or source in target.parents:
+        raise OpError(f"{new!r} is inside {old!r}", code=2)
+    if any((parent / c.RUN).exists() for parent in target.parents):
+        raise OpError(f"{new!r} is inside a run; choose a group path", code=2)
+    for run_dir in iter_runs(source):
+        refuse_running(run_dir, "move")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(source), str(target))
+    moves.record(ctx.logdir, old, new)
+    return answer(
+        "mv",
+        [
+            f"moved {old} to {new}",
+            f"runs, notes and links that name the old path still find it (recorded in {c.MOVES})",
+        ],
+        path=new,
+    )
+
+
+def inside(ctx: Context, path: str) -> Path:
+    """Resolve a group path, refusing ones outside the log dir or with reserved names.
+
+    :param ctx: The operation context.
+    :param path: The path below the log dir.
+    :return: The directory (it may not exist)."""
+    target = (ctx.logdir / path.strip("/")).resolve()
+    if ctx.logdir not in [target, *target.parents]:
+        raise OpError(f"{path!r} is outside the log dir {ctx.logdir}", code=2)
+    rel = target.relative_to(ctx.logdir)
+    if any(is_reserved(part) for part in rel.parts):
+        raise OpError(f"{path!r} has a reserved name; choose another", code=2)
+    return target
 
 
 def remove(ctx: Context, p: r.RemoveParams) -> dict[str, Any]:

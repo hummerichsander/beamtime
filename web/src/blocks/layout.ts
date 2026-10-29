@@ -5,7 +5,7 @@ import { useContext, useState } from "preact/hooks";
 
 import { useCall } from "../api.ts";
 import { ViewCtx, type Node } from "../bt/index.ts";
-import { update, usePrefs } from "../bt/prefs.ts";
+import { ordered, setOrder, setSpan, update, usePrefs, type Span } from "../bt/prefs.ts";
 import { Icon } from "../ui/icons.ts";
 import { MultiSelect } from "../ui/multiselect.ts";
 import { Block } from "./index.ts";
@@ -48,9 +48,39 @@ export function Grid({ node }: { node: Node }) {
           data: { main: { ...node.props.template, params: { ...node.props.template.params, y: [m] } } },
         }))
     : [];
+  const cells = ordered([...(node.children ?? []), ...added], prefs.order[node.id]);
+  const move = (dragged: string, before: string) => {
+    const ids = cells.map((c) => c.id).filter((id) => id !== dragged);
+    ids.splice(ids.indexOf(before), 0, dragged);
+    setOrder(view.path, node.id, ids);
+  };
   return html`<div class="grid" style=${style}>
-    ${[...(node.children ?? []), ...added].map((c) => html`<${Block} key=${c.id} node=${c} />`)}
+    ${cells.map((c) => html`<${Cell} key=${c.id} node=${c} path=${view.path} span=${prefs.spans[c.id] ?? c.props.span ?? 1}
+      columns=${cols} onDrop=${(dragged: string) => dragged !== c.id && move(dragged, c.id)} />`)}
     ${node.props.addable ? html`<${AddChart} path=${view.path} shown=${[...shown, ...prefs.added]} />` : null}
+  </div>`;
+}
+
+const WIDTHS: Span[] = [1, 2, "full"];
+
+// a grid cell: its block, a handle to drag it elsewhere in the grid, and its width.
+function Cell(props: { node: Node; path: string; span: Span; columns?: number; onDrop: (dragged: string) => void }) {
+  const [over, setOver] = useState(false);
+  const next = WIDTHS[(WIDTHS.indexOf(props.span) + 1) % WIDTHS.length];
+  const name = (s: Span) => (s === "full" ? "full width" : `${s} column${s === 1 ? "" : "s"}`);
+  return html`<div class=${`cell span-${props.span}${over ? " drop" : ""}`}
+      onDragOver=${(e: DragEvent) => { e.preventDefault(); setOver(true); }}
+      onDragLeave=${() => setOver(false)}
+      onDrop=${(e: DragEvent) => { e.preventDefault(); setOver(false); props.onDrop(e.dataTransfer?.getData("text/x-block") ?? ""); }}>
+    <div class="cell-tools">
+      <span class="cell-handle" draggable="true" role="button" tabindex="-1" aria-label="Drag to move"
+        data-tip="Drag to move" onDragStart=${(e: DragEvent) => e.dataTransfer?.setData("text/x-block", props.node.id)}>
+        <${Icon} name="grip" size=${14} /></span>
+      <button type="button" class="cell-width" data-tip=${`Width: ${name(props.span)}; click for ${name(next)}`}
+        aria-label=${`Width ${name(props.span)}`} onClick=${() => setSpan(props.path, props.node.id, next)}>
+        ${props.span === "full" ? "↔" : props.span}</button>
+    </div>
+    <${Block} node=${{ ...props.node, props: { ...props.node.props, span: 1 } }} />
   </div>`;
 }
 

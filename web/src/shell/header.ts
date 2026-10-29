@@ -11,7 +11,7 @@ import { groupUrl, isRunId, navigate, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { Editable } from "../ui/editable.ts";
 import { IconButton, Meter, Popover } from "../ui/primitives.ts";
-import { editStatement } from "../bt/writes.ts";
+import { editStatement, renameGroup, renameRun } from "../bt/writes.ts";
 import { symbolFor } from "../ui/symbols.ts";
 import * as calls from "./calls.ts";
 
@@ -49,7 +49,11 @@ function GroupHeader({ path }: { path: string }) {
   const [progress, more] = progressText(check?.progress?.text ?? row.progress);
   const ended = ENDED.reduce((n, k) => n + (row[k] ?? 0), 0);
   return html`
-    <h1 class="title" tabindex="-1">${name} <${Sym} spec=${symbolFor("research", row.status)} word /></h1>
+    <h1 class="title" tabindex="-1">${path === "."
+        ? name
+        : html`<${Editable} value=${name} label="the group's name" class="title-edit"
+            onSave=${async (next: string) => navigate(groupUrl(await renameGroup(path, next.trim())), { replace: true })} />`}
+      <${Sym} spec=${symbolFor("research", row.status)} word /></h1>
     ${row.proposal
       ? html`<div class="statement" onPointerEnter=${() => setCurious(true)} onFocusIn=${() => setCurious(true)}>
           <${Editable} value=${row.proposal} label="the proposal's statement" locked=${frozen ?? undefined}
@@ -90,7 +94,9 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
   const r = card.run;
   const copy = () => void navigator.clipboard?.writeText(r.id);
   return html`
-    <h1 class="title" tabindex="-1">${r.name ?? r.id} <${Sym} spec=${symbolFor("run", r.status)} word /></h1>
+    <h1 class="title" tabindex="-1"><${Editable} value=${r.name ?? r.id} label="the run's name" class="title-edit"
+        onSave=${(next: string) => renameRun(r.id, scope, next.trim())} />
+      <${Sym} spec=${symbolFor("run", r.status)} word /></h1>
     ${r.error ? html`<p class="statement bad-text" data-tip=${r.error}>${r.error.split("\n")[0].slice(0, 160)}</p>` : null}
     <div class="facts">
       <span class="fact"><b>${step(r.steps)}</b> steps</span>

@@ -11,6 +11,7 @@ import { StatusBar, TopBar } from "./bars.ts";
 import * as calls from "./calls.ts";
 import { Drawer } from "./drawer.ts";
 import { GroupPage, RunRedirect, Settings } from "./page.ts";
+import { TimelinePage } from "./timeline.ts";
 import { Palette } from "./palette.ts";
 import { Sidebar } from "./sidebar.ts";
 import { buildTree, siblings } from "./tree.ts";
@@ -39,6 +40,9 @@ export function App() {
       break;
     case "settings":
       page = html`<${Settings} />`;
+      break;
+    case "timeline":
+      page = html`<${TimelinePage} key=${r.from} from=${r.from} />`;
       break;
     default:
       page = html`<div class="page"><p>No page at ${r.url}. <a href="/f/local">Go to the log dir.</a></p></div>`;

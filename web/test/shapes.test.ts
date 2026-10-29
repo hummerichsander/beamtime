@@ -70,3 +70,11 @@ test("line diffs mark changes and fold long unchanged runs", () => {
   const f = fold(d, 1);
   assert.ok(f.some((l) => l.kind === "skip"));
 });
+
+test("time ticks pick a round step", async () => {
+  const { timeTicks } = await import("../src/bt/shapes.ts");
+  const { at, step } = timeTicks(0, 3 * 3600);
+  assert.equal(step, 1800);
+  assert.ok(at.every((t) => t % 1800 === 0) && at.length >= 5 && at.length <= 7);
+  assert.equal(timeTicks(0, 30 * 86400).step, 7 * 86400);
+});

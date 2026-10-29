@@ -206,6 +206,7 @@ wave 1.
 | `groups` | the child groups with status, check, verdict, run counts and a chosen field | `depth` |
 | `timeline` | notes and run events in time order | `types`, `limit` |
 | `note` | a short text, optionally as a callout (`info`, `warning`, `success`) | `text`, `kind` |
+| `markdown` | a text panel in Markdown with math, edited in place in the UI | `text` |
 | `notes` | the newest notes, current versions only | `types`, `limit` |
 | `output` | the tail of a run's captured output | `run`, `lines`, `rank` |
 
