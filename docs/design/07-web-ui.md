@@ -273,6 +273,13 @@ A PDF report and a dedicated print theme come later.
 - A strict content security policy on every page: scripts and styles only from `serve`, no outside
   requests. Custom blocks are additionally sandboxed. Charts load no data of their own: everything
   comes from declared queries ([layer 5](05-views.md#charts)).
+- **The custom-block frame** is `/static/kit/frame.html`, loaded with `sandbox="allow-scripts"`. It
+  carries its own policy (`default-src 'none'; script-src 'self' blob:; connect-src 'none';
+  frame-ancestors 'self'`, styles, fonts and `data:`/`blob:` images allowed), and `/static/` answers
+  with `Access-Control-Allow-Origin: *`, since module scripts from an opaque origin are CORS
+  requests. The block's code never has a URL of its own: the page fetches it with the token and
+  posts its text into the frame, which imports it from a `blob:` URL. Read-only calls travel over the
+  bridge; writes are refused there.
 - **Writes from the page** go through the same operations as the CLI, as the local account
   ([Writing from the UI](#writing-from-the-ui)); a page cannot write anything the operations don't.
 
@@ -428,15 +435,16 @@ Decided while building the shell (milestone M5):
   (`closedby="any"` with a fallback for Safari); popover panels use the `popover` attribute and are
   placed from script, since anchor positioning isn't everywhere yet; one small tooltip serves every
   `data-tip` (shown after a delay, hoverable, Escape dismisses), since interest invokers are
-  Chromium-only; page changes cross-fade with view transitions (only the page, never the shell),
-  and focus moves to the new heading unless it stayed in the tree; inline editors grow with
+  Chromium-only; pages switch instantly (a view-transition cross-fade snapshotted chart-heavy
+  pages and lagged), and focus moves to the new heading unless it stayed in the tree; inline editors grow with
   `field-sizing: content`; Enter that confirms an IME composition doesn't save.
 - **Measured** on the generator's scale-M log dir (495 runs, 352 in one sweep, `bench/web/timing.py`,
   local, warm cache): first view median 136–151 ms (budget 300 ms), group to group median 80 ms
   (budget 100 ms; slowest about 115 ms), the longest pointer event while sweeping a chart median
   16 ms (budget 50 ms).
-- **Not yet**: custom-block iframes and the `postMessage` bridge, the headless renderer and static
-  export (M6), remote sources in the tree and status bar (M7), D3.
+- **Custom blocks** (M7): a block that throws, fails to load or keeps resizing is replaced by an error
+  panel naming the block, its code file and the error; the rest of the view stays intact.
+- **Not yet**: static export (M9), remote sources in the tree and status bar (M8).
 
 ## Decisions
 

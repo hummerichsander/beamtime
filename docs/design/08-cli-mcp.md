@@ -68,13 +68,14 @@ wherever a group does.
 | `beamtime view save <draft> [--message <text>]` | `view_save` | saves a new view version; refuses a draft with errors |
 | `beamtime view show <group> [--version <v>]` | `view_show` | the current view's YAML, pins and version |
 | `beamtime view history <group>` | `view_history` | the version list |
-| `beamtime view outdated [group]` | `view_outdated` | views pinned to older block versions (M7) |
-| `beamtime view upgrade <view> [--block <name>]` | `view_upgrade` | re-pins and validates a view (M7) |
-| `beamtime block list [group]` | `block_list` | library blocks with descriptions |
-| `beamtime block promote <view> <block-id> <name>` | `block_promote` | turns a custom block into a library block |
-| `beamtime block fork <name> <new-name>` | `block_fork` | copies a block as a starting point |
-| `beamtime block validate <draft>` | `block_validate` | checks a block draft |
-| `beamtime block save <draft>` | `block_save` | saves a new block version |
+| `beamtime view outdated [group]` | `view_outdated` | views pinned to older block versions |
+| `beamtime view upgrade <group> [--block <name>]` | `view_upgrade` | re-pins to the newest block versions, validates, saves a new view version |
+| `beamtime block list [group]` | `block_list` | library blocks available in a group, with descriptions and params |
+| `beamtime block show <name> [group] [--version <v>]` | `block_show` | a block's definition and code |
+| `beamtime block promote <group> <block-id> <name>` | `block_promote` | a block draft from a custom block of the group's view |
+| `beamtime block fork <name> <new-name> [group]` | `block_fork` | a block draft copied from a block (`derived_from`) |
+| `beamtime block validate <draft>` | `block_validate` | checks a block draft, rendering its examples |
+| `beamtime block save <draft> [--group <g>] [--message <text>]` | `block_save` | saves a new block version |
 | `beamtime export <group>` | `export` | `--html`, `--figures`, `--points` ([layer 7](07-web-ui.md#static-export)) |
 
 ### User-only commands (CLI only)
@@ -95,7 +96,7 @@ the user the command ([Policy](#policy)).
 | `beamtime rm <run or group>` | moves it into `_trash/` ([layer 1](01-storage.md#deleting-and-cleaning-up)) |
 | `beamtime gc` | empties the trash and removes crashed runs without metrics |
 | `beamtime reindex` | rebuilds the index from the files |
-| `beamtime block export <name> <group>`, `beamtime block import <group>` | copy blocks between projects |
+| `beamtime block export <name> [group] --to <dir>`, `beamtime block import <group> --from <path or git-url[@ref]>` | copy blocks between projects and git repositories ([layer 5](05-views.md#location)) |
 | `beamtime set <key> <value>` | writes `theme`, `theme_mode` or `figure_style` into the project's `beamtime.yaml` (the web UI's settings page does the same) |
 | `beamtime theme list`, `beamtime theme use <name>` | themes ([layer 5](05-views.md#theme)) |
 

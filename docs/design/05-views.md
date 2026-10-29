@@ -369,6 +369,11 @@ and takes its data as a prop. Interactive components report `onSelect(row)` and 
 - **Height** follows the content through the bridge, with a guard against resize loops: a block whose
   height keeps changing is fixed at its last height and reported by `bt.warn`.
 - Sandboxing protects readers from views that others committed to a shared repository.
+- **The code travels over the bridge.** The page fetches a block's code with the token and posts its
+  text into the frame (`/static/kit/frame.html`), which imports it from a `blob:` URL; code files
+  never get a public URL. Inside the frame, the kit's data hooks are subscriptions the page answers
+  from its own cache, so live updates reach custom blocks like any other block; only reading
+  operations pass the bridge.
 
 ### Charts
 
@@ -508,8 +513,12 @@ blocks with their descriptions.
   names cannot be overridden.
 - Blocks live in the same source as the views using them, so a remote view finds its blocks on the
   remote.
-- `beamtime block export <name> <group>` and `beamtime block import <group>` copy blocks between
-  projects.
+- `beamtime block export <name> [group] --to <dir>` writes `<dir>/blocks/<name>/` with every version
+  and its code; `beamtime block import <group> --from <path | git-url[@ref]>` copies the
+  `blocks/<name>/` folders of a project, an exported folder or a git repository (cloned shallowly)
+  into the group, keeping version ids so pins stay valid, and records the source and commit in
+  `blocks/<name>/_imported.json`. Exporting into a git repository makes a shareable library; both are
+  user commands.
 
 ### Creating and reusing blocks
 
@@ -518,8 +527,13 @@ blocks with their descriptions.
 | `beamtime block list [group]` | `block_list` | blocks available in a group, with descriptions |
 | `beamtime block promote <view> <block-id> <name>` | `block_promote` | turns a view's working custom block into a library block |
 | `beamtime block fork <name> <new-name>` | `block_fork` | copies a block as a starting point; records `derived_from` |
+| `beamtime block show <name> [group] [--version]` | `block_show` | a block's definition and code |
 | `beamtime block validate <draft>` | `block_validate` | checks a block draft |
 | `beamtime block save <draft>` | `block_save` | saves a new block version |
+
+Block drafts live in `.beamtime/drafts/blocks/<name>/` (`block.yaml` and `code.js`); `promote` and
+`fork` write one, and `save` writes the version into `blocks/<name>/` of the log dir root, or of
+`--group`.
 
 `block_validate` and `block_save` check what "generalized" means:
 
@@ -572,7 +586,11 @@ through remote queries and `save` sends the version to the remote.
 1. **Static, always.** The view schema; every query parses, its fields exist and placeholder types are
    sound; custom code parses, exports `render`, imports nothing outside `bt`, uses no network APIs,
    stays below a size limit, contains no inline numeric data beyond a small limit, and uses no color
-   literals outside `bt.theme`.
+   literals outside `bt.theme`. These checks are lexical (no JavaScript parser in Python): an
+   exported `render`, no `import`, no `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`,
+   `sendBeacon`, `importScripts` or `Worker`, at most 64 KB, at most 200 numeric literals in a row,
+   no `#hex`, `rgb(` or `hsl(` colors. Syntax errors surface in the render and, for readers, as the
+   block's error panel.
 2. **One render, when a browser is available.** The draft is rendered headless once, in the group it
    is saved for: no exceptions, no console errors, rendering within a time limit, no blank blocks,
    placeholder queries exercised once with example values. In the same render, layout is measured
@@ -743,6 +761,18 @@ about ten tasks run on every change to the guide, kit or built-in blocks, the fu
 releases. The generator and task definitions are built early; scoring follows the first renderer.
 
 ## Implementation notes
+
+Decided while building custom blocks and the library (milestone M7):
+
+- **The kit is the built-in blocks.** Inside the frame, `bt.ui` and `bt.chart` render the same
+  components as the page; `bt.useData(name, values)` returns a result that also carries its call, so
+  a component given `data` subscribes to the same answer.
+- **Placeholders** are `$name` strings in a declared query; `useData` substitutes the values given
+  and refuses a query whose placeholders are unfilled. Library-block params are substituted when the
+  view compiles; what remains (such as `$run`) are runtime placeholders.
+- **Readiness**: the page counts a frame as busy until it reports its first render, an error, or
+  15 s; frame errors are logged by the page as `[block <id>] …`, so the renderer reports them, and the
+  frame reports blank and overflowing content for the layout checks.
 
 Decided while building views (milestone M6):
 

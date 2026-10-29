@@ -194,7 +194,7 @@ Implements [layer 5](design/05-views.md) for authored views.
 
 *Done when*: an agent builds a useful view of a real sweep through MCP within two screenshot rounds.
 
-### M7: Custom blocks and the library (1.5–2 weeks)
+### M7: Custom blocks and the library (1.5–2 weeks) — in progress
 
 - The sandboxed iframe, the `postMessage` bridge, declared queries with placeholders, `libs`,
   height handling, error panels.
@@ -203,6 +203,9 @@ Implements [layer 5](design/05-views.md) for authored views.
   pinning in `uses`, `outdated` and `upgrade`, `block export` and `import`.
 
 *Done when*: the `custom` example works, is promoted to a library block, and a second view reuses it.
+
+Taken on alongside: `block import` from git repositories (packages and a gallery stay v1.1), a
+tokenizer for condition strings, and paging for notes with a memory budget hint in the UI.
 
 ### M8: Remotes (1.5–2 weeks)
 

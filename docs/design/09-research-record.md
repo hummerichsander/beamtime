@@ -368,7 +368,11 @@ Decided while building the research record (milestone M4):
 - **Backlinks** come from the index's links table: `card` lists the notes citing a run
   (`cited_by`), and `check` the notes citing each prediction.
 - **Memory**: the size budget is measured in characters, 6000 (about 1.5k tokens); `covers_until`
-  defaults to the time of the newest note at or below the group.
+  defaults to the time of the newest note at or below the group. The web UI marks a memory that is
+  over budget or behind many notes and gives the command to compact it with an agent; nothing
+  compacts automatically.
+- **Paging**: `notes` takes `limit` (default 50) and `before` (a note id) and says whether older
+  notes exist; the web UI shows the newest 20 and loads older ones on request.
 
 ## Decisions
 
