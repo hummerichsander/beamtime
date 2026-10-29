@@ -2,7 +2,7 @@
 
 import uPlot from "uplot";
 
-import { align, type Curve } from "./curves.ts";
+import { align, logRange, logTicks, type Curve } from "./curves.ts";
 import type { ChartStyle } from "./theme.ts";
 
 export type LineSpec = {
@@ -85,10 +85,15 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
           ...(spec.log ? { distr: 3 } : {}),
           range: (_self, min, max) =>
             current.range ??
-            (current.log ? uPlot.rangeLog(min, max, 10, false) : uPlot.rangeNum(min, max, 0.06, true)),
+            (current.log && min > 0 ? logRange(min, max) : uPlot.rangeNum(min, max, 0.06, true)),
         },
       },
-      axes: [{ ...axisOf(spec.style, spec.formatX), size: 30 }, { ...axisOf(spec.style, spec.formatY), size: 52 }],
+      axes: [
+        { ...axisOf(spec.style, spec.formatX), size: 30 },
+        { ...axisOf(spec.style, spec.formatY), size: 52, splits: (_u, _i, min, max) => (current.log ? logTicks(min, max) : niceTicks(min, max)),
+          // uPlot thins log ticks to 1 and 5 per decade by default; ours are already chosen.
+          filter: (_u, splits) => splits },
+      ],
       focus: { alpha: spec.style.dim },
       cursor: {
         // the crosshair follows across the view; dragging and double-clicking zoom one chart only.
@@ -154,7 +159,8 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
     const active = self.over.matches(":hover");
     if (idx === null || idx === undefined || top < 0) {
       tip.hidden = true;
-      if (active || focused !== null) report(null);
+      // a chart that only follows the synced cursor leaves the shared focus alone.
+      if (active) report(null);
       return;
     }
     const x = self.data[0][idx];
@@ -222,7 +228,8 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       return true;
     },
     focus(key: string | null): void {
-      const i = key === null ? -1 : current.curves.findIndex((c) => c.key === key || c.run === key);
+      const i = key === null ? -1 : current.curves.findIndex((c) => c.key === key || c.run === key ||
+        (c.group !== null && key === `by:${c.group}`) || c.runs.includes(key));  // prettier-ignore
       setFocus(i < 0 ? null : i);
     },
     png(background: string): string {
@@ -423,4 +430,14 @@ export function tint(hex: string, alpha: number): string {
   const h = hex.replace("#", "");
   const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// linear ticks at 1, 2 or 5 times a power of ten, about five of them.
+function niceTicks(min: number, max: number): number[] {
+  const raw = (max - min) / 5 || 1;
+  const p = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 5, 10].map((m) => m * p).find((s) => s >= raw)!;
+  const out: number[] = [];
+  for (let v = Math.ceil(min / step) * step; v <= max + step * 1e-9; v += step) out.push(Number(v.toPrecision(12)));
+  return out;
 }

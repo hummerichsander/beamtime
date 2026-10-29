@@ -66,3 +66,25 @@ test("robust range ignores a diverging run", async () => {
   assert.ok(lo < 1 && hi < 3, `${lo} ${hi}`);
   assert.equal(robustRange([[1, 2]]), null);
 });
+
+test("smoothing smooths the band with the curve", async () => {
+  const { smooth } = await import("../src/bt/curves.ts");
+  const c = reshape({ curves: [{ by: { "config.lr": 1 }, runs: ["a", "b"], metric: "m", x: [0, 1, 2], mean: [0, 10, 0], lo: [0, 8, 0], hi: [0, 12, 0], n: [2, 2, 2] }] });
+  const out = smooth(c, 0.5).curves[0];
+  assert.ok(out.lo![2]! > 0 && out.hi![2]! > out.y[2]!, "the band follows the smoothed mean");
+  assert.deepEqual(out.runs, ["a", "b"]);
+  assert.equal(out.group, "lr=1");
+});
+
+test("log ranges pad around the data instead of rounding to decades", async () => {
+  const { logRange } = await import("../src/bt/curves.ts");
+  const [lo, hi] = logRange(0.3, 0.93);
+  assert.ok(lo < 0.3 && lo > 0.2 && hi > 0.93 && hi < 1, `${lo} ${hi}`);
+});
+
+test("log ticks fit the range", async () => {
+  const { logTicks } = await import("../src/bt/curves.ts");
+  assert.deepEqual(logTicks(0.32, 0.75), [0.4, 0.5, 0.6, 0.7]);
+  assert.deepEqual(logTicks(0.1, 1.5), [0.1, 0.2, 0.3, 0.5, 1]);
+  assert.deepEqual(logTicks(0.001, 10), [0.001, 0.01, 0.1, 1, 10]);
+});

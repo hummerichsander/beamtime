@@ -130,18 +130,46 @@ export function Notes({ node }: { node: Node }) {
 
 const NEW_TYPES = ["observation", "idea", "question", "decision"];
 
+// a form that stays open until saved or cancelled: type, title and an optional Markdown body.
 function NewNote(props: { group: string; onDone: () => void }) {
   const [type, setType] = useState("observation");
-  return html`<div class="note new-note">
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const save = async (e: Event) => {
+    e.preventDefault();
+    if (!title.trim()) return setError("give the note a title");
+    setBusy(true);
+    try {
+      await addNote(props.group, type, title.trim(), body.trim());
+      props.onDone();
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  };
+  const keys = (e: KeyboardEvent) => {
+    if (e.key === "Escape") props.onDone();
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void save(e);
+  };
+  return html`<form class="note new-note" onSubmit=${save} onKeyDown=${keys}>
     <div class="note-line">
       <select class="note-type" value=${type} aria-label="Note type" onChange=${(e: Event) => setType((e.target as HTMLSelectElement).value)}>
         ${NEW_TYPES.map((t) => html`<option value=${t}>${t}</option>`)}
       </select>
-      <${Editable} value="" label="the new note's title" placeholder="What did you see, decide or wonder?" startEditing
-        class="note-title" onCancel=${props.onDone}
-        onSave=${async (title: string) => { await addNote(props.group, type, title, ""); props.onDone(); }} />
+      <input class="new-note-title" value=${title} placeholder="What did you see, decide or wonder?" aria-label="Title"
+        autofocus onInput=${(e: Event) => setTitle((e.target as HTMLInputElement).value)} />
     </div>
-  </div>`;
+    <textarea class="new-note-body" rows="4" value=${body} placeholder="Details in Markdown (optional); [[run-id]] links a run"
+      aria-label="Details" onInput=${(e: Event) => setBody((e.target as HTMLTextAreaElement).value)}></textarea>
+    <div class="save-actions">
+      <button type="submit" class="button primary" disabled=${busy}>${busy ? "Adding…" : "Add note"}</button>
+      <button type="button" class="link small" onClick=${props.onDone}>cancel</button>
+      <span class="muted small">⌘Enter adds, Esc cancels</span>
+      ${error ? html`<span class="bad-text small">${error}</span>` : null}
+    </div>
+  </form>`;
 }
 
 // one line per note: type, title, who and when; the body opens below. Both edit in place.

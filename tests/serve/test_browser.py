@@ -108,6 +108,18 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     added = set(notes_dir.iterdir()) - before
     assert len(added) == 1 and "supersedes:" in added.pop().read_text()
 
+    # a new note: choosing its type keeps the form open; title and body are saved together.
+    before = set(notes_dir.iterdir())
+    page.click(".notes-block .block-action button, .collapsible:has(.notes) .block-action button")
+    page.select_option(".new-note select", "idea")
+    page.fill(".new-note .new-note-title", "Try a warmup.")
+    page.fill(".new-note textarea", "Maybe **500** steps.")
+    page.click(".new-note button[type=submit]")
+    page.wait_for_selector(".notes .note-title:has-text('Try a warmup.')")
+    added = set(notes_dir.iterdir()) - before
+    text = added.pop().read_text()
+    assert "type: idea" in text and "Maybe **500** steps." in text
+
     running = roles["running"]
     page.goto(f"{base}/r/{running}")
     page.wait_for_url(re.compile(rf".*/f/local/.+/{running}$"))

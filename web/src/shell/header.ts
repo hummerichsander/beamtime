@@ -7,10 +7,10 @@ import { useCall } from "../api.ts";
 import { describe, progressText } from "../blocks/context.ts";
 import { rows } from "../blocks/common.ts";
 import { ago, duration, step, value } from "../bt/fmt.ts";
-import { groupUrl, isRunId, runUrl } from "../router.ts";
+import { groupUrl, isRunId, navigate, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { Editable } from "../ui/editable.ts";
-import { IconButton, Meter } from "../ui/primitives.ts";
+import { IconButton, Meter, Popover } from "../ui/primitives.ts";
 import { editStatement } from "../bt/writes.ts";
 import { symbolFor } from "../ui/symbols.ts";
 import * as calls from "./calls.ts";
@@ -99,7 +99,16 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
       <${Best} path=${scope} />
       <span class="fact">
         <${IconButton} icon="copy" label=${`Copy the run id ${r.id}`} onClick=${copy} />
-        <span class="icon-button" tabindex="0" aria-label="Details" data-tip=${details(r)}><${Icon} name="ellipsis" size=${16} /></span>
+        <${Popover} icon="ellipsis" label="Details" title="Run details" class="run-details">
+          <table class="kv">${details(r).map(([k, v]) => html`<tr><td class="muted">${k}</td><td>${v}</td></tr>`)}</table>
+          <div class="menu-list">
+            <button type="button" onClick=${() => navigate(groupUrl(scope, { run: r.id }), { replace: true })}>
+              <${Icon} name="panel-right" size=${15} /> Open in the side panel</button>
+            <button type="button" onClick=${copy}><${Icon} name="copy" size=${15} /> Copy the run id</button>
+            ${r.git?.commit ? html`<button type="button" onClick=${() => navigator.clipboard?.writeText(r.git.commit)}>
+              <${Icon} name="git-commit" size=${15} /> Copy the commit</button>` : null}
+          </div>
+        <//>
       </span>
     </div>
     ${(card.proposals ?? []).length
@@ -125,12 +134,17 @@ function Best({ path }: { path: string }) {
   </span>`;
 }
 
-function details(r: any): string {
-  return [
-    r.id,
-    r.host && `host ${r.host}`,
-    r.git?.commit && `commit ${r.git.commit}${r.git.dirty ? " (dirty)" : ""}${r.git.branch ? ` on ${r.git.branch}` : ""}`,
-    r.scheduler?.job_id && `${r.scheduler.kind} job ${r.scheduler.job_id}`,
-    r.attempts > 1 && `${r.attempts} attempts`,
-  ].filter(Boolean).join(" · ");
+// what a run's details popover lists: only what is known.
+function details(r: any): [string, string][] {
+  const rows: [string, unknown][] = [
+    ["id", r.id],
+    ["host", r.host],
+    ["commit", r.git?.commit && `${r.git.commit.slice(0, 10)}${r.git.dirty ? " (dirty)" : ""}`],
+    ["branch", r.git?.branch],
+    ["job", r.scheduler?.job_id && `${r.scheduler.kind} ${r.scheduler.job_id}`],
+    ["attempts", r.attempts > 1 ? String(r.attempts) : null],
+    ["started", r.created_at],
+    ["ended", r.ended_at],
+  ];
+  return rows.filter((x): x is [string, string] => !!x[1]).map(([k, v]) => [k, String(v)]);
 }

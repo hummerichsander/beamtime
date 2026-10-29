@@ -139,7 +139,7 @@ function Chart(props: {
       sync: `view:${path}`,
       formatX: formatterFor(prefs.x),
       formatY: (v) => value(v),
-      onFocus: (c) => hovered.set(c?.run ?? null),
+      onFocus: (c) => hovered.set(c ? (c.run ?? (c.group !== null ? `by:${c.group}` : null)) : null),
       onZoom: (w) => setZoom(w),
     };
     if (chart.current?.update(spec)) return;

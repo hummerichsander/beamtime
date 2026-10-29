@@ -10,6 +10,9 @@ export type Curve = {
   lo: (number | null)[] | null;
   hi: (number | null)[] | null;
   n: (number | null)[] | null;
+  // aggregated curves: the group's label and its runs, so hover can match them across charts.
+  group: string | null;
+  runs: string[];
 };
 
 export type Curves = { curves: Curve[]; aggregated: boolean };
@@ -31,6 +34,8 @@ export function reshape(answer: { curves: any[] }, opts: { log?: boolean } = {})
       lo: null,
       hi: null,
       n: null,
+      group: aggregated ? labels[i] : null,
+      runs: aggregated ? (c.runs ?? []) : [c.run],
     };
     if (aggregated) {
       out.y = c.mean ?? [];
@@ -107,7 +112,16 @@ export function ema(values: (number | null)[], weight: number): (number | null)[
 
 export function smooth(c: Curves, weight: number): Curves {
   if (weight <= 0) return c;
-  return { ...c, curves: c.curves.map((cv) => ({ ...cv, y: ema(cv.y, weight) })) };
+  // the band is smoothed like the curve, so it stays around it.
+  const band = (v: (number | null)[] | null) => (v ? ema(v, weight) : null);
+  return { ...c, curves: c.curves.map((cv) => ({ ...cv, y: ema(cv.y, weight), lo: band(cv.lo), hi: band(cv.hi) })) };
+}
+
+// a log axis padded in log space around the data, not rounded out to whole decades.
+export function logRange(min: number, max: number): [number, number] {
+  const span = Math.max(Math.log10(max / min), 0.3);
+  const f = 10 ** (span * 0.06);
+  return [min / f, max * f];
 }
 
 // a y range that ignores the most extreme 1 % on each side, so one diverging run doesn't
@@ -122,4 +136,15 @@ export function robustRange(series: (number | null)[][], log = false): [number, 
   const pad = (hi - lo) * 0.06 || Math.abs(hi) * 0.05 || 1;
   [lo, hi] = [lo - pad, hi + pad];
   return [lo, hi];
+}
+
+// ticks on a log axis: decades, with more marks between them the shorter the range.
+export function logTicks(min: number, max: number): number[] {
+  const span = Math.log10(max / min);
+  const steps = span <= 0.6 ? [1, 2, 3, 4, 5, 6, 7, 8, 9] : span <= 1.3 ? [1, 2, 3, 5] : span <= 2.5 ? [1, 2, 5] : [1];
+  const out: number[] = [];
+  for (let e = Math.floor(Math.log10(min)); e <= Math.ceil(Math.log10(max)); e++) {
+    for (const m of steps) out.push(Number((m * 10 ** e).toPrecision(6)));
+  }
+  return out.filter((v) => v >= min && v <= max);
 }
