@@ -1,0 +1,19 @@
+# Example "direction": a research direction made of several sweeps (a group of groups).
+# Where the research stands comes first: the sub-groups with their checks and verdicts, then what
+# was decided and concluded, then the compressed memory and the direction's own proposal.
+schema: 1
+title: "{{group}}"
+finding: "TODO: where the direction stands in one sentence."
+body:
+  - groups: {id: groups, title: Experiments}
+  - grid:
+      id: record
+      columns: 2
+      children:
+        - timeline:
+            id: decisions
+            title: Decisions and verdicts
+            types: [decision, verdict]
+            limit: 12
+        - memory: {id: memory, title: Memory}
+  - notes: {id: notes, title: Latest notes, limit: 5}

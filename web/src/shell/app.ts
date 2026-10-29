@@ -5,7 +5,7 @@ import { useEffect, useRef } from "preact/hooks";
 
 import { fetchCall, paused } from "../api.ts";
 import { rows } from "../blocks/common.ts";
-import { groupUrl, navigate, route, setScroller } from "../router.ts";
+import { groupUrl, navigate, rendering, route, setScroller } from "../router.ts";
 import { useStore } from "../state.ts";
 import { StatusBar, TopBar } from "./bars.ts";
 import * as calls from "./calls.ts";
@@ -31,7 +31,8 @@ export function App() {
   let page;
   switch (r.page) {
     case "group":
-      page = html`<${GroupPage} key=${r.path} path=${r.path} />`;
+      page = html`<${GroupPage} key=${`${r.path} ${r.version} ${r.draft} ${r.history}`} path=${r.path} version=${r.version}
+        draft=${r.draft} history=${r.history} />`;
       break;
     case "run":
       page = html`<${RunRedirect} id=${r.id} />`;
@@ -42,6 +43,8 @@ export function App() {
     default:
       page = html`<div class="page"><p>No page at ${r.url}. <a href="/f/local">Go to the log dir.</a></p></div>`;
   }
+  // the headless renderer gets the view alone.
+  if (rendering) return html`<main class="main render-main" ref=${main}>${page}</main>`;
   return html`<div class=${`shell${showSidebar ? "" : " no-sidebar"}${drawer ? " with-drawer" : ""}`}>
     <${TopBar} />
     ${showSidebar ? html`<${Sidebar} />` : null}

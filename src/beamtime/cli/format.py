@@ -223,6 +223,16 @@ def render(answer: dict[str, Any]) -> str:
             return render_proposal(answer)
         case "memory":
             return render_memory(answer)
+        case "guide":
+            return answer["text"]
+        case "view history":
+            rows = [
+                [e["version"], e["author"], e["title"], e["message"]] for e in answer["entries"]
+            ]
+            lines = table(["version", "author", "title", "message"], rows) if rows else []
+            return "\n".join([*lines, f"{len(rows)} version(s) of {answer['group']}'s view"])
+        case "view show" if answer.get("yaml"):
+            return f"# {answer['group']} view {answer['version']}\n{answer['yaml']}"
         case _:
             return "\n".join(answer.get("lines", [])) or str(answer)
 

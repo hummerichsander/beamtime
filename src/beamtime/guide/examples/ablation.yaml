@@ -1,0 +1,32 @@
+# Example "ablation": runs that differ in one change (on or off, a component, an optimizer).
+# Grouped bars with error bars answer "does the change help?"; the proposal shows what was
+# predicted and how the check stands, so the finding never claims more than the check.
+schema: 1
+title: "Ablation of {{change}}"
+finding: "TODO: what the change does to {{main}}, as strong as the check allows."
+metrics:
+  "{{main}}": {higher_is_better: {{higher}}}
+body:
+  - proposal: {id: proposal, title: Predictions}
+  - grid:
+      id: comparison
+      columns: 2
+      children:
+        - bar:
+            id: effect
+            title: "{{main}} by {{change}}"
+            x: "{{change}}"
+            y: "metric.{{main}}.{{stat}}"
+            error: std
+            caption: "Mean over runs per {{change}}; error bars show one standard deviation."
+        - line:
+            id: curves
+            title: "{{main}} over training"
+            y: "{{main}}"
+            by: ["{{change}}"]
+            band: stderr
+            caption: "Mean and standard error per {{change}}."
+  - table:
+      id: runs-table
+      columns: [run.name, run.status, "{{change}}", "metric.{{main}}.{{stat}}"]
+      sort: ["{{change}}", "{{sort}}"]

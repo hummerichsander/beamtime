@@ -1,4 +1,4 @@
-// Theme tokens as CSS variables, light/dark mode, stable run colors and the Vega-Lite config.
+// Theme tokens as CSS variables, light/dark mode, stable run colors and the chart style.
 
 export type Theme = {
   name: string;
@@ -76,6 +76,12 @@ export function ramp(stops: string[], t: number): string {
   const [a, b] = [rgb(stops[i]), rgb(stops[i + 1])];
   const f = x - i;
   return `#${a.map((c, k) => Math.round(c + (b[k] - c) * f).toString(16).padStart(2, "0")).join("")}`;
+}
+
+// a color with transparency, for fills under outlines and dimmed marks.
+export function alpha(hex: string, a: number): string {
+  const [r, g, b] = rgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
 function rgb(hex: string): number[] {

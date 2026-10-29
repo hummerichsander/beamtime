@@ -177,11 +177,12 @@ browser test (navigation by click, zoom, aggregation, hiding runs, opening and e
 
 **Milestone A2, after about 9–11 weeks: the UI in daily use.**
 
-### M6: Views (2–2.5 weeks)
+### M6: Views (2–2.5 weeks) — done
 
 Implements [layer 5](design/05-views.md) for authored views.
 
-- The view format, inheritance, versions, drafts; compiling YAML widgets to queries and components.
+- The view format, versions, drafts; compiling YAML widgets to queries and components. A page shows
+  its own view, else the built-in default (no inheritance).
 - The remaining wave-1 widgets on uPlot: `scatter`, `bar`, `histogram`, `data_table`, `timeline`,
   `tabs` (there is no `vega` block; charts beyond the widgets are custom blocks).
 - "Save as view" in the UI: the viewer's chart panels and settings become a new view version, with

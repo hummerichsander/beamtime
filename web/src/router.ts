@@ -3,7 +3,17 @@
 import { Store } from "./state.ts";
 
 export type Route =
-  | { page: "group"; source: string; path: string; run: string | null; drawer: boolean }
+  | {
+      page: "group";
+      source: string;
+      path: string;
+      run: string | null;
+      drawer: boolean;
+      // a saved view version, a draft (for the renderer), the version history.
+      version: string | null;
+      draft: string | null;
+      history: boolean;
+    }
   | { page: "run"; id: string }
   | { page: "settings"; section: string }
   | { page: "missing"; url: string };
@@ -24,20 +34,28 @@ export function parse(pathname: string, search: string): Route {
       path: parts.slice(2).join("/") || ".",
       run: q.get("run"),
       drawer: q.get("drawer") === "1" || q.has("run"),
+      version: q.get("v"),
+      draft: q.get("draft"),
+      history: q.has("history"),
     };
   }
-  if (parts[0] === "f") return { page: "group", source: "local", path: ".", run: null, drawer: false };
+  if (parts[0] === "f") return parse("/f/local", search);
   if (parts[0] === "r" && parts[1]) return { page: "run", id: parts[1] };
   if (parts[0] === "settings") return { page: "settings", section: parts[1] ?? "appearance" };
   return { page: "missing", url: pathname };
 }
 
-export function groupUrl(path: string, opts: { run?: string | null; drawer?: boolean } = {}): string {
+export function groupUrl(
+  path: string,
+  opts: { run?: string | null; drawer?: boolean; version?: string | null; history?: boolean } = {},
+): string {
   const tail = path === "." || path === "" ? "" : `/${path.split("/").map(encodeURIComponent).join("/")}`;
   const q = new URLSearchParams();
+  if (opts.version) q.set("v", opts.version);
+  if (opts.history) q.set("history", "");
   if (opts.run) q.set("run", opts.run);
   else if (opts.drawer) q.set("drawer", "1");
-  const qs = q.toString();
+  const qs = q.toString().replace(/=(?=&|$)/g, "");
   return `/f/local${tail}${qs ? `?${qs}` : ""}`;
 }
 
@@ -115,3 +133,6 @@ export function listen(): void {
     navigate(href);
   });
 }
+
+// the headless renderer opens pages with ?render=1: the view alone, no live updates.
+export const rendering = typeof location !== "undefined" && new URLSearchParams(location.search).get("render") === "1";

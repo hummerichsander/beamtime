@@ -6,13 +6,14 @@ import { useData, type Node } from "../bt/index.ts";
 import { value } from "../bt/fmt.ts";
 import { matches, rows } from "./common.ts";
 
-export function aggregate(values: unknown[], how: string): unknown {
+export function aggregate(values: unknown[], how: string, lower = false): unknown {
   const nums = values.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
   switch (how) {
     case "count":
       return values.length;
-    case "max":
     case "best":
+      return nums.length ? (lower ? Math.min(...nums) : Math.max(...nums)) : null;
+    case "max":
       return nums.length ? Math.max(...nums) : null;
     case "min":
       return nums.length ? Math.min(...nums) : null;
@@ -29,7 +30,7 @@ export function Stat({ node }: { node: Node }) {
   const result = useData("main");
   const p = node.props;
   const selected = rows(result.data).filter((r) => matches(r, p.where));
-  const v = result.data ? aggregate(p.field ? selected.map((r) => r[p.field]) : selected, p.aggregate ?? "count") : null;
+  const v = result.data ? aggregate(p.field ? selected.map((r) => r[p.field]) : selected, p.aggregate ?? "count", !!p.lower) : null;
   const live = selected.some((r) => r["run.status"] === "running") && p.aggregate !== "count";
   return html`<div class="stat" data-tip=${v === null ? undefined : String(v)}>
     <div class="stat-label">${p.title ?? p.field}</div>

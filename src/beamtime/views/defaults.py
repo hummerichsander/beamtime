@@ -135,11 +135,12 @@ def run_view(ctx: Context, path: str) -> dict[str, Any]:
     return node("section", "root", children=children)
 
 
-def summary(ctx: Context, path: str) -> dict[str, Any] | None:
+def summary(ctx: Context, path: str, lead: tuple[str, bool] | None = None) -> dict[str, Any] | None:
     """Find the main metric and its best run, for the header's facts line.
 
     :param ctx: The operation context.
     :param path: A group or run path.
+    :param lead: The shown view's lead metric and whether lower is better; guessed without.
     :return: ``{metric, stat, value, run, name, config}``, or ``None`` without metrics or for
         a group without runs of its own."""
     run_id = path.rsplit("/", 1)[-1]
@@ -148,10 +149,15 @@ def summary(ctx: Context, path: str) -> dict[str, Any] | None:
     if scope == path and not counts(ctx, path)[1]:
         return None
     keys = call("keys", {"from": scope}, ctx)
-    main = (essential(ordered_metrics(keys)) or [None])[0]
+    logged = ordered_metrics(keys)
+    if lead is not None and lead[0] in logged:
+        main, lower = lead
+    else:
+        main = (essential(logged) or [None])[0]
+        lower = main is not None and lower_is_better(main)
     if main is None:
         return None
-    stat = "min" if lower_is_better(main) else "max"
+    stat = "min" if lower else "max"
     field = f"metric.{main}.{stat}"
     varying = varying_config(keys)
     query = {

@@ -3,7 +3,7 @@
 import { html } from "htm/preact";
 import { useContext, useState } from "preact/hooks";
 
-import { hovered, useData, useRunColors, ViewCtx, type Node } from "../bt/index.ts";
+import { hovered, useData, useRunColors, ViewCtx, type MetricInfo, type Node } from "../bt/index.ts";
 import { toggleRun, usePrefs } from "../bt/prefs.ts";
 import { ago, label, lowerIsBetter, value } from "../bt/fmt.ts";
 import { groupUrl, navigate, route, runUrl } from "../router.ts";
@@ -24,7 +24,7 @@ export function Table({ node }: { node: Node }) {
   const columns: string[] = (node.props.columns ?? answer?.columns ?? []).filter((c: string) => c !== "run.id");
   let data = rows(answer);
   if (sort) data = [...data].sort((a, b) => compare(a[sort.field], b[sort.field]) * (sort.desc ? -1 : 1));
-  const best = bestValues(data, columns);
+  const best = node.props.highlight_best === false ? new Map() : bestValues(data, columns, view.metrics);
   const trends = sparks(spark.data);
   const selected = route.value.page === "group" ? route.value.run : null;
   const total = answer?.meta?.matched ?? data.length;
@@ -87,14 +87,16 @@ function cell(column: string, v: unknown, id: string, live: boolean, color: stri
 }
 
 // the best value of each metric column, by the metric's direction; ties and single rows don't count.
-function bestValues(data: Record<string, any>[], columns: string[]): Map<string, unknown> {
+function bestValues(data: Record<string, any>[], columns: string[], metrics: Record<string, MetricInfo>): Map<string, unknown> {
   const out = new Map<string, unknown>();
   if (data.length < 2) return out;
   for (const c of columns) {
     if (!c.startsWith("metric.")) continue;
     const nums = data.map((r) => r[c]).filter((v): v is number => typeof v === "number" && Number.isFinite(v));
     if (nums.length < 2) continue;
-    out.set(c, lowerIsBetter(c) ? Math.min(...nums) : Math.max(...nums));
+    const given = metrics[c.replace(/^metric\.(.+)\.[a-z_]+$/, "$1")]?.higher_is_better;
+    const lower = given === undefined ? lowerIsBetter(c) : !given;
+    out.set(c, lower ? Math.min(...nums) : Math.max(...nums));
   }
   return out;
 }

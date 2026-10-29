@@ -2,7 +2,7 @@
 // drag-zoom with an exact refetch of the window, smoothing, and settings per chart or view.
 
 import { html } from "htm/preact";
-import { useContext, useEffect, useRef, useState } from "preact/hooks";
+import { useContext, useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { type Call, useCall } from "../api.ts";
 import { hovered, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
@@ -50,7 +50,7 @@ function Expanded(props: { node: Node; path: string; onClose: () => void }) {
 export function seriesCall(node: Node, prefs: ReturnType<typeof effective>, zoom: [number, number] | null, width: number): Call {
   const base = node.data!.main;
   const params: Record<string, unknown> = { ...base.params };
-  params.y = prefs.y?.length ? prefs.y : [node.props.y];
+  params.y = prefs.y?.length ? prefs.y : metricsOf(node);
   params.x = prefs.x;
   params.points = Math.max(100, Math.min(1500, Math.round(width || 600)));
   params.band = prefs.band;
@@ -62,10 +62,19 @@ export function seriesCall(node: Node, prefs: ReturnType<typeof effective>, zoom
   return { ...base, params };
 }
 
+// a line node's metrics: one key, or several in an authored view.
+export function metricsOf(node: Node): string[] {
+  return Array.isArray(node.props.y) ? node.props.y : [node.props.y];
+}
+
 function defaultsOf(node: Node): ChartPrefs {
   const params = node.data?.main.params ?? {};
+  const p = node.props;
   return {
-    scale: node.props.scale === "log" ? "log" : "linear",
+    smooth: p.smooth ?? undefined,
+    x: p.x ?? undefined,
+    outliers: p.outliers ?? undefined,
+    scale: p.scale === "log" ? "log" : "linear",
     by: params.seeds ? "seeds" : Array.isArray(params.by) ? (params.by as string[])[0] : null,
     band: (params.band as ChartPrefs["band"]) ?? "minmax",
   };
@@ -88,7 +97,10 @@ function Chart(props: {
   const call = visible ? seriesCall(node, prefs, zoom, Math.round(width / 50) * 50) : null;
   const result = useCall(call);
   const theme = useTheme();
-  const colors = useRunColors();
+  const runs = useRunColors();
+  // colored by a field: each run takes the color of its value.
+  const byField = useCall(node.props.color && visible ? node.data?.colors ?? null : null).data;
+  const colors = useMemo(() => (byField && theme ? fieldColors(byField, node.props.color, theme) : runs), [byField, theme, runs]);
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<LineChart | null>(null);
   const log = prefs.scale === "log";
@@ -153,12 +165,16 @@ function Chart(props: {
     [],
   );
 
-  const title = (prefs.y?.length ? prefs.y : [node.props.y]).join(", ");
+  const metrics = useContext(ViewCtx).metrics;
+  const shown = prefs.y?.length ? prefs.y : metricsOf(node);
+  const named = shown.map((m) => metrics[m]?.label ?? m).join(", ");
+  const title = prefs.y?.length ? named : node.props.title ?? named;
   const notes = [
     prefs.by === "seeds" ? "seed mean" : prefs.by ? `by ${label(prefs.by)}` : null,
     prefs.smooth > 0 ? `smoothed ${prefs.smooth.toFixed(2)}` : null,
     prefs.x !== "_step" ? X_AXES.find(([k]) => k === prefs.x)?.[1] : null,
     node.props.note && !prefs.by && !node.props.note.startsWith("seed") ? node.props.note : null,
+    node.props.color ? `colored by ${label(node.props.color)}` : null,
   ].filter(Boolean);
   const keys = curves?.curves.map((c) => c.run ?? c.key) ?? [];
   const empty = curves && !curves.curves.length;
@@ -173,7 +189,9 @@ function Chart(props: {
     a.click();
   };
 
-  return html`<div ref=${box} class=${`chart-frame${props.expanded ? " expanded" : ""}`}>
+  // what the renderer's layout check counts; aggregated or colored charts tame many runs.
+  const visibleCurves = curves?.aggregated || node.props.color ? 0 : curves?.curves.filter((c) => !hidden.has(c.key) && !(c.run && hidden.has(c.run))).length;
+  return html`<div ref=${box} class=${`chart-frame${props.expanded ? " expanded" : ""}`} data-curves=${visibleCurves}>
     <div class="chart-head">
       <span class="chart-title">${title}</span>
       ${notes.length ? html`<span class="muted small">${notes.join(" · ")}</span>` : null}
@@ -193,7 +211,7 @@ function Chart(props: {
           : null}
       </span>
     </div>
-    <${Panel} result=${result}>
+    <${Panel} result=${result} caption=${props.expanded ? undefined : node.props.caption}>
       ${empty
         ? html`<${Notice}>No run in scope logs ${title}.<//>`
         : html`<div class=${`chart${result.status === "ready" && !result.refreshing ? "" : " pending"}`} ref=${el}
@@ -226,7 +244,7 @@ function Settings(props: { node: Node; path: string; prefs: ReturnType<typeof ef
     .map((r: any[]) => r[0])
     .filter((k: string) => k !== "config.seed");
   const set = (p: ChartPrefs) => setChart(path, node.id, p);
-  const y = prefs.y?.length ? prefs.y : [node.props.y];
+  const y = prefs.y?.length ? prefs.y : metricsOf(node);
   const toggleMetric = (m: string) => {
     const next = y.includes(m) ? y.filter((x) => x !== m) : [...y, m];
     if (next.length) set({ y: next });
@@ -283,6 +301,13 @@ function formatterFor(x: string): (v: number) => string {
     default:
       return step;
   }
+}
+
+function fieldColors(answer: { columns: string[]; rows: unknown[][] }, field: string, theme: Theme): Map<string, string> {
+  const id = answer.columns.indexOf("run.id");
+  const at = answer.columns.indexOf(field);
+  const byValue = groupColors(answer.rows.map((r) => r[at]), theme);
+  return new Map(answer.rows.map((r) => [String(r[id]), byValue.get(JSON.stringify(r[at])) ?? theme.data.categorical[0]]));
 }
 
 function colorsFor(curves: Curves, theme: Theme, colors: Map<string, string>): string[] {

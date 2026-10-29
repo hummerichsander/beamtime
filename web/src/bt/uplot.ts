@@ -1,4 +1,4 @@
-// The chart runtime, loaded when a chart is on screen: line charts on uPlot.
+// The chart runtime, loaded when a chart is on screen: line charts and drawn plots on uPlot.
 
 import uPlot from "uplot";
 
@@ -69,15 +69,6 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       bands.push({ series: [bandAt + 1 + i * 2, bandAt + i * 2], fill: tint(spec.colors[i], spec.style.band) });
     });
   }
-  const axis = (formatter: (v: number) => string): uPlot.Axis => ({
-    stroke: spec.style.axis,
-    font: spec.style.font,
-    grid: { stroke: spec.style.grid, width: 1 },
-    ticks: { show: false },
-    border: { show: false },
-    gap: 6,
-    values: (_u, splits) => splits.map((v) => (v === null ? "" : formatter(v))),
-  });
   let focused: number | null = null;
   let applying = false;
   const u = new uPlot(
@@ -97,7 +88,7 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
             (current.log ? uPlot.rangeLog(min, max, 10, false) : uPlot.rangeNum(min, max, 0.06, true)),
         },
       },
-      axes: [{ ...axis(spec.formatX), size: 30 }, { ...axis(spec.formatY), size: 52 }],
+      axes: [{ ...axisOf(spec.style, spec.formatX), size: 30 }, { ...axisOf(spec.style, spec.formatY), size: 52 }],
       focus: { alpha: spec.style.dim },
       cursor: {
         // the crosshair follows across the view; dragging and double-clicking zoom one chart only.
@@ -191,12 +182,7 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       tip.append(line(current.curves[i].label, current.formatY(v), current.colors[i], i === nearest));
     }
     if (rows.length > 12) tip.append(line(`and ${rows.length - 12} more`, "", null, false));
-    tip.hidden = false;
-    const left = self.cursor.left ?? 0;
-    const flip = left > self.over.clientWidth / 2;
-    tip.style.left = flip ? "" : `${left + 14}px`;
-    tip.style.right = flip ? `${self.over.clientWidth - left + 14}px` : "";
-    tip.style.top = `${Math.max(0, Math.min(top - 10, self.over.clientHeight - tip.offsetHeight))}px`;
+    place(tip, self, self.cursor.left ?? 0, top);
   }
 
   function setFocus(i: number | null): void {
@@ -257,6 +243,166 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
   };
 }
 
+function axisOf(style: ChartStyle, format: (v: number) => string, splits?: number[]): uPlot.Axis {
+  return {
+    stroke: style.axis,
+    font: style.font,
+    grid: { stroke: style.grid, width: 1 },
+    ticks: { show: false },
+    border: { show: false },
+    gap: 6,
+    ...(splits ? { splits: () => splits } : {}),
+    values: (_u, at) => at.map((v) => (v === null ? "" : format(v))),
+  };
+}
+
+// the tooltip sits beside the pointer, on the side with more room.
+function place(tip: HTMLElement, u: uPlot, left: number, top: number): void {
+  tip.hidden = false;
+  const flip = left > u.over.clientWidth / 2;
+  tip.style.left = flip ? "" : `${left + 14}px`;
+  tip.style.right = flip ? `${u.over.clientWidth - left + 14}px` : "";
+  tip.style.top = `${Math.max(0, Math.min(top - 10, u.over.clientHeight - tip.offsetHeight))}px`;
+}
+
+export type PlotAxis = {
+  range: [number, number];
+  log: boolean;
+  format: (v: number) => string;
+  // fixed tick positions, e.g. one per category.
+  splits?: number[];
+};
+export type TipRow = { label: string; value: string; color: string | null; strong?: boolean };
+export type Painter = {
+  ctx: CanvasRenderingContext2D;
+  x: (v: number) => number;
+  y: (v: number) => number;
+  // canvas pixels per CSS pixel.
+  px: number;
+  focused: string | null;
+};
+export type PlotSpec = {
+  style: ChartStyle;
+  height: number;
+  x: PlotAxis;
+  y: PlotAxis;
+  draw: (p: Painter) => void;
+  // what is under the pointer (CSS pixels in the plot area): its key and the tooltip's rows.
+  hit: (left: number, top: number, x: (v: number) => number, y: (v: number) => number) => { key: string | null; rows: TipRow[] } | null;
+  onFocus?: (key: string | null) => void;
+  onClick?: (key: string) => void;
+};
+export type Plot = { update(spec: PlotSpec): void; focus(key: string | null): void; png(background: string): string; destroy(): void };
+
+// a chart whose marks are drawn by the caller (points, bars, outlines) on uPlot's axes and grid.
+export function plotChart(el: HTMLElement, spec: PlotSpec): Plot {
+  let current = spec;
+  let focused: string | null = null;
+  let under: string | null = null;
+  const tip = document.createElement("div");
+  tip.className = "bt-tip";
+  tip.hidden = true;
+  const width = () => Math.max(120, Math.floor(el.getBoundingClientRect().width));
+  const scale = (axis: () => PlotAxis): uPlot.Scale => ({
+    time: false,
+    ...(axis().log ? { distr: 3 } : {}),
+    range: () => axis().range,
+  });
+  const u = new uPlot(
+    {
+      width: width(),
+      height: spec.height,
+      series: [{}, { show: false }],
+      legend: { show: false },
+      padding: [10, 10, 0, 0],
+      scales: { x: scale(() => current.x), y: scale(() => current.y) },
+      axes: [
+        { ...axisOf(spec.style, (v) => current.x.format(v), spec.x.splits), size: 30 },
+        { ...axisOf(spec.style, (v) => current.y.format(v), spec.y.splits), size: 52 },
+      ],
+      cursor: { x: false, y: false, points: { show: false }, drag: { x: false, y: false } },
+      hooks: {
+        draw: [
+          (self) => {
+            const ctx = self.ctx;
+            const { left, top, width: w, height: h } = self.bbox;
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(left, top, w, h);
+            ctx.clip();
+            current.draw({
+              ctx,
+              x: (v) => self.valToPos(v, "x", true),
+              y: (v) => self.valToPos(v, "y", true),
+              px: uPlot.pxRatio,
+              focused,
+            });
+            ctx.restore();
+          },
+        ],
+        setCursor: [
+          (self) => {
+            const left = self.cursor.left ?? -1;
+            const top = self.cursor.top ?? -1;
+            const found = left < 0 ? null : current.hit(left, top, (v) => self.valToPos(v, "x"), (v) => self.valToPos(v, "y"));
+            under = found?.key ?? null;
+            self.over.style.cursor = under && current.onClick ? "pointer" : "";
+            if (under !== focused) {
+              setFocus(under);
+              current.onFocus?.(under);
+            }
+            if (!found || !found.rows.length) {
+              tip.hidden = true;
+              return;
+            }
+            tip.replaceChildren(...found.rows.map((r) => line(r.label, r.value, r.color, !!r.strong)));
+            place(tip, self, left, top);
+          },
+        ],
+        ready: [
+          (self) => {
+            self.over.append(tip);
+            self.over.addEventListener("click", () => under && current.onClick?.(under));
+          },
+        ],
+      },
+    },
+    [spec.x.range, [null, null]] as unknown as uPlot.AlignedData,
+    el,
+  );
+
+  function setFocus(key: string | null): void {
+    if (key === focused) return;
+    focused = key;
+    u.redraw(false, false);
+  }
+
+  const ro = new ResizeObserver(() => u.setSize({ width: width(), height: current.height }));
+  ro.observe(el);
+  return {
+    update(next: PlotSpec): void {
+      current = next;
+      u.setData([next.x.range, [null, null]] as unknown as uPlot.AlignedData, true);
+    },
+    focus: setFocus,
+    png(background: string): string {
+      const src = u.ctx.canvas;
+      const out = document.createElement("canvas");
+      out.width = src.width;
+      out.height = src.height;
+      const ctx = out.getContext("2d")!;
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, out.width, out.height);
+      ctx.drawImage(src, 0, 0);
+      return out.toDataURL("image/png");
+    },
+    destroy(): void {
+      ro.disconnect();
+      u.destroy();
+    },
+  };
+}
+
 function line(label: string, value: string, color: string | null, strong: boolean): HTMLElement {
   const row = document.createElement("div");
   row.className = strong ? "bt-tip-row strong" : "bt-tip-row";
@@ -273,7 +419,7 @@ function line(label: string, value: string, color: string | null, strong: boolea
   return row;
 }
 
-function tint(hex: string, alpha: number): string {
+export function tint(hex: string, alpha: number): string {
   const h = hex.replace("#", "");
   const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;

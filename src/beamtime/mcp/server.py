@@ -21,7 +21,8 @@ INSTRUCTIONS = (
     "proposal with `proposal_set`; judge results with `check` and a verdict note "
     "(`note_add`), never claiming more than the check says. Writes are additive and pass "
     "`author` (your model id). Answers are cut at about 8k tokens; pass `cursor` from "
-    "`meta.next` for more. User-only commands (serve, init, mv, rm, gc, settings, doctor, "
+    "`meta.next` for more. To build a group's page, read `guide` and use the `view_*` "
+    "tools. User-only commands (serve, init, mv, rm, gc, settings, doctor, "
     "reindex) are not tools: give the user the command."
 )
 
@@ -60,6 +61,25 @@ def text(paragraph: str) -> str:
 
 
 PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
+    "view": (
+        "Build or improve the view of a group: the page that shows its result.",
+        [
+            ("group", "the group, e.g. scaling/lr-sweep", True),
+            ("idea", "what the view should show; default: the group's result", False),
+        ],
+        text(
+            """Build the Beamtime view of group {group}. Aim: {idea}. Read `guide` first
+            (and `guide examples`), then look at the group: `keys`, `memory_show`,
+            `proposal_show`, `check`, `notes` and `view_show`. Decide the one question
+            the view answers and the finding the data supports, no stronger than the
+            check. Start a draft with `view_new` (group, and `from` an example when the
+            current view isn't a good start) and edit the file it names with your own
+            tools. Run `view_validate` until no errors remain, then `view_render` and go
+            through `guide checklist` for every block; fix and render again, at most two
+            rounds, then ask the user if something is still off. Save with `view_save`
+            (draft, message, author) and give the user the page's URL path."""
+        ),
+    ),
     "review": (
         "Summarize what changed in a group since a date: new runs, checks, failures.",
         [
@@ -193,8 +213,7 @@ def build(root: str | Path | None = None) -> Server:
             answer = await anyio.to_thread.run_sync(run)
         except OpError as e:
             return error(str(e))
-        text = json.dumps(answer, separators=(",", ":"), default=str)
-        return types.CallToolResult(content=[types.TextContent(text=text)])
+        return types.CallToolResult(content=content(answer))
 
     async def list_prompts(ctx: Any, params: Any) -> types.ListPromptsResult:
         return types.ListPromptsResult(prompts=prompts())
@@ -223,6 +242,22 @@ def build(root: str | Path | None = None) -> Server:
         on_list_prompts=list_prompts,
         on_get_prompt=get_prompt,
     )
+
+
+def content(answer: dict[str, Any]) -> list[Any]:
+    """Turn an answer into tool content: JSON, and the screenshots of a render as images.
+
+    :param answer: The operation's answer.
+    :return: The content blocks."""
+    import base64
+
+    images = []
+    for shot in answer.get("shots") or []:
+        if shot.get("file") and Path(shot["file"]).is_file():
+            data = base64.b64encode(Path(shot["file"]).read_bytes()).decode()
+            images.append(types.ImageContent(data=data, mime_type="image/png"))
+    text = json.dumps(answer, separators=(",", ":"), default=str)
+    return [types.TextContent(text=text), *images]
 
 
 def error(message: str) -> types.CallToolResult:

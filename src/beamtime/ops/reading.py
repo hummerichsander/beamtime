@@ -125,7 +125,21 @@ def file(ctx: Context, p: r.FileParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer."""
-    return ask(ctx, {"file": {"view": p.view, "path": p.path}})
+    if p.draft is None:
+        return ask(ctx, {"file": {"view": p.view, "path": p.path}})
+    from beamtime.query.kinds import read_table
+    from beamtime.views.store import draft
+
+    folder = draft(ctx, p.draft).dir.resolve()
+    path = (folder / p.path).resolve()
+    if folder not in path.parents or not path.is_file():
+        raise OpError(f"no file {p.path!r} in draft {p.draft!r}", code=4)
+    try:
+        columns, rows = read_table(path)
+    except QueryError as e:
+        raise OpError(str(e), code=2) from None
+    return {"kind": "file", "draft": p.draft, "path": p.path, "columns": columns, "rows": rows,
+            "meta": {"matched": len(rows)}}  # fmt: skip
 
 
 def timeline(ctx: Context, p: r.TimelineParams) -> dict[str, Any]:

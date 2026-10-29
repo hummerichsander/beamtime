@@ -99,6 +99,7 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     notes_dir = project / "beamtime" / "scaling" / "lr-sweep" / "notes"
     before = set(notes_dir.iterdir())
     page.click(".notes .note >> nth=0 >> .note-title")
+    page.wait_for_selector(".notes textarea:focus")
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.type("Edited in the browser.")
     page.keyboard.press("Enter")

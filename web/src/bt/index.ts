@@ -56,8 +56,15 @@ if (last) {
   theme.value = last;
 }
 
-export type ViewContext = { path: string; colors: Map<string, string> };
-export const ViewCtx = createContext<ViewContext>({ path: ".", colors: new Map() });
+export type MetricInfo = { label?: string; unit?: string; scale?: "linear" | "log"; higher_is_better?: boolean };
+// what every block of a view shares: the page, run colors and names, and the view's metrics.
+export type ViewContext = {
+  path: string;
+  colors: Map<string, string>;
+  names: Map<string, string>;
+  metrics: Record<string, MetricInfo>;
+};
+export const ViewCtx = createContext<ViewContext>({ path: ".", colors: new Map(), names: new Map(), metrics: {} });
 export const BlockCtx = createContext<Node | null>(null);
 
 export function useData<T = any>(name: string): Result<T> {

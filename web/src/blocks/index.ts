@@ -7,8 +7,10 @@ import { BlockCtx, type Node } from "../bt/index.ts";
 import { Notice } from "./common.ts";
 import { Groups, Memory, NoteBlock, Notes, Output, Proposal } from "./context.ts";
 import { Images, Text } from "./logged.ts";
-import { Grid, Row, Section } from "./layout.ts";
+import { DataTable, Timeline } from "./data.ts";
+import { Grid, Row, Section, Tabs } from "./layout.ts";
 import { Line } from "./line.ts";
+import { BarBlock, HistogramBlock, Scatter } from "./plots.ts";
 import { Stat } from "./stat.ts";
 import { Table } from "./table.ts";
 
@@ -27,10 +29,29 @@ const BLOCKS: Record<string, FunctionComponent<{ node: Node }>> = {
   memory: Memory,
   groups: Groups,
   notes: Notes,
+  tabs: Tabs,
+  scatter: Scatter,
+  bar: BarBlock,
+  histogram: HistogramBlock,
+  data_table: DataTable,
+  timeline: Timeline,
+  custom: Custom,
 };
 
+function Custom({ node }: { node: Node }) {
+  return html`<${Notice} kind="warning">Custom block <b>${node.id}</b> (${node.props.code}) runs once custom blocks
+    arrive (milestone M7).<//>`;
+}
+
+const SPAN: Record<string, string> = { 2: "span-2", full: "span-full" };
+
+// every block sits in a node element that names it, for screenshots, layout checks and spans.
 export function Block({ node }: { node: Node }) {
   const Component = BLOCKS[node.block];
-  if (!Component) return html`<${Notice} kind="warning">Unknown block ${node.block}<//>`;
-  return html`<${BlockCtx.Provider} value=${node}><${Component} node=${node} /><//>`;
+  const span = SPAN[String(node.props.span ?? 1)] ?? "";
+  return html`<div class=${`node ${span}`} data-block=${node.block} data-block-id=${node.id}>
+    ${Component
+      ? html`<${BlockCtx.Provider} value=${node}><${Component} node=${node} /><//>`
+      : html`<${Notice} kind="warning">Unknown block ${node.block}<//>`}
+  </div>`;
 }

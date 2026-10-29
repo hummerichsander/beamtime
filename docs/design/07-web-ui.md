@@ -125,12 +125,13 @@ These qualities are made concrete as budgets and rules, and checked like correct
     `running`, `evaluable`, `concluded`; [research record](09-research-record.md#group-status));
   - the proposal's statement, with a symbol per prediction (effect and interval on hover), the
     plan's progress and the current verdict;
-  - the facts: run counts by status, notes, the best value of the main metric with the run and
-    config that reached it; and the view's `finding`.
+  - the facts: run counts by status, notes, the best value of the main metric (the view's first
+    entry under `metrics:`, in its direction; else a guess from the names) with the run and config
+    that reached it; and the view's `finding`.
 
   A run's header shows its name and status, steps, duration and start, its best value, and the
   proposals it belongs to; id, host, commit and job are in a tooltip.
-- **View body**: the group's view, inherited or its own.
+- **View body**: the page's own view, else the built-in default.
 - **Context drawer**, opened on demand: for selected runs their run card, config, latest notes and
   output tail; with no selection, the group's notes and timeline.
 - **Status bar**: whether the page is live and when data last changed, the running runs and the runs
@@ -147,7 +148,8 @@ the header and the view.
 | `/f/<source>/<path>` | a group with its view (`/f/local/scaling/lr-sweep`, `/f/@cluster/scaling`) |
 | `/r/<run-id>` | a run, by id; redirects to its group URL, so links survive moves |
 | `/f/...?v=<version>` | a specific saved version of the group's view |
-| `/f/.../history` | the view's version list; any two versions side by side with their YAML diff and screenshots |
+| `/f/...?history` | the view's version list; any two versions side by side with their YAML diff |
+| `/f/...?draft=<name>&render=1` | a draft rendered without the shell, for the headless renderer |
 | `/compare?runs=<a>,<b>` | two runs side by side: config diff, card values, curves (v1.1 with the `compare` block) |
 | `/search?q=…` | groups, runs, notes and blocks matching the query |
 | `/settings/...` | appearance (themes), blocks, remotes, about |
@@ -290,9 +292,11 @@ are hidden; `beamtime notes --current` does the same for agents. The author is t
 agents keep writing through the CLI and MCP with their model id. A save shows at once, is confirmed
 when the refetched answer arrives, and a failed save reopens the field with the error.
 
-Saving a chart layout as a view comes with authored views (M6): "Save as view" writes the current
-panels as a new view version. Until then chart settings stay with each viewer
-([Charts](#charts)).
+"Save as view" in the header writes the page's charts with the viewer's settings (metrics, x axis,
+smoothing, aggregation, band, scale, outliers), the charts the viewer added, and the title and
+finding as a new view version, with the local account as author; the viewer's own settings for the
+page are then cleared. Hidden runs stay the viewer's own. The header names the shown view's source
+(the built-in default, or the version, author and date) and links to its history.
 
 ## Charts
 
@@ -365,8 +369,8 @@ Decided while building the shell (milestone M5):
   tile in the default view.
 - **URLs**: `/f/local/<path>` for groups and runs (a run's path ends in its id), `?run=<id>` for the
   run open in the drawer, `?drawer=1` for the group's notes and timeline, `/r/<id>` resolving to the
-  run's path, `/settings/appearance`. `?v=`, `/history`, `/search` and `/compare` come with the
-  milestones that add views and comparisons.
+  run's path, `/settings/appearance`. `?v=<version>` and `?history` (M6);
+  `/search` and `/compare` come with the milestones that add them.
 - **Keyboard**: ⌘K or `/` for the palette, arrows in the tree, `[` and `]` for siblings, `i` for the
   drawer, ⌘B or `b` for the sidebar, `p` to pause live updates, `Esc` to clear the selection and close
   the drawer, `?` for the list.
@@ -413,4 +417,4 @@ Decided while building the shell (milestone M5):
 - One renderer for the browser, screenshots and exports, run headless through Playwright; it is a
   client and degrades to static validation without Chromium.
 - Static export as self-contained HTML and per-block figures; `--points` sets the curve resolution.
-- View history is a version list with YAML diff and screenshots of two versions.
+- View history is a version list with a YAML diff and two versions rendered side by side.

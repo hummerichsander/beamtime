@@ -4,8 +4,7 @@ Status: **reviewed; v1 scope per the [overview](00-overview.md#scope)**
 
 A view is what a group shows: a page that agents build freely, from declarative widgets and from
 their own code.
-[Layer 1](01-storage.md#views-in-storage) fixes where views live and how they are inherited and
-versioned; [layer 3](03-index.md#query-language) defines the queries they get their data from.
+[Layer 1](01-storage.md#views-in-storage) fixes where views live and how they are versioned; [layer 3](03-index.md#query-language) defines the queries they get their data from.
 
 ## Prior art: dashboards as code
 
@@ -59,7 +58,7 @@ versioned; [layer 3](03-index.md#query-language) defines the queries they get th
    (declared queries), Beamtime's kit and theme, the sandbox, and validation before saving.
 2. **The view owns the data context.** A view's scope is the viewed group plus view-level filters.
    All data, for widgets and custom code alike, comes through declared queries relative to that
-   scope, so inheritance and live updates work everywhere.
+   scope, so live updates work everywhere.
 3. **Two ways to build, freely mixed.** Declarative widgets are the fast path: the agent states intent
    (`line: {y: val/loss, color: config.lr}`) and Beamtime produces the chart with correct defaults.
    Custom blocks are code for everything else.
@@ -113,12 +112,20 @@ uses:                                    # written by view_save
 - **A nested tree.** Layout nodes contain blocks; any node may carry an `id`. Agents write and edit a
   file with ordinary tools, where a nested tree reads better than a flat list plus a layout.
 - **`finding`** is the one-sentence key result, shown in the frame ([layer 7](07-web-ui.md#shell)).
-- **`filters`** and **`metrics`** are inherited with the view; `metrics` gives labels, units, scales
-  and `higher_is_better`, so widgets, the kit and axes agree.
+- **`filters`** narrow every query of the view; `metrics` gives labels, units, scales and
+  `higher_is_better`, so widgets, the kit and axes agree.
+- **A page shows its own view.** A group or run shows its own newest view, else Beamtime's built-in
+  default; views are not inherited by subgroups or runs, so a sweep's view never turns up as a
+  one-row table on a run page.
 - **`author`** and **`user`** identify who saved the version.
 - **`custom`** is a block of agent code ([Custom blocks](#custom-blocks)); its `code` path is relative
   to the `view/` folder. Library blocks are used by name, like widgets ([Block library](#block-library)).
 - **`uses`** pins library block versions; `view_save` writes it.
+- **Nodes** are one-key mappings from the block name to its props (`- line: {y: val/loss}`). A layout
+  takes its children as a list (`- row: [...]`), or as `children` next to its own props
+  (`- grid: {columns: 2, children: [...]}`). `tabs` takes sections; each section is a tab, named by its
+  `title`. A node without `id` gets one from its block and main prop (`line-val-loss`), numbered when
+  that repeats.
 
 ### Data
 
@@ -132,8 +139,7 @@ uses:                                    # written by view_save
   against the placeholder's type. This covers clicking into a run, step-window sliders and
   selections.
 - **Data files** stored with the view (`view/data/<sha8>-<name>.parquet`) are read through the `file`
-  query ([layer 3](03-index.md#query-kinds)). They describe the group that defines the view; when
-  the view is inherited, blocks using them carry a label such as "data from `scaling/`". Their
+  query ([layer 3](03-index.md#query-kinds)). They describe the group that defines the view. Their
   provenance (the script that made them) is recorded in a note.
 - There is no free query API: code cannot read files, call the network or query anything it hasn't
   declared.
@@ -152,7 +158,8 @@ code).
 | `title` | a short heading; optional |
 | `caption` | one or two sentences on what the block shows; required on charts |
 | `span` | width in a grid: `1` (default), `2` or `full` |
-| `from`, `where` | narrow or shift the block's scope; rarely needed |
+| `from`, `where` | narrow or shift the block's scope; rarely needed. `from` is relative to the page (`.`, `sub/group`) or a run id |
+| `depth` | `1` for the runs directly in the group only, leaving out subgroups' runs |
 
 Props reference **metric keys** (`val/loss`) where a block plots a series over steps, and **fields**
 (`config.lr`, `metric.val/acc.max`, `run.status`; [layer 3](03-index.md#fields)) where it works with
@@ -170,14 +177,14 @@ of a field or per subgroup, each narrowed to its runs; `$value` names the value 
 
 | Block | Wave | Purpose | Key props |
 |---|---|---|---|
-| `line` | 1 | metric curves over steps, time or another metric | `y`, `x`, `color`, `by`, `band`, `seeds`, `smooth`, `scale`, `steps`, `highlight`; wave 2: `facet` |
-| `histogram` | 1 | logged distributions over steps | `key`, `step` (`last`, a step, or `all` as a step-by-bin heatmap) |
+| `line` | 1 | metric curves over steps, time or another metric | `y`, `x`, `color`, `by`, `band`, `seeds`, `smooth`, `scale`, `steps`, `outliers`; wave 2: `facet`, `highlight` |
+| `histogram` | 1 | a logged distribution (a table with `bin_start`, `bin_end`, `count`), one outline per run | `key`, `step` (`last` or a step); wave 2: `all` as a step-by-bin heatmap |
 
 **One value per run**
 
 | Block | Wave | Purpose | Key props |
 |---|---|---|---|
-| `scatter` | 1 | two fields against each other | `x`, `y`, `color`, `size`, `x_scale`, `y_scale`, `fit` (`linear`, `log`, `power`), `seeds` |
+| `scatter` | 1 | two fields against each other | `x`, `y`, `color`, `x_scale`, `y_scale`, `fit` (`linear`, `log`, `power`), `seeds`; wave 2: `size` |
 | `bar` | 1 | a field per category | `x`, `y`, `by`, `error` (`std`, `stderr`, `minmax`), `sort` |
 | `stat` | 1 | one number | `field`, `aggregate` (`best`, `mean`, `last`, `count`); wave 2: `delta` against the baseline |
 | `table` | 1 | runs as rows, fields as columns | `columns`, `sort`, `limit`, `highlight_best`, `sparkline` (a metric per row, from previews) |
@@ -186,8 +193,9 @@ of a field or per subgroup, each narrowed to its runs; `$value` names the value 
 | `compare` | 2 | two runs or groups: config diff and metric deltas | `a`, `b` (run ids or `where` filters), `fields` |
 | `importance` | 2 | how strongly config fields relate to a target metric | `target`, `fields` |
 
-**Logged data**: `data_table` (`key`, `step`), `images` (`key`, `step`: `last`, a step, or
-`slider`), `text` (`key`, `step`). All wave 1.
+**Logged data**: `data_table` (`key` and `step`, or `file` for a data file stored with the view;
+`limit`), `images` (`key`, `step`: `last` or a step; wave 2: `slider`), `text` (`key`, `step`). All
+wave 1.
 
 **Research context** (wave 1)
 
@@ -195,10 +203,11 @@ of a field or per subgroup, each narrowed to its runs; `$value` names the value 
 |---|---|---|
 | `proposal` | the group's proposal: statement, each prediction with result, effect and interval, plan progress, research status, verdict, superseded versions | `of` (default `.`) |
 | `memory` | the group's memory, with its links | `of` |
-| `groups` | the child groups with status, check, verdict, run counts and a chosen field | `field`, `depth` |
+| `groups` | the child groups with status, check, verdict, run counts and a chosen field | `depth` |
 | `timeline` | notes and run events in time order | `types`, `limit` |
 | `note` | a short text, optionally as a callout (`info`, `warning`, `success`) | `text`, `kind` |
-| `output` | the tail of a run's captured output | `run`, `lines`, `stream` (`main` or a rank) |
+| `notes` | the newest notes, current versions only | `types`, `limit` |
+| `output` | the tail of a run's captured output | `run`, `lines`, `rank` |
 
 **Code** (wave 1): `custom`. There is no free chart-spec block: charts beyond the widgets are custom
 blocks on `bt.chart` (uPlot) or D3 ([Charts](#charts)).
@@ -538,7 +547,7 @@ The loop is available as MCP tools and CLI commands ([layer 8](08-cli-mcp.md)):
 | MCP | CLI | Does |
 |---|---|---|
 | `keys`, `guide` | `beamtime keys`, `beamtime guide` | what exists in the group; the design guide |
-| `view_new` | `beamtime view new <group> [--from <example>]` | starts a draft, optionally from an example |
+| `view_new` | `beamtime view new <group> [--from <example>] [--name <draft>]` | starts a draft: from an example, else from the group's current view (its own, or the built-in default written out as YAML) |
 | `view_validate` | `beamtime view validate <draft>` | structured findings: error or warning, block id, location, suggested fix |
 | `view_render` | `beamtime view render <draft>` | screenshots of the page and of each block; MCP returns images, the CLI writes PNGs |
 | `view_save` | `beamtime view save <draft>` | writes the draft as a new version into `view/` |
@@ -549,8 +558,10 @@ The loop is available as MCP tools and CLI commands ([layer 8](08-cli-mcp.md)):
 4. `view_render`, answer the screenshot checklist, improve; at most two rounds.
 5. `view_save`.
 
-**Drafts** live outside `view/` (in the cache, or a path the agent chooses), so iterating creates no
-versions. **Rendering runs where the agent works**, with the headless renderer of
+**Drafts** live outside `view/`, in `.beamtime/drafts/<name>/` of the project root (`view.yaml`, and
+`data/` for data files), so iterating creates no versions and agents edit drafts with their own file
+tools. `.beamtime/` carries its own `.gitignore`, so drafts stay out of git. `view_new` records the draft's group in
+`_draft.json`; the other operations take the draft's name. **Rendering runs where the agent works**, with the headless renderer of
 [layer 7](07-web-ui.md#screenshots-and-the-headless-renderer); for a remote group, data comes
 through remote queries and `save` sends the version to the remote.
 
@@ -566,8 +577,10 @@ through remote queries and `save` sends the version to the remote.
    without a model: content overflowing its block, clipped text, overlapping elements, charts with
    more than about eight curves.
 
-Without Chromium (e.g. on a login node with mode 2), validation runs the static stage, says that the
-render was skipped, and `view_save` still works.
+The renderer uses a browser that is already installed: Playwright's Chromium, else Chrome, else
+Edge. Beamtime never downloads one. Without a browser (e.g. on a login node with mode 2), validation
+runs the static stage, says that the render was skipped and which command installs a browser
+(`uv run playwright install chromium`, a user command), and `view_save` still works.
 
 ### At display time
 
@@ -591,11 +604,11 @@ research shows work better than long rule lists.
 | `guide queries` | the query language | ~1.5k |
 | `guide checklist` | the screenshot checklist | ~300 |
 | `guide anti-patterns` | common mistakes with fixes | ~800 |
-| `guide <group>` | additionally: library blocks there, the inherited view and its pins, outdated pins | – |
+| `guide <group>` | additionally: the group's metrics and varying config, its current view; from M7 library blocks and outdated pins | – |
 
 ### Workflow
 
-1. Look at the group: `memory_show`, `keys`, its proposal and notes, the inherited view.
+1. Look at the group: `memory_show`, `keys`, its proposal and notes, its current view.
 2. Check the library for blocks that fit (default: reuse first).
 3. Write a draft: the question the view answers decides the blocks.
 4. `view_validate` until it passes; `view_render` and the checklist, at most two rounds.
@@ -648,7 +661,7 @@ Five complete example views ship with Beamtime, each with a commentary, and doub
 |---|---|
 | `sweep` | a learning-rate sweep: finding, best-run stat, curves colored by the swept field, accuracy against learning rate with seeds merged, run table |
 | `ablation` | runs grouped by the change, grouped bars with error bars, the proposal with its predictions and checks |
-| `run` | a view written to be inherited by single runs: all logged metrics, output tail when failed, logged samples |
+| `run` | a view of one run's page: its metrics, output tail, logged samples |
 | `direction` | a research direction: `groups` overview of its sweeps, `timeline` of decisions and verdicts, memory, proposal |
 | `custom` | a custom block with click-to-detail, theme colors and graceful degradation |
 
@@ -729,6 +742,26 @@ releases. The generator and task definitions are built early; scoring follows th
 
 ## Implementation notes
 
+Decided while building views (milestone M6):
+
+- **No inheritance**: a page shows its own newest view, else the built-in default.
+- **The model** is a msgspec tagged union on `block` (`beamtime/views/model.py`); YAML nodes are
+  normalized to it, and errors name the node path (`body[2].children[0].line.y`).
+- **Compiling** turns a view into the same block tree as the built-in default (`{block, id, props,
+  data, children}`, with `data` naming API calls), so the frontend renders both alike.
+- **`custom`** is accepted by the schema and shows a notice until custom blocks arrive (M7).
+- **Save as view** in the UI writes the charts with their settings (metrics, x axis, smoothing,
+  aggregation, band, scale, outliers), the charts a viewer added, and the title and finding, as a
+  new version with the local account as author. Hidden runs stay the viewer's own.
+- **History**: the version list, a line diff of two versions' YAML, and both rendered side by side;
+  `?v=<version>` shows an older version.
+- **The renderer** is a client of `serve`: it serves the project on a free local port with a fresh
+  token for the call and opens the draft with `?render=1` (the view without the shell, no live
+  updates). It waits until no API call or chart build is pending, then measures the layout in the
+  page. Screenshots go to `.beamtime/renders/<draft>/`; over MCP they return as images.
+- **Drawn charts**: `scatter`, `bar` and `histogram` draw their marks on uPlot's axes and grid
+  (a draw hook), with the same tooltips, hover highlight and PNG export as `line`.
+
 Decided while building themes (milestone M5):
 
 - **Theme files** are JSON with `colors`, `data`, `fonts`, `sizes` (the type scale in px) and `shape`
@@ -771,6 +804,8 @@ Decided while building themes (milestone M5):
 
 - Agents build views freely from declarative widgets and custom code blocks; custom blocks need no
   consent by default.
+- A page shows its own newest view, else the built-in default; views are not inherited.
+- Drafts live in `.beamtime/drafts/`; rendering uses an installed browser and never downloads one.
 - All data comes through declared queries, with placeholders for interaction; data files are read
   through the `file` query.
 - Built-in blocks exist as YAML widgets and kit components with the same props; wave 1 is v1.

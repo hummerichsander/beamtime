@@ -1,0 +1,18 @@
+# Example "custom": a custom block next to built-in ones. Custom blocks (ES modules on the bt
+# kit, in sandboxed iframes) arrive in M7; until then the node is accepted and shows a notice.
+schema: 1
+title: "{{group}}"
+finding: "TODO: the result in one sentence."
+body:
+  - custom:
+      id: phase-map
+      code: code/phase-map.js
+      kit: 1
+      libs: [d3]
+      queries:
+        runs: {runs: {select: [run.id, "{{swept}}", "metric.{{main}}.{{stat}}"]}}
+  - scatter:
+      id: fallback
+      x: "{{swept}}"
+      y: "metric.{{main}}.{{stat}}"
+      caption: "{{main}} against {{swept}}, one point per run."

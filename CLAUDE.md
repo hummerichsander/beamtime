@@ -178,7 +178,7 @@ and say why.
 # Project specifics
 
 **Status: implementation.** M0 (foundations), M1 (SDK), M2 (index and queries), M3 (CLI and
-MCP), M4 (research record), M5 (web UI shell) and the UI refactor after it are done; milestones follow
+MCP), M4 (research record), M5 (web UI shell), the UI refactor and M6 (views) are done; milestones follow
 `docs/implementation-plan.md`.
 Each milestone implements the design sections it names; a deviation is decided and written back into
 the design before the code lands.
@@ -262,8 +262,13 @@ sync.
   CSP (`auth.py`), live updates (`live.py`), the command (`server.py`) and the committed frontend
   bundle in `static/`; tests in `tests/serve/` (`test_browser.py` runs headless Chromium, skipped
   without it)
-- `src/beamtime/views/`: themes (`theme.py`, built-in pair in `themes/`) and the built-in default view
-  as a block tree (`defaults.py`)
+- `src/beamtime/views/`: themes (`theme.py`, built-in pair in `themes/`), the built-in default view
+  as a block tree (`defaults.py`), the view format as msgspec structs (`model.py`), compiling views
+  to block trees and folding viewer settings back (`compile.py`), saved versions and drafts in
+  `.beamtime/drafts/` (`store.py`), static validation (`validate.py`) and the headless renderer
+  (`render.py`, an installed browser only); tests in `tests/views/` and `tests/serve/test_render.py`
+- `src/beamtime/ops/views.py`: the `view` operations; `src/beamtime/guide/`: the agent guide (Markdown
+  parts and five example views with `{{placeholders}}` filled from a group's keys)
 - `web/`: the frontend in TypeScript (Preact + htm, uPlot, lucide, marked + KaTeX): `src/shell/` the
   app, `src/bt/` the kit (charts, curves, preferences, writes), `src/blocks/` the built-in blocks,
   `src/ui/` primitives (icons and symbols, tooltip, popovers, inline editing, Markdown),

@@ -23,6 +23,7 @@ GROUPS = {
     "note": "add notes to a group or run",
     "proposal": "show or save a group's proposal",
     "memory": "show or update a group's memory",
+    "view": "build, check and save a group's view",
 }
 
 
@@ -124,7 +125,8 @@ def add_field(parser: argparse.ArgumentParser, field: Any, positional: bool) -> 
         case "evidence":
             kw |= {"action": "append", "type": evidence_item, "default": [], "metavar": "ITEM"}
         case _ if members == (bool,):
-            kw["action"] = "store_true"
+            # a flag that defaults to on is turned off with --no-<name>.
+            kw["action"] = argparse.BooleanOptionalAction if kw.get("default") else "store_true"
             kw.pop("required")
         case _ if get_origin(members[0]) is list:
             kw |= {"type": lambda t: t.split(","), "metavar": "A,B"}

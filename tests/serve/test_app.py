@@ -141,3 +141,15 @@ def test_serve_refuses_a_second_daemon(project: Path) -> None:
             serve(ctx, ServeParams(port=0))
     finally:
         daemon.stop()
+
+
+def test_save_view_from_the_ui(api, project: Path) -> None:
+    """Save as view writes a version with the viewer's settings; the page then shows it."""
+    prefs = {"view": {"by": None}, "charts": {"line-val-acc": {"smooth": 0.4}}, "added": []}
+    r = api("save_view", path="scaling/lr-sweep", prefs=prefs, title="Sweep", finding="lr 3e-4.")
+    assert r.status_code == 200, r.text
+    shown = api("view", path="scaling/lr-sweep").json()
+    assert (shown["source"], shown["title"], shown["finding"]) == ("view", "Sweep", "lr 3e-4.")
+    history = api("view_history", group="scaling/lr-sweep").json()["entries"]
+    assert history[0]["message"] == "saved from the web UI"
+    assert api("save_view", path="nope", prefs={}).status_code == 404

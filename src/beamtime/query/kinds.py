@@ -1031,6 +1031,22 @@ def file_kind(ctx: Context, q: m.File) -> dict[str, Any]:
         raise QueryError(f"file {q.path!r} is outside {ctx.scope}/view")
     if not path.is_file():
         raise QueryError(f"no file {q.path!r} in {ctx.scope}/view", code="not_found")
+    columns, rows = read_table(path)
+    return {
+        "kind": "file",
+        "group": ctx.scope,
+        "path": q.path,
+        "columns": columns,
+        "rows": rows,
+        "meta": meta(ctx, matched=len(rows)),
+    }
+
+
+def read_table(path: Path) -> tuple[list[str], list[list[Any]]]:
+    """Read a data file as a table.
+
+    :param path: A CSV, JSON or Parquet file.
+    :return: The columns and the rows."""
     match path.suffix.lower():
         case ".csv":
             reader = csv.reader(io.StringIO(path.read_text()))
@@ -1059,14 +1075,7 @@ def file_kind(ctx: Context, q: m.File) -> dict[str, Any]:
             rows = [list(r) for r in zip(*table.values(), strict=False)]
         case other:
             raise QueryError(f"file: unsupported format {other!r}; use csv, json or parquet")
-    return {
-        "kind": "file",
-        "group": ctx.scope,
-        "path": q.path,
-        "columns": columns,
-        "rows": rows,
-        "meta": meta(ctx, matched=len(rows)),
-    }
+    return columns, rows
 
 
 def number_or_text(value: str) -> Any:

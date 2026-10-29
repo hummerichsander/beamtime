@@ -1,0 +1,46 @@
+# Example "sweep": one hyperparameter swept over several seeds.
+# The finding comes first; the stat and the scatter carry it, the curves show how training went,
+# the table gives every run. Seeds are merged where one point per setting is wanted.
+schema: 1
+title: "{{swept}} sweep"
+finding: "TODO: the result in one sentence, e.g. which {{swept}} gives the best {{main}}, and by how much."
+metrics:
+  "{{main}}": {higher_is_better: {{higher}}}
+body:
+  - row:
+      - stat:
+          id: best
+          title: "Best {{main}}"
+          field: "metric.{{main}}.{{stat}}"
+          aggregate: best
+      - stat: {id: runs, title: Runs, aggregate: count}
+  - grid:
+      id: evidence
+      columns: 2
+      children:
+        - scatter:
+            id: final-vs-setting
+            title: "{{main}} against {{swept}}"
+            x: "{{swept}}"
+            y: "metric.{{main}}.{{stat}}"
+            x_scale: {{swept_scale}}
+            seeds: "{{seeds}}"
+            caption: "Best {{main}} per {{swept}}, mean over seeds."
+        - line:
+            id: curves
+            title: "{{main}} over training"
+            y: "{{main}}"
+            by: ["{{swept}}"]
+            band: std
+            caption: "Mean and standard deviation over seeds per {{swept}}."
+  - line:
+      id: loss
+      y: "{{loss}}"
+      color: "{{swept}}"
+      caption: "{{loss}} of every run, colored by {{swept}}."
+  - table:
+      id: runs-table
+      title: Runs
+      columns: [run.name, run.status, "{{swept}}", "metric.{{main}}.{{stat}}"]
+      sort: ["{{sort}}"]
+      sparkline: "{{main}}"

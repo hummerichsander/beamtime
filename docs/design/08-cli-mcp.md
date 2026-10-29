@@ -60,14 +60,14 @@ wherever a group does.
 
 | CLI | MCP | Does |
 |---|---|---|
-| `beamtime view new <group> [--from <example>]` | `view_new` | starts a draft |
+| `beamtime view new <group> [--from <example>] [--name <draft>]` | `view_new` | starts a draft in `.beamtime/drafts/<name>/` |
 | `beamtime view validate <draft>` | `view_validate` | validation ([layer 5](05-views.md#validation)) |
-| `beamtime view render <draft>` | `view_render` | screenshots (PNG files in the CLI, images in MCP) |
-| `beamtime view save <draft>` | `view_save` | saves a new view version |
-| `beamtime view show <group>` | `view_show` | the current view's YAML, pins and version |
+| `beamtime view render <draft> [--block <id>] [--theme light\|dark] [--width <px>]` | `view_render` | screenshots (PNG files in the CLI, images in MCP) |
+| `beamtime view save <draft> [--message <text>]` | `view_save` | saves a new view version; refuses a draft with errors |
+| `beamtime view show <group> [--version <v>]` | `view_show` | the current view's YAML, pins and version |
 | `beamtime view history <group>` | `view_history` | the version list |
-| `beamtime view outdated [group]` | `view_outdated` | views pinned to older block versions |
-| `beamtime view upgrade <view> [--block <name>]` | `view_upgrade` | re-pins and validates a view |
+| `beamtime view outdated [group]` | `view_outdated` | views pinned to older block versions (M7) |
+| `beamtime view upgrade <view> [--block <name>]` | `view_upgrade` | re-pins and validates a view (M7) |
 | `beamtime block list [group]` | `block_list` | library blocks with descriptions |
 | `beamtime block promote <view> <block-id> <name>` | `block_promote` | turns a custom block into a library block |
 | `beamtime block fork <name> <new-name>` | `block_fork` | copies a block as a starting point |

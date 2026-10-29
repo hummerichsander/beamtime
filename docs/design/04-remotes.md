@@ -99,7 +99,7 @@ beamtime pull cluster:scaling/lr-sweep
 ```
 
 - Copies **every file of the group** and below, plus the `view/`, `blocks/` and `memory/` groups of
-  its ancestors, so inherited views and their blocks keep working. Large data stays behind:
+  its ancestors, so memory and library blocks keep working. Large data stays behind:
   `_data/` files above a size limit, `artifacts/` and `checkpoints/`.
 - Copies incrementally: appended files transfer only their new bytes.
 - Snapshots are **read-only** and live in the cache (`~/.cache/beamtime/<logdir-hash>/pulled/`), never in

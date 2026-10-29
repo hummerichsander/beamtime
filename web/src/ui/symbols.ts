@@ -54,3 +54,21 @@ export function symbolFor(kind: Kind, value: string | null | undefined): SymbolS
   const key = (value ?? "").split(" ")[0];
   return TABLE[kind][key] ?? { icon: "circle-dashed", tone: "muted", label: value ?? "unknown" };
 }
+
+// the icon of a run event in timelines.
+export function eventIcon(type: string | null | undefined): string {
+  switch (type) {
+    case "finished":
+      return "check";
+    case "failed":
+    case "crashed":
+      return "circle-x";
+    case "killed":
+      return "square";
+    case "attempt_started":
+    case "created":
+      return "play";
+    default:
+      return "circle";
+  }
+}

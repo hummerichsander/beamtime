@@ -1,40 +1,40 @@
 // Pages: a group or run with its view, the /r/<id> redirect, and settings.
 
 import { html } from "htm/preact";
-import { useEffect, useMemo } from "preact/hooks";
+import { useEffect } from "preact/hooks";
 
 import { fetchCall, useCall } from "../api.ts";
-import { Block } from "../blocks/index.ts";
-import { Notice, rows } from "../blocks/common.ts";
-import { mode, runColors, setMode, useTheme, ViewCtx } from "../bt/index.ts";
+import { Notice } from "../blocks/common.ts";
+import { mode, setMode, useTheme } from "../bt/index.ts";
 import { groupUrl, navigate, restoreScroll } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
 import * as calls from "./calls.ts";
 import { Header } from "./header.ts";
+import { History, ViewBody, ViewSource } from "./views.ts";
 import { meta, SHORTCUTS } from "./ui.ts";
 
-export function GroupPage(props: { path: string }) {
-  const view = useCall(calls.view(props.path));
-  const ids = useCall(calls.runIds(props.path));
-  const theme = useTheme();
-  const colors = useMemo(() => runColors(rows(ids.data).map((r) => r["run.id"]), theme), [ids.data, theme]);
-  useEffect(() => {
-    if (view.status === "ready") requestAnimationFrame(restoreScroll);
-  }, [view.status === "ready"]);
+export function GroupPage(props: { path: string; version?: string | null; draft?: string | null; history?: boolean }) {
   useEffect(() => {
     document.title = `${props.path === "." ? "local" : props.path} · Beamtime`;
   }, [props.path]);
+  if (props.history) return html`<div class="page"><${Header} path=${props.path} /><${History} path=${props.path} /></div>`;
   return html`<div class="page">
-    <${Header} path=${props.path} />
+    <${ViewPage} path=${props.path} version=${props.version ?? null} draft=${props.draft ?? null} />
+  </div>`;
+}
+
+function ViewPage(props: { path: string; version: string | null; draft: string | null }) {
+  const view = useCall(calls.view(props.path, props.version, props.draft));
+  useEffect(() => {
+    if (view.status === "ready") requestAnimationFrame(restoreScroll);
+  }, [view.status === "ready"]);
+  return html`
+    <${Header} path=${props.path} finding=${view.data?.finding} />
+    ${view.data ? html`<${ViewSource} path=${props.path} view=${view.data} />` : null}
     ${view.status === "error"
       ? html`<${Notice} kind="error">${view.error}<//>`
-      : view.data
-        ? html`<div class="view"><${ViewCtx.Provider} value=${{ path: props.path, colors }}>
-            <${Block} node=${view.data.view} />
-          <//></div>`
-        : html`<div class="view"><div class="skeleton late" style="block-size: 320px"></div></div>`}
-  </div>`;
+      : html`<${ViewBody} path=${props.path} view=${view.data} />`}`;
 }
 
 export function RunRedirect(props: { id: string }) {

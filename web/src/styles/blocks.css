@@ -172,3 +172,24 @@ dialog.sheet.chart-dialog {
 
 .block-action { margin-inline-start: auto; font-family: var(--bt-font-sans); font-weight: 400; }
 .collapsible .block-title { display: flex; align-items: center; }
+
+/* every block sits in a node; spans widen it in a grid */
+.node { min-inline-size: 0; }
+.grid > .span-2 { grid-column: span 2; }
+.grid > .span-full { grid-column: 1 / -1; }
+@container (width < 720px) { .grid > .span-2 { grid-column: auto; } }
+.legend-item.static:hover { background: none; }
+.legend > .muted.small { align-self: center; margin-inline-end: 4px; }
+
+/* tabs: a quiet row of names; the open one is underlined in the accent */
+.tab-list {
+  display: flex; flex-wrap: wrap; gap: 4px 18px; margin-block-end: 18px; border-block-end: 1px solid var(--bt-border);
+  & button {
+    padding: 6px 2px; margin-block-end: -1px; border: 0; border-block-end: 2px solid transparent; background: none;
+    font: inherit; font-family: var(--bt-font-serif); font-size: var(--bt-size-lg); color: var(--bt-muted); cursor: pointer;
+    &:hover { color: var(--bt-fg); }
+    &[aria-selected="true"] { color: var(--bt-fg); font-weight: 700; border-block-end-color: var(--bt-accent); }
+  }
+}
+.timeline { display: flex; flex-direction: column; }
+table.data td { white-space: nowrap; }

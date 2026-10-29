@@ -50,7 +50,18 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
                 case "meta":
                     answer = await run_in_threadpool(meta, ctx)
                 case "view":
-                    answer = await run_in_threadpool(view, ctx, body.get("path", "."))
+                    answer = await run_in_threadpool(
+                        view, ctx, body.get("path", "."), body.get("version"), body.get("draft")
+                    )
+                case "save_view":
+                    answer = await run_in_threadpool(
+                        save_view,
+                        ctx,
+                        str(body.get("path", ".")),
+                        body.get("prefs") or {},
+                        body.get("title"),
+                        body.get("finding"),
+                    )
                 case "summary":
                     answer = await run_in_threadpool(summary_of, ctx, body.get("path", "."))
                 case "watch":
@@ -153,14 +164,31 @@ def meta(ctx: Context) -> dict[str, Any]:
     }
 
 
-def view(ctx: Context, path: str) -> dict[str, Any]:
-    """Answer the view of a group or run: for now the built-in default.
+def view(
+    ctx: Context, path: str, version: str | None = None, draft: str | None = None
+) -> dict[str, Any]:
+    """Answer the view of a group or run: its own, else the built-in default.
 
     :param ctx: The operation context.
     :param path: A group path, or a run id or path.
-    :return: ``{kind, path, run, view}`` with the run's path resolved."""
+    :param version: A saved version to show instead of the newest.
+    :param draft: A draft to show instead, for the renderer.
+    :return: ``{kind, path, run, view, source, version, ...}`` with the run's path resolved."""
+    from beamtime.views.store import shown
+
+    path, run = page_of(ctx, path)
+    return {"kind": "view", "path": path, "run": run} | shown(
+        ctx, path, version=version, draft_name=draft
+    )
+
+
+def page_of(ctx: Context, path: str) -> tuple[str, str | None]:
+    """Resolve a page: a group path, or a run by id or path.
+
+    :param ctx: The operation context.
+    :param path: The page as the URL names it.
+    :return: The path below the log dir, and the run id for a run."""
     from beamtime.index.index import Index
-    from beamtime.views.defaults import default_view
 
     path = path.strip("/") or "."
     name = path.rsplit("/", 1)[-1]
@@ -178,7 +206,23 @@ def view(ctx: Context, path: str) -> dict[str, Any]:
         path = found.relative_to(ctx.logdir).as_posix()
     elif not (ctx.logdir / path).is_dir() or ".." in path.split("/"):
         raise OpError(f"no group {path!r} below the log dir", code=4)
-    return {"kind": "view", "path": path, "run": run, "view": default_view(ctx, path)}
+    return path, run
+
+
+def save_view(
+    ctx: Context, path: str, prefs: dict[str, Any], title: str | None, finding: str | None
+) -> dict[str, Any]:
+    """Save what a page shows with the viewer's chart settings as a new view version.
+
+    :param ctx: The operation context, with caller ``view``: the local account is the author.
+    :param path: A group path, or a run's path.
+    :param prefs: The viewer's ``{view, charts, added}`` for the page.
+    :param title: The view's title.
+    :param finding: The view's finding.
+    :return: The new version."""
+    from beamtime.ops.views import save_page
+
+    return save_page(ctx, page_of(ctx, path)[0], prefs, title, finding)
 
 
 def summary_of(ctx: Context, path: str) -> dict[str, Any]:
@@ -189,9 +233,12 @@ def summary_of(ctx: Context, path: str) -> dict[str, Any]:
     :param path: A group or run path.
     :return: ``{kind, path, summary}``; ``summary`` is ``None`` without metrics."""
     from beamtime.views.defaults import summary
+    from beamtime.views.store import lead
 
     path = path.strip("/") or "."
-    return {"kind": "summary", "path": path, "summary": summary(ctx, path)}
+    # the header follows the view: its lead metric, in its direction.
+    found = lead(ctx, path) if (ctx.logdir / path).is_dir() else None
+    return {"kind": "summary", "path": path, "summary": summary(ctx, path, found)}
 
 
 def locate(ctx: Context, run_id: str, rel: str) -> Path | None:

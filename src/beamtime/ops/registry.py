@@ -104,6 +104,7 @@ class FileParams(Params, kw_only=True):
 
     view: str
     path: str
+    draft: Annotated[str | None, msgspec.Meta(description="read from this draft instead")] = None
 
 
 class OutputParams(Params, kw_only=True):
@@ -230,6 +231,74 @@ class MemoryUpdateParams(Params, kw_only=True):
     author: Author = None
 
 
+Draft = Annotated[str, msgspec.Meta(description="the draft's name, from view new")]
+
+
+class ViewNewParams(Params, kw_only=True):
+    """Parameters of ``view new``."""
+
+    group: Group
+    from_: Annotated[
+        Literal["sweep", "ablation", "run", "direction", "custom"] | None,
+        msgspec.Meta(description="an example to start from; default: the page's current view"),
+    ] = msgspec.field(default=None, name="from")
+    name: Annotated[str | None, msgspec.Meta(description="default: the group's name")] = None
+
+
+class ViewValidateParams(Params, kw_only=True):
+    """Parameters of ``view validate``."""
+
+    draft: Draft
+    render: Annotated[bool, msgspec.Meta(description="also render once, if a browser exists")] = (
+        True
+    )
+
+
+class ViewRenderParams(Params, kw_only=True):
+    """Parameters of ``view render``."""
+
+    draft: Draft
+    block: Annotated[str | None, msgspec.Meta(description="one block's id; default the page")] = (
+        None
+    )
+    theme: Literal["light", "dark"] = "light"
+    width: int = 1280
+
+
+class ViewSaveParams(Params, kw_only=True):
+    """Parameters of ``view save``."""
+
+    draft: Draft
+    message: Annotated[str | None, msgspec.Meta(description="what this version changes")] = None
+    author: Author = None
+
+
+class ViewShowParams(Params, kw_only=True):
+    """Parameters of ``view show``."""
+
+    group: Group = "."
+    version: Annotated[str | None, msgspec.Meta(description="default: the newest")] = None
+
+
+class ViewHistoryParams(Params, kw_only=True):
+    """Parameters of ``view history``."""
+
+    group: Group = "."
+
+
+class GuideParams(Params, kw_only=True):
+    """Parameters of ``guide``."""
+
+    part: Annotated[
+        Literal["examples", "blocks", "queries", "checklist", "anti-patterns", "kit"] | None,
+        msgspec.Meta(description="default: the overview"),
+    ] = None
+    name: Annotated[
+        str | None, msgspec.Meta(description="one example or block, e.g. sweep or scatter")
+    ] = None
+    group: Annotated[str | None, msgspec.Meta(description="fill examples with its keys")] = None
+
+
 class InitParams(Params, kw_only=True):
     """Parameters of ``init``."""
 
@@ -306,6 +375,7 @@ class Op:
 R = "beamtime.ops.reading"
 W = "beamtime.ops.record"
 A = "beamtime.ops.admin"
+V = "beamtime.ops.views"
 OPS = [
     Op(
         name="status",
@@ -433,6 +503,55 @@ OPS = [
         params=QueryParams,
         impl=f"{R}:query",
         summary="Any query in its object form, e.g. {runs: {from: ., limit: 5}}.",
+    ),
+    Op(
+        name="guide",
+        params=GuideParams,
+        impl="beamtime.guide:guide",
+        positional=("part", "name"),
+        summary="How to build views: workflow, examples, blocks, checklist. Read before view new.",
+    ),
+    Op(
+        name="view new",
+        params=ViewNewParams,
+        impl=f"{V}:new",
+        positional=("group",),
+        summary="Start a view draft in .beamtime/drafts/: from an example or the current view.",
+    ),
+    Op(
+        name="view validate",
+        params=ViewValidateParams,
+        impl=f"{V}:validate",
+        positional=("draft",),
+        summary="Check a draft: schema, queries, fields, data, and one render for layout.",
+    ),
+    Op(
+        name="view render",
+        params=ViewRenderParams,
+        impl=f"{V}:render",
+        positional=("draft",),
+        summary="Screenshot a draft (or one block) to look at it; at most two rounds.",
+    ),
+    Op(
+        name="view save",
+        params=ViewSaveParams,
+        impl=f"{V}:save_draft",
+        positional=("draft",),
+        summary="Save a draft without errors as the page's new view version.",
+    ),
+    Op(
+        name="view show",
+        params=ViewShowParams,
+        impl=f"{V}:show",
+        positional=("group",),
+        summary="The YAML of a page's current (or a given) view version.",
+    ),
+    Op(
+        name="view history",
+        params=ViewHistoryParams,
+        impl=f"{V}:history",
+        positional=("group",),
+        summary="A page's view versions with author and message, newest first.",
     ),
     Op(
         name="serve",

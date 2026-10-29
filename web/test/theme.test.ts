@@ -45,7 +45,13 @@ test("css variables and the chart style come from the tokens", () => {
 test("URLs round-trip", () => {
   assert.deepEqual(parse("/f/local/scaling/lr-sweep", "?run=20261020-080300-aaaaaaaa"), {
     page: "group", source: "local", path: "scaling/lr-sweep", run: "20261020-080300-aaaaaaaa", drawer: true,
+    version: null, draft: null, history: false,
   });
+  const old = parse("/f/local/g", "?v=20261028-215111-36js&history");
+  assert.equal((old as any).version, "20261028-215111-36js");
+  assert.equal((old as any).history, true);
+  assert.equal(groupUrl("g", { history: true }), "/f/local/g?history");
+  assert.equal(groupUrl("g", { version: "20261028-215111-36js" }), "/f/local/g?v=20261028-215111-36js");
   assert.equal(parse("/f/local", "").page, "group");
   assert.equal((parse("/f/local", "") as any).path, ".");
   assert.deepEqual(parse("/r/20261020-080300-aaaaaaaa", ""), { page: "run", id: "20261020-080300-aaaaaaaa" });

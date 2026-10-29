@@ -11,7 +11,7 @@ import { ago, duration, step, value } from "../bt/fmt.ts";
 import { groupUrl, navigate, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { IconButton } from "../ui/primitives.ts";
-import { symbolFor } from "../ui/symbols.ts";
+import { eventIcon, symbolFor } from "../ui/symbols.ts";
 import * as calls from "./calls.ts";
 
 export function Drawer(props: { path: string; run: string | null }) {
@@ -84,21 +84,4 @@ function GroupContext({ path }: { path: string }) {
         <span>${e.run ? html`<a href=${runUrl(e.run)}>${e.run.slice(-8)}</a> ` : null}${e.description ?? e.type}</span></div>`,
     )}
   </div>`;
-}
-
-function eventIcon(type: string | null | undefined): string {
-  switch (type) {
-    case "finished":
-      return "check";
-    case "failed":
-    case "crashed":
-      return "circle-x";
-    case "killed":
-      return "square";
-    case "attempt_started":
-    case "created":
-      return "play";
-    default:
-      return "circle";
-  }
 }

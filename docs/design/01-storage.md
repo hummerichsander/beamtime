@@ -103,12 +103,12 @@ beamtime/
   memory/                           # the project's memory
   scaling/                          # group: a research direction
     proposal/                       # versions of the direction's proposal
-    view/                           # shown here and inherited by everything below
+    view/                           # this group's view
     notes/
     memory/
     lr-sweep/                       # group: a sweep
       proposal/
-      view/                         # overrides the inherited one for this sweep
+      view/                         # the sweep's own view
       20261024-101532-k3m9xq2a/     # run
       20261024-101533-p2x8fq1c/     # run
   tokenizer/
@@ -147,10 +147,9 @@ The **timeline** is not stored. The index builds it from run events and notes.
 
 How views look and behave is [layer 5](05-views.md). For storage:
 
-- **Inheritance.** A group or run shows its own newest view, else the nearest ancestor's, else
-  Beamtime's built-in default. A view is rendered relative to the group being viewed.
+- **No inheritance.** A group or run shows its own newest view, else Beamtime's built-in default.
 - **Versions.** Each save is a new file in `view/`; the newest counts. Drafts live outside `view/`
-  until saved.
+  until saved, in `.beamtime/drafts/` of the project root.
 - **Files belonging to a view version** are stored next to it and named by content hash, so they are
   immutable and an older version keeps working:
   - `view/data/<sha8>-<name>.parquet` (or `.csv`, `.json`): data files for analysis that queries
@@ -193,7 +192,7 @@ How views look and behave is [layer 5](05-views.md). For storage:
   checkpoints/              # Lightning's checkpoints, if any            [other tool]
   proposal/                 # the run's own proposal versions            [authored]
   notes/                    # notes on this run                          [authored]
-  view/                     # overrides the inherited view               [authored]
+  view/                     # the run's own view                         [authored]
 ```
 
 ### `_run.json`

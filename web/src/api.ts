@@ -68,9 +68,13 @@ function entryOf(call: Call): Entry {
   return e;
 }
 
+// calls and chart builds in flight; the headless renderer waits until there are none.
+export const busy = { n: 0 };
+
 function load(e: Entry): Promise<void> {
   if (e.inflight) return e.inflight;
   e.stale = false;
+  busy.n++;
   if (e.result.status === "ready") update(e, { ...e.result, refreshing: true });
   e.inflight = post(e.call.method, e.call.params)
     .then((data) => update(e, { status: "ready", data, error: null, refreshing: false }))
@@ -84,6 +88,7 @@ function load(e: Entry): Promise<void> {
       }),
     )
     .finally(() => {
+      busy.n--;
       e.inflight = null;
       if (e.stale && e.listeners.size && !paused.value) void load(e);
     });

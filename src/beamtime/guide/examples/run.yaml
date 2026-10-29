@@ -1,0 +1,22 @@
+# Example "run": the page of one run. Its curves first, then what it logged, then its output.
+# Save it on the run (view new <run-id>); runs without their own view show the built-in default.
+schema: 1
+title: "{{group}}"
+body:
+  - grid:
+      id: curves
+      children:
+        - line: {id: main, y: "{{main}}", caption: "{{main}} over steps."}
+        - line: {id: loss, y: "{{loss}}", caption: "Training loss over steps."}
+  - histogram:
+      id: distribution
+      key: "{{hist}}"
+      caption: "The last logged distribution of {{hist}}."
+  - images:
+      id: samples
+      key: "{{image}}"
+      caption: "Samples at the last logged step."
+  - data_table:
+      id: table
+      key: "{{table}}"
+  - output: {id: output, title: Output, lines: 40}
