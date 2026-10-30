@@ -81,7 +81,8 @@ export function Custom({ node }: { node: Node }) {
           warn(msg.message);
           break;
         case "error":
-          fail(msg.message);
+          // stack lines name the block's file instead of the blob it was loaded from.
+          fail(msg.message.replace(/blob:[^\s)]*?\/[\w-]+(?=:\d)/g, where));
           done();
           break;
         default:

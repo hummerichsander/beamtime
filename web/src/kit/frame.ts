@@ -20,9 +20,11 @@ function send(msg: ToPage): void {
   parent.postMessage(msg, "*");
 }
 
+// the message and the stack lines in the block's own code (a blob:), not the kit's internals.
 function fail(e: unknown): void {
   const err = e instanceof Error ? e : new Error(String(e));
-  send({ type: "error", message: err.stack?.includes(err.message) ? err.stack : `${err}\n${err.stack ?? ""}`.trim() });
+  const own = (err.stack ?? "").split("\n").filter((line) => line.includes("blob:"));
+  send({ type: "error", message: [String(err), ...own].join("\n") });
 }
 
 // the page sends its theme once it has one; blocks draw only after that.
