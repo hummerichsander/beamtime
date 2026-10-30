@@ -3,6 +3,7 @@
 import { html } from "htm/preact";
 import { useContext, useState } from "preact/hooks";
 
+import { type Call, useCall } from "../api.ts";
 import { useData, ViewCtx, type Node } from "../bt/index.ts";
 import { ago, value } from "../bt/fmt.ts";
 import { addNote, deleteNote, editMemory, editNote, editText, fresh } from "../bt/writes.ts";
@@ -79,6 +80,12 @@ export function Memory({ node }: { node: Node }) {
     <${Editable} value=${own?.body ?? ""} label="the memory" multiline class="markdown"
       placeholder="No memory yet: write what this group has established, in a few lines."
       render=${(text: string) => html`<${Markdown} text=${text} />`} onSave=${(body: string) => editMemory(group, body)} />
+    ${own && (own.body?.length > (result.data?.budget ?? Infinity) || own.notes_since >= STALE)
+      ? html`<p class="memory-meta warn-text">${own.body?.length > result.data.budget
+          ? `${own.body.length} characters, beyond the budget of ${result.data.budget}`
+          : `${own.notes_since} notes since this version`}: ask your agent to compact it (Beamtime's memory prompt), or run
+          <code>beamtime memory update ${group}</code>.</p>`
+      : null}
     ${own
       ? html`<p class="memory-meta">${own.author} · covers notes until ${own.covers_until?.slice(0, 10)}
           ${own.notes_since ? html` · <span class="warn-text">${own.notes_since} newer note${own.notes_since > 1 ? "s" : ""}</span>` : null}</p>`
@@ -88,6 +95,9 @@ export function Memory({ node }: { node: Node }) {
       : null}
   <//>`;
 }
+
+// newer notes than this make the memory worth compacting.
+const STALE = 5;
 
 const MEMORY_HELP =
   "One memory per group: a short summary of what its notes established, rewritten as new versions (the newest counts). Groups above have their own.";
@@ -129,16 +139,35 @@ export function Notes({ node }: { node: Node }) {
   const [adding, setAdding] = useState(false);
   // an edited note is superseded by its new version; only the newest shows.
   const entries: any[] = (result.data?.entries ?? []).filter((n: any) => !String(n.state ?? "").startsWith("superseded"));
+  const total = result.data?.meta?.matched ?? entries.length;
   return html`<${Collapsible} id=${`notes:${node.data?.main.scope ?? node.id}`} title=${node.props.title ?? "Notes"}
-      count=${result.data ? String(entries.length) : undefined} result=${result}
+      count=${result.data ? String(total) : undefined} result=${result}
       action=${html`<${Sym} spec=${{ icon: "circle-help", tone: "muted", label: NOTES_HELP }} />
         <${IconButton} icon="plus" label="Add a note" onClick=${() => setAdding(true)} />`}>
     <div class="notes">
       ${adding ? html`<${NewNote} group=${group} onDone=${() => setAdding(false)} />` : null}
       ${result.data && !entries.length && !adding ? html`<p class="muted small">No notes yet.</p>` : null}
       ${entries.map((n) => html`<${NoteItem} key=${n.id} note=${n} scope=${group} />`)}
+      ${result.data?.more && node.data ? html`<${Older} call=${node.data.main} before=${entries[entries.length - 1]?.id} scope=${group} />` : null}
     </div>
   <//>`;
+}
+
+const OLDER = 20;
+
+// older notes, a page at a time on request; each page offers the next.
+function Older(props: { call: Call; before: string | undefined; scope: string }) {
+  const [open, setOpen] = useState(false);
+  const call = open && props.before ? { ...props.call, params: { ...props.call.params, before: props.before, limit: OLDER } } : null;
+  const page = useCall(call);
+  if (!open) {
+    return html`<button type="button" class="link small older-notes" onClick=${() => setOpen(true)}>Show older notes</button>`;
+  }
+  if (page.status === "error") return html`<p class="bad-text small">${page.error}</p>`;
+  const entries: any[] = page.data?.entries ?? [];
+  return html`${page.data ? null : html`<div class="skeleton" style="block-size: 40px"></div>`}
+    ${entries.map((n) => html`<${NoteItem} key=${n.id} note=${n} scope=${props.scope} />`)}
+    ${page.data?.more ? html`<${Older} call=${props.call} before=${entries[entries.length - 1]?.id} scope=${props.scope} />` : null}`;
 }
 
 const NEW_TYPES = ["observation", "idea", "question", "decision"];

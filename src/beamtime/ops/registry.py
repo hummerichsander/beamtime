@@ -155,6 +155,9 @@ class NotesParams(Page, kw_only=True):
     ] = False
     full: Annotated[bool, msgspec.Meta(description="include fields and bodies")] = False
     limit: int | None = None
+    before: Annotated[
+        str | None, msgspec.Meta(description="only notes older than this note id (paging)")
+    ] = None
 
 
 class GroupParams(Params, kw_only=True):

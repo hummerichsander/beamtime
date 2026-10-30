@@ -371,8 +371,9 @@ Decided while building the research record (milestone M4):
   defaults to the time of the newest note at or below the group. The web UI marks a memory that is
   over budget or behind many notes and gives the command to compact it with an agent; nothing
   compacts automatically.
-- **Paging**: `notes` takes `limit` (default 50) and `before` (a note id) and says whether older
-  notes exist; the web UI shows the newest 20 and loads older ones on request.
+- **Paging**: `notes` takes `limit` (default 30) and `before` (a note id), counts every note in
+  `meta.matched` and says in `more` whether older ones exist; a page shows the newest three with the
+  total, and loads older ones twenty at a time on request.
 
 ## Decisions
 

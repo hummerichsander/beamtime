@@ -178,7 +178,8 @@ and say why.
 # Project specifics
 
 **Status: implementation.** M0 (foundations), M1 (SDK), M2 (index and queries), M3 (CLI and
-MCP), M4 (research record), M5 (web UI shell), the UI refactor and M6 (views) are done; milestones follow
+MCP), M4 (research record), M5 (web UI shell), the UI refactor, M6 (views) and M7 (custom blocks and
+the library) are done; milestones follow
 `docs/implementation-plan.md`.
 Each milestone implements the design sections it names; a deviation is decided and written back into
 the design before the code lands.
@@ -266,11 +267,17 @@ sync.
   as a block tree (`defaults.py`), the view format as msgspec structs (`model.py`), compiling views
   to block trees and folding viewer settings back (`compile.py`), saved versions and drafts in
   `.beamtime/drafts/` (`store.py`), static validation (`validate.py`) and the headless renderer
-  (`render.py`, an installed browser only); tests in `tests/views/` and `tests/serve/test_render.py`
-- `src/beamtime/ops/views.py`: the `view` operations; `src/beamtime/guide/`: the agent guide (Markdown
-  parts and five example views with `{{placeholders}}` filled from a group's keys)
+  (`render.py`, an installed browser only), lexical checks of custom-block code (`code.py`) and library
+  blocks (`library.py`: definitions, lookup from a group up to the root, params); tests in
+  `tests/views/` and `tests/serve/test_render.py`
+- `src/beamtime/ops/views.py`: the `view` operations; `src/beamtime/ops/blocks.py`: the `block`
+  operations (drafts in `.beamtime/drafts/blocks/`, export and import, also from git);
+  `src/beamtime/guide/`: the agent guide (Markdown parts and five example views with
+  `{{placeholders}}` filled from a group's keys; the custom example's code in `examples/code/`)
 - `web/`: the frontend in TypeScript (Preact + htm, uPlot, lucide, marked + KaTeX): `src/shell/` the
-  app, `src/bt/` the kit (charts, curves, preferences, writes), `src/blocks/` the built-in blocks,
+  app, `src/bt/` the kit (charts, curves, preferences, writes), `src/blocks/` the built-in blocks
+  (`custom.ts` hosts custom blocks), `src/kit/` the custom-block frame (`frame.ts`, its own entry
+  `kit.js`; `window.bt`; the bridge protocol),
   `src/ui/` primitives (icons and symbols, tooltip, popovers, inline editing, Markdown),
   `src/styles/` the stylesheets. After any change in `web/`, run
   `cd web && npm ci && npm test && npm run build` and commit the rebuilt `src/beamtime/serve/static/`

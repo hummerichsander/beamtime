@@ -260,3 +260,5 @@ table.data td { white-space: nowrap; }
 /* the frame's height follows its content, which the page reads to size the iframe */
 html:has(body.kit-frame) { background: transparent; block-size: auto; }
 body.kit-frame { block-size: auto; overflow: hidden; background: transparent; }
+.memory-block .memory-meta.warn-text { color: var(--bt-warn); }
+.notes .older-notes { margin-block-start: 6px; }

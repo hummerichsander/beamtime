@@ -153,15 +153,22 @@ def notes(ctx: Context, p: r.NotesParams) -> dict[str, Any]:
         entries = listing(
             target, types=p.types, only_open=p.open, full=p.full, only_current=p.current
         )
+    total = len(entries)
+    if p.before is not None:
+        # ids sort by time, so older notes have smaller ids.
+        entries = [e for e in entries if e["id"] < p.before]
     limit = p.limit if p.limit is not None else 30
+    more = len(entries) > limit
     answer = {
         "kind": "notes",
         "group": target.rel,
         "entries": entries[:limit],
-        "meta": {"matched": len(entries)},
+        "more": more,
+        "meta": {"matched": total},
     }
-    if len(entries) > limit:
-        answer["meta"] |= {"cut": True, "hint": "raise limit to see more"}
+    if more:
+        older = entries[limit - 1]["id"] if limit else p.before
+        answer["meta"] |= {"cut": True, "hint": f"older notes: before={older}"}
     return answer if ctx.caller == "view" else cut(answer, offset_of(p.cursor))
 
 
@@ -252,6 +259,7 @@ def memory_show(ctx: Context, p: r.GroupParams) -> dict[str, Any]:
         "kind": "memory",
         "group": target.rel,
         "chain": chain,
+        "budget": mem.BUDGET_CHARS,
         "meta": {"hints": hints},
     }
 

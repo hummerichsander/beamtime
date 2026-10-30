@@ -207,3 +207,16 @@ def test_memory(ctx: Context) -> None:
     assert "budget" in big["lines"][-1]
     assert len(versions(ctx.logdir / "tokenizer" / "memory")) == 2
     fails(3, "covers_until", "memory update", {"body": "x", "covers_until": "yesterday"}, ctx)
+
+
+def test_notes_page_by_before(ctx: Context) -> None:
+    """Notes come a page at a time: newest first, then the ones before the last shown."""
+    for i in range(5):
+        call("note add", {"group": "paging", "type": "idea", "description": f"Idea {i}."}, ctx)
+    first = call("notes", {"from": "paging", "limit": 2}, ctx)
+    assert [e["description"] for e in first["entries"]] == ["Idea 4.", "Idea 3."]
+    assert first["more"] and first["meta"]["matched"] == 5
+    second = call("notes", {"from": "paging", "limit": 2, "before": first["entries"][-1]["id"]}, ctx)
+    assert [e["description"] for e in second["entries"]] == ["Idea 2.", "Idea 1."]
+    last = call("notes", {"from": "paging", "limit": 2, "before": second["entries"][-1]["id"]}, ctx)
+    assert [e["description"] for e in last["entries"]] == ["Idea 0."] and not last["more"]

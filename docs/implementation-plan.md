@@ -194,7 +194,7 @@ Implements [layer 5](design/05-views.md) for authored views.
 
 *Done when*: an agent builds a useful view of a real sweep through MCP within two screenshot rounds.
 
-### M7: Custom blocks and the library (1.5–2 weeks) — in progress
+### M7: Custom blocks and the library (1.5–2 weeks) — done
 
 - The sandboxed iframe, the `postMessage` bridge, declared queries with placeholders, `libs`,
   height handling, error panels.
