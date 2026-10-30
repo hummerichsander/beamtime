@@ -5,7 +5,7 @@ import yaml
 
 from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
-from beamtime.serve.app import view as page_view
+from beamtime.serve.api import view as page_view
 from beamtime.views import code
 from beamtime.views import model as m
 from beamtime.views.compile import compile_view

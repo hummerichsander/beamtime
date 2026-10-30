@@ -250,7 +250,7 @@ def test_note_rm_moves_the_note_and_its_versions_to_the_trash(ctx: Context, proj
 
 def test_moving_a_group_keeps_membership_and_old_paths(ctx: Context, project: Path) -> None:
     """A moved group's proposal still finds its runs, and its old path still resolves."""
-    from beamtime.serve.app import page_of
+    from beamtime.serve.api import page_of
 
     before = call("check", {"group": "scaling/lr-sweep"}, ctx)
     answer = call("mv", {"source": "scaling/lr-sweep", "to": "scaling/learning-rate"}, ctx)

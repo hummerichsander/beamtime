@@ -19,7 +19,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from beamtime.ops.context import Context, OpError
-from beamtime.serve.api import STATIC, dispatch, locate, meta, page_of, view  # noqa: F401
+from beamtime.serve.api import STATIC, dispatch, locate
 from beamtime.serve.live import Hub
 
 STATUS = {1: 400, 2: 400, 3: 422, 4: 404}

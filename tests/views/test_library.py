@@ -6,7 +6,7 @@ import yaml
 from beamtime.format.schema import SchemaError
 from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
-from beamtime.serve.app import view as page_view
+from beamtime.serve.api import view as page_view
 from beamtime.views import model as m
 from beamtime.views.library import BlockDef, Library, Param, problems, queries_for
 from beamtime.views.store import code_text

@@ -7,7 +7,7 @@ from beamtime.format.schema import SchemaError
 from beamtime.guide import EXAMPLES
 from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
-from beamtime.serve.app import view as page_view
+from beamtime.serve.api import view as page_view
 from beamtime.views import model as m
 from beamtime.views.compile import apply_prefs, compile_view, from_tree
 from beamtime.views.defaults import default_view
@@ -250,7 +250,7 @@ def yaml_walk(body: list) -> list:
 def test_header_follows_the_views_lead_metric(ctx: Context) -> None:
     """The facts line's best value uses the view's first metric and its direction."""
     from beamtime.ops.views import save_page
-    from beamtime.serve.app import summary_of
+    from beamtime.serve.api import summary_of
 
     assert summary_of(ctx, SWEEP)["summary"]["metric"] == "val/acc"
     save_page(Context.make(caller="view"), SWEEP, {}, "T", "F")
