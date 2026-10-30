@@ -130,3 +130,23 @@ def walk(t: dict) -> list[dict]:
     :param t: The root.
     :return: The nodes, depth first."""
     return [t, *(n for c in t.get("children", []) for n in walk(c))]
+
+
+def test_ssh_command_leaves_the_command_to_the_remote_shell() -> None:
+    """The configured command reaches the remote shell as written; paths are quoted."""
+    spec = Spec(name="c", host="login.hpc", command="~/venvs/bt/bin/beamtime", path="${SCRATCH}/p b",
+                cache="/tmp/{user}")  # fmt: skip
+    argv = spec.argv()
+    assert argv[0] == "ssh" and "BatchMode=yes" in argv and argv[-2] == "login.hpc"
+    assert argv[-1] == "~/venvs/bt/bin/beamtime serve --stdio --logdir '${SCRATCH}/p b' --cache '/tmp/{user}'"
+
+
+def test_remote_paths_expand_on_the_remote(monkeypatch: pytest.MonkeyPatch) -> None:
+    """~, ${VAR} and {user} expand where the remote end runs."""
+    import getpass
+
+    from beamtime.serve.stdio import expand
+
+    monkeypatch.setenv("SCRATCH", "/scratch/x")
+    assert expand("${SCRATCH}/{user}/bt") == f"/scratch/x/{getpass.getuser()}/bt"
+    assert expand("~/bt") == str(Path.home() / "bt")

@@ -38,18 +38,25 @@ class Spec:
         """Build the command that starts the remote end.
 
         :return: The arguments."""
-        remote = [*shlex.split(self.command), "serve", "--stdio", "--logdir", self.path]
-        if self.cache:
-            remote += ["--cache", self.cache]
+        args = [
+            "serve",
+            "--stdio",
+            "--logdir",
+            self.path,
+            *(["--cache", self.cache] if self.cache else []),
+        ]
         match self.transport:
             case "command":
-                return remote
+                return [*shlex.split(self.command), *args]
             case "ssh":
                 # no prompts: a login with a second factor goes through a ControlMaster set up
                 # beforehand (`ssh -fNM <host>`); keepalives notice a dropped network.
                 options = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=15"]
                 options += ["-o", "ServerAliveInterval=30", "-T"]
-                return ["ssh", *options, self.host or self.name, shlex.join(remote)]
+                # the command is the remote shell's (~, a venv, `uv run`); the paths are quoted,
+                # and the remote end expands ~, ${VAR} and {user} in them itself.
+                line = f"{self.command} {shlex.join(args)}"
+                return ["ssh", *options, self.host or self.name, line]
             case other:
                 raise ValueError(f"no transport {other!r}")
 

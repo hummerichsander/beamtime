@@ -118,14 +118,14 @@ def run(*, logdir: str, cache: str | None = None) -> int:
     :param logdir: The remote log dir.
     :param cache: A persistent cache on a local disk; default a temporary one.
     :return: The exit code."""
-    path = Path(os.path.expandvars(logdir)).expanduser().resolve()
+    path = Path(expand(logdir)).resolve()
     own, reason = None, None
-    if cache is not None and (reason := network_fs(Path(os.path.expandvars(cache)).expanduser())):
+    if cache is not None and (reason := network_fs(Path(expand(cache)))):
         cache = None
     if cache is None:
         own = tempfile.mkdtemp(prefix="beamtime-remote-")
         cache = own
-    os.environ["BEAMTIME_CACHE"] = str(Path(os.path.expandvars(cache)).expanduser())
+    os.environ["BEAMTIME_CACHE"] = expand(cache)
     os.environ["BEAMTIME_LOGDIR"] = str(path)
     if reason:
         print(f"beamtime: the cache is on {reason}; using a temporary one", file=sys.stderr)
@@ -140,6 +140,16 @@ def run(*, logdir: str, cache: str | None = None) -> int:
         if own is not None:
             shutil.rmtree(own, ignore_errors=True)
     return 0
+
+
+def expand(path: str) -> str:
+    """Expand a configured path on this machine: ``~``, ``${VAR}`` and ``{user}``.
+
+    :param path: The path as configured, e.g. ``/scratch/{user}/beamtime``.
+    :return: The path."""
+    import getpass
+
+    return str(Path(os.path.expandvars(path.replace("{user}", getpass.getuser()))).expanduser())
 
 
 def network_fs(path: Path) -> str | None:
