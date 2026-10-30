@@ -26,7 +26,8 @@ def call(name: str, params: dict[str, Any], context: Any) -> dict[str, Any]:
             raise OpError(f"{name}: {e}", code=2) from None
         return op.function()(context, p)
 
-    if remote.active is None and not remote.targets(params):
+    # pull is the one command that reaches a remote itself.
+    if op.name == "pull" or (remote.active is None and not remote.targets(params)):
         return here(params)
     if op.user_only and remote.targets(params):
         raise OpError(f"{name} is a user command; run it on the remote itself (ssh)", code=2)
