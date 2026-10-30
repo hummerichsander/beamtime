@@ -453,6 +453,13 @@ class ServeParams(Params, kw_only=True):
         bool,
         msgspec.Meta(description="restart when Beamtime's own code changes (working on Beamtime)"),
     ] = False
+    stdio: Annotated[
+        bool, msgspec.Meta(description="answer the API on stdin/stdout (what a laptop starts)")
+    ] = False
+    logdir: Annotated[str | None, msgspec.Meta(description="with --stdio: the log dir")] = None
+    cache: Annotated[
+        str | None, msgspec.Meta(description="a persistent index cache on a local disk")
+    ] = None
 
 
 class DemoParams(Params, kw_only=True):

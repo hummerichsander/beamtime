@@ -24,6 +24,11 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: What happened, once stopped."""
+    if p.stdio:
+        from beamtime.serve.stdio import run
+
+        # stdout belongs to the protocol to the end: no closing answer is printed.
+        raise SystemExit(run(logdir=p.logdir or str(ctx.logdir), cache=p.cache))
     try:
         import uvicorn
 

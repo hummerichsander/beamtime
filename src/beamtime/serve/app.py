@@ -1,10 +1,7 @@
 """The Starlette app: the operations as API, live updates, run files and the frontend."""
 
-import re
-import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
@@ -21,15 +18,11 @@ from starlette.responses import (
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from beamtime.format.ids import is_run_id
-from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
-from beamtime.ops.registry import BY_TOOL
+from beamtime.serve.api import STATIC, dispatch, locate, meta, page_of, view  # noqa: F401
 from beamtime.serve.live import Hub
 
-STATIC = Path(__file__).parent / "static"
 STATUS = {1: 400, 2: 400, 3: 422, 4: 404}
-STARTED = time.time()
 
 
 def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
@@ -48,58 +41,15 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
             return error("the body is not JSON", 2)
         if not isinstance(body, dict):
             return error("the body is a JSON object of parameters", 2)
+        if method == "watch":
+            hub.watch(str(body.get("client")), dict(body.get("watched") or {}))
+            return reply({"kind": "watch", "watching": len(body.get("watched") or {})})
         try:
-            match method:
-                case "meta":
-                    answer = await run_in_threadpool(meta, ctx)
-                case "view":
-                    answer = await run_in_threadpool(
-                        view, ctx, body.get("path", "."), body.get("version"), body.get("draft")
-                    )
-                case "save_view":
-                    answer = await run_in_threadpool(
-                        save_view,
-                        ctx,
-                        str(body.get("path", ".")),
-                        body.get("prefs") or {},
-                        body.get("title"),
-                        body.get("finding"),
-                    )
-                case "note_rm" | "set":
-                    # user commands the UI offers its user (deleting a note, its settings page);
-                    # agents never use this API.
-                    answer = await run_in_threadpool(call, method.replace("_", " "), body, ctx)
-                case "view_text":
-                    from beamtime.ops.views import edit_text
-
-                    answer = await run_in_threadpool(
-                        edit_text,
-                        ctx,
-                        page_of(ctx, str(body.get("path", ".")))[0],
-                        body.get("id"),
-                        str(body.get("text") or ""),
-                    )
-                case "figure":
-                    from beamtime.views.figure import pdf
-
-                    styles = list(ctx.settings.get("figure_style") or [])
-                    content = await run_in_threadpool(pdf, body, styles)
-                    return Response(content, media_type="application/pdf")
-                case "code":
-                    from beamtime.views.store import code_text
-
-                    answer = await run_in_threadpool(code_text, ctx, body)
-                case "summary":
-                    answer = await run_in_threadpool(summary_of, ctx, body.get("path", "."))
-                case "watch":
-                    hub.watch(str(body.get("client")), dict(body.get("watched") or {}))
-                    answer = {"kind": "watch", "watching": len(body.get("watched") or {})}
-                case _ if (op := BY_TOOL.get(method)) is not None:
-                    answer = await run_in_threadpool(call, op.name, body, ctx)
-                case _:
-                    return error(f"no API method {method!r}", 4)
+            answer = await run_in_threadpool(dispatch, ctx, method, body)
         except OpError as e:
             return error(str(e), e.code)
+        if isinstance(answer, bytes):
+            return Response(answer, media_type="application/pdf")
         return reply(answer)
 
     async def subscribe(request: Request) -> Response:
@@ -173,150 +123,3 @@ def error(message: str, code: int) -> Response:
     :param code: The operation's exit code.
     :return: The JSON error."""
     return reply({"error": message, "code": code}, STATUS.get(code, 400))
-
-
-def bundle() -> str | None:
-    """Name the frontend build the server has.
-
-    :return: The entry file's modification time, or ``None`` without a build."""
-    entry = STATIC / "app.js"
-    return str(entry.stat().st_mtime_ns) if entry.is_file() else None
-
-
-def meta(ctx: Context) -> dict[str, Any]:
-    """Describe the project for the shell: name, version, theme pair.
-
-    :param ctx: The operation context.
-    :return: The answer."""
-    from beamtime.ops.admin import figure_styles
-    from beamtime.views.theme import available, pair
-
-    return {
-        "kind": "meta",
-        "project": ctx.root.name,
-        "root": str(ctx.root),
-        "logdir": str(ctx.logdir),
-        "version": version("beamtime"),
-        "theme": pair(str(ctx.settings.get("theme") or "beamtime"), ctx.root),
-        # a frontend rebuilt after the server started (an editable install) may call
-        # methods this server doesn't know yet; the shell then asks for a restart.
-        "outdated": (STATIC / "app.js").is_file() and (STATIC / "app.js").stat().st_mtime > STARTED,
-        # which frontend the server has; a page that reconnects to another one reloads.
-        "bundle": bundle(),
-        "settings": {
-            "theme": ctx.settings.get("theme"),
-            "theme_mode": ctx.settings.get("theme_mode"),
-            "figure_style": ctx.settings.get("figure_style"),
-            "file": str(ctx.root / "beamtime.yaml"),
-        },
-        "themes": sorted({re.sub(r"-(light|dark)$", "", n) for n in available(ctx.root)}),
-        "figure_styles": figure_styles(),
-    }
-
-
-def view(
-    ctx: Context, path: str, version: str | None = None, draft: str | None = None
-) -> dict[str, Any]:
-    """Answer the view of a group or run: its own, else the built-in default.
-
-    :param ctx: The operation context.
-    :param path: A group path, or a run id or path.
-    :param version: A saved version to show instead of the newest.
-    :param draft: A draft to show instead, for the renderer.
-    :return: ``{kind, path, run, view, source, version, ...}`` with the run's path resolved."""
-    from beamtime.views.store import shown
-
-    path, run = page_of(ctx, path)
-    return {"kind": "view", "path": path, "run": run} | shown(
-        ctx, path, version=version, draft_name=draft
-    )
-
-
-def page_of(ctx: Context, path: str) -> tuple[str, str | None]:
-    """Resolve a page: a group path, or a run by id or path.
-
-    :param ctx: The operation context.
-    :param path: The page as the URL names it.
-    :return: The path below the log dir, and the run id for a run."""
-    from beamtime.index.index import Index
-
-    path = path.strip("/") or "."
-    name = path.rsplit("/", 1)[-1]
-    run = name if is_run_id(name) else None
-    if run is not None:
-        index = Index(logdir=ctx.logdir)
-        try:
-            if (found := index.run_path(run)) is None:
-                index.catch_up(".", budget_s=0)
-                found = index.run_path(run)
-        finally:
-            index.close()
-        if found is None:
-            raise OpError(f"no run {run!r} below the log dir", code=4)
-        path = found.relative_to(ctx.logdir).as_posix()
-    elif ".." in path.split("/"):
-        raise OpError(f"no group {path!r} below the log dir", code=4)
-    elif not (ctx.logdir / path).is_dir():
-        from beamtime.format.moves import current
-
-        # an old link to a moved group shows the group where it is now.
-        if not (ctx.logdir / (moved := current(ctx.logdir, path))).is_dir():
-            raise OpError(f"no group {path!r} below the log dir", code=4)
-        path = moved
-    return path, run
-
-
-def save_view(
-    ctx: Context, path: str, prefs: dict[str, Any], title: str | None, finding: str | None
-) -> dict[str, Any]:
-    """Save what a page shows with the viewer's chart settings as a new view version.
-
-    :param ctx: The operation context, with caller ``view``: the local account is the author.
-    :param path: A group path, or a run's path.
-    :param prefs: The viewer's ``{view, charts, added}`` for the page.
-    :param title: The view's title.
-    :param finding: The view's finding.
-    :return: The new version."""
-    from beamtime.ops.views import save_page
-
-    return save_page(ctx, page_of(ctx, path)[0], prefs, title, finding)
-
-
-def summary_of(ctx: Context, path: str) -> dict[str, Any]:
-    """Answer the main metric's best run for the header, apart from the view so it loads in
-    parallel.
-
-    :param ctx: The operation context.
-    :param path: A group or run path.
-    :return: ``{kind, path, summary}``; ``summary`` is ``None`` without metrics."""
-    from beamtime.views.defaults import summary
-    from beamtime.views.store import lead
-
-    path = path.strip("/") or "."
-    # the header follows the view: its lead metric, in its direction.
-    found = lead(ctx, path) if (ctx.logdir / path).is_dir() else None
-    return {"kind": "summary", "path": path, "summary": summary(ctx, path, found)}
-
-
-def locate(ctx: Context, run_id: str, rel: str) -> Path | None:
-    """Find a file inside a run directory, refusing paths that leave it.
-
-    :param ctx: The operation context.
-    :param run_id: The run id.
-    :param rel: The file's path inside the run.
-    :return: The file, or ``None``."""
-    from beamtime.index.index import Index
-
-    if not is_run_id(run_id):
-        return None
-    index = Index(logdir=ctx.logdir)
-    try:
-        run_dir = index.run_path(run_id)
-    finally:
-        index.close()
-    if run_dir is None:
-        return None
-    path = (run_dir / rel).resolve()
-    if not path.is_relative_to(run_dir.resolve()) or not path.is_file():
-        return None
-    return path

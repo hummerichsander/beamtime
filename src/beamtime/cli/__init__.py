@@ -319,6 +319,7 @@ def main(argv: list[str] | None = None) -> None:
     elif not args.quiet:
         from beamtime.cli.format import render
 
-        print(render(answer))
+        if text := render(answer):
+            print(text)
     if answer.get("meta", {}).get("failed"):
         sys.exit(1)
