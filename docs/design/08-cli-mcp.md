@@ -90,7 +90,7 @@ the user the command ([Policy](#policy)).
 | `beamtime demo [dir]` | generates a sample log dir from the evaluation generator (once, in `beamtime-demo/`) and serves it |
 | `beamtime doctor` | checks root and log dir resolution, write access, Chromium, remote reachability and the remote's Beamtime version |
 | `beamtime settings` | the effective settings and the level each value comes from |
-| `beamtime serve [sources…]` | the web UI, indexer and remote connections; `--no-ui`, `--port` (default 8080, else the next free port), `--open` |
+| `beamtime serve [sources…]` | the web UI, indexer and remote connections; `--no-ui`, `--port` (default 8080, else the next free port), `--open`, `--watch` (restart on the same port when Beamtime's own code changes, for working on Beamtime) |
 | `beamtime pull <source>:<group>` | a read-only offline snapshot; `--drop` removes it |
 | `beamtime mv <run> <group>`, `beamtime mv <group> <new path>` | moves a run, or moves or renames a group (recorded in `_moves.jsonl`); refuses running runs |
 | `beamtime rm <run or group>` | moves it into `_trash/` ([layer 1](01-storage.md#deleting-and-cleaning-up)) |

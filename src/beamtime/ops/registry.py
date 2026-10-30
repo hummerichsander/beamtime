@@ -425,6 +425,10 @@ class ServeParams(Params, kw_only=True):
     port: Annotated[int, msgspec.Meta(description="the first port to try")] = 8080
     no_ui: Annotated[bool, msgspec.Meta(description="only index, no web UI")] = False
     open: Annotated[bool, msgspec.Meta(description="open the UI in a browser")] = False
+    watch: Annotated[
+        bool,
+        msgspec.Meta(description="restart when Beamtime's own code changes (working on Beamtime)"),
+    ] = False
 
 
 class DemoParams(Params, kw_only=True):

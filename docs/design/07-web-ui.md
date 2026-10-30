@@ -311,6 +311,8 @@ no file can change is not editable: group names are folder names (`beamtime mv` 
 the command line), and a frozen proposal's statement says, when clicked, how to supersede it. A text
 that is blank shows its placeholder, so it can always be clicked. When the server is older than the
 page it serves (a rebuild after `beamtime serve` started), the status bar asks for a restart.
+`beamtime serve --watch` restarts by itself when Beamtime's code changes (same port and token);
+a page that reconnects to a server with another frontend build reloads.
 
 Text panels (`markdown` blocks) are written into the view: "add text" under the header puts one at
 the top, it is edited in place, and emptying it removes it; each change is a new view version. In a

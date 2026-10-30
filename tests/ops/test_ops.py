@@ -230,6 +230,7 @@ def test_naming_a_run(ctx: Context, roles: dict) -> None:
     call("name", {"run": run, "name": "warmup baseline"}, ctx)
     rows = call("runs", {"from": run, "select": ["run.name"]}, ctx)["rows"]
     assert rows[0][1] == "warmup baseline"
+    assert call("card", {"run": run}, ctx)["run"]["name"] == "warmup baseline"
     with pytest.raises(OpError, match="groups are renamed"):
         call("name", {"run": "scaling", "name": "x"}, ctx)
 

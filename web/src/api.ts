@@ -218,14 +218,17 @@ function markStale(ids: string[]): void {
   }
 }
 
-export function connect(): void {
+export function connect(onReconnect?: () => void): void {
   const source = new EventSource(`/api/subscribe?client=${client}`);
   let connected = false;
   source.addEventListener("hello", () => {
     connection.set("live");
     watchChanged();
     // after a reconnect, changes may have been missed: refetch what is on screen.
-    if (connected) markStale([...entries.values()].filter((e) => e.listeners.size).map((e) => e.id));
+    if (connected) {
+      markStale([...entries.values()].filter((e) => e.listeners.size).map((e) => e.id));
+      onReconnect?.();
+    }
     connected = true;
   });
   source.addEventListener("stale", (ev) => {

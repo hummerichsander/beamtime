@@ -114,9 +114,11 @@ class Index:
         now = time.time()
         root = str(self.logdir)
         found: list[tuple[str, float]] = []
+        seen: set[str] = set()
         stack = [scope]
         while stack:
             rel = stack.pop()
+            seen.add(rel)
             d = root if rel in (".", "") else os.path.join(root, rel)
             try:
                 found.append((rel, os.stat(os.path.join(d, c.RUN)).st_mtime))
@@ -141,7 +143,13 @@ class Index:
                     for e in os.scandir(d)
                     if e.is_dir(follow_symlinks=True) and not is_reserved(e.name)
                 )
-                self.store.set_folder(rel, mtime=st.st_mtime, walked=now, children=children)
+                gone = set(json.loads(row["children"])) - set(children) if row is not None else ()
+                with self.store.transaction():
+                    for name in gone:
+                        self.store.drop_folder(name if rel in (".", "") else f"{rel}/{name}")
+                    self.store.set_folder(rel, mtime=st.st_mtime, walked=now, children=children)
+                if gone and changed is not None:
+                    changed.add(rel)
             notes = mtime(os.path.join(d, c.NOTES))
             if row is None or row["notes_mtime"] != notes:
                 with self.store.transaction():
@@ -157,6 +165,15 @@ class Index:
                     self.authored[rel] = authored
                     changed.add(rel)
             stack.extend(name if rel in (".", "") else f"{rel}/{name}" for name in children)
+        if scope in (".", ""):
+            # folders a walk from the root never reached are gone, also ones lost before.
+            known = {r[0] for r in self.store.db.execute("SELECT path FROM folders")}
+            if orphans := known - seen:
+                with self.store.transaction():
+                    for path in orphans:
+                        self.store.drop_folder(path)
+                if changed is not None:
+                    changed.add(".")
         return found
 
     def forget(self, run_id: str) -> None:

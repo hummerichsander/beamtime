@@ -175,6 +175,14 @@ def error(message: str, code: int) -> Response:
     return reply({"error": message, "code": code}, STATUS.get(code, 400))
 
 
+def bundle() -> str | None:
+    """Name the frontend build the server has.
+
+    :return: The entry file's modification time, or ``None`` without a build."""
+    entry = STATIC / "app.js"
+    return str(entry.stat().st_mtime_ns) if entry.is_file() else None
+
+
 def meta(ctx: Context) -> dict[str, Any]:
     """Describe the project for the shell: name, version, theme pair.
 
@@ -193,6 +201,8 @@ def meta(ctx: Context) -> dict[str, Any]:
         # a frontend rebuilt after the server started (an editable install) may call
         # methods this server doesn't know yet; the shell then asks for a restart.
         "outdated": (STATIC / "app.js").is_file() and (STATIC / "app.js").stat().st_mtime > STARTED,
+        # which frontend the server has; a page that reconnects to another one reloads.
+        "bundle": bundle(),
         "settings": {
             "theme": ctx.settings.get("theme"),
             "theme_mode": ctx.settings.get("theme_mode"),

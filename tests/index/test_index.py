@@ -218,6 +218,25 @@ def test_moved_and_deleted_runs(index: Index, logdir: Path) -> None:
     assert not (index.series / deleted.name).exists()
 
 
+def test_deleted_groups_are_forgotten(index: Index, logdir: Path) -> None:
+    """A deleted group folder leaves the index with the folders and notes below it."""
+    index.catch_up(".", budget_s=float("inf"))
+    paths = lambda: {r[0] for r in index.store.db.execute("SELECT path FROM folders")}  # noqa: E731
+    assert {"scaling", "scaling/lr-sweep"} <= paths()
+    # the parent's mtime may not move within its second: make sure it changed.
+    shutil.rmtree(logdir / "scaling")
+    later = time.time() + 5
+    os.utime(logdir, (later, later))
+    index.catch_up(".", budget_s=float("inf"))
+    assert not any(p == "scaling" or p.startswith("scaling/") for p in paths())
+    notes = index.store.db.execute("SELECT count(*) FROM notes WHERE folder LIKE 'scaling%'")
+    assert notes.fetchone()[0] == 0
+    # a folder row left behind earlier (the parent was listed again without it) goes too.
+    index.store.set_folder("lost/old", mtime=0, walked=0, children=[])
+    index.catch_up(".", budget_s=float("inf"))
+    assert "lost/old" not in paths()
+
+
 def test_unchanged_folders_are_not_listed_again(index: Index, logdir: Path, monkeypatch) -> None:
     """A second walk lists only folders whose modification time changed."""
     index.catch_up(".", budget_s=float("inf"))

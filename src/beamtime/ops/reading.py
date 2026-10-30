@@ -197,6 +197,7 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer."""
+    from beamtime.index.ingest import given_name
     from beamtime.record.check import cited_by
     from beamtime.record.proposals import Target
 
@@ -215,7 +216,8 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
         "kind": "card",
         "run": {
             "id": info.id,
-            "name": info.name,
+            # a name given after the run (name/) wins over the one it started with.
+            "name": given_name(run_dir) or info.name,
             "path": run_dir.relative_to(ctx.logdir).as_posix(),
             "status": status,
             "created_at": info.created_at,

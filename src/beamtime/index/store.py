@@ -219,6 +219,21 @@ class Store:
             [path, *fields.values()],
         )
 
+    def drop_folder(self, path: str) -> None:
+        """Forget a vanished folder, the folders below it and their notes.
+
+        :param path: The folder relative to the log dir."""
+        below = (path, f"{path}/%")
+        self.db.execute(
+            "DELETE FROM links WHERE source IN "
+            "(SELECT path FROM notes WHERE run_id IS NULL AND (folder = ? OR folder LIKE ?))",
+            below,
+        )
+        self.db.execute(
+            "DELETE FROM notes WHERE run_id IS NULL AND (folder = ? OR folder LIKE ?)", below
+        )
+        self.db.execute("DELETE FROM folders WHERE path = ? OR path LIKE ?", below)
+
     def replace_notes(self, folder: str, run_id: str | None, notes: list[dict]) -> None:
         """Replace the indexed notes of a folder or run.
 

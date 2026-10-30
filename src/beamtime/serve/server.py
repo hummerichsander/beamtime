@@ -1,9 +1,12 @@
 """``beamtime serve`` and ``beamtime demo``: the daemon, the web UI and the token."""
 
 import dataclasses
+import os
 import signal
 import socket
 import sys
+import threading
+import time
 import webbrowser
 from pathlib import Path
 from typing import Any
@@ -12,6 +15,7 @@ from beamtime.ops import registry as r
 from beamtime.ops.context import Context, OpError
 
 PORT_TRIES = 10
+WATCH_S = 1.0
 
 
 def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
@@ -41,6 +45,7 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
         )
     cache = cache_dir(ctx.logdir)
     hub = Hub()
+    restart = threading.Event()
     daemon = Daemon(logdir=ctx.logdir, cache=cache, on_change=hub.changed)
     sock = None if p.no_ui else bind(p.port)
     daemon.port = None if sock is None else sock.getsockname()[1]
@@ -71,7 +76,11 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
         )
         # uvicorn re-raises the signal that stopped it; SIGTERM must still clean up.
         signal.signal(signal.SIGTERM, stop)
-        server_class()(config, hub=hub).run(sockets=[sock])
+        server = server_class()(config, hub=hub)
+        if p.watch:
+            threading.Thread(target=watch_code, args=(server, restart), daemon=True).start()
+            say("--watch: restarts when Beamtime's code changes.")
+        server.run(sockets=[sock])
         return {"kind": "serve", "lines": ["stopped"]}
     except (KeyboardInterrupt, SystemExit):
         return {"kind": "serve", "lines": ["stopped"]}
@@ -79,6 +88,8 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
         daemon.stop()
         if sock is not None:
             sock.close()
+        if restart.is_set():
+            again(daemon.port)
 
 
 def demo(ctx: Context, p: r.DemoParams) -> dict[str, Any]:
@@ -142,6 +153,50 @@ def bind(port: int) -> socket.socket:
         sock.listen(128)
         return sock
     raise OpError(f"ports {port} to {port + PORT_TRIES - 1} are taken; pass --port")
+
+
+def code_files() -> dict[str, int]:
+    """Stamp Beamtime's own files: its Python modules, guide, themes and the built frontend.
+
+    :return: Modification times by path."""
+    root = Path(__file__).resolve().parents[1]
+    out = {}
+    for d, dirs, names in os.walk(root):
+        dirs[:] = [x for x in dirs if x != "__pycache__"]
+        for name in names:
+            path = os.path.join(d, name)
+            try:
+                out[path] = os.stat(path).st_mtime_ns
+            except OSError:
+                pass
+    return out
+
+
+def watch_code(server: Any, restart: threading.Event) -> None:
+    """Stop the server for a restart once Beamtime's code changes.
+
+    :param server: The uvicorn server.
+    :param restart: Set when a restart is due."""
+    before = code_files()
+    while not server.should_exit:
+        time.sleep(WATCH_S)
+        if code_files() != before:
+            # a build writes many files: wait until they stop changing.
+            time.sleep(WATCH_S)
+            say("Beamtime's code changed; restarting.")
+            restart.set()
+            server.handle_exit(signal.SIGTERM, None)
+            return
+
+
+def again(port: int | None) -> None:
+    """Replace this process with the same command on the same port, without opening a browser.
+
+    :param port: The port the UI ran on."""
+    args = [a for a in sys.orig_argv[1:] if a != "--open"]
+    if port is not None:
+        args += ["--port", str(port)]
+    os.execv(sys.executable, [sys.executable, *args])
 
 
 def stop(signum: int, frame: Any) -> None:
