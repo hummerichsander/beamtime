@@ -370,6 +370,7 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         "web_ui": f"http://localhost:{daemon['port']}" if daemon and daemon.get("port") else None,
         "remotes": sorted(ctx.settings.get("remotes") or {}),
         "sources": sources(),
+        "snapshots": snapshots(ctx),
         "memory": memory,
         "meta": {"freshness": freshness.dump() if freshness else None},
     }
@@ -384,6 +385,25 @@ def sources() -> list[dict[str, Any]]:
     if remote.active is None:
         return []
     return [client.describe() for client in remote.active.clients.values()]
+
+
+def snapshots(ctx: Context) -> list[dict[str, Any]]:
+    """List the pulled snapshots of remotes.
+
+    :param ctx: The operation context.
+    :return: One entry per remote: name, groups and the time it was pulled."""
+    import json
+
+    from beamtime.remote.pull import SNAPSHOT, snapshots_dir
+
+    out = []
+    for record in sorted(snapshots_dir(ctx).glob(f"*/{SNAPSHOT}")):
+        try:
+            data = json.loads(record.read_text())
+        except (OSError, ValueError):
+            continue
+        out.append({"name": f"@{data['source']}", "groups": data["groups"], "at": data["at"]})
+    return out
 
 
 def project_memory(index: Index) -> dict[str, Any] | None:

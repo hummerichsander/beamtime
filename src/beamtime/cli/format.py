@@ -1,6 +1,7 @@
 """Compact text answers, alike in terminals and pipes: agents see what people see."""
 
 import math
+import time
 from typing import Any
 
 SPARKS = "▁▂▃▄▅▆▇█"
@@ -386,6 +387,9 @@ def render_status(answer: dict[str, Any]) -> str:
         states = {s["name"]: s["state"] for s in answer.get("sources") or []}
         shown = [f"{r} ({states.get(f'@{r}', 'not connected')})" for r in answer["remotes"]]
         lines.append(f"remotes   {', '.join(shown)}")
+    for snap in answer.get("snapshots") or []:
+        when = time.strftime("%Y-%m-%d %H:%M", time.localtime(snap["at"]))
+        lines.append(f"snapshot  {snap['name']}: {', '.join(snap['groups'])} (pulled {when})")
     if fresh := answer["meta"].get("freshness"):
         lines.append(fresh["text"])
     return "\n".join(lines)

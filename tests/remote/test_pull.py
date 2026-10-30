@@ -56,3 +56,21 @@ def test_drop_and_errors(box: Path, ctx: Context) -> None:
         call("pull", {"target": "box:no/such"}, ctx)
     with pytest.raises(OpError, match="no snapshot"):
         call("pull", {"target": "box:x", "drop": True}, ctx)
+
+
+def test_doctor_and_status_cover_remotes(box: Path, project: Path) -> None:
+    """doctor checks a configured remote; status lists its snapshot."""
+    from tests.remote.conftest import COMMAND
+
+    (project / "beamtime.yaml").write_text(
+        f"remotes:\n  box: {{path: {box}, transport: command, command: '{COMMAND}'}}\n"
+        "  gone: {path: /nowhere, transport: command, command: 'false'}\n"
+    )
+    ctx = Context.make(caller="cli")
+    rows = {r[0]: r[1:] for r in call("doctor", {}, ctx)["rows"]}
+    assert rows["@box beamtime"][0] and rows["@box log dir"][0]
+    assert rows["@box cache"][1].startswith("temporary")
+    assert rows["@gone beamtime"][0] is False
+    call("pull", {"target": f"box:{SWEEP}"}, ctx)
+    snaps = call("status", {}, ctx)["snapshots"]
+    assert snaps[0]["name"] == "@box" and snaps[0]["groups"] == [SWEEP]

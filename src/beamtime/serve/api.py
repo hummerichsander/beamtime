@@ -116,7 +116,18 @@ def hello(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
         "version": mine,
         "logdir": str(ctx.logdir),
         "logdir_exists": ctx.logdir.is_dir(),
+        "cache": cache_info(),
     }
+
+
+def cache_info() -> dict[str, str | None]:
+    """Describe the cache a stdio session indexes into.
+
+    :return: Its path, whether it is temporary, and why a configured one was refused."""
+    import sys
+
+    stdio = sys.modules.get("beamtime.serve.stdio")
+    return dict(stdio.CACHE) if stdio is not None else {}
 
 
 def files(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:

@@ -22,6 +22,8 @@ from beamtime.ops.context import Context, OpError
 
 WORKERS = 4
 WATCH_S = 2.0
+# which cache this session indexes into, for hello: its path, and why a configured one was refused.
+CACHE: dict[str, str | None] = {}
 NETWORK_FS = ("nfs", "nfs4", "lustre", "gpfs", "cifs", "smbfs", "smb3", "beegfs", "fuse.sshfs")
 
 
@@ -127,6 +129,8 @@ def run(*, logdir: str, cache: str | None = None) -> int:
         cache = own
     os.environ["BEAMTIME_CACHE"] = expand(cache)
     os.environ["BEAMTIME_LOGDIR"] = str(path)
+    temporary = "yes" if own else None
+    CACHE.update(path=os.environ["BEAMTIME_CACHE"], temporary=temporary, refused=reason)
     if reason:
         print(f"beamtime: the cache is on {reason}; using a temporary one", file=sys.stderr)
     # stdout carries the protocol: everything else an operation prints goes to stderr.

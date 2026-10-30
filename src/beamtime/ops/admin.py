@@ -184,9 +184,10 @@ def doctor(ctx: Context, p: r.NoParams) -> dict[str, Any]:
     check("daemon", None, f"running, pid {daemon.get('pid')}" if daemon else "not running")
     for problem in ctx.settings.problems:
         check("settings", False, problem)
-    check("chromium", None, "checked once views exist (milestone M6)")
-    if ctx.settings.get("remotes"):
-        check("remotes", None, "checked once remotes exist (milestone M8)")
+    check("browser", *browser())
+    for name, conf in sorted((ctx.settings.get("remotes") or {}).items()):
+        for row in remote_checks(name, conf):
+            check(*row)
     failed = [name for name, ok, _ in checks if ok is False]
     return {
         "kind": "doctor",
@@ -194,6 +195,79 @@ def doctor(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         "rows": checks,
         "meta": {"failed": failed},
     }
+
+
+def browser() -> tuple[bool | None, str]:
+    """Check for a browser the headless renderer can use (view renders and validation).
+
+    :return: Whether one starts, and which or how to install one."""
+    from beamtime.views.render import INSTALL, launch
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return None, "no Playwright: views validate statically; install the serve extra to render"
+    with sync_playwright() as p:
+        found = launch(p)
+        if found is None:
+            return None, f"none installed: views validate statically; `{INSTALL}` adds one"
+        name = f"{found.browser_type.name} {found.version}"
+        found.close()
+    return True, name
+
+
+def remote_checks(name: str, conf: dict[str, Any]) -> list[tuple[str, bool | None, str]]:
+    """Check one remote: its settings, the ssh login, Beamtime there, its log dir and cache.
+
+    :param name: The remote's name.
+    :param conf: Its merged settings.
+    :return: ``(check, ok, detail)`` rows."""
+    import subprocess
+
+    from beamtime.remote.client import RemoteClient
+    from beamtime.remote.sources import spec_of
+
+    label = f"@{name}"
+    try:
+        spec = spec_of(name, conf)
+    except OpError as e:
+        return [(label, False, str(e))]
+    rows: list[tuple[str, bool | None, str]] = []
+    if spec.transport == "ssh":
+        host = spec.host or name
+        login = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, "true"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if login.returncode != 0:
+            hint = (
+                "; with two-factor login, open a ControlMaster first: "
+                f"`ssh -fN {host}` (ControlMaster auto, ControlPersist in ~/.ssh/config)"
+            )
+            reason = login.stderr.strip() or "login failed"
+            return [(f"{label} ssh", False, f"{host}: {reason}{hint}")]
+        rows.append((f"{label} ssh", True, f"{host} (no prompt needed)"))
+    client = RemoteClient(spec=spec)
+    try:
+        hello = client.request("hello", {}, timeout=60)
+    except OpError as e:
+        return [*rows, (f"{label} beamtime", False, f"{spec.command}: {e}")]
+    finally:
+        client.close()
+    rows.append((f"{label} beamtime", True, f"{hello['version']} ({spec.command})"))
+    exists = bool(hello.get("logdir_exists"))
+    rows.append((f"{label} log dir", exists, hello["logdir"] + ("" if exists else " (missing)")))
+    cache = hello.get("cache") or {}
+    if cache.get("refused"):
+        detail = f"{spec.cache} is on {cache['refused']}; a temporary cache is used instead"
+        rows.append((f"{label} cache", None, detail))
+    elif cache.get("temporary"):
+        rows.append((f"{label} cache", True, "temporary, deleted when the connection closes"))
+    else:
+        rows.append((f"{label} cache", True, str(cache.get("path"))))
+    return rows
 
 
 def reindex(ctx: Context, p: r.NoParams) -> dict[str, Any]:
