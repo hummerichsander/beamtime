@@ -145,3 +145,18 @@ def test_a_run_copied_to_a_remote_is_told_apart(box: Path, ctx: Context, project
     assert there == f"@box/copied/{run}"
     page = dispatch(Context.make(caller="view"), "view", {"path": f"@box/{run}"})
     assert page["path"] == f"@box/copied/{run}"
+
+
+def test_logged_files_of_remote_runs(box: Path, ctx: Context) -> None:
+    """A remote's logged entries keep their run-relative paths; their files come from that remote."""
+    from beamtime.remote.route import remote_file
+
+    keys = call("keys", {"from": f"@box/{SWEEP}"}, ctx)["data"]["rows"]
+    key = next(k for k, kind, *_ in keys if kind == "image")
+    entries = call("data", {"from": f"@box/{SWEEP}", "key": key}, ctx)["entries"]
+    with_file = [e for e in entries if e.get("path")]
+    assert with_file and not with_file[0]["path"].startswith("@")
+    e = with_file[0]
+    content = remote_file(e["run"], e["path"], "box")
+    run_dir = next(box.rglob(e["run"]))
+    assert content == (run_dir / e["path"]).read_bytes()

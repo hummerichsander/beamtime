@@ -69,11 +69,15 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
 
     async def run_file(request: Request) -> Response:
         run_id, rel = request.path_params["run"], request.path_params["path"]
-        path = await run_in_threadpool(locate, ctx, run_id, rel)
+        # a run on a remote: /api/file/@box/<id>/<path>, never this machine's copy of it.
+        source = None
+        if run_id.startswith("@") and "/" in rel:
+            source, (run_id, rel) = run_id[1:], rel.split("/", 1)
+        path = None if source else await run_in_threadpool(locate, ctx, run_id, rel)
         if path is None:
             from beamtime.remote.route import remote_file
 
-            if (content := await run_in_threadpool(remote_file, run_id, rel)) is not None:
+            if (content := await run_in_threadpool(remote_file, run_id, rel, source)) is not None:
                 kind = mimetypes.guess_type(rel)[0] or "application/octet-stream"
                 return Response(
                     content, media_type=kind, headers={"cache-control": "private, max-age=3600"}

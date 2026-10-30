@@ -168,8 +168,9 @@ def prefix(answer: Any, source: str) -> Any:
             return [walk(v) for v in x]
         if not isinstance(x, dict):
             return x
-        # a file reference: its path is relative to the view or block it names.
-        ref = isinstance(x.get("view"), str) or "block" in x or "block_draft" in x
+        # a file reference: its path is relative to the view, block or logged run it names.
+        entry = isinstance(x.get("run"), str) and "step" in x
+        ref = isinstance(x.get("view"), str) or "block" in x or "block_draft" in x or entry
         out = {}
         for k, v in x.items():
             if k in PATH_KEYS or (k == "path" and not ref) or (k == "view" and ref):
@@ -380,17 +381,19 @@ def merge_keys(answers: list[dict]) -> dict[str, Any]:
 FILE_LIMIT = 64 << 20
 
 
-def remote_file(run: str, rel: str) -> bytes | None:
+def remote_file(run: str, rel: str, source: str | None = None) -> bytes | None:
     """Fetch a file of a run that lives on a remote, such as a logged image.
 
     :param run: The run id.
     :param rel: The file's path inside the run.
+    :param source: The remote it is on, if known; else every remote is asked.
     :return: Its content, or ``None`` if no remote has it."""
     import base64
 
     if remote.active is None:
         return None
-    for client in remote.active.clients.values():
+    clients = remote.active.clients
+    for client in [clients[source]] if source in clients else clients.values():
         try:
             base = client.request("card", {"run": run})["run"]["path"]
             out, offset = bytearray(), 0
