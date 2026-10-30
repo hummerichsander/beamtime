@@ -207,7 +207,7 @@ Implements [layer 5](design/05-views.md) for authored views.
 Taken on alongside: `block import` from git repositories (packages and a gallery stay v1.1), a
 tokenizer for condition strings, and paging for notes with a memory budget hint in the UI.
 
-### M8: Remotes (1.5–2 weeks)
+### M8: Remotes (1.5–2 weeks) — in progress
 
 Implements [layer 4](design/04-remotes.md). Can run in parallel with M6 and M7 after M3.
 
@@ -220,6 +220,11 @@ Implements [layer 4](design/04-remotes.md). Can run in parallel with M6 and M7 a
 
 *Done when*: the laptop's UI and an agent see local and cluster runs together, and a verdict note
 written on the laptop lands on the cluster.
+
+Tested first against a Docker container with sshd; the run on a real cluster (two-factor login,
+SLURM, and the pending SDK check under SLURM) follows as a recipe. Taken on alongside: device
+logging (hardware and system metrics), custom `.mplstyle` files in `figure_style`, and an
+instruction-file snippet from `init` and `mcp install`.
 
 ### M9: Export, evaluation and release (2–3 weeks)
 

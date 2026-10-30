@@ -442,7 +442,10 @@ Decided while building the index and the queries (milestone M2):
   yet, and the next catch-up with time to spare reads them, also for runs that have ended.
 - **Reserved names are not scopes**: `from` naming an authored or machine folder (`proposal/`,
   `notes/`, `_trash/`, …) is refused like a missing group.
-- **Not yet**: remote sources (`@name/…`) wait for M8; `importance` for v1.1.
+- **Remote sources** (M8): `beamtime serve --stdio` on a remote catches up only the scope of each
+  request, into a temporary cache unless one is configured; a configured cache on NFS, Lustre or
+  GPFS is refused for the temporary one, and `status` says why.
+- **Not yet**: `importance` for v1.1.
 
 ## Decisions
 

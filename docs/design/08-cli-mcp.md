@@ -90,7 +90,7 @@ the user the command ([Policy](#policy)).
 | `beamtime demo [dir]` | generates a sample log dir from the evaluation generator (once, in `beamtime-demo/`) and serves it |
 | `beamtime doctor` | checks root and log dir resolution, write access, Chromium, remote reachability and the remote's Beamtime version |
 | `beamtime settings` | the effective settings and the level each value comes from |
-| `beamtime serve [sources…]` | the web UI, indexer and remote connections; `--no-ui`, `--port` (default 8080, else the next free port), `--open`, `--watch` (restart on the same port when Beamtime's own code changes, for working on Beamtime) |
+| `beamtime serve [sources…]` | the web UI, indexer and remote connections (`cluster`, `cluster:group`, `host:/abs/path`); `--no-ui`, `--port` (default 8080, else the next free port), `--open`, `--watch` (restart on the same port when Beamtime's own code changes, for working on Beamtime), `--cache` (for the remotes); `--stdio` is what a laptop starts on a remote over ssh |
 | `beamtime pull <source>:<group>` | a read-only offline snapshot; `--drop` removes it |
 | `beamtime mv <run> <group>`, `beamtime mv <group> <new path>` | moves a run, or moves or renames a group (recorded in `_moves.jsonl`); refuses running runs |
 | `beamtime rm <run or group>` | moves it into `_trash/` ([layer 1](01-storage.md#deleting-and-cleaning-up)) |
@@ -242,7 +242,11 @@ Decided while building the CLI and MCP server (milestone M3):
 - **`serve` and `demo`** (M5) are user-only operations in the registry. `serve` refuses to start
   when another `serve` holds the root's lock and names its URL; Ctrl-C and SIGTERM stop it cleanly.
   The API of the web UI is the registry's non-user-only operations under their MCP names
-  ([layer 7](07-web-ui.md#implementation-notes)). Sources and `--cache` come with remotes (M7).
+  ([layer 7](07-web-ui.md#implementation-notes)).
+- **Remotes** (M8): operations route by the source their target names (`@cluster/...`), listings on
+  `.` merge ([layer 4](04-remotes.md#routing-and-merging)). Writes to a remote group record the
+  laptop's author and the remote account as `user`. `pull` and `doctor` reach remotes through the
+  same protocol; `status` lists the sources with their state.
 
 ## Decisions
 

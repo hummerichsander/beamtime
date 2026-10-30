@@ -446,7 +446,11 @@ Decided while building the shell (milestone M5):
   16 ms (budget 50 ms).
 - **Custom blocks** (M7): a block that throws, fails to load or keeps resizing is replaced by an error
   panel naming the block, its code file and the error; the rest of the view stays intact.
-- **Not yet**: static export (M9), remote sources in the tree and status bar (M8).
+- **Sources** (M8): the tree has one root per source (this machine, then each remote), URLs name
+  remote groups as `/f/@cluster/...`, and the status bar has a chip per source: connected,
+  unreachable since a time, or a snapshot of a time. A remote page that can't answer shows the
+  source's state.
+- **Not yet**: static export (M9).
 
 ## Decisions
 

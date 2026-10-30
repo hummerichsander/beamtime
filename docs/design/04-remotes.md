@@ -47,9 +47,11 @@ beamtime serve login.hpc.de:/scratch/me/beamtime # ad hoc, no settings needed
 - **One connection per remote.** The local `serve` opens a long-lived ssh connection and runs
   `beamtime serve --stdio` there. No port is opened on the cluster, nothing passes a firewall, and
   with ssh `ControlMaster` a two-factor login is needed only once.
-- **The remote indexes in memory** by default, lazily: a group is indexed when it is first queried.
-  Most requests need no index at all, since run tables come from run cards and overview charts from
-  previews; only zooms and exact statistics build index data, kept for the session.
+- **The remote indexes into a private temporary cache** by default (created at start, deleted on
+  exit), lazily: each request catches up only the group it asks about, and no daemon walks the
+  whole log dir. Most requests need little index data, since run tables come from run cards and
+  overview charts from previews; zooms and exact statistics build column data, kept for the session.
+  (SQLite in memory doesn't fit: every operation opens its own index.)
 - **A persistent index** is used only where one is configured (`cache` below). Login nodes often have
   a small, purged `/tmp`, several nodes behind one host name, and home directories on NFS, where
   SQLite is unsafe; so nothing is written unless the user names a suitable disk. If two remote
@@ -103,11 +105,29 @@ beamtime pull cluster:scaling/lr-sweep
   `_data/` files above a size limit, `artifacts/` and `checkpoints/`.
 - Copies incrementally: appended files transfer only their new bytes.
 - Snapshots are **read-only** and live in the cache (`~/.cache/beamtime/<logdir-hash>/pulled/`), never in
-  the user's log dir. They appear in queries as their remote, marked with the snapshot's time; run
-  status is judged relative to that time.
+  the user's log dir. They answer for their remote while it isn't connected, marked with the
+  snapshot's time; run status is judged relative to that time.
 - `beamtime pull` again refreshes; `beamtime pull --drop` removes the snapshot. Writing to a pulled
   group is refused.
 - The transfer uses the same API (`files`: list, and read from an offset), so it needs no rsync.
+
+### Routing and merging
+
+- **A path names its source.** `@cluster/scaling` is the group `scaling` of the remote `cluster`, in
+  parameters, answers, links and the web UI; local paths have no prefix.
+- **Every operation whose target names a source** (`group`, `from`, `run`, a view or a query's
+  `from`) runs on that source with the prefix stripped; paths in its answer get the prefix back.
+  Operations on `.` that list (`groups`, `runs`, `series`, `data`, `timeline`, `notes`, `keys`) ask
+  every connected source and merge; everything else stays local.
+- **Merging by answer kind**: run rows are sorted again with the query's sort and cut to its limit,
+  exact because each source returned its top rows by that sort; groups, curves and data entries are
+  concatenated in source order; timeline entries are merged by time and notes by id; `keys` unions
+  names and adds run counts. Aggregated curves (`by`, `seeds`) are computed per source and labelled
+  with it. The size cut for agents applies after merging.
+- **Writes carry the laptop's author**: the laptop resolves `author` and passes it on; `user` is
+  the account the remote process runs as.
+- **One-shot CLI and MCP calls** that name a remote go through the local `serve` when it runs
+  (localhost with its token), else open their own connection. Calls without a remote stay in-process.
 
 ## Naming remote groups
 
@@ -175,6 +195,13 @@ Three methods exist only in the API:
 
 Compatibility: the same protocol major version on both sides; minor versions only add.
 
+## Testing
+
+The client and federation are tested against a second log dir served over a plain command (no
+ssh); the transport over real ssh against a Docker container with sshd and Beamtime installed. A
+real cluster with two-factor login (`ControlMaster`) and SLURM follows as a recipe that only swaps
+the host.
+
 ## Risks
 
 - **Login node policies.** Some clusters kill long-running processes on login nodes. The remote
@@ -191,7 +218,9 @@ Compatibility: the same protocol major version on both sides; minor versions onl
   and read-only pulls of whole folders.
 - Listings are federated across sources; aggregates are computed per source.
 - Each source is its own tree under a prefix (`@cluster/...`).
-- The remote process exits when its ssh connection closes; its index lives in memory unless a
-  `cache` on a local disk is configured.
+- The remote process exits when its ssh connection closes; its index lives in a temporary cache
+  deleted on exit unless a `cache` on a local disk is configured.
+- Paths carry their source (`@cluster/...`); operations route by their target, listings on `.`
+  merge across sources.
 - The API's methods are the operations of layer 8, plus `hello`, `subscribe` and `files`.
 - Remotes are configured in user and project settings, with placeholders; no credentials are stored.

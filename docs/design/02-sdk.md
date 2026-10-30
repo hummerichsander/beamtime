@@ -220,6 +220,14 @@ Written once at `init`:
   remote, and the job scheduler if one is detected.
 - `_env/git.diff`: uncommitted changes to tracked files (capped at 1 MB).
 - `_env/packages.txt`: installed distributions from `importlib.metadata`, without a subprocess.
+- The hardware in `host`: CPU model and logical cores, total memory, GPUs (name, memory, driver)
+  from `nvidia-smi` where it exists (with a timeout), and `CUDA_VISIBLE_DEVICES`.
+
+**System metrics** are sampled by default every 30 seconds by the SDK's background thread and
+logged as `sys/cpu`, `sys/memory` (percent of the machine), `sys/proc_rss` (the process, in MB) and
+`sys/gpu<i>/util` and `sys/gpu<i>/memory` (percent). `init(system_metrics=False)` turns them off; a
+sampler that fails or takes longer than a second turns itself off with one warning. Standard library
+only, plus `nvidia-smi` as a subprocess where present.
 
 Scheduler detection fills the `scheduler` field; nothing else depends on it:
 
