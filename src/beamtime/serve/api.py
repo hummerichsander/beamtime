@@ -83,7 +83,12 @@ def dispatch_here(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, 
         case "figure":
             from beamtime.views.figure import pdf
 
-            return pdf(body, list(ctx.settings.get("figure_style") or []))
+            # a project's own style files are paths relative to its root.
+            styles = [
+                str(ctx.root / s) if s.endswith(".mplstyle") else s
+                for s in ctx.settings.get("figure_style") or []
+            ]
+            return pdf(body, styles)
         case "code":
             from beamtime.views.store import code_text
 
@@ -187,7 +192,7 @@ def meta(ctx: Context) -> dict[str, Any]:
 
     :param ctx: The operation context.
     :return: The answer."""
-    from beamtime.ops.admin import figure_styles
+    from beamtime.ops.admin import figure_styles, project_styles
     from beamtime.ops.reading import sources
     from beamtime.views.theme import available, pair
 
@@ -210,7 +215,7 @@ def meta(ctx: Context) -> dict[str, Any]:
             "file": str(ctx.root / "beamtime.yaml"),
         },
         "themes": sorted({re.sub(r"-(light|dark)$", "", n) for n in available(ctx.root)}),
-        "figure_styles": figure_styles(),
+        "figure_styles": figure_styles() + project_styles(ctx.root),
         "sources": sources(),
     }
 

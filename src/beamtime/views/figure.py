@@ -8,6 +8,7 @@ come from them. It needs the ``figures`` extra."""
 import io
 import math
 import shutil
+from pathlib import Path
 from typing import Any, Literal
 
 import msgspec
@@ -56,7 +57,7 @@ def pdf(data: dict[str, Any], styles: list[str]) -> bytes:
         fig_spec = msgspec.convert(data, Figure)
     except msgspec.ValidationError as e:
         raise OpError(f"figure: {e}", code=2) from None
-    unknown = [x for x in styles if x not in plt.style.available]
+    unknown = [x for x in styles if x not in plt.style.available and not Path(x).is_file()]
     if unknown:
         raise OpError(f"figure_style: unknown style(s) {', '.join(unknown)}", code=3)
     # science renders text with LaTeX; where there is none, scienceplots' no-latex sheet stands in.

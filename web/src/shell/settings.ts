@@ -78,7 +78,8 @@ export function Settings() {
             extra: <code>uv add matplotlib scienceplots</code></span>`}
     </div>
     <p class="muted small">PDF downloads are drawn with <code>plt.style.use(${JSON.stringify(s.figure_style ?? [])})</code>, in this order
-      (later sheets override earlier ones). Without LaTeX, <code>no-latex</code> is added for <code>science</code>.</p>
+      (later sheets override earlier ones). Without LaTeX, <code>no-latex</code> is added for <code>science</code>. Your own
+      <code>.mplstyle</code> files anywhere in the project are listed too.</p>
     <h2>Keyboard</h2>
     <table class="kv">${SHORTCUTS.map(([k, d]) => html`<tr><td><kbd>${k}</kbd></td><td>${d}</td></tr>`)}</table>
     <h2>About</h2>

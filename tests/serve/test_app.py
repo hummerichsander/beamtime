@@ -214,3 +214,18 @@ def test_code_is_read_with_the_token(api, client) -> None:
     assert "export default" in api("code", **ref).json()["code"]
     assert client.post("/api/code", json=ref).status_code == 401
     assert api("code", **(ref | {"path": "view.yaml"})).status_code == 404
+
+
+def test_project_style_files(api, project: Path) -> None:
+    """A project's .mplstyle file is offered, can be set, and draws the PDF; a missing one can't."""
+    pytest.importorskip("scienceplots")
+    (project / "styles").mkdir()
+    (project / "styles" / "paper.mplstyle").write_text("lines.linewidth: 3\n")
+    assert "styles/paper.mplstyle" in api("meta").json()["figure_styles"]
+    ok = api("set", key="figure_style", value=["science", "styles/paper.mplstyle"])
+    assert ok.status_code == 200, ok.json()
+    pdf = api("figure", kind="line", series=[{"x": [0, 1], "y": [1, 2]}])
+    assert pdf.status_code == 200, pdf.text
+    assert pdf.content.startswith(b"%PDF")
+    missing = api("set", key="figure_style", value=["styles/none.mplstyle"])
+    assert missing.status_code == 400 and "no style file" in missing.json()["error"]

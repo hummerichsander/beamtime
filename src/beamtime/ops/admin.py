@@ -119,11 +119,23 @@ def set_setting(ctx: Context, p: r.SetParams) -> dict[str, Any]:
                 or not all(isinstance(v, str) for v in value)
             ):
                 raise OpError(
-                    "figure_style is a list of style names, e.g. [science, nature]", code=2
+                    "figure_style is a list of style names or .mplstyle files, "
+                    "e.g. [science, nature, styles/paper.mplstyle]",
+                    code=2,
                 )
-            if (known := figure_styles()) and (unknown := [v for v in value if v not in known]):
+            files = [v for v in value if v.endswith(".mplstyle")]
+            if missing := [f for f in files if not (ctx.root / f).is_file()]:
                 raise OpError(
-                    f"unknown style(s) {', '.join(unknown)}; styles: {', '.join(known)}", code=2
+                    f"no style file {', '.join(missing)} in {ctx.root} (paths are relative to "
+                    "the project)",
+                    code=2,
+                )
+            known = figure_styles()
+            if known and (unknown := [v for v in value if v not in known and v not in files]):
+                raise OpError(
+                    f"unknown style(s) {', '.join(unknown)}; styles: {', '.join(known)}, or a "
+                    ".mplstyle file of the project",
+                    code=2,
                 )
         case other:
             raise ValueError(f"no setting {other!r}")
@@ -143,6 +155,29 @@ def figure_styles() -> list[str]:
     except ImportError:
         return []
     return sorted(s for s in plt.style.available if not s.startswith("_"))
+
+
+def project_styles(root: Path) -> list[str]:
+    """List the project's own matplotlib style files.
+
+    :param root: The project root.
+    :return: Their paths relative to the root, e.g. ``styles/paper.mplstyle``."""
+    out = []
+    for d, dirs, names in os.walk(root):
+        depth = len(Path(d).relative_to(root).parts)
+        dirs[:] = (
+            []
+            if depth >= 3
+            else [x for x in dirs if not x.startswith((".", "_")) and x not in SKIP]
+        )
+        out += [
+            (Path(d) / n).relative_to(root).as_posix() for n in names if n.endswith(".mplstyle")
+        ]
+    return sorted(out)
+
+
+# folders that never hold a project's style files, and can be large.
+SKIP = ("node_modules", "venv", "beamtime", "__pycache__")
 
 
 def doctor(ctx: Context, p: r.NoParams) -> dict[str, Any]:

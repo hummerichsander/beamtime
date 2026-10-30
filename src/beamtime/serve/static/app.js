@@ -24,7 +24,8 @@ import{$ as Ke,A as ke,Aa as rt,B as $,Ba as ot,C as se,Ca as $e,D as le,Da as i
             extra: <code>uv add matplotlib scienceplots</code></span>`}
     </div>
     <p class="muted small">PDF downloads are drawn with <code>plt.style.use(${JSON.stringify(l.figure_style??[])})</code>, in this order
-      (later sheets override earlier ones). Without LaTeX, <code>no-latex</code> is added for <code>science</code>.</p>
+      (later sheets override earlier ones). Without LaTeX, <code>no-latex</code> is added for <code>science</code>. Your own
+      <code>.mplstyle</code> files anywhere in the project are listed too.</p>
     <h2>Keyboard</h2>
     <table class="kv">${fe.map(([o,p])=>a`<tr><td><kbd>${o}</kbd></td><td>${p}</td></tr>`)}</table>
     <h2>About</h2>
