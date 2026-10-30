@@ -131,3 +131,17 @@ def test_remote_paths_expand_on_the_remote(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("SCRATCH", "/scratch/x")
     assert expand("${SCRATCH}/{user}/bt") == f"/scratch/x/{getpass.getuser()}/bt"
     assert expand("~/bt") == str(Path.home() / "bt")
+
+
+def test_a_run_copied_to_a_remote_is_told_apart(box: Path, ctx: Context, project: Path) -> None:
+    """With the same run on both machines, @box/<id> names the remote's copy, a bare id this one."""
+    import shutil
+
+    local = next((project / "beamtime" / SWEEP).glob("*/_run.json")).parent
+    shutil.copytree(local, box / "copied" / local.name)
+    run = local.name
+    assert call("card", {"run": run}, ctx)["run"]["path"] == f"{SWEEP}/{run}"
+    there = call("card", {"run": f"@box/{run}"}, ctx)["run"]["path"]
+    assert there == f"@box/copied/{run}"
+    page = dispatch(Context.make(caller="view"), "view", {"path": f"@box/{run}"})
+    assert page["path"] == f"@box/copied/{run}"

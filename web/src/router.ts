@@ -43,7 +43,8 @@ export function parse(pathname: string, search: string): Route {
     };
   }
   if (parts[0] === "f") return parse("/f/local", search);
-  if (parts[0] === "r" && parts[1]) return { page: "run", id: parts[1] };
+  // a run on a remote: /r/@box/<id>, so a copy of the same run here doesn't answer for it.
+  if (parts[0] === "r" && parts[1]) return { page: "run", id: parts.slice(1).join("/") };
   if (parts[0] === "settings") return { page: "settings", section: parts[1] ?? "appearance" };
   if (parts[0] === "timeline") return { page: "timeline", from: q.get("from") ?? "." };
   return { page: "missing", url: pathname };
@@ -64,8 +65,16 @@ export function groupUrl(
   return `/f/${source}${tail}${qs ? `?${qs}` : ""}`;
 }
 
-export function runUrl(id: string): string {
-  return `/r/${id}`;
+// a run's link; on a remote's page, runs are that remote's.
+export function runUrl(id: string, from?: string): string {
+  const r = route.value;
+  return `/r/${sourcedRun(id, from ?? (r.page === "group" ? r.path : "."))}`;
+}
+
+// a run id with the source of the page it is shown on: "@box/<id>" on @box's pages.
+export function sourcedRun(id: string, scope: string): string {
+  const root = rootOf(scope);
+  return id.startsWith("@") || root === "." ? id : `${root}/${id}`;
 }
 
 // the root of a path's source: "." for this machine, "@box" for the remote box.

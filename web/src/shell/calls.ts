@@ -1,6 +1,7 @@
 // The calls the shell makes, in one place so pages and prefetching share cache entries.
 
 import { type Call, prefetch } from "../api.ts";
+import { sourcedRun } from "../router.ts";
 
 // the group tree covers every source; pages of this machine show only this machine.
 export const tree = (): Call => ({ method: "groups", params: { from: ".", everywhere: true }, scope: "." });
@@ -13,8 +14,8 @@ export const summary = (path: string): Call => ({ method: "summary", params: { p
 export const group = (path: string): Call => ({ method: "groups", params: { from: path, depth: 0 }, scope: path });
 export const check = (path: string): Call => ({ method: "check", params: { group: path }, scope: path });
 export const proposal = (path: string): Call => ({ method: "proposal_show", params: { group: path }, scope: path });
-export const card = (run: string, scope: string): Call => ({ method: "card", params: { run }, scope });
-export const output = (run: string, scope: string): Call => ({ method: "output", params: { run, tail: 30 }, scope });
+export const card = (run: string, scope: string): Call => ({ method: "card", params: { run: sourcedRun(run, scope) }, scope });
+export const output = (run: string, scope: string): Call => ({ method: "output", params: { run: sourcedRun(run, scope), tail: 30 }, scope });
 export const runIds = (path: string): Call => ({
   method: "runs",
   params: { from: path, select: ["run.name", "run.status"], limit: 10000 },

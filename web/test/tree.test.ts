@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { groupUrl, isRoot, parse, rootOf } from "../src/router.ts";
+import { groupUrl, isRoot, parse, rootOf, runUrl, sourcedRun } from "../src/router.ts";
 import { buildTree, depth, siblings, visible } from "../src/shell/tree.ts";
 
 const rows = [
@@ -54,4 +54,14 @@ test("remote paths round-trip through URLs", () => {
   }
   assert.equal(groupUrl("@box/a b"), "/f/@box/a%20b");
   assert.deepEqual([rootOf("@box/x"), rootOf("x"), isRoot("@box"), isRoot("@box/x"), isRoot(".")], ["@box", ".", true, false, true]);
+});
+
+test("runs on a remote's pages link to that remote", () => {
+  const id = "20261020-095500-yjb5ba9x";
+  assert.equal(runUrl(id, "@box/scaling"), `/r/@box/${id}`);
+  assert.equal(runUrl(id, "scaling"), `/r/${id}`);
+  assert.equal(runUrl(`@box/${id}`, "scaling"), `/r/@box/${id}`);
+  const r = parse(`/r/@box/${id}`, "");
+  assert.ok(r.page === "run" && r.id === `@box/${id}`);
+  assert.equal(sourcedRun(id, "@box/scaling/lr-sweep"), `@box/${id}`);
 });
