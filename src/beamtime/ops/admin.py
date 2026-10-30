@@ -60,11 +60,14 @@ def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
                 f.write("\n")
             f.write(f"{entry}\n")
         lines.append(f"added {entry} to {gitignore}")
+    if p.instructions:
+        lines.append(instructions(ctx.root, instruction_file(ctx.root, None)))
     if not lines:
         lines.append("already set up")
     lines.append(
         "next: log runs with beamtime.init() in your training script; "
         "connect an agent with `beamtime mcp install`"
+        + ("" if p.instructions else "; `beamtime init --instructions` adds its rules to AGENTS.md")
     )
     return answer("init", lines, root=str(ctx.root), logdir=str(ctx.root / logdir))
 
@@ -482,6 +485,63 @@ def gc(ctx: Context, p: r.GcParams) -> dict[str, Any]:
 
 
 def mcp_install(ctx: Context, p: r.McpInstallParams) -> dict[str, Any]:
+    """Register ``beamtime mcp`` with an agent client, and with ``--instructions`` add Beamtime's
+    agent rules to its instruction file.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: What was changed, or the command to run."""
+    answered = register(ctx, p)
+    if p.instructions:
+        answered["lines"].append(instructions(ctx.root, instruction_file(ctx.root, p.client)))
+    else:
+        file = instruction_file(ctx.root, p.client).name
+        answered["lines"].append(
+            f"`beamtime mcp install --instructions` adds the agent rules to {file}"
+        )
+    return answered
+
+
+START, END = "<!-- beamtime:start -->", "<!-- beamtime:end -->"
+
+
+def instruction_file(root: Path, client: str | None) -> Path:
+    """Pick the instruction file an agent reads: CLAUDE.md for Claude Code, else AGENTS.md.
+
+    :param root: The project root.
+    :param client: The agent client, or ``None`` (``init``: whichever file exists).
+    :return: The file."""
+    only_claude = (root / "CLAUDE.md").exists() and not (root / "AGENTS.md").exists()
+    if client == "claude-code" or (client is None and only_claude):
+        return root / "CLAUDE.md"
+    return root / "AGENTS.md"
+
+
+def instructions(root: Path, file: Path) -> str:
+    """Write Beamtime's agent rules into an instruction file, as one marked block.
+
+    A rerun replaces the block, so updated rules arrive and the user's own text stays.
+
+    :param root: The project root.
+    :param file: The instruction file.
+    :return: What happened."""
+    from importlib.resources import files
+
+    rules = (files("beamtime.guide") / "parts" / "instructions.md").read_text().strip()
+    block = f"{START}\n{rules}\n{END}\n"
+    text = file.read_text() if file.exists() else ""
+    if START in text and END in text:
+        before, rest = text.split(START, 1)
+        updated = before + block + rest.split(END, 1)[1].lstrip("\n")
+        if updated == text:
+            return f"{file.name} has Beamtime's agent rules already"
+        file.write_text(updated)
+        return f"updated Beamtime's agent rules in {file}"
+    file.write_text(text + ("\n" if text and not text.endswith("\n\n") else "") + block)
+    return f"added Beamtime's agent rules to {file}"
+
+
+def register(ctx: Context, p: r.McpInstallParams) -> dict[str, Any]:
     """Register ``beamtime mcp`` with an agent client.
 
     :param ctx: The operation context.

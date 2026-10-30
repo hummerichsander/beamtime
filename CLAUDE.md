@@ -178,8 +178,8 @@ and say why.
 # Project specifics
 
 **Status: implementation.** M0 (foundations), M1 (SDK), M2 (index and queries), M3 (CLI and
-MCP), M4 (research record), M5 (web UI shell), the UI refactor, M6 (views) and M7 (custom blocks and
-the library) are done; milestones follow
+MCP), M4 (research record), M5 (web UI shell), the UI refactor, M6 (views), M7 (custom blocks and
+the library) and M8 (remotes; tested on Docker, a real cluster run pending) are done; milestones follow
 `docs/implementation-plan.md`.
 Each milestone implements the design sections it names; a deviation is decided and written back into
 the design before the code lands.
@@ -259,6 +259,11 @@ sync.
 - `src/beamtime/cli/` (argparse, condition strings, text format) and `src/beamtime/mcp/` (stdio
   server, prompts; needs the `serve` extra)
 - `src/beamtime/settings.py`: built-in, user and project settings with provenance
+- `src/beamtime/remote/`: remote sources: the ssh client (`client.py`), sources from settings and
+  arguments (`sources.py`), routing by `@source/...` and merging (`route.py`), CLI/MCP calls through a
+  running serve (`via_serve.py`), snapshots (`pull.py`); the remote end is `serve --stdio`
+  (`serve/stdio.py`), sharing the API dispatch (`serve/api.py`); tests in `tests/remote/`
+  (`test_docker.py` over real ssh, opt-in with `BEAMTIME_DOCKER=1`)
 - `src/beamtime/serve/`: `beamtime serve` (Starlette on uvicorn): the API (`app.py`), the token and
   CSP (`auth.py`), live updates (`live.py`), the command (`server.py`) and the committed frontend
   bundle in `static/`; tests in `tests/serve/` (`test_browser.py` runs headless Chromium, skipped

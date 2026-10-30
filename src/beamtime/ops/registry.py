@@ -423,10 +423,17 @@ class SetParams(Params, kw_only=True):
     ]
 
 
+Instructions = Annotated[
+    bool,
+    msgspec.Meta(description="add Beamtime's agent rules to AGENTS.md (CLAUDE.md for Claude Code)"),
+]
+
+
 class InitParams(Params, kw_only=True):
     """Parameters of ``init``."""
 
     logdir: str | None = None
+    instructions: Instructions = False
 
 
 class MoveParams(Params, kw_only=True):
@@ -487,6 +494,7 @@ class McpInstallParams(Params, kw_only=True):
     """Parameters of ``mcp install``."""
 
     client: Literal["claude-code", "cursor", "codex"] = "claude-code"
+    instructions: Instructions = False
 
 
 @dataclass(frozen=True, kw_only=True)

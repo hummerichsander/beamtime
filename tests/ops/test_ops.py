@@ -295,3 +295,23 @@ def test_set_writes_beamtime_yaml_and_keeps_the_rest(ctx: Context, project: Path
     if pytest.importorskip("scienceplots"):
         with pytest.raises(OpError, match="unknown style"):
             call("set", {"key": "figure_style", "value": ["science", "nope"]}, ctx)
+
+
+def test_instructions_block(project: Path) -> None:
+    """init --instructions adds the agent rules as one marked block; a rerun replaces it."""
+    from beamtime.ops.admin import END, START
+
+    ctx = Context.make(caller="cli")
+    (project / "AGENTS.md").write_text("# My rules\n\nBe brief.\n")
+    call("init", {"instructions": True}, ctx)
+    text = (project / "AGENTS.md").read_text()
+    assert text.startswith("# My rules\n\nBe brief.\n") and text.count(START) == 1
+    assert "beamtime guide" in text and "@<remote>/<group>" in text
+    stale = text.replace("Read `beamtime guide`", "Read the old guide")
+    (project / "AGENTS.md").write_text(stale + "\nMine after.\n")
+    lines = call("init", {"instructions": True}, ctx)["lines"]
+    again = (project / "AGENTS.md").read_text()
+    assert any("updated" in line for line in lines)
+    assert again.count(START) == 1 and "Read `beamtime guide`" in again and again.endswith("Mine after.\n")
+    assert again.index(END) < again.index("Mine after.")
+    assert "has Beamtime's agent rules already" in call("init", {"instructions": True}, ctx)["lines"][0]

@@ -85,8 +85,8 @@ the user the command ([Policy](#policy)).
 
 | Command | Does |
 |---|---|
-| `beamtime init` | sets up a project: adds the log dir to `.gitignore`, optionally creates `beamtime.yaml`, offers `mcp install` |
-| `beamtime mcp install --client <name>` | registers `beamtime mcp` with an agent client (Claude Code, Codex, Cursor, …) |
+| `beamtime init` | sets up a project: adds the log dir to `.gitignore`, optionally creates `beamtime.yaml`, offers `mcp install`; `--instructions` adds Beamtime's agent rules to `AGENTS.md` (or `CLAUDE.md`) |
+| `beamtime mcp install --client <name>` | registers `beamtime mcp` with an agent client (Claude Code, Codex, Cursor, …); `--instructions` adds the agent rules to the client's instruction file (`CLAUDE.md` for Claude Code, else `AGENTS.md`) |
 | `beamtime demo [dir]` | generates a sample log dir from the evaluation generator (once, in `beamtime-demo/`) and serves it |
 | `beamtime doctor` | checks root and log dir resolution, write access, Chromium, remote reachability and the remote's Beamtime version |
 | `beamtime settings` | the effective settings and the level each value comes from |
@@ -235,6 +235,9 @@ Decided while building the CLI and MCP server (milestone M3):
   the first run. `author` defaults to the local account in the CLI and to `agent` in MCP, whose
   instructions ask for the model id. Validation errors exit with 3.
 - **`status`** reports how many notes were added since the project memory's `covers_until`.
+- **The agent rules** (`--instructions`) come from the guide package (`guide/parts/instructions.md`)
+  and are written as one block between `<!-- beamtime:start -->` and `<!-- beamtime:end -->`; a
+  rerun replaces the block and keeps the rest of the file.
 - **`mcp install`** registers `beamtime --root <project> mcp`, so a client that keeps one
   user-wide config (Codex) still points at the right project. Claude Code uses
   `claude mcp add --scope project`, Cursor `.cursor/mcp.json`.

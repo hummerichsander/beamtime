@@ -207,7 +207,7 @@ Implements [layer 5](design/05-views.md) for authored views.
 Taken on alongside: `block import` from git repositories (packages and a gallery stay v1.1), a
 tokenizer for condition strings, and paging for notes with a memory budget hint in the UI.
 
-### M8: Remotes (1.5–2 weeks) — in progress
+### M8: Remotes (1.5–2 weeks) — done on Docker; the run on a real cluster is pending
 
 Implements [layer 4](design/04-remotes.md). Can run in parallel with M6 and M7 after M3.
 
