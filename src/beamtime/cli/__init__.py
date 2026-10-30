@@ -24,6 +24,7 @@ GROUPS = {
     "proposal": "show or save a group's proposal",
     "memory": "show or update a group's memory",
     "view": "build, check and save a group's view",
+    "block": "library blocks: list, show, promote, fork, check and save",
 }
 
 

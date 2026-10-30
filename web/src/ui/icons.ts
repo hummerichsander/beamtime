@@ -3,7 +3,7 @@
 import type { FunctionComponent } from "preact";
 import { html } from "htm/preact";
 import {
-  Activity, Bookmark, Check, ChevronDown, ChevronRight, Circle, CircleCheck, CircleDashed, CircleDot,
+  Activity, Bookmark, Check, ChevronDown, ChevronRight, Circle, CircleArrowUp, CircleCheck, CircleDashed, CircleDot,
   CircleHelp, CircleMinus, CircleX, Clock, CloudOff, Copy, Download, Ellipsis, Eye, EyeOff, FileText,
   FolderTree, GitCommitHorizontal, GripVertical, History, Hourglass, Image, LayoutPanelTop, Keyboard, Lightbulb, Link, Maximize2, Minus,
   Lock, Monitor, Moon, PanelLeft, PanelRight, Pause, Pencil, Play, Plus, RotateCcw, Scale, Search, Server, Settings,
@@ -17,7 +17,7 @@ const ICONS: Record<string, FunctionComponent<any>> = {
   "chevron-right": ChevronRight, circle: Circle, "circle-check": CircleCheck, "circle-dashed": CircleDashed,
   "circle-dot": CircleDot, "circle-help": CircleHelp, "circle-minus": CircleMinus, "circle-x": CircleX,
   clock: Clock, "cloud-off": CloudOff, copy: Copy, download: Download, ellipsis: Ellipsis, eye: Eye,
-  "eye-off": EyeOff, "file-text": FileText, "folder-tree": FolderTree, "git-commit": GitCommitHorizontal, grip: GripVertical,
+  "eye-off": EyeOff, update: CircleArrowUp, "file-text": FileText, "folder-tree": FolderTree, "git-commit": GitCommitHorizontal, grip: GripVertical,
   history: History, hourglass: Hourglass, image: Image, layout: LayoutPanelTop, keyboard: Keyboard, lightbulb: Lightbulb, link: Link, lock: Lock,
   maximize: Maximize2, minus: Minus, monitor: Monitor, moon: Moon, "panel-left": PanelLeft,
   "panel-right": PanelRight, pause: Pause, pencil: Pencil, play: Play, plus: Plus, reset: RotateCcw, scale: Scale,

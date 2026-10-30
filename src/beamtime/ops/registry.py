@@ -300,6 +300,76 @@ class ViewHistoryParams(Params, kw_only=True):
     group: Group = "."
 
 
+class ViewOutdatedParams(Params, kw_only=True):
+    """Parameters of ``view outdated``."""
+
+    group: Group = "."
+
+
+class ViewUpgradeParams(Params, kw_only=True):
+    """Parameters of ``view upgrade``."""
+
+    group: Group
+    block: Annotated[str | None, msgspec.Meta(description="one block; default all")] = None
+    author: Author = None
+
+
+BlockName = Annotated[str, msgspec.Meta(description="a library block's name, e.g. phase-map")]
+BlockDraft = Annotated[
+    str, msgspec.Meta(description="the block draft's name, from promote or fork")
+]
+
+
+class BlockListParams(Params, kw_only=True):
+    """Parameters of ``block list``."""
+
+    group: Annotated[str, msgspec.Meta(description="the blocks this group can use")] = "."
+
+
+class BlockShowParams(Params, kw_only=True):
+    """Parameters of ``block show``."""
+
+    name: BlockName
+    group: Group = "."
+    version: Annotated[str | None, msgspec.Meta(description="default: the newest")] = None
+
+
+class BlockPromoteParams(Params, kw_only=True):
+    """Parameters of ``block promote``."""
+
+    group: Annotated[str, msgspec.Meta(description="the group whose view has the custom block")]
+    block_id: Annotated[str, msgspec.Meta(description="the custom block's id in that view")]
+    name: BlockName
+
+
+class BlockForkParams(Params, kw_only=True):
+    """Parameters of ``block fork``."""
+
+    name: BlockName
+    new_name: Annotated[str, msgspec.Meta(description="the new block's name")]
+    group: Group = "."
+
+
+class BlockValidateParams(Params, kw_only=True):
+    """Parameters of ``block validate``."""
+
+    draft: BlockDraft
+    render: Annotated[
+        bool, msgspec.Meta(description="render its examples, if a browser exists")
+    ] = True
+
+
+class BlockSaveParams(Params, kw_only=True):
+    """Parameters of ``block save``."""
+
+    draft: BlockDraft
+    group: Annotated[str, msgspec.Meta(description="where it lives; default the log dir root")] = (
+        "."
+    )
+    message: Annotated[str | None, msgspec.Meta(description="what this version changes")] = None
+    author: Author = None
+
+
 class GuideParams(Params, kw_only=True):
     """Parameters of ``guide``."""
 
@@ -401,6 +471,7 @@ R = "beamtime.ops.reading"
 W = "beamtime.ops.record"
 A = "beamtime.ops.admin"
 V = "beamtime.ops.views"
+B = "beamtime.ops.blocks"
 OPS = [
     Op(
         name="status",
@@ -577,6 +648,62 @@ OPS = [
         impl=f"{V}:history",
         positional=("group",),
         summary="A page's view versions with author and message, newest first.",
+    ),
+    Op(
+        name="view outdated",
+        params=ViewOutdatedParams,
+        impl=f"{V}:outdated",
+        positional=("group",),
+        summary="Views pinned to older versions of their library blocks.",
+    ),
+    Op(
+        name="view upgrade",
+        params=ViewUpgradeParams,
+        impl=f"{V}:upgrade",
+        positional=("group",),
+        summary="Re-pin a view to the newest versions of its library blocks; validates first.",
+    ),
+    Op(
+        name="block list",
+        params=BlockListParams,
+        impl=f"{B}:listing",
+        positional=("group",),
+        summary="Library blocks a group can use, with descriptions and params.",
+    ),
+    Op(
+        name="block show",
+        params=BlockShowParams,
+        impl=f"{B}:show",
+        positional=("name",),
+        summary="A library block's definition and code.",
+    ),
+    Op(
+        name="block promote",
+        params=BlockPromoteParams,
+        impl=f"{B}:promote",
+        positional=("group", "block_id", "name"),
+        summary="Start a block draft from a custom block of a group's view.",
+    ),
+    Op(
+        name="block fork",
+        params=BlockForkParams,
+        impl=f"{B}:fork",
+        positional=("name", "new_name"),
+        summary="Start a block draft as a copy of a library block.",
+    ),
+    Op(
+        name="block validate",
+        params=BlockValidateParams,
+        impl=f"{B}:validate",
+        positional=("draft",),
+        summary="Check a block draft: params, examples, generality, code, and a render.",
+    ),
+    Op(
+        name="block save",
+        params=BlockSaveParams,
+        impl=f"{B}:save_draft",
+        positional=("draft",),
+        summary="Save a block draft without errors as a new library block version.",
     ),
     Op(
         name="serve",

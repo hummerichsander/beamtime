@@ -8,8 +8,8 @@ view, else the built-in default; views are not inherited by subgroups or runs.
 Tools are named as over MCP (`view_new`); on the command line the same operation is
 `beamtime view new`.
 
-1. Look at the group: `keys`, `memory_show`, `proposal_show`, `notes`, and `view_show` for its
-   current view.
+1. Look at the group: `keys`, `memory_show`, `proposal_show`, `notes`, `view_show` for its
+   current view, and `block_list` for library blocks made for problems like this one.
 2. Decide the one question the view answers; it decides the blocks (table below).
 3. `view_new <group>` starts a draft in `.beamtime/drafts/<name>/view.yaml`: from the page's
    current view, or `--from sweep|ablation|run|direction|custom` (filled with the group's keys).
@@ -19,6 +19,22 @@ Tools are named as over MCP (`view_new`); on the command line the same operation
 5. `view_render <draft>`, answer the checklist (`guide checklist`) for every block, fix, render
    again: at most two rounds.
 6. `view_save <draft> --message "..."`. The page shows it at once; older versions stay.
+
+## Library blocks
+
+Custom blocks that prove useful become library blocks: named, described, with params, used in any
+view like a built-in block (`- phase-map: {x: config.lr, y: config.wd, value: metric.val/acc.max}`).
+
+- `block_list <group>` shows what a group can use; `block_show <name>` its params and code.
+- `block_promote <group> <block-id> <name>` turns a saved view's custom block into a block draft
+  (`.beamtime/drafts/blocks/<name>/`); `block_fork <name> <new-name>` copies a block. Replace fixed
+  fields with `$params`, read field names from the query's columns and values from `bt.params`,
+  write when to use it and when not, and give at least two examples.
+- `block_validate <draft>` checks it (and renders its examples); `block_save <draft>` writes a
+  version, at the log dir root unless `group` says otherwise. Saving the same draft again makes a
+  newer version.
+- Views pin the versions they were saved with. When you edit a view, `view_outdated` names pins
+  with newer versions; offer `view_upgrade <group>`.
 
 ## Design principles
 

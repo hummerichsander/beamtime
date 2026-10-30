@@ -107,3 +107,17 @@ body:
     findings = call("view render", {"draft": "pm"}, ctx)["findings"]
     assert any(f.get("message", "").startswith("console: [block throws] Error: boom") for f in findings), findings
     assert {"level": "error", "id": "empty", "block": "custom", "message": "the custom block draws nothing"} in findings
+
+
+def test_block_examples_render(browser_ok, ctx: Context, project: Path) -> None:
+    """block validate renders a block draft's examples as uses in a view of its group."""
+    from tests.views.test_library import GENERAL
+
+    call("view new", {"group": SWEEP, "from": "custom", "name": "pm"}, ctx)
+    file = project / ".beamtime" / "drafts" / "pm" / "view.yaml"
+    file.write_text(file.read_text().replace("TODO: the result in one sentence.", "x"))
+    call("view save", {"draft": "pm"}, ctx)
+    call("block promote", {"group": SWEEP, "block_id": "phase-map", "name": "phase-map"}, ctx)
+    (project / ".beamtime" / "drafts" / "blocks" / "phase-map" / "block.yaml").write_text(GENERAL)
+    answer = call("block validate", {"draft": "phase-map"}, ctx)
+    assert answer["render"]["rendered"] and answer["ok"], answer["findings"]

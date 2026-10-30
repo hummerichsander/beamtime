@@ -11,6 +11,7 @@ export type Init = {
   libs: string[];
   path: string;
   queries: Record<string, Call>;
+  params: Record<string, unknown>;
   theme: Theme | null;
   names: [string, string][];
   colors: [string, string][];
@@ -73,7 +74,8 @@ export function fill(call: Call, values: Record<string, unknown>): Call {
       const m = PLACEHOLDER.exec(v);
       return m && m[1] in values ? values[m[1]] : v;
     }
-    if (Array.isArray(v)) return v.map(sub);
+    // a list value in a list is spliced: select: [run.id, $fields].
+    if (Array.isArray(v)) return v.flatMap((x) => (typeof x === "string" && Array.isArray(sub(x)) ? (sub(x) as unknown[]) : [sub(x)]));
     if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, sub(x)]));
     return v;
   };

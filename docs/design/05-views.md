@@ -770,6 +770,18 @@ Decided while building custom blocks and the library (milestone M7):
 - **Placeholders** are `$name` strings in a declared query; `useData` substitutes the values given
   and refuses a query whose placeholders are unfilled. Library-block params are substituted when the
   view compiles; what remains (such as `$run`) are runtime placeholders.
+- **Library blocks in a view** parse without the project: a node whose name is no built-in block
+  (lowercase, digits, `-`) is a library use, and the page's library resolves it when the view
+  compiles, into a `custom` node with the params filled into the block's queries. Number, string
+  and bool params reach the code as `bt.params`. A missing block or unfitting params make the page
+  fall back to the default view with the reason, and are errors in `view_validate`.
+- **Saving** pins every library block a view uses to its newest version unless the view already
+  pins it; drafts keep their view's pins, so editing a view never upgrades it unasked.
+  `view_upgrade` re-pins, validates and writes a new version; the page offers the same as a button.
+- **Block checks**: the description must say when to use the block and when not; two examples at
+  least, each run as a use in a view of the draft's group (and rendered by `block_validate`);
+  metric keys and config fields written into the code are errors, fixed ones in the queries
+  warnings; a block declaring the same queries as another is pointed out.
 - **Readiness**: the page counts a frame as busy until it reports its first render, an error, or
   15 s; frame errors are logged by the page as `[block <id>] …`, so the renderer reports them, and the
   frame reports blank and overflowing content for the layout checks.

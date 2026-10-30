@@ -58,6 +58,7 @@ export default function render(root) {
 | `bt.link.run(id)`, `bt.link.group(path)` | URLs; links open in the page |
 | `bt.useSize()` | `[ref, width]` of an element |
 | `bt.warn(message)` | a warning on the block and in `view_validate` |
+| `bt.params` | a library block's params as the view gives them, defaults filled in |
 | `bt.lib.d3` ... | the declared libraries |
 | `bt.preact` | `h`, `render`, `html` (htm) and the hooks |
 

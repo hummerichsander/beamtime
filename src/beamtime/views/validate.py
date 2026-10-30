@@ -43,6 +43,7 @@ def static(
     source: str,
     draft: str | None = None,
     data_dir: Path | None = None,
+    blocks: dict[str, str] | None = None,
 ) -> tuple[m.View | None, list[Finding]]:
     """Validate a view for a page without a browser.
 
@@ -52,16 +53,20 @@ def static(
     :param source: How to name the view in messages.
     :param draft: The draft's name, so data files are read from it.
     :param data_dir: Where the view's data files are, to check ``file`` references.
+    :param blocks: Block drafts standing in for library blocks of the same name.
     :return: The view, if it parses, and the findings."""
+    from beamtime.views.library import Library
+
     try:
         view = m.parse(data, source=source)
     except SchemaError as e:
         return None, [Finding(level="error", message=str(e), fix="see `beamtime guide blocks`")]
-    findings = structure(view, data_dir)
+    library = Library(ctx=ctx, path=path, drafts=blocks)
+    findings = structure(view, data_dir) + uses(view, library)
     if any(f.level == "error" for f in findings):
         return view, findings
     ctx = dataclasses.replace(ctx, caller="view")
-    tree = compile_view(view, path=path, draft=draft)
+    tree = compile_view(view, path=path, draft=draft, library=library)
     nodes = {n.id: n for n in m.walk(view.body)}
     keys: dict[str, dict[str, Any]] = {}
     for t in tree_walk(tree):
@@ -127,6 +132,29 @@ def structure(view: m.View, data_dir: Path | None) -> list[Finding]:
     return out
 
 
+def uses(view: m.View, library: Any) -> list[Finding]:
+    """Check that every library block a view uses exists here and gets fitting params.
+
+    :param view: The view.
+    :param library: The page's library.
+    :return: The findings."""
+    from beamtime.views.library import problems
+
+    out = []
+    for n in m.walk(view.body):
+        if not isinstance(n, m.Use):
+            continue
+        at = {"id": n.id, "block": n.name}
+        try:
+            found = library.get(n.name, view.uses.get(n.name))
+        except SchemaError as e:
+            out.append(Finding(level="error", **at, message=str(e), fix="`block_list` names them"))
+            continue
+        for message in problems(found.block, n.params):
+            out.append(Finding(level="error", **at, message=message, fix=f"`block_show {n.name}`"))
+    return out
+
+
 def custom_checks(n: m.Custom, at: dict[str, Any], data_dir: Path | None) -> list[Finding]:
     """Check a custom block: its kit, libraries, declared queries and code.
 
@@ -185,7 +213,7 @@ def queries(
     at = {"id": n.id, "block": m.block_of(n)}
     for name, c in (t.get("data") or {}).items():
         params = c["params"]
-        if isinstance(n, m.Custom) and placeholders_of(params):
+        if isinstance(n, (m.Custom, m.Use)) and placeholders_of(params):
             params, rest = example_values(ctx, c["scope"], params, t["props"].get("examples"))
             if rest:
                 out.append(

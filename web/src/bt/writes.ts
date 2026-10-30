@@ -68,6 +68,12 @@ export async function editText(path: string, id: string | null, text: string): P
   return answer.id;
 }
 
+// re-pins the page's view to the newest versions of its library blocks.
+export async function upgradeView(path: string): Promise<void> {
+  await post("view_upgrade", { group: path });
+  invalidate((c: Call) => ["view", "view_history"].includes(c.method) && c.scope === path);
+}
+
 // the text panel just added, which opens ready to type.
 export const fresh = new Store<string | null>(null);
 

@@ -19,6 +19,7 @@ import { shape, type KitResult } from "./shape.ts";
 
 export type Host = {
   queries: Record<string, Call>;
+  params: Record<string, unknown>;
   view: ViewContext;
   libs: Record<string, unknown>;
   warn(message: string): void;
@@ -102,6 +103,8 @@ export function makeKit(host: Host) {
     version: 1,
     preact: { h, render, html, ...hooks },
     useData,
+    // a library block's params, as the view gives them (defaults filled in).
+    params: host.params,
     data: (name: string, values?: Record<string, unknown>) => fetchCall(resolve(name, values)),
     subscribe(name: string, callback: (r: KitResult) => void, values?: Record<string, unknown>) {
       const call = resolve(name, values);

@@ -47,7 +47,7 @@ body:
     [
         ("body: [{line: {y: 3}}]", "body[0].line.y"),
         ("body: [{grid: [{line: {z: 1}}]}]", "body[0].grid.children[0].line: Object contains unknown field `z`"),
-        ("body: [{phase-map: {}}]", "no block 'phase-map'"),
+        ("body: [{Phase_Map: {}}]", "no block 'Phase_Map'"),
         ("body: [{tabs: [{line: {y: a}}]}]", "each tab is a section"),
         ("body: [line]", "one block name with its props"),
         ("schema: 2", "no reader for view schema 2"),

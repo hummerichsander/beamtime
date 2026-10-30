@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from beamtime.format import constants as c
 from beamtime.format.ids import id_time
 from beamtime.format.io import write_created
 from beamtime.format.schema import SchemaError
@@ -112,7 +113,8 @@ def current_yaml(ctx: Context, path: str) -> tuple[str, str]:
         except SchemaError:
             return files[-1].read_text(), f"version {files[-1].stem} (invalid)"
         data = m.to_yaml_form(view)
-        for k in ("author", "user", "message", "uses"):
+        # pins stay, so editing a view never upgrades its library blocks unasked.
+        for k in ("author", "user", "message"):
             data.pop(k, None)
         return m.dump(data), f"version {files[-1].stem}"
     body = from_tree(default_view(ctx, path), path=path)
@@ -160,7 +162,7 @@ def check(ctx: Context, d: store.Draft) -> tuple[m.View | None, list[dict[str, A
     except yaml.YAMLError as e:
         return None, [{"level": "error", "message": f"draft {d.name}: not valid YAML: {e}"}]
     view, findings = static(
-        ctx, d.group, data, source=f"draft {d.name}", draft=d.name, data_dir=d.dir
+        ctx, d.group, data, source=f"draft {d.name}", draft=d.name, data_dir=d.dir, blocks=d.blocks
     )
     return view, [f.to_dict() for f in findings]
 
@@ -245,8 +247,13 @@ def write_version(
     :param message: What this version changed.
     :param data_dir: The draft folder its ``data/...`` references are relative to.
     :return: The new file."""
+    from beamtime.views.library import Library
+
     view.author, view.user = author_of(ctx, author)
     view.message = message
+    library = Library(ctx=ctx, path=group)
+    used = sorted({n.name for n in m.walk(view.body) if isinstance(n, m.Use)})
+    view.uses = {name: view.uses.get(name) or library.newest(name) or "" for name in used}
     folder = store.view_dir(ctx, group)
     for n in m.walk(view.body):
         if isinstance(n, m.DataTable) and n.file is not None and data_dir is not None:
@@ -414,3 +421,71 @@ def drop_or_set(nodes: list[Any], node_id: str, text: str) -> bool:
         if kids and drop_or_set(kids, node_id, text):
             return True
     return False
+
+
+def outdated(ctx: Context, p: r.ViewOutdatedParams) -> dict[str, Any]:
+    """List the views at or below a group pinned to older versions of their library blocks.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: One row per view and block: page, block, pinned and newest version."""
+    from beamtime.views.library import Library
+
+    with target_of(ctx, p.group) as target:
+        base = ctx.logdir / target.rel
+    rows = []
+    for folder in sorted(base.rglob(c.VIEW)):
+        rel = folder.parent.relative_to(ctx.logdir).as_posix() or "."
+        if any(part.startswith((".", "_")) for part in rel.split("/")) or not folder.is_dir():
+            continue
+        if not (files := store.saved(ctx, rel)):
+            continue
+        try:
+            view = store.read(files[-1], source=files[-1].name)
+        except SchemaError:
+            continue
+        for item in store.outdated(view, Library(ctx=ctx, path=rel)):
+            rows.append([rel, item["name"], item["pinned"], item["newest"]])
+    lines = [f"{g}: {b} {old} → {new} (`beamtime view upgrade {g}`)" for g, b, old, new in rows]
+    return {
+        "kind": "view outdated",
+        "columns": ["group", "block", "pinned", "newest"],
+        "rows": rows,
+        "lines": lines or ["every view uses the newest versions of its library blocks"],
+        "meta": {"matched": len(rows)},
+    }
+
+
+def upgrade(ctx: Context, p: r.ViewUpgradeParams) -> dict[str, Any]:
+    """Re-pin a page's view to the newest versions of its library blocks, as a new version.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The new version, or what keeps the upgrade from validating."""
+    from beamtime.views.library import Library
+    from beamtime.views.validate import static
+
+    with target_of(ctx, p.group) as target:
+        path = target.rel
+    if not (files := store.saved(ctx, path)):
+        raise OpError(f"{path} has no saved view", code=4)
+    view = store.read(files[-1], source=files[-1].name)
+    library = Library(ctx=ctx, path=path)
+    stale = [o for o in store.outdated(view, library) if p.block in (None, o["name"])]
+    if not stale:
+        return {"kind": "view upgrade", "group": path, "lines": ["nothing to upgrade"], "meta": {}}
+    for item in stale:
+        view.uses[item["name"]] = item["newest"]
+    data = m.to_yaml_form(view)
+    _, findings = static(ctx, path, data, source=f"{path} upgraded")
+    errors = [f.to_dict() for f in findings if f.level == "error"]
+    if errors:
+        raise OpError(
+            "the upgraded view has errors; start a draft (`beamtime view new "
+            f"{path}`), adjust the uses to the new params, and save it:\n"
+            + "\n".join(summary(errors, None)),
+            code=3,
+        )
+    names = ", ".join(f"{o['name']} {o['pinned']} → {o['newest']}" for o in stale)
+    file = write_version(ctx, path, view, p.author, f"upgrade {names}")
+    return written(ctx, "view upgrade", file, [f"upgraded {names}"])

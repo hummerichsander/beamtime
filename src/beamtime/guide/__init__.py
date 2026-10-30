@@ -234,7 +234,11 @@ def catalog() -> str:
         props = [f for f in cls.__struct_fields__ if f not in common]
         doc = (cls.__doc__ or "").strip()
         out.append(f"- **{name}**: {doc} Props: {', '.join(props) or '–'}.")
-    out += ["", "`guide blocks <name>` gives one block's schema with types and defaults."]
+    out += [
+        "",
+        "`guide blocks <name>` gives one block's schema with types and defaults. Library blocks",
+        "(`block_list <group>`) are used the same way: `- <name>: {params}`.",
+    ]
     return "\n".join(out)
 
 
@@ -309,13 +313,16 @@ def about(ctx: Context, group: str) -> str:
     :return: Markdown."""
     from beamtime.ops.record import target_of
     from beamtime.views.defaults import ordered_metrics, varying_config
-    from beamtime.views.store import saved
+    from beamtime.views.library import Library
+    from beamtime.views.store import outdated, read, saved
 
     with target_of(ctx, group) as target:
         path = target.rel
     keys = call("keys", {"from": group}, ctx)
     data = [f"{k} ({kind})" for k, kind, *_ in keys["data"]["rows"]]
     shown = saved(ctx, path)
+    library = Library(ctx=ctx, path=path)
+    stale = outdated(read(shown[-1], source=shown[-1].name), library) if shown else []
     return "\n".join(
         [
             f"## This group: {group}",
@@ -324,5 +331,11 @@ def about(ctx: Context, group: str) -> str:
             f"- varying config: {', '.join(varying_config(keys)) or 'none'}",
             f"- data keys: {', '.join(data) or 'none'}",
             f"- view: {f'version {shown[-1].stem}' if shown else 'the built-in default'}",
+            f"- library blocks: {', '.join(library.names) or 'none'} (`block_list` for params)",
+            *(
+                [f"- outdated pins: {', '.join(o['name'] for o in stale)} (`view_upgrade`)"]
+                if stale
+                else []
+            ),
         ]
     )

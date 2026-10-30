@@ -93,7 +93,12 @@ def fill(value: Any, values: dict[str, Any]) -> Any:
         case str() if (m := PLACEHOLDER.match(value)) and m.group(1) in values:
             return values[m.group(1)]
         case list():
-            return [fill(v, values) for v in value]
+            out = []
+            for v in value:
+                # a list value in a list is spliced: select: [run.id, $fields].
+                filled = fill(v, values)
+                out += filled if isinstance(v, str) and isinstance(filled, list) else [filled]
+            return out
         case dict():
             return {k: fill(v, values) for k, v in value.items()}
         case _:

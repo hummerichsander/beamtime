@@ -11,7 +11,7 @@ import { diffLines, fold } from "../bt/diff.ts";
 import { ago } from "../bt/fmt.ts";
 import { runColors, useTheme, ViewCtx } from "../bt/index.ts";
 import { changed, update, usePrefs } from "../bt/prefs.ts";
-import { editText, fresh } from "../bt/writes.ts";
+import { editText, fresh, upgradeView } from "../bt/writes.ts";
 import { groupUrl, navigate, route } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
@@ -52,11 +52,30 @@ export function ViewSource(props: { path: string; view: any }) {
     <${Icon} name="layout" size=${14} /><span>${what}</span>
     ${old ? html`<a href=${groupUrl(props.path)}>an older version · show the current one</a>` : null}
     ${history}
+    ${v.outdated?.length && !old ? html`<${Upgrade} path=${props.path} outdated=${v.outdated} />` : null}
     ${v.source === "draft" || old
       ? null
       : html`<${AddText} path=${props.path} />
         <${SaveView} path=${props.path} view=${v} />`}
   </div>`;
+}
+
+// library blocks with newer versions than the view is pinned to; updating saves a new version.
+function Upgrade(props: { path: string; outdated: { name: string }[] }) {
+  const [error, setError] = useState<string | null>(null);
+  const names = props.outdated.map((o) => o.name).join(", ");
+  const run = async () => {
+    setError(null);
+    try {
+      await upgradeView(props.path);
+    } catch (err) {
+      setError((err as Error).message.split("\n")[0]);
+    }
+  };
+  return html`<button type="button" class="link small" onClick=${run}
+      data-tip=${`A newer version of ${names} exists; update re-pins this view to it (a new version)`}>
+      <${Icon} name="update" size=${14} /> update ${names}</button>
+    ${error ? html`<span class="bad-text small">${error}</span>` : null}`;
 }
 
 function AddText(props: { path: string }) {

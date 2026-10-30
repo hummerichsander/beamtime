@@ -70,14 +70,16 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
         text(
             """Build the Beamtime view of group {group}. Aim: {idea}. Read `guide` first
             (and `guide examples`), then look at the group: `keys`, `memory_show`,
-            `proposal_show`, `check`, `notes` and `view_show`. Decide the one question
+            `proposal_show`, `check`, `notes`, `view_show` and `block_list`. Decide the one question
             the view answers and the finding the data supports, no stronger than the
             check. Start a draft with `view_new` (group, and `from` an example when the
             current view isn't a good start) and edit the file it names with your own
             tools. Run `view_validate` until no errors remain, then `view_render` and go
             through `guide checklist` for every block; fix and render again, at most two
             rounds, then ask the user if something is still off. Save with `view_save`
-            (draft, message, author) and give the user the page's URL path."""
+            (draft, message, author) and give the user the page's URL path. If the view
+            uses library blocks with newer versions (`view_outdated`), offer `view_upgrade`;
+            if a custom block you wrote would serve other groups, offer to promote it."""
         ),
     ),
     "review": (

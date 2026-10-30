@@ -6,11 +6,15 @@ the other way for the default view, and ``apply_prefs`` folds a viewer's chart s
 view's body for "Save as view"."""
 
 import posixpath
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from beamtime.format.ids import is_run_id
+from beamtime.format.schema import SchemaError
 from beamtime.views import model as m
 from beamtime.views.defaults import api, lower_is_better, node
+
+if TYPE_CHECKING:
+    from beamtime.views.library import Library
 
 RUNS_LIMIT = 10000
 
@@ -18,15 +22,19 @@ RUNS_LIMIT = 10000
 class Compiler:
     """Compiles one view for one page."""
 
-    def __init__(self, *, view: m.View, path: str, draft: str | None = None) -> None:
+    def __init__(
+        self, *, view: m.View, path: str, draft: str | None = None, library: "Library | None" = None
+    ) -> None:
         """Prepare compiling.
 
         :param view: The view.
         :param path: The page: a group below the log dir, or a run's path.
-        :param draft: The draft's name when compiling a draft, so data files come from it."""
+        :param draft: The draft's name when compiling a draft, so data files come from it.
+        :param library: The page's library blocks, for views that use them."""
         self.view = view
         self.path = path
         self.draft = draft
+        self.library = library
         leaf = path.rsplit("/", 1)[-1]
         self.run = leaf if is_run_id(leaf) else None
         self.addable = False
@@ -172,6 +180,8 @@ class Compiler:
                     {"draft": self.draft} if self.draft else {}
                 )
                 return node("custom", n.id, data=data, code=code, libs=n.libs, kit=n.kit, **common)
+            case m.Use():
+                return self.use(n, common)
             case m.Section():
                 kids = [self.compile(k) for k in n.children]
                 return node("section", n.id, children=kids, open=n.open, **common)
@@ -240,6 +250,37 @@ class Compiler:
             **common,
         )
 
+    def use(self, n: m.Use, common: dict[str, Any]) -> dict[str, Any]:
+        """Compile a library block's use to a custom block with its params filled in.
+
+        :param n: The node.
+        :param common: Its title, caption and span.
+        :return: The tree node.
+        :raises SchemaError: If the page has no such block or the params don't fit."""
+        from beamtime.views import library
+
+        if self.library is None:
+            raise SchemaError(f"{n.id}: library block {n.name!r} needs the page's library")
+        found = self.library.get(n.name, self.view.uses.get(n.name))
+        if errors := library.problems(found.block, n.params):
+            raise SchemaError(f"{n.id}: " + "; ".join(errors))
+        queries = library.queries_for(found.block, n.params)
+        data = {name: self.declared(q, n) for name, q in queries.items()}
+        b = found.block
+        lib = {"name": n.name, "version": found.version}
+        params = {k: n.params.get(k, p.default) for k, p in b.params.items()}
+        return node(
+            "custom",
+            n.id,
+            data=data,
+            code=found.code_ref,
+            libs=b.libs,
+            kit=b.kit,
+            library=lib,
+            params=params,
+            **common,
+        )
+
     def declared(self, query: dict[str, Any], n: m.Node) -> dict[str, Any]:
         """Compile a custom block's declared query to an API call.
 
@@ -303,14 +344,18 @@ class Compiler:
         return lower_is_better(metric)
 
 
-def compile_view(view: m.View, *, path: str, draft: str | None = None) -> dict[str, Any]:
+def compile_view(
+    view: m.View, *, path: str, draft: str | None = None, library: "Library | None" = None
+) -> dict[str, Any]:
     """Compile a view for a page.
 
     :param view: The view.
     :param path: A group below the log dir, or a run's path.
     :param draft: The draft's name when compiling a draft.
-    :return: The root node of the block tree."""
-    return Compiler(view=view, path=path, draft=draft).tree()
+    :param library: The page's library blocks.
+    :return: The root node of the block tree.
+    :raises SchemaError: If a library block is missing or its params don't fit."""
+    return Compiler(view=view, path=path, draft=draft, library=library).tree()
 
 
 def from_tree(tree: dict[str, Any], *, path: str) -> list[dict[str, Any]]:

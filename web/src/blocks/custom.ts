@@ -50,7 +50,7 @@ export function Custom({ node }: { node: Node }) {
       switch (msg.type) {
         case "hello":
           post({ type: "init", init: {
-            id: node.id, code: code.data.code, libs: node.props.libs ?? [], path: view.path, queries: (node.data ?? {}) as Record<string, Call>,
+            id: node.id, code: code.data.code, libs: node.props.libs ?? [], path: view.path, queries: (node.data ?? {}) as Record<string, Call>, params: node.props.params ?? {},
             theme: currentTheme.value, names: [...view.names], colors: [...view.colors], metrics: view.metrics,
           } });  // prettier-ignore
           break;

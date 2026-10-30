@@ -50,7 +50,7 @@ async function start(init: Init): Promise<void> {
     libs[name] = await load();
   }
   const view = { path: init.path, colors: new Map(init.colors), names: new Map(init.names), metrics: init.metrics };
-  (window as any).bt = makeKit({ queries: init.queries, view, libs, warn: (message) => send({ type: "warn", message }) });
+  (window as any).bt = makeKit({ queries: init.queries, params: init.params, view, libs, warn: (message) => send({ type: "warn", message }) });
   const url = URL.createObjectURL(new Blob([init.code], { type: "text/javascript" }));
   const mod = await import(/* @vite-ignore */ url);
   URL.revokeObjectURL(url);

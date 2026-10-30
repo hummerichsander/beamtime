@@ -197,6 +197,13 @@ class Custom(Node, tag="custom"):
     queries: dict[str, dict[str, Any]] = msgspec.field(default_factory=dict)
 
 
+class Use(Node, tag="use"):
+    """A library block from ``blocks/<name>/``, written ``- <name>: {params}`` in YAML."""
+
+    name: str
+    params: dict[str, Any] = msgspec.field(default_factory=dict)
+
+
 class Section(Node, tag="section"):
     """A titled group of blocks that can be collapsed."""
 
@@ -243,6 +250,7 @@ Block = (
     | Notes
     | Output
     | Custom
+    | Use
     | Section
     | Row
     | Grid
@@ -251,7 +259,11 @@ Block = (
 BLOCKS: dict[str, type[Node]] = {
     cls.__struct_config__.tag: cls  # type: ignore[misc]
     for cls in Block.__args__  # type: ignore[attr-defined]
+    if cls is not Use
 }
+# the props every node has, as YAML names; a library block's other props are its params.
+COMMON = tuple(f.encode_name for f in msgspec.structs.fields(Node))
+LIBRARY_NAME = re.compile(r"[a-z][a-z0-9-]{0,63}")
 LAYOUTS = ("section", "row", "grid", "tabs")
 CHARTS = ("line", "scatter", "bar", "histogram")
 # the prop an id is made from when a node has none: line-val-loss, table-1.
@@ -328,12 +340,9 @@ def normalize(node: Any, where: str, source: str) -> dict[str, Any]:
             f"{source}: {where}: a node is one block name with its props, e.g. "
             "'- line: {y: val/loss}'"
         )
-    if name not in BLOCKS:
+    if name not in BLOCKS and not (isinstance(name, str) and LIBRARY_NAME.fullmatch(name)):
         known = ", ".join(sorted(BLOCKS))
-        raise SchemaError(
-            f"{source}: {where}: no block {name!r}; the blocks are {known} "
-            "(library blocks arrive in M7)"
-        )
+        raise SchemaError(f"{source}: {where}: no block {name!r}; the blocks are {known}")
     match props:
         case None:
             props = {}
@@ -343,6 +352,11 @@ def normalize(node: Any, where: str, source: str) -> dict[str, Any]:
             props = dict(props)
         case _:
             raise SchemaError(f"{source}: {where}.{name}: give props as a mapping")
+    if name not in BLOCKS:
+        # resolved against the page's library when the view compiles.
+        common = {k: v for k, v in props.items() if k in COMMON}
+        params = {k: v for k, v in props.items() if k not in COMMON}
+        return {"block": "use", "name": name, "params": params, **common}
     if name in LAYOUTS:
         kids = props.get("children") or []
         if not isinstance(kids, list):
@@ -393,6 +407,8 @@ def assign_ids(nodes: list[Node], taken: set[str] | None = None) -> None:
             main = getattr(n, MAIN_PROP.get(block_of(n), ""), None)
             main = main[0] if isinstance(main, list) and main else main
             base = f"{block_of(n)}-{slug(str(main))}" if isinstance(main, str) else block_of(n)
+            if isinstance(n, Use):
+                base, main = n.name, n.name
             n.id = base if base not in taken and main else unique(base, taken)
             taken.add(n.id)
         if (kids := getattr(n, "children", None)) is not None:
@@ -468,6 +484,9 @@ def denormalize(node: dict[str, Any]) -> dict[str, Any]:
     :param node: The node as builtins.
     :return: The YAML form."""
     name = node.pop("block")
+    if name == "use":
+        name = node.pop("name")
+        node |= node.pop("params", {})
     kids = [denormalize(k) for k in node.pop("children", [])]
     # id first and children last read best.
     props = {k: node[k] for k in ("id", "title") if k in node} | node
