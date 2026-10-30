@@ -109,6 +109,11 @@ MCP server, started by an agent client).
 - **Writes take `--author`** (a person or model id; default: the local account) and record `user`, the
   local account ([research record](09-research-record.md#fields)).
 - **Exit codes**: `0` success, `1` error, `2` wrong usage, `3` validation found errors, `4` not found.
+- **Conditions** (`--where`, repeatable, combined with AND): field, operator, value, e.g.
+  `config.lr<1e-3`, `run.status!=failed`, `run.name~lr-*`, `config.seed in 0,1,2`. Operators are
+  `= != < <= > >= ~` (glob) and `in`; the first one outside quotes and brackets counts, so a field
+  may be `config["a<b"]`. Values are numbers, `true`, `false`, `null` or text; quoted values stay
+  text (`config.tag="1"`), and `in` items may be quoted to hold commas.
 
 ## Output
 

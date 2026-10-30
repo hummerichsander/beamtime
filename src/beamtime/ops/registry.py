@@ -370,6 +370,27 @@ class BlockSaveParams(Params, kw_only=True):
     author: Author = None
 
 
+class BlockExportParams(Params, kw_only=True):
+    """Parameters of ``block export``."""
+
+    name: BlockName
+    to: Annotated[str, msgspec.Meta(description="a folder; the block goes to <to>/blocks/<name>/")]
+    group: Annotated[str, msgspec.Meta(description="the group whose library has it")] = "."
+
+
+class BlockImportParams(Params, kw_only=True):
+    """Parameters of ``block import``."""
+
+    group: Annotated[str, msgspec.Meta(description="where the blocks go; . for every group")]
+    from_: Annotated[
+        str,
+        msgspec.Meta(
+            description="a project, a folder with blocks/, or a git URL with an optional @ref"
+        ),
+    ] = msgspec.field(name="from")
+    name: Annotated[str | None, msgspec.Meta(description="one block; default all")] = None
+
+
 class GuideParams(Params, kw_only=True):
     """Parameters of ``guide``."""
 
@@ -789,6 +810,22 @@ OPS = [
         impl=f"{W}:name",
         positional=("run", "name"),
         summary="Give a run a display name (a new version; the id never changes).",
+    ),
+    Op(
+        name="block export",
+        params=BlockExportParams,
+        impl=f"{B}:export",
+        positional=("name",),
+        user_only=True,
+        summary="Copy a library block with every version into <to>/blocks/<name>/.",
+    ),
+    Op(
+        name="block import",
+        params=BlockImportParams,
+        impl=f"{B}:import_blocks",
+        positional=("group",),
+        user_only=True,
+        summary="Copy library blocks from a project, a folder or a git repository into a group.",
     ),
     Op(
         name="note rm",

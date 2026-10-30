@@ -30,6 +30,48 @@ def test_condition_strings() -> None:
         parse_where(["a=1", "a=2"])
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("val/acc.max>0.9", ("val/acc.max", "gt", 0.9)),
+        ("metric.val/loss.mean[0:1000]<=0.5", ("metric.val/loss.mean[0:1000]", "le", 0.5)),
+        ('config["a<b"]=1', ('config["a<b"]', "eq", 1)),
+        ("config['x=y'] != -3", ("config['x=y']", "ne", -3)),
+        ("config.lr>=-1e-4", ("config.lr", "ge", -1e-4)),
+        ("config.lr = 3E-4", ("config.lr", "eq", 3e-4)),
+        ('config.tag="1"', ("config.tag", "eq", "1")),
+        ("config.tag='true'", ("config.tag", "eq", "true")),
+        ("config.name=a=b", ("config.name", "eq", "a=b")),
+        ('config.opt in adam, "sgd,momentum", 3', ("config.opt", "in", ["adam", "sgd,momentum", 3])),
+        ("run.name~lr-*", ("run.name", "glob", "lr-*")),
+        ('config.note=""', ("config.note", "eq", "")),
+        ("config.min in 1,2", ("config.min", "in", [1, 2])),
+    ],
+)
+def test_condition_syntax(text: str, expected: tuple) -> None:
+    """Brackets and quotes protect operators; quoted values stay text; lists split outside quotes."""
+    from beamtime.cli.conditions import parse_condition
+
+    assert parse_condition(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ("config.lr=", "no value after '='"),
+        ("=3", "no field"),
+        ('config.tag="1', "quote is not closed"),
+        ("config.lr", "operators"),
+    ],
+)
+def test_condition_errors(text: str, message: str) -> None:
+    """Malformed conditions say what is missing."""
+    from beamtime.cli.conditions import parse_condition
+
+    with pytest.raises(ValueError, match=message):
+        parse_condition(text)
+
+
 def test_settings_levels(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """User settings merge under the project's, key by key, with provenance."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))

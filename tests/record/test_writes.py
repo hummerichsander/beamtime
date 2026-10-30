@@ -64,9 +64,35 @@ def test_proposal_validation(ctx: Context) -> None:
         ),
         ({"rationale": "no statement"}, "statement is required"),
         ("statement: [unclosed", "not valid YAML"),
+        (pred({"metric": "metric.val/acc.max"}), "a metric key like 'val/acc', not a field"),
+        (pred({"metric": " val/acc"}), "without spaces"),
+        (pred({"metric": "val/acc", "steps": [300, 100]}), "the first step comes first"),
+        (pred({"metric": "val/acc", "steps": [1]}), r"reduce.steps is \[first, last\]"),
     ]
     for proposal, match in bad:
         fails(3, match, "proposal set", {"group": "new", "proposal": proposal}, ctx)
+
+
+def pred(reduce: dict) -> dict:
+    """A proposal with one prediction using a reduction.
+
+    :param reduce: The prediction's reduce.
+    :return: The proposal."""
+    return {"statement": "x", "predictions": [{"name": "a", "reduce": reduce, "op": ">", "value": 0.5}]}
+
+
+def test_numbers_written_as_text_are_read(ctx: Context) -> None:
+    """YAML reads 1e-3 as text; values and margins written so are numbers all the same."""
+    from beamtime.record.proposals import parse
+
+    text = "statement: x\npredictions:\n- {name: a, reduce: {metric: val/loss}, op: <, value: 1e-3}\n"
+    import yaml
+
+    proposal = parse(yaml.safe_load(text), source="test")
+    assert proposal.predictions[0].value == 1e-3
+    compare = {"name": "b", "reduce": {"metric": "val/loss"}, "op": "<", "test": "compare",
+               "a": {"config.lr": 0.1}, "b": {"config.lr": 0.01}, "margin": "5e-2"}  # fmt: skip
+    assert parse({"statement": "x", "predictions": [compare]}, source="t").predictions[0].margin == 0.05
 
 
 def test_frozen_versions_are_superseded(ctx: Context) -> None:

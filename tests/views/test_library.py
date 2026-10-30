@@ -199,3 +199,38 @@ def test_a_missing_block_shows_the_default(ctx: Context, project: Path) -> None:
     (folder / "20261030-100000-abcd.yaml").write_text("schema: 1\nbody: [{phase-mapp: {}}]\n")
     shown = page_view(ctx, SWEEP)
     assert shown["source"] == "default" and "no block 'phase-mapp'" in shown["invalid"]
+
+
+def test_export_and_import_through_git(ctx: Context, project: Path, tmp_path: Path) -> None:
+    """An exported block, committed to a git repository, imports with its version ids and origin."""
+    import json
+    import subprocess
+
+    library_block(ctx, project)
+    repo = tmp_path / "repo"
+    call("block export", {"name": "phase-map", "to": str(repo)}, ctx)
+    files = sorted(p.relative_to(repo).as_posix() for p in repo.rglob("*") if p.is_file())
+    code_file, version_file = sorted(files, key=lambda f: "/code/" not in f)
+    assert code_file.startswith("blocks/phase-map/code/") and version_file.endswith(".yaml")
+    git = lambda *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True)  # noqa: E731
+    git("init", "-q")
+    git("add", ".")
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "blocks")
+    git("tag", "v1")
+
+    answer = call("block import", {"group": "scaling", "from": f"file://{repo}@v1"}, ctx)
+    assert answer["blocks"] == ["phase-map"]
+    home = project / "beamtime" / "scaling" / "blocks" / "phase-map"
+    origin = json.loads((home / "_imported.json").read_text())
+    assert origin["ref"] == "v1" and len(origin["commit"]) == 40
+    found = Library(ctx=ctx, path=SWEEP).get("phase-map")
+    assert found.group == "scaling" and found.version == version_file.rsplit("/", 1)[-1][:-5]
+    # importing again changes nothing; a changed file in the source is refused.
+    assert call("block import", {"group": "scaling", "from": str(repo)}, ctx)["lines"][0] == (
+        "phase-map: 0 new file(s)"
+    )
+    (repo / version_file).write_text((repo / version_file).read_text() + "# edited\n")
+    with pytest.raises(OpError, match="other content"):
+        call("block import", {"group": "scaling", "from": str(repo)}, ctx)
+    with pytest.raises(OpError, match="no blocks/ folder"):
+        call("block import", {"group": "scaling", "from": str(tmp_path)}, ctx)

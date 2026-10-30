@@ -479,3 +479,161 @@ def check_block_name(name: str) -> str:
     if name in m.BLOCKS:
         raise OpError(f"{name!r} is a built-in block; pick another name", code=2)
     return name
+
+
+def export(ctx: Context, p: r.BlockExportParams) -> dict[str, Any]:
+    """Copy a library block, every version with its code, into ``<to>/blocks/<name>/``.
+
+    Exporting into a git repository makes a library others import with ``block import``.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: What was copied."""
+    with target_of(ctx, p.group) as target:
+        path = target.rel
+    library = Library(ctx=ctx, path=path)
+    if p.name not in library.folders:
+        raise OpError(f"no library block {p.name!r} in {path}; `block list {path}` names them", 4)
+    _, source = library.folders[p.name]
+    dest = Path(p.to).expanduser().resolve() / c.BLOCKS / p.name
+    copied = copy_tree(source, dest)
+    return {
+        "kind": "block export",
+        "name": p.name,
+        "to": str(dest),
+        "lines": [f"copied {len(copied)} file(s) to {dest}" if copied else f"{dest} is up to date"],
+        "meta": {},
+    }
+
+
+def import_blocks(ctx: Context, p: r.BlockImportParams) -> dict[str, Any]:
+    """Copy library blocks from a project, a folder with ``blocks/``, or a git repository.
+
+    Version ids stay, so views pinned to them elsewhere stay valid; the source and commit are
+    recorded in ``blocks/<name>/_imported.json``.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The blocks imported and what their checks found."""
+    import tempfile
+
+    with target_of(ctx, p.group) as target:
+        home = ctx.logdir / target.rel / c.BLOCKS
+    with tempfile.TemporaryDirectory(prefix="beamtime-import-") as tmp:
+        root, origin = fetch(p.from_, Path(tmp))
+        folder = blocks_in(root)
+        names = sorted(d.name for d in folder.iterdir() if d.is_dir() and any(d.glob("*.yaml")))
+        if p.name is not None:
+            if p.name not in names:
+                raise OpError(f"no block {p.name!r} in {p.from_}; it has {', '.join(names)}", 4)
+            names = [p.name]
+        if not names:
+            raise OpError(f"no blocks in {folder}", code=4)
+        conflicts = [
+            f"{name}/{rel}"
+            for name in names
+            for rel, content in files_of(folder / name).items()
+            if (home / name / rel).is_file() and (home / name / rel).read_bytes() != content
+        ]
+        if conflicts:
+            raise OpError(
+                "these files exist with other content; nothing was imported:\n"
+                + "\n".join(conflicts),
+                code=1,
+            )
+        lines = []
+        for name in names:
+            check_block_name(name)
+            copied = copy_tree(folder / name, home / name)
+            record = json.dumps(origin | {"at": time.time()})
+            (home / name / "_imported.json").write_text(record + "\n")
+            lines.append(f"{name}: {len(copied)} new file(s)")
+            for f in sorted(versions_of(home / name)):
+                try:
+                    read_def(f, source=f"{name}/{f.name}")
+                except SchemaError as e:
+                    lines.append(f"  warning: {e}")
+    return {
+        "kind": "block import",
+        "blocks": names,
+        "lines": [*lines, f"into {home}; views use them as `- <name>: {{params}}`"],
+        "meta": {},
+    }
+
+
+def fetch(source: str, tmp: Path) -> tuple[Path, dict[str, Any]]:
+    """Locate a block source: a local folder as is, a git URL cloned shallowly.
+
+    :param source: A path, or a git URL with an optional ``@ref`` (branch or tag).
+    :param tmp: A folder for the clone.
+    :return: The folder, and where it came from for ``_imported.json``."""
+    import shutil
+    import subprocess
+
+    local = Path(source).expanduser()
+    if local.is_dir():
+        return local.resolve(), {"schema": 1, "source": str(local.resolve())}
+    url, ref = source, None
+    # a ref follows the last '@' after the host part: git@github.com:lab/blocks@v1.
+    if "@" in source.rsplit("/", 1)[-1]:
+        url, ref = source.rsplit("@", 1)
+    if shutil.which("git") is None:
+        raise OpError(f"{source} is no folder here, and git isn't installed to clone it", 4)
+    args = ["git", "clone", "--quiet", "--depth", "1", *(["--branch", ref] if ref else [])]
+    done = subprocess.run([*args, url, str(tmp / "repo")], capture_output=True, text=True)
+    if done.returncode != 0:
+        raise OpError(f"git clone {url} failed: {done.stderr.strip()}", code=4)
+    commit = subprocess.run(
+        ["git", "-C", str(tmp / "repo"), "rev-parse", "HEAD"], capture_output=True, text=True
+    ).stdout.strip()
+    return tmp / "repo", {"schema": 1, "source": url, "ref": ref, "commit": commit}
+
+
+def blocks_in(root: Path) -> Path:
+    """Find the ``blocks/`` folder of a source: at its top, or in its log dir.
+
+    :param root: The source folder.
+    :return: The folder holding ``<name>/`` block folders."""
+    for candidate in (root / c.BLOCKS, root / "beamtime" / c.BLOCKS):
+        if candidate.is_dir():
+            return candidate
+    raise OpError(f"no blocks/ folder in {root} (nor in {root / 'beamtime'})", code=4)
+
+
+def files_of(folder: Path) -> dict[str, bytes]:
+    """Read a block folder's versions and code, leaving out machine-written files.
+
+    :param folder: ``blocks/<name>/``.
+    :return: Contents by path relative to the folder."""
+    return {
+        f.relative_to(folder).as_posix(): f.read_bytes()
+        for f in sorted(folder.rglob("*"))
+        if f.is_file() and not f.name.startswith(("_", "."))
+    }
+
+
+def copy_tree(source: Path, dest: Path) -> list[str]:
+    """Copy a block folder's files that the destination doesn't have yet.
+
+    :param source: The block folder.
+    :param dest: Where it goes.
+    :return: The files copied."""
+    copied = []
+    for rel, content in files_of(source).items():
+        if (dest / rel).is_file():
+            if (dest / rel).read_bytes() != content:
+                raise OpError(f"{dest / rel} exists with other content", code=1)
+            continue
+        write_created(dest / rel, content)
+        copied.append(rel)
+    return copied
+
+
+def versions_of(folder: Path) -> list[Path]:
+    """List a block folder's version files.
+
+    :param folder: ``blocks/<name>/``.
+    :return: The YAML files."""
+    from beamtime.format.authored import versions
+
+    return [f for f in versions(folder) if f.suffix == ".yaml"]

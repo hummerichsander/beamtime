@@ -168,6 +168,32 @@ def check_fields(p: Proposal) -> list[str]:
     return problems
 
 
+def reduce_problems(r: Reduce) -> list[str]:
+    """Check a reduction: a step window in order, and a metric key (not a field).
+
+    :param r: The reduction.
+    :return: One message per problem."""
+    if r.steps is not None:
+        if len(r.steps) != 2:
+            return ["reduce.steps is [first, last]"]
+        if None not in r.steps and r.steps[0] > r.steps[1]:
+            return [f"reduce.steps {r.steps}: the first step comes first"]
+    metric = r.metric.strip()
+    if not metric or metric != r.metric:
+        return [f"reduce.metric {r.metric!r}: a metric key like val/acc, without spaces"]
+    if metric.startswith(("metric.", "config.", "value.", "run.")):
+        key = metric.removeprefix("metric.").rsplit(".", 1)[0]
+        return [
+            f"reduce.metric is a metric key like {key!r}, not a field; "
+            "the statistic goes in reduce.stat"
+        ]
+    try:
+        parse_field(r.field)
+    except QueryError as e:
+        return [f"reduce: {e}"]
+    return []
+
+
 def prediction_problems(pr: Prediction) -> list[str]:
     """Check that a prediction has what its test needs.
 
@@ -180,8 +206,8 @@ def prediction_problems(pr: Prediction) -> list[str]:
         return [f"test {pr.test!r} comes in v1.1; use each or compare"]
     if pr.reduce is None:
         problems.append("reduce: {metric: <key>, stat: last|first|min|max|mean} is required")
-    elif pr.reduce.steps is not None and len(pr.reduce.steps) != 2:
-        problems.append("reduce.steps is [first, last]")
+    else:
+        problems += reduce_problems(pr.reduce)
     if pr.op is None:
         problems.append("op is one of <, <=, >, >=")
     match pr.test:
