@@ -7,7 +7,7 @@ import { useCall } from "../api.ts";
 import { describe, progressText } from "../blocks/context.ts";
 import { rows } from "../blocks/common.ts";
 import { ago, duration, step, value } from "../bt/fmt.ts";
-import { groupUrl, isRunId, navigate, runUrl } from "../router.ts";
+import { groupUrl, isRoot, isRunId, navigate, rootOf, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { Editable } from "../ui/editable.ts";
 import { IconButton, Meter, Popover } from "../ui/primitives.ts";
@@ -18,13 +18,17 @@ import * as calls from "./calls.ts";
 const ENDED = ["failed", "killed", "lost"];
 
 export function Header(props: { path: string; finding?: string | null }) {
-  const parts = props.path === "." ? [] : props.path.split("/");
+  // the crumbs start at the source's root: local, or a remote such as @box.
+  const root = rootOf(props.path);
+  const below = root === "." ? props.path : props.path.slice(root.length + 1);
+  const parts = isRoot(props.path) ? [] : below.split("/");
   const runId = parts.length && isRunId(parts[parts.length - 1]) ? parts[parts.length - 1] : null;
   const crumbs = parts.slice(0, -1);
+  const under = (i: number) => [...(root === "." ? [] : [root]), ...crumbs.slice(0, i + 1)].join("/");
   return html`<header class="header">
     <nav class="crumbs" aria-label="Breadcrumb">
-      ${parts.length ? html`<a href=${groupUrl(".")}>local</a>` : null}
-      ${crumbs.map((p, i) => html`<span class="sep">/</span><a href=${groupUrl(crumbs.slice(0, i + 1).join("/"))}>${p}</a>`)}
+      ${parts.length ? html`<a href=${groupUrl(root)}>${root === "." ? "local" : root}</a>` : null}
+      ${crumbs.map((p, i) => html`<span class="sep">/</span><a href=${groupUrl(under(i))}>${p}</a>`)}
     </nav>
     ${runId ? html`<${RunHeader} id=${runId} scope=${props.path} />` : html`<${GroupHeader} path=${props.path} />`}
     ${props.finding ? html`<p class="finding">${props.finding}</p>` : null}

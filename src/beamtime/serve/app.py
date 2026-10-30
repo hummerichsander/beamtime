@@ -1,5 +1,7 @@
 """The Starlette app: the operations as API, live updates, run files and the frontend."""
 
+import dataclasses
+import mimetypes
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -45,8 +47,11 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
             hub.watch(str(body.get("client")), dict(body.get("watched") or {}))
             await run_in_threadpool(subscribe_remotes, hub)
             return reply({"kind": "watch", "watching": len(body.get("watched") or {})})
+        # the CLI and MCP send their calls about remotes here, with their own answer sizes.
+        caller = request.headers.get("x-beamtime-caller")
+        here = dataclasses.replace(ctx, caller=caller) if caller in ("cli", "mcp") else ctx
         try:
-            answer = await run_in_threadpool(dispatch, ctx, method, body)
+            answer = await run_in_threadpool(dispatch, here, method, body)
         except OpError as e:
             return error(str(e), e.code)
         if isinstance(answer, bytes):
@@ -66,6 +71,13 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
         run_id, rel = request.path_params["run"], request.path_params["path"]
         path = await run_in_threadpool(locate, ctx, run_id, rel)
         if path is None:
+            from beamtime.remote.route import remote_file
+
+            if (content := await run_in_threadpool(remote_file, run_id, rel)) is not None:
+                kind = mimetypes.guess_type(rel)[0] or "application/octet-stream"
+                return Response(
+                    content, media_type=kind, headers={"cache-control": "private, max-age=3600"}
+                )
             return error(f"no file {rel!r} in run {run_id!r}", 4)
         return FileResponse(path, headers={"cache-control": "private, max-age=3600"})
 

@@ -5,7 +5,7 @@ import { useRef, useState } from "preact/hooks";
 
 import { useCall } from "../api.ts";
 import { rows } from "../blocks/common.ts";
-import { groupUrl, navigate, route } from "../router.ts";
+import { groupUrl, isRoot, navigate, route } from "../router.ts";
 import { stored, store, useStore } from "../state.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { symbolFor } from "../ui/symbols.ts";
@@ -19,8 +19,8 @@ export function Sidebar() {
   const [filter, setFilter] = useState("");
   const list = useRef<HTMLDivElement>(null);
   const current = r.page === "group" ? r.path : null;
-  const root = buildTree(rows(result.data));
-  const shown = visible(root, withAncestors(open, current), filter);
+  const roots = buildTree(rows(result.data), result.data?.meta?.sources ?? []);
+  const shown = visible(roots, withAncestors(open, current), filter);
 
   const toggle = (path: string, value?: boolean) => {
     const next = new Set(open);
@@ -69,8 +69,8 @@ export function Sidebar() {
 function Item(props: { node: TreeNode; current: boolean; open: boolean; onToggle: () => void }) {
   const n = props.node;
   const hover = () => calls.prefetchGroup(n.path);
-  const expandable = n.children.length > 0 && n.path !== ".";
-  return html`<a class=${`tree-item${props.current ? " current" : ""}`} href=${groupUrl(n.path)}
+  const expandable = n.children.length > 0 && !isRoot(n.path);
+  return html`<a class=${`tree-item${props.current ? " current" : ""}${n.path.startsWith("@") && isRoot(n.path) ? " source-root" : ""}`} href=${groupUrl(n.path)}
       role="treeitem" aria-current=${props.current ? "page" : undefined} aria-expanded=${expandable ? props.open : undefined}
       style=${`padding-inline-start:${6 + depth(n.path) * 14}px`} onMouseEnter=${hover} onFocus=${hover}
       onClick=${(e: MouseEvent) => {
@@ -81,6 +81,9 @@ function Item(props: { node: TreeNode; current: boolean; open: boolean; onToggle
     <span class="twisty" onClick=${(e: Event) => { e.preventDefault(); e.stopPropagation(); props.onToggle(); }}>
       ${expandable ? html`<${Icon} name=${props.open ? "chevron-down" : "chevron-right"} size=${14} />` : null}</span>
     <span class="tree-name">${n.name}</span>
+    ${n.state === "unreachable"
+      ? html`<${Sym} spec=${{ icon: "cloud-off", tone: "muted", label: `Unreachable: ${n.error ?? "no answer"}` }} size=${13} />`
+      : null}
     <span class="tree-marks">
       ${n.running ? html`<${Sym} spec=${symbolFor("run", "running")} size=${13} />` : null}
       ${n.failed ? html`<${Sym} spec=${{ ...symbolFor("run", "failed"), label: `${n.failed} failed, killed or lost` }} size=${13} />` : null}
@@ -90,6 +93,7 @@ function Item(props: { node: TreeNode; current: boolean; open: boolean; onToggle
 }
 
 function parentOf(path: string): string {
+  if (isRoot(path)) return path;
   const i = path.lastIndexOf("/");
   return i < 0 ? "." : path.slice(0, i);
 }

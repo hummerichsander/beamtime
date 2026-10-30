@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { buildTree, siblings, visible } from "../src/shell/tree.ts";
+import { groupUrl, isRoot, parse, rootOf } from "../src/router.ts";
+import { buildTree, depth, siblings, visible } from "../src/shell/tree.ts";
 
 const rows = [
   { path: ".", runs: 26 },
@@ -13,19 +14,44 @@ const rows = [
 ];
 
 test("the tree nests groups and shows open ones", () => {
-  const root = buildTree(rows);
+  const [root] = buildTree(rows);
   assert.deepEqual(root.children.map((c) => c.name), ["scaling", "tokenizer"]);
-  assert.deepEqual(visible(root, new Set(), "").map((n) => n.path), [".", "scaling", "tokenizer"]);
+  assert.deepEqual(visible([root], new Set(), "").map((n) => n.path), [".", "scaling", "tokenizer"]);
   assert.deepEqual(
-    visible(root, new Set(["scaling"]), "").map((n) => n.path),
+    visible([root], new Set(["scaling"]), "").map((n) => n.path),
     [".", "scaling", "scaling/long-context", "scaling/lr-sweep", "tokenizer"],
   );
-  assert.deepEqual(visible(root, new Set(), "bpe").map((n) => n.path), [".", "tokenizer", "tokenizer/bpe-vs-unigram"]);
+  assert.deepEqual(visible([root], new Set(), "bpe").map((n) => n.path), [".", "tokenizer", "tokenizer/bpe-vs-unigram"]);
   assert.equal(root.children[0].children[1].failed, 1);
 });
 
 test("siblings for [ and ]", () => {
-  const root = buildTree(rows);
-  assert.deepEqual(siblings(root, "scaling/lr-sweep").map((n) => n.path), ["scaling/long-context", "scaling/lr-sweep"]);
-  assert.deepEqual(siblings(root, "tokenizer").map((n) => n.path), ["scaling", "tokenizer"]);
+  const roots = buildTree(rows);
+  assert.deepEqual(siblings(roots, "scaling/lr-sweep").map((n) => n.path), ["scaling/long-context", "scaling/lr-sweep"]);
+  assert.deepEqual(siblings(roots, "tokenizer").map((n) => n.path), ["scaling", "tokenizer"]);
+});
+
+test("each source has its own root, also one that can't answer", () => {
+  const remote = [{ path: "@box", runs: 4 }, { path: "@box/scaling", runs: 4 }, { path: "@box/scaling/lr-sweep", runs: 4 }];
+  const roots = buildTree([...rows, ...remote], [
+    { name: "local", state: "connected" },
+    { name: "@box", state: "connected" },
+    { name: "@gone", state: "unreachable", error: "ssh: timed out" },
+  ]);
+  assert.deepEqual(roots.map((r) => r.path), [".", "@box", "@gone"]);
+  assert.deepEqual(roots[1].children.map((c) => c.path), ["@box/scaling"]);
+  assert.equal(roots[2].state, "unreachable");
+  assert.deepEqual(visible(roots, new Set(), "").map((n) => n.path), [".", "scaling", "tokenizer", "@box", "@box/scaling", "@gone"]);
+  assert.deepEqual(siblings(roots, "@box").map((n) => n.path), [".", "@box", "@gone"]);
+  assert.deepEqual([depth("."), depth("@box"), depth("@box/scaling"), depth("scaling")], [0, 0, 1, 1]);
+});
+
+test("remote paths round-trip through URLs", () => {
+  for (const path of [".", "scaling/lr-sweep", "@box", "@box/scaling/lr-sweep"]) {
+    const url = new URL(groupUrl(path, { drawer: true }), "http://x");
+    const r = parse(url.pathname, url.search);
+    assert.ok(r.page === "group" && r.path === path && r.drawer, path);
+  }
+  assert.equal(groupUrl("@box/a b"), "/f/@box/a%20b");
+  assert.deepEqual([rootOf("@box/x"), rootOf("x"), isRoot("@box"), isRoot("@box/x"), isRoot(".")], ["@box", ".", true, false, true]);
 });

@@ -32,8 +32,15 @@ function ViewPage(props: { path: string; version: string | null; draft: string |
     <${Header} path=${props.path} finding=${view.data?.finding} />
     ${view.data ? html`<${ViewSource} path=${props.path} view=${view.data} />` : null}
     ${view.status === "error"
-      ? html`<${Notice} kind="error">${view.error}<//>`
+      ? unreachable(props.path, view.error)
+        ? html`<${Notice} kind="warning">${view.error} The page fills in once the remote answers again.<//>`
+        : html`<${Notice} kind="error">${view.error}<//>`
       : html`<${ViewBody} path=${props.path} view=${view.data} />`}`;
+}
+
+// a remote that doesn't answer is a state of the source, not an error of the page.
+function unreachable(path: string, error: string | null): boolean {
+  return path.startsWith("@") && /is unreachable since/.test(error ?? "");
 }
 
 export function RunRedirect(props: { id: string }) {

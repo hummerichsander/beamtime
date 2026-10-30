@@ -58,7 +58,7 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
             stripped["author"] = stripped.get("author") or author_of(ctx, None)[0]
         answer = client_for(ctx, source).request(method, stripped, caller=ctx.caller)
         return prefix(answer, source)
-    if method in LISTINGS and remote.active is not None and fans_out(params):
+    if method in LISTINGS and remote.active is not None and ctx.merge and fans_out(params):
         return federate(method, params, ctx, local)
     try:
         return local(params)
@@ -145,7 +145,7 @@ def prefix(answer: Any, source: str) -> Any:
     # a write says what it wrote; the file is on the source.
     if isinstance(answer, dict) and isinstance(path := answer.get("path"), str):
         out["lines"] = [
-            p_line.replace(f"wrote {path}", f"wrote {p(path)}") for p_line in out.get("lines", [])
+            line.replace(f"wrote {path}", f"wrote {p(path)}") for line in out.get("lines", [])
         ]
     return out
 
@@ -329,3 +329,32 @@ def merge_keys(answers: list[dict]) -> dict[str, Any]:
                             pass
         out[table] = {"columns": columns, "rows": sorted(rows.values(), key=lambda r: r[0])}
     return out
+
+
+FILE_LIMIT = 64 << 20
+
+
+def remote_file(run: str, rel: str) -> bytes | None:
+    """Fetch a file of a run that lives on a remote, such as a logged image.
+
+    :param run: The run id.
+    :param rel: The file's path inside the run.
+    :return: Its content, or ``None`` if no remote has it."""
+    import base64
+
+    if remote.active is None:
+        return None
+    for client in remote.active.clients.values():
+        try:
+            base = client.request("card", {"run": run})["run"]["path"]
+            out, offset = bytearray(), 0
+            while len(out) < FILE_LIMIT:
+                part = client.request("files", {"read": f"{base}/{rel}", "offset": offset})
+                out += base64.b64decode(part["data"])
+                offset = len(out)
+                if part["eof"]:
+                    return bytes(out)
+            return None
+        except (OpError, KeyError, TypeError):
+            continue
+    return None

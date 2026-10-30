@@ -10,7 +10,7 @@ import msgspec
 from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 
-from beamtime.ops import call
+from beamtime import remote
 from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import BY_TOOL, Op
 
@@ -209,7 +209,8 @@ def build(root: str | Path | None = None) -> Server:
             return error(f"unknown tool {params.name!r}")
 
         def run() -> dict[str, Any]:
-            return call(op.name, params.arguments or {}, Context.make(root=root, caller="mcp"))
+            context = Context.make(root=root, caller="mcp")
+            return remote.answer(op.name, params.arguments or {}, context)
 
         try:
             answer = await anyio.to_thread.run_sync(run)

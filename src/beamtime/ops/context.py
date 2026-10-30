@@ -31,6 +31,8 @@ class Context:
     settings: Settings
     logdir: Path
     caller: Caller = "cli"
+    # listings of "." merge every source; the web UI's pages of this machine ask for it only here.
+    merge: bool = True
 
     @classmethod
     def make(cls, *, root: str | Path | None = None, caller: Caller = "cli") -> "Context":

@@ -84,6 +84,8 @@ class RemoteClient:
         self.connecting = threading.Lock()
         self.stderr: deque[str] = deque(maxlen=20)
         self.subscribed: list[str] = []
+        # whether the current process can still answer; cleared when its output ends.
+        self.alive = False
 
     @property
     def name(self) -> str:
@@ -133,7 +135,7 @@ class RemoteClient:
         :return: The result."""
         with self.lock:
             proc = self.proc
-            if proc is None or proc.stdin is None:
+            if proc is None or proc.stdin is None or not self.alive:
                 raise self.unreachable()
             self.next_id += 1
             rid = self.next_id
@@ -142,10 +144,13 @@ class RemoteClient:
             try:
                 proc.stdin.write(line + "\n")
                 proc.stdin.flush()
+                broken = False
             except OSError:
                 self.pending.pop(rid, None)
-                self.lost("the connection closed")
-                raise self.unreachable() from None
+                broken = True
+        if broken:
+            self.lost("the connection closed")
+            raise self.unreachable()
         if not waiting.done.wait(timeout):
             with self.lock:
                 self.pending.pop(rid, None)
@@ -179,6 +184,7 @@ class RemoteClient:
             except OSError as e:
                 self.fail(str(e))
                 raise self.unreachable() from None
+            self.alive = True
             threading.Thread(target=self.read, args=(self.proc,), daemon=True).start()
             threading.Thread(target=self.read_errors, args=(self.proc,), daemon=True).start()
             hello = {"protocol": PROTOCOL, "version": version("beamtime")}
@@ -242,6 +248,7 @@ class RemoteClient:
         :param reason: What happened."""
         with self.lock:
             waiting, self.pending = list(self.pending.values()), {}
+            self.alive = False
         for w in waiting:
             w.answer = {"lost": True}
             w.done.set()

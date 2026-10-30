@@ -262,3 +262,7 @@ table.kv {
   & select { padding: 4px 8px; border: 1px solid var(--bt-input-border); border-radius: calc(var(--bt-radius) - 4px); background: var(--bt-input-bg); font: inherit; }
   & .segmented { justify-self: start; }
 }
+a.source { text-decoration: none; border-radius: var(--bt-radius); }
+a.source:hover { color: var(--bt-fg); background: var(--bt-hover, transparent); }
+.source.unreachable { color: var(--bt-warn); }
+.tree-item.source-root { margin-block-start: 10px; }

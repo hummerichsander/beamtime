@@ -194,7 +194,13 @@ def start_sources(ctx: Context, p: r.ServeParams, hub: Any) -> Any:
         hub.changed({f"@{name}" if q in (".", "") else f"@{name}/{q}" for q in paths})
 
     remote.active = Sources(specs, on_event=changed)
-    say("Sources: " + ", ".join(f"@{s.name} ({s.host or s.name}:{s.path})" for s in specs))
+    shown = [
+        f"@{s.name} ({s.host or s.name}:{s.path})"
+        if s.transport == "ssh"
+        else f"@{s.name} ({s.path})"
+        for s in specs
+    ]
+    say("Sources: " + ", ".join(shown))
     return remote.active
 
 

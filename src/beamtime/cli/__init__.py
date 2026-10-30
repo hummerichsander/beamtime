@@ -304,8 +304,8 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(serve(root=args.root))
     if args.command in GROUPS and getattr(args, f"{args.command}_command") is None:
         parser.parse_args([args.command, "--help"])
-    from beamtime.ops import call
     from beamtime.ops.context import Context, OpError
+    from beamtime.remote import answer
 
     try:
         params = params_of(args.op, args)
@@ -313,7 +313,7 @@ def main(argv: list[str] | None = None) -> None:
         parser.exit(2, f"beamtime: {e}\n")
     try:
         context = Context.make(root=args.root, caller="cli")
-        answer = call(args.op, params, context)
+        answer = answer(args.op, params, context)
     except OpError as e:
         print(f"beamtime: {e}", file=sys.stderr)
         sys.exit(e.code)

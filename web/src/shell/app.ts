@@ -107,8 +107,8 @@ function onKey(e: KeyboardEvent): void {
 }
 
 async function sibling(path: string, step: number): Promise<void> {
-  const root = buildTree(rows(await fetchCall(calls.tree())));
-  const list = siblings(root, path);
+  const answer = await fetchCall(calls.tree());
+  const list = siblings(buildTree(rows(answer), answer?.meta?.sources ?? []), path);
   const i = list.findIndex((n) => n.path === path);
   const next = list[i + step];
   if (next) navigate(groupUrl(next.path));

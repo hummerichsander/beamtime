@@ -30,8 +30,16 @@ def dispatch(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] 
     :param method: The method: an operation's MCP name, or a page or remote method.
     :param body: Its parameters.
     :return: The answer; a figure is a PDF."""
+    import dataclasses
+
     from beamtime import remote
 
+    if remote.active is not None and (ctx.caller == "view" or "everywhere" in body):
+        # the web UI's page of this machine is this machine; the group tree asks for everywhere.
+        body = dict(body)
+        ctx = dataclasses.replace(ctx, merge=bool(body.pop("everywhere", False)))
+    elif "everywhere" in body:
+        body = {k: v for k, v in body.items() if k != "everywhere"}
     if method in PAGES and (remote.active is not None or remote.targets(body)):
         from beamtime.remote.route import routed
 

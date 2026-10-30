@@ -29,10 +29,12 @@ export function parse(pathname: string, search: string): Route {
   const q = new URLSearchParams(search);
   const parts = pathname.split("/").filter(Boolean).map(decodeURIComponent);
   if (parts[0] === "f" && parts.length >= 2) {
+    // a remote's groups keep their source in the path: /f/@box/scaling is "@box/scaling".
+    const rest = parts.slice(2).join("/");
     return {
       page: "group",
       source: parts[1],
-      path: parts.slice(2).join("/") || ".",
+      path: parts[1] === "local" ? rest || "." : [parts[1], ...parts.slice(2)].join("/"),
       run: q.get("run"),
       drawer: q.get("drawer") === "1" || q.has("run"),
       version: q.get("v"),
@@ -51,18 +53,28 @@ export function groupUrl(
   path: string,
   opts: { run?: string | null; drawer?: boolean; version?: string | null; history?: boolean } = {},
 ): string {
-  const tail = path === "." || path === "" ? "" : `/${path.split("/").map(encodeURIComponent).join("/")}`;
+  const [source, ...rest] = path.startsWith("@") ? path.split("/") : ["local", ...(path === "." || path === "" ? [] : path.split("/"))];
+  const tail = rest.length ? `/${rest.map(encodeURIComponent).join("/")}` : "";
   const q = new URLSearchParams();
   if (opts.version) q.set("v", opts.version);
   if (opts.history) q.set("history", "");
   if (opts.run) q.set("run", opts.run);
   else if (opts.drawer) q.set("drawer", "1");
   const qs = q.toString().replace(/=(?=&|$)/g, "");
-  return `/f/local${tail}${qs ? `?${qs}` : ""}`;
+  return `/f/${source}${tail}${qs ? `?${qs}` : ""}`;
 }
 
 export function runUrl(id: string): string {
   return `/r/${id}`;
+}
+
+// the root of a path's source: "." for this machine, "@box" for the remote box.
+export function rootOf(path: string): string {
+  return path.startsWith("@") ? path.split("/")[0] : ".";
+}
+
+export function isRoot(path: string): boolean {
+  return path === "." || (path.startsWith("@") && !path.includes("/"));
 }
 
 export function parent(path: string): string {

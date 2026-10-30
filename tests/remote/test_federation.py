@@ -1,4 +1,5 @@
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -112,8 +113,12 @@ def test_errors_name_the_source(box: Path, ctx: Context, tmp_path: Path) -> None
         call("rm", {"target": f"@box/{SWEEP}"}, ctx)
     broken = Spec(name="gone", path=str(tmp_path), command="false", transport="command")
     remote.active.clients.update(Sources([broken]).clients)
-    with pytest.raises(OpError, match="@gone is unreachable since"):
-        call("runs", {"from": "@gone/x"}, ctx)
+    started = time.monotonic()
+    for _ in range(3):
+        with pytest.raises(OpError, match="@gone is unreachable since"):
+            call("runs", {"from": "@gone/x"}, ctx)
+    # a remote end that exits at once fails at once, also when asked again.
+    assert time.monotonic() - started < 10
     # a listing of everything still answers, and says which source is missing.
     sources = call("groups", {"from": "."}, ctx)["meta"]["sources"]
     assert {"name": "@gone", "state": "unreachable"}.items() <= sources[-1].items()

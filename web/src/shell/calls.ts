@@ -2,7 +2,8 @@
 
 import { type Call, prefetch } from "../api.ts";
 
-export const tree = (): Call => ({ method: "groups", params: { from: "." }, scope: "." });
+// the group tree covers every source; pages of this machine show only this machine.
+export const tree = (): Call => ({ method: "groups", params: { from: ".", everywhere: true }, scope: "." });
 export const view = (path: string, version: string | null = null, draft: string | null = null): Call => ({
   method: "view",
   params: { path, ...(version ? { version } : {}), ...(draft ? { draft } : {}) },

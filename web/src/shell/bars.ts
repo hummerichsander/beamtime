@@ -7,7 +7,7 @@ import { connection, paused, updated, useCall } from "../api.ts";
 import { rows } from "../blocks/common.ts";
 import { mode } from "../bt/index.ts";
 import { ago } from "../bt/fmt.ts";
-import { route } from "../router.ts";
+import { groupUrl, route } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
 import { IconButton } from "../ui/primitives.ts";
@@ -31,7 +31,7 @@ export function TopBar() {
       <${Icon} name="search" size=${15} /><span class="search-label">Search groups, runs, commands</span><kbd>⌘K</kbd>
     </button>
     <div class="topbar-actions">
-      <span class="source" data-tip="Sources: this machine. Remote sources come later."><${Icon} name="server" size=${15} /> local</span>
+      <${Sources} />
       <${IconButton} icon=${MODE_ICON[m]} label=${`Theme: ${m === "system" ? "follows the system" : m} (switch to ${NEXT[m]})`}
         onClick=${() => void change("theme_mode", NEXT[m])} />
       <a class="icon-button" href=${timelineUrl(route.value.page === "group" ? route.value.path : ".")} aria-label="Timeline"
@@ -39,6 +39,20 @@ export function TopBar() {
       <a class="icon-button" href="/settings/appearance" aria-label="Settings" data-tip="Settings"><${Icon} name="settings" size=${16} /></a>
     </div>
   </header>`;
+}
+
+// this machine and each remote, with whether it answers; the tree's answer keeps it current.
+function Sources() {
+  const sources: { name: string; state: string; error?: string }[] = useCall(calls.tree()).data?.meta?.sources ?? [];
+  const remotes = sources.filter((s) => s.name !== "local");
+  if (!remotes.length) {
+    return html`<span class="source" data-tip="Sources: this machine. Remotes are configured under remotes: in the settings.">
+      <${Icon} name="server" size=${15} /> local</span>`;
+  }
+  return html`${[{ name: "local", state: "connected" }, ...remotes].map((s) => html`<a class=${`source ${s.state}`}
+      href=${groupUrl(s.name === "local" ? "." : s.name)}
+      data-tip=${s.state === "connected" ? `${s.name}: connected` : `${s.name}: unreachable. ${s.error ?? ""}`}>
+      <${Icon} name=${s.state === "connected" ? "server" : "cloud-off"} size=${15} /> ${s.name}</a>`)}`;
 }
 
 function useNow(everyMs: number): number {

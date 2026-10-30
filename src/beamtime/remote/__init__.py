@@ -25,3 +25,24 @@ def targets(params: dict[str, Any]) -> bool:
                 if isinstance(inner, dict) and str(inner.get("from", "")).startswith("@"):
                     return True
     return False
+
+
+def answer(name: str, params: dict[str, Any], ctx: Any) -> dict[str, Any]:
+    """Answer an operation for the CLI or MCP: through the running serve when remotes are
+    involved (it holds the connections and merges), else in this process.
+
+    :param name: The operation.
+    :param params: Its parameters.
+    :param ctx: The operation context.
+    :return: The answer."""
+    from beamtime.ops import call
+    from beamtime.ops.registry import BY_NAME
+
+    op = BY_NAME[name]
+    if not op.user_only and (targets(params) or ctx.settings.get("remotes")):
+        from beamtime.remote import via_serve
+
+        if via_serve.involves_remotes(ctx, op.tool, params):
+            if (found := via_serve.call(ctx, op.tool, params)) is not None:
+                return found
+    return call(name, params, ctx)
