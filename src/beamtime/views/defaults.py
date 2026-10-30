@@ -210,7 +210,8 @@ def curves(
     :param varying: Config keys that differ between runs, to aggregate by.
     :return: The nodes: a grid, and a section with more."""
     first = essential(metrics)
-    rest = [m for m in metrics if m not in first]
+    system = [m for m in metrics if m.startswith(SYSTEM)]
+    rest = [m for m in metrics if m not in first and m not in system]
     out = []
     if first:
         # viewers add charts and set view-wide chart options here; new charts copy this call.
@@ -223,9 +224,16 @@ def curves(
                     min_width=420)  # fmt: skip
         out.append(node("section", "more", title=f"More metrics ({len(rest)})", open=False,
                         children=[grid]))  # fmt: skip
+    if system:
+        grid = node("grid", "system-curves", children=[line(path, m, None, own) for m in system],
+                    min_width=420)  # fmt: skip
+        out.append(node("section", "system", title=f"System ({len(system)})", open=False,
+                        children=[grid]))  # fmt: skip
     return out
 
 
+# the SDK's system metrics: their own collapsed section, never a headline chart.
+SYSTEM = "sys/"
 EMPTY = (
     "No runs here yet. Runs appear once a script calls beamtime.init() with this group as its dir."
 )
@@ -311,6 +319,7 @@ def essential(metrics: list[str]) -> list[str]:
     :param metrics: The metrics, ordered.
     :return: At most four; schedules and diagnostics (lr, grad norms) are left for "more"."""
     prefix = lambda m: m.split("/", 1)[0] if "/" in m else ""  # noqa: E731
+    metrics = [m for m in metrics if not m.startswith(SYSTEM)]
     evals = [m for m in metrics if prefix(m) in EVAL_PREFIXES]
     losses = [m for m in metrics if prefix(m) == "train" and "loss" in m]
     plain = [m for m in metrics if not prefix(m) and lower_is_better(m) or m in ("acc", "accuracy")]

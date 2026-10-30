@@ -317,3 +317,15 @@ def test_authored_views_keep_notes_and_memory(ctx: Context) -> None:
     write_version(ctx, SWEEP, m.parse(placed, source="t"), None, None)
     blocks = [n["block"] for n in page_view(ctx, SWEEP)["view"]["children"]]
     assert blocks == ["notes", "line", "memory"]
+
+
+def test_system_metrics_get_their_own_section() -> None:
+    """sys/* metrics never lead; they sit in a collapsed System section."""
+    from beamtime.views.defaults import curves, essential
+
+    metrics = ["val/acc", "train/loss", "lr", "sys/cpu", "sys/gpu0/util"]
+    assert essential(["sys/cpu", "sys/memory"]) == []
+    nodes = {n["id"]: n for n in curves("g", metrics, None, False, [])}
+    assert [c["props"]["y"] for c in nodes["curves"]["children"]] == ["val/acc", "train/loss"]
+    assert nodes["system"]["props"]["title"] == "System (2)" and nodes["system"]["props"]["open"] is False
+    assert [c["props"]["y"] for c in nodes["more"]["children"][0]["children"]] == ["lr"]

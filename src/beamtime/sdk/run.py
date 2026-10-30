@@ -30,8 +30,11 @@ from beamtime.sdk.capture import Capture, LogFiles
 from beamtime.sdk.data import Data, plain
 from beamtime.sdk.paths import Location, find_run, locate
 from beamtime.sdk.stats import MetricStats
+from beamtime.sdk.system import Sampler, hardware
 
 FLUSH_EVERY_S = 2.0
+SYSTEM_EVERY_S = 30.0
+SYSTEM_SLOW_S = 2.0
 FLUSH_AT_BYTES = 1024 * 1024
 PENDING_CAP = 64 * 1024 * 1024
 COPY_BELOW = 100 * 1024 * 1024
@@ -224,6 +227,9 @@ class Run:
         self.wake = threading.Event()
         self.stopping = False
         self.pump = threading.Thread(target=self.pump_loop, name="beamtime-pump", daemon=True)
+        # system metrics: set by init unless turned off; the last step they were written at.
+        self.sampler: Sampler | None = None
+        self.sampled_step: int | None = None
 
     @property
     def id(self) -> str:
@@ -489,7 +495,7 @@ class Run:
 
     def pump_loop(self) -> None:
         """Write queued lines, beat the heart, and rewrite card and preview."""
-        beat = card = time.monotonic()
+        beat = card = system = time.monotonic()
         while True:
             self.wake.wait(FLUSH_EVERY_S)
             self.wake.clear()
@@ -504,8 +510,38 @@ class Run:
                 if now - card >= c.CARD_EVERY_S and not self.resuming:
                     card = now
                     self.write_card()
+                if now - system >= SYSTEM_EVERY_S and self.sampler is not None:
+                    system = now
+                    self.sample_system()
             except Exception as e:
                 self.warn(f"pump:{type(e).__name__}", f"writing run files failed: {e!r}")
+
+    def sample_system(self) -> None:
+        """Write a sample of system metrics at the current step, at most one per step.
+
+        Samples carry no time of their own and never move the step: they sit next to what
+        training logged. A sampler that fails or is slow turns itself off with one warning."""
+        sampler = self.sampler
+        if sampler is None or self.step is None or self.step == self.sampled_step:
+            return
+        started = time.monotonic()
+        try:
+            values = sampler.sample()
+        except Exception as e:
+            self.sampler = None
+            self.warn("system", f"system metrics failed ({e!r}); turned off")
+            return
+        if time.monotonic() - started > SYSTEM_SLOW_S:
+            self.sampler = None
+            self.warn("system", "sampling system metrics was slow; turned off")
+        with self.lock:
+            # the step at queueing time: rows in _metrics.jsonl never go back in step.
+            if not values or self.step is None or self.resuming or self.step == self.sampled_step:
+                return
+            for key, value in values.items():
+                self.stats.setdefault(key, MetricStats()).add(self.step, value)
+            self.queue(c.METRICS, {"_step": self.step, **values})
+            self.sampled_step = self.step
 
     def flush(self, *, sync: bool = False) -> None:
         """Write queued lines, files and config changes.
@@ -881,6 +917,7 @@ def init(
     config: Any = None,
     proposal: str | Path | dict[str, Any] | None = None,
     resume: str | None = None,
+    system_metrics: bool = True,
 ) -> Run | NullRun:
     """Start recording a run, or continue one.
 
@@ -892,6 +929,7 @@ def init(
     :param proposal: The run's own proposal: a statement, a dict, a path to a YAML
         file, or ``None`` (``BEAMTIME_PROPOSAL`` if set, else blank).
     :param resume: A run id to continue; ``None`` starts a new run.
+    :param system_metrics: Sample CPU, memory and GPUs every 30 s as ``sys/*`` metrics.
     :return: The run; a ``NullRun`` on ranks other than 0."""
     global _current
     location = locate(dir)
@@ -918,6 +956,8 @@ def init(
     if notebook:
         run.warn("notebook", "in a notebook, end the run with run.finish() or a with block")
     os.environ["BEAMTIME_RUN_DIR"] = str(run.dir)
+    if system_metrics:
+        run.sampler = Sampler()
     _current = run
     run.start()
     return run
@@ -959,7 +999,11 @@ def new_run(
         yaml.safe_dump(jsonable(doc), sort_keys=False).encode(),
     )
     proposals, hashes = proposals_of(location.logdir, run_dir, own)
-    host = env.host_info()
+    try:
+        host = env.host_info() | hardware()
+    except Exception:
+        # describing the hardware must never keep a run from starting.
+        host = env.host_info()
     git, diff = env.git_info(Path.cwd())
     environ = dict(os.environ)
     info: dict[str, Any] = {

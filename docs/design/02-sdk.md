@@ -226,8 +226,11 @@ Written once at `init`:
 **System metrics** are sampled by default every 30 seconds by the SDK's background thread and
 logged as `sys/cpu`, `sys/memory` (percent of the machine), `sys/proc_rss` (the process, in MB) and
 `sys/gpu<i>/util` and `sys/gpu<i>/memory` (percent). `init(system_metrics=False)` turns them off; a
-sampler that fails or takes longer than a second turns itself off with one warning. Standard library
-only, plus `nvidia-smi` as a subprocess where present.
+sampler that fails or takes longer than two seconds turns itself off with one warning. Standard
+library only, plus `nvidia-smi` as a subprocess where present. A sample sits at the run's current
+step (at most one per step, none before the first `log`) and carries no time of its own, so it
+never moves the step counter; what a platform can't tell (memory on macOS) is left out. The default
+view shows system metrics in a collapsed "System" section, never as headline charts.
 
 Scheduler detection fills the `scheduler` field; nothing else depends on it:
 
