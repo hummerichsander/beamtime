@@ -394,6 +394,13 @@ class BlockImportParams(Params, kw_only=True):
     name: Annotated[str | None, msgspec.Meta(description="one block; default all")] = None
 
 
+class PullParams(Params, kw_only=True):
+    """Parameters of ``pull``."""
+
+    target: Annotated[str, msgspec.Meta(description="remote:group, e.g. cluster:scaling/lr-sweep")]
+    drop: Annotated[bool, msgspec.Meta(description="remove the group from the snapshot")] = False
+
+
 class GuideParams(Params, kw_only=True):
     """Parameters of ``guide``."""
 
@@ -842,6 +849,14 @@ OPS = [
         positional=("group",),
         user_only=True,
         summary="Copy library blocks from a project, a folder or a git repository into a group.",
+    ),
+    Op(
+        name="pull",
+        params=PullParams,
+        impl="beamtime.remote.pull:pull_op",
+        positional=("target",),
+        user_only=True,
+        summary="Copy a remote group into a read-only snapshot that answers while it's away.",
     ),
     Op(
         name="note rm",

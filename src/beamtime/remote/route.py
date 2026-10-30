@@ -41,13 +41,14 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
     :param ctx: The operation context.
     :param local: Answers the call here.
     :return: The answer."""
+    from beamtime.remote.client import Unreachable
     from beamtime.remote.sources import client_for
 
     if (source := source_of(params)) is not None:
         if method in DRAFTS:
             raise OpError(
                 f"{method.replace('_', ' ')} works on drafts in this project; for a group on "
-                f"@{source}, run it there (ssh), or pull the group first",
+                f"@{source}, run it there (ssh)",
                 code=2,
             )
         stripped = strip(params, source)
@@ -56,7 +57,10 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
 
             # the laptop's author goes along; `user` is the account the remote runs as.
             stripped["author"] = stripped.get("author") or author_of(ctx, None)[0]
-        answer = client_for(ctx, source).request(method, stripped, caller=ctx.caller)
+        try:
+            answer = client_for(ctx, source).request(method, stripped, caller=ctx.caller)
+        except Unreachable as e:
+            return from_snapshot(method, strip(params, source), ctx, source, e)
         return prefix(answer, source)
     if method in LISTINGS and remote.active is not None and ctx.merge and fans_out(params):
         return federate(method, params, ctx, local)
@@ -70,6 +74,44 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
 
 # writes whose author the laptop names.
 AUTHORED = ("note_add", "proposal_set", "memory_update", "view_upgrade", "name")
+# what a read-only snapshot refuses.
+WRITES = (*AUTHORED, "view_text", "save_view", "note_rm")
+
+
+def from_snapshot(
+    method: str, params: dict[str, Any], ctx: Context, source: str, unreachable: OpError
+) -> Any:
+    """Answer for an unreachable remote from its pulled snapshot, at the snapshot's time.
+
+    :param method: The API method.
+    :param params: Its parameters, without the source's prefix.
+    :param ctx: The operation context.
+    :param source: The remote.
+    :param unreachable: Why the remote can't answer, raised again without a snapshot.
+    :return: The answer, marked with the snapshot's time."""
+    import dataclasses
+    import time
+
+    from beamtime.ops import call
+    from beamtime.ops.registry import BY_TOOL
+    from beamtime.remote.pull import snapshot_of
+    from beamtime.serve.api import dispatch_here
+
+    if (found := snapshot_of(ctx, source)) is None:
+        raise unreachable
+    folder, record = found
+    when = time.strftime("%Y-%m-%d %H:%M", time.localtime(record["at"]))
+    if method in WRITES:
+        raise OpError(f"{unreachable}; its snapshot of {when} is read-only", code=1)
+    here = dataclasses.replace(ctx, logdir=folder, now=record["at"], merge=False)
+    if (op := BY_TOOL.get(method)) is not None:
+        answer = call(op.name, params, here)
+    else:
+        answer = dispatch_here(here, method, params)
+    answer = prefix(answer, source)
+    if isinstance(answer, dict):
+        answer["meta"] = {**answer.get("meta", {}), "snapshot": record["at"], "snapshot_of": when}
+    return answer
 
 
 def source_of(params: dict[str, Any]) -> str | None:
@@ -204,7 +246,11 @@ def federate(method: str, params: dict[str, Any], ctx: Context, local: Local) ->
             answers.append((name, prefix(client.request(method, scoped, caller=ctx.caller), name)))
             states.append({"name": f"@{name}", "state": "connected"})
         except OpError as e:
-            states.append({"name": f"@{name}", "state": "unreachable", "error": str(e)})
+            try:
+                answers.append((name, from_snapshot(method, scoped, ctx, name, e)))
+                states.append({"name": f"@{name}", "state": "snapshot", "error": str(e)})
+            except OpError:
+                states.append({"name": f"@{name}", "state": "unreachable", "error": str(e)})
     merged = merge(method, answers, params, ctx)
     merged["meta"] = {**answers[0][1].get("meta", {}), **merged.get("meta", {}), "sources": states}
     return merged

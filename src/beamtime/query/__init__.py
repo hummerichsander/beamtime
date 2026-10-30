@@ -19,6 +19,7 @@ def run(
     base: str = ".",
     budget_s: float = 0.2,
     index: Index | None = None,
+    now: float | None = None,
 ) -> dict[str, Any]:
     """Answer a query in its object form.
 
@@ -28,6 +29,7 @@ def run(
     :param base: The group relative ``from`` paths start at (a view's group).
     :param budget_s: Seconds to spend catching up on new data first.
     :param index: An open index to reuse; by default one is opened and closed.
+    :param now: The time run status is judged at; default now (a snapshot passes its own).
     :return: The canonical answer with ``meta``, including freshness."""
     kind, q = parse(query)
     own = index is None
@@ -36,7 +38,8 @@ def run(
         target = q.view if kind == "file" else q.from_
         scope, run_id = resolve_from(index, base, target)
         freshness = index.catch_up(scope, budget_s)
-        ctx = Context(index=index, caller=caller, scope=scope, run_id=run_id, now=time.time())
+        now = now or time.time()
+        ctx = Context(index=index, caller=caller, scope=scope, run_id=run_id, now=now)
         answer = KIND_FUNCTIONS[kind](ctx, q)
         answer["meta"]["freshness"] = freshness.dump()
         return answer

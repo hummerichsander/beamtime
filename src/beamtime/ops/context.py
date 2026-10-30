@@ -33,6 +33,8 @@ class Context:
     caller: Caller = "cli"
     # listings of "." merge every source; the web UI's pages of this machine ask for it only here.
     merge: bool = True
+    # the time run status is judged at: now, or a snapshot's time.
+    now: float | None = None
 
     @classmethod
     def make(cls, *, root: str | Path | None = None, caller: Caller = "cli") -> "Context":

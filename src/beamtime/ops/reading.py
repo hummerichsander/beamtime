@@ -42,7 +42,7 @@ def ask(ctx: Context, query: dict[str, Any], cursor: str | None = None) -> dict[
             code=4,
         )
     try:
-        answer = run_query(query, logdir=ctx.logdir, caller=ctx.caller)
+        answer = run_query(query, logdir=ctx.logdir, caller=ctx.caller, now=ctx.now)
     except QueryError as e:
         raise OpError(str(e), code=4 if e.code == "not_found" else 2) from None
     answer["meta"] = {k: v for k, v in answer["meta"].items() if v is not None}
@@ -209,7 +209,8 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
         cited = cited_by(Target(index=index, rel=".", run_id=None), info.id)
     finally:
         index.close()
-    status = run_status(info, heartbeat=(run_dir / c.RUN).stat().st_mtime, now=time.time())
+    heartbeat = (run_dir / c.RUN).stat().st_mtime
+    status = run_status(info, heartbeat=heartbeat, now=ctx.now or time.time())
     run_card = read_card(run_dir) if (run_dir / c.CARD).exists() else None
     events = read_events(run_dir)
     return {

@@ -20,6 +20,10 @@ BACKOFF_S = (5.0, 15.0, 60.0)
 PROTOCOL = 1
 
 
+class Unreachable(OpError):
+    """A remote that can't answer now; a snapshot may answer for it."""
+
+
 @dataclass(kw_only=True)
 class Spec:
     """How to reach a remote: from the settings, or named on the command line."""
@@ -276,7 +280,7 @@ class RemoteClient:
         time.sleep(0.05)
         return " / ".join(list(self.stderr)[-3:]) or None
 
-    def unreachable(self) -> OpError:
+    def unreachable(self) -> Unreachable:
         """Describe why the remote can't answer.
 
         :return: The error to raise."""
@@ -286,7 +290,7 @@ class RemoteClient:
             if self.spec.transport == "ssh"
             else ""
         )
-        return OpError(f"@{self.name} is unreachable since {when}: {self.error}{hint}", code=1)
+        return Unreachable(f"@{self.name} is unreachable since {when}: {self.error}{hint}", code=1)
 
     def close(self) -> None:
         """End the connection; the remote end exits when its stdin closes."""

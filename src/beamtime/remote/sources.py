@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from beamtime.ops.context import Context, OpError
-from beamtime.remote.client import RemoteClient, Spec
+from beamtime.remote.client import RemoteClient, Spec, Unreachable
 
 
 def spec_of(name: str, conf: dict[str, Any]) -> Spec:
@@ -102,7 +102,8 @@ def client_for(ctx: Context, name: str) -> RemoteClient:
         configured = ctx.settings.get("remotes") or {}
         if name not in configured:
             known = ", ".join(f"@{n}" for n in sorted(configured)) or "none configured"
-            raise OpError(
+            # a pulled snapshot may still answer for a remote that isn't configured here.
+            raise Unreachable(
                 f"no source @{name} (remotes: {known}); add it under remotes: in the settings",
                 code=4,
             )

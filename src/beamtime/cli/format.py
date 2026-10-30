@@ -383,7 +383,9 @@ def render_status(answer: dict[str, Any]) -> str:
     if answer["web_ui"]:
         lines.append(f"web UI    {answer['web_ui']}")
     if answer["remotes"]:
-        lines.append(f"remotes   {', '.join(answer['remotes'])} (connected from milestone M8)")
+        states = {s["name"]: s["state"] for s in answer.get("sources") or []}
+        shown = [f"{r} ({states.get(f'@{r}', 'not connected')})" for r in answer["remotes"]]
+        lines.append(f"remotes   {', '.join(shown)}")
     if fresh := answer["meta"].get("freshness"):
         lines.append(fresh["text"])
     return "\n".join(lines)
