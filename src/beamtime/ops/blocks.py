@@ -46,7 +46,10 @@ def listing(ctx: Context, p: r.BlockListParams) -> dict[str, Any]:
     rows = []
     for name in library.names:
         found = library.get(name)
-        params = ", ".join(f"{k}: {v.kind}" for k, v in found.block.params.items())
+        params = ", ".join(
+            f"{k}: {v.kind}" + (f" = {v.default}" if v.default is not None else "")
+            for k, v in found.block.params.items()
+        )
         rows.append([name, found.version, found.group, params, found.block.description.strip()])
     lines = [f"{n} ({v}, in {g}): {d} [{ps}]" for n, v, g, ps, d in rows]
     return {
@@ -218,12 +221,10 @@ def validate(ctx: Context, p: r.BlockValidateParams) -> dict[str, Any]:
         answer["render"] = result
     found = [f.to_dict() for f in findings]
     errors = sum(f.level == "error" for f in findings)
-    return answer | {
-        "ok": errors == 0,
-        "findings": found,
-        "lines": summary(found, answer.get("render")),
-        "meta": {},
-    }
+    lines = summary(found, answer.get("render"))
+    if answer.get("render", {}).get("rendered"):
+        lines.append(f"`beamtime view render block-{p.draft}` takes screenshots of the examples")
+    return answer | {"ok": errors == 0, "findings": found, "lines": lines, "meta": {}}
 
 
 def save_draft(ctx: Context, p: r.BlockSaveParams) -> dict[str, Any]:

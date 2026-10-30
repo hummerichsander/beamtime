@@ -49,7 +49,7 @@ export default function render(root) {
 |---|---|
 | `bt.useData(name, values?)` | hook: a declared query's result; re-renders on new data |
 | `bt.data(name, values?)`, `bt.subscribe(name, cb, values?)` | the same as a promise, or a callback per update |
-| result | `status` (`loading`, `ready`, `error`), `error`, `columns`, `rows` (objects keyed by field), `curves` (`{run, key, group, x, y \| min, max, last, mean, count}`), `data` (the raw answer) |
+| result | `status` (`loading`, `ready`, `error`), `error`, `columns`, `rows` (objects keyed by field), `curves` (`{run, key, group, x, y \| min, max, last, mean, count}`), `data` (the raw answer); a `runs` answer's `columns` always start with `run.id`, selected or not |
 | `bt.chart.Line`, `Scatter`, `Bar`, `Histogram` | built-in charts: the props of their YAML form, plus `data` (a result) |
 | `bt.ui.Table`, `Stat`, `DataTable`, `Grid`, `Row`, `Section`, `Tabs`/`Tab`, `Note` | built-in blocks and layouts |
 | `bt.theme.tokens`, `.mode`, `.onChange(cb)` | the theme; also as CSS variables (`var(--bt-fg)`, `var(--bt-muted)`, ...) |
@@ -72,4 +72,33 @@ export default function render(root) {
 - Read field names from the query's `columns` instead of writing them into the code; such a block
   can become a library block later.
 - The render must show no errors, draw something and fit its width; a block that throws shows an
-  error panel with the message.
+  error panel with the message. The checks can't tell a chart drawn from the wrong column: look at
+  the screenshot.
+
+## Library blocks
+
+`block_promote` and `block_fork` write a draft `.beamtime/drafts/blocks/<name>/block.yaml`:
+
+```yaml
+schema: 1
+name: phase-map
+description: >                       # what it shows; "Use for ..."; "Not for ..."
+  Heatmap of a value over two config fields. Use for two-way sweeps. Not for single runs.
+params:                              # kind: field, fields, metric, metrics, number, string, bool
+  x: {kind: field, description: the config across}
+  y: {kind: field, default: config.seed}
+  value: {kind: field}
+  curves: {kind: metrics, default: [val/acc]}
+examples:                            # at least two; each is the params of one use
+  - {x: config.lr, value: metric.val/acc.max}
+  - {x: config.lr, y: config.wd, value: metric.val/loss.min, curves: [val/loss]}
+queries:                             # $param fills in when a view uses it; other $names at runtime
+  runs: {runs: {select: [run.id, $x, $y, $value]}}
+  detail: {series: {from: $run, y: $curves}}
+code: code/phase-map.js
+libs: [d3]
+```
+
+A list param fills a list in place (`select: [run.id, $fields]`). Number, string and bool params
+reach the code as `bt.params`. `block_validate` runs and renders every example as a use in a view
+of the draft's group; `view_render block-<name>` takes screenshots of them.

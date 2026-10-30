@@ -122,7 +122,7 @@ def test_promote_validate_save_and_reuse(ctx: Context, project: Path) -> None:
     folder = library_block(ctx, project)
     listing = call("block list", {"group": "scaling"}, ctx)
     assert listing["rows"][0][:4] == ["phase-map", listing["rows"][0][1], ".",
-                                      "x: field, y: field, value: field, curves: metrics"]  # fmt: skip
+                                      "x: field, y: field, value: field, curves: metrics = ['val/acc']"]  # fmt: skip
     version = listing["rows"][0][1]
     assert "export default" in call("block show", {"name": "phase-map"}, ctx)["code"]
 
