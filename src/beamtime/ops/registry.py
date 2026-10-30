@@ -446,6 +446,11 @@ class GcParams(Params, kw_only=True):
 class ServeParams(Params, kw_only=True):
     """Parameters of ``serve``."""
 
+    sources: Annotated[
+        list[str],
+        msgspec.Meta(description="remotes: names from the settings, name:group, or host:/path"),
+    ] = msgspec.field(default_factory=list)
+
     port: Annotated[int, msgspec.Meta(description="the first port to try")] = 8080
     no_ui: Annotated[bool, msgspec.Meta(description="only index, no web UI")] = False
     open: Annotated[bool, msgspec.Meta(description="open the UI in a browser")] = False
@@ -744,6 +749,7 @@ OPS = [
         name="serve",
         params=ServeParams,
         impl="beamtime.serve.server:serve",
+        positional=("sources",),
         user_only=True,
         summary="The web UI and the indexing daemon for this root; --no-ui only indexes.",
     ),

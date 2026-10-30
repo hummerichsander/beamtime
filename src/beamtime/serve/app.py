@@ -43,6 +43,7 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
             return error("the body is a JSON object of parameters", 2)
         if method == "watch":
             hub.watch(str(body.get("client")), dict(body.get("watched") or {}))
+            await run_in_threadpool(subscribe_remotes, hub)
             return reply({"kind": "watch", "watching": len(body.get("watched") or {})})
         try:
             answer = await run_in_threadpool(dispatch, ctx, method, body)
@@ -123,3 +124,22 @@ def error(message: str, code: int) -> Response:
     :param code: The operation's exit code.
     :return: The JSON error."""
     return reply({"error": message, "code": code}, STATUS.get(code, 400))
+
+
+def subscribe_remotes(hub: Hub) -> None:
+    """Tell each connected remote which of its scopes open pages watch.
+
+    :param hub: The live-update hub with every page's watched scopes."""
+    from beamtime import remote
+
+    if remote.active is None:
+        return
+    scopes = {scope for client in hub.clients.values() for scope in client.watched.values()}
+    for name, client in remote.active.clients.items():
+        if client.state != "connected":
+            continue
+        own = [s for s in scopes if s == f"@{name}" or s.startswith(f"@{name}/")]
+        mine = {s[len(name) + 2 :] or "." for s in own}
+        if "." in scopes:
+            mine.add(client.spec.scope)
+        client.subscribe(sorted(mine))

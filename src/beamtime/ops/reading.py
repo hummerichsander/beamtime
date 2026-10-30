@@ -368,9 +368,21 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         "daemon": daemon,
         "web_ui": f"http://localhost:{daemon['port']}" if daemon and daemon.get("port") else None,
         "remotes": sorted(ctx.settings.get("remotes") or {}),
+        "sources": sources(),
         "memory": memory,
         "meta": {"freshness": freshness.dump() if freshness else None},
     }
+
+
+def sources() -> list[dict[str, Any]]:
+    """Describe the remotes this process holds connections to.
+
+    :return: One entry per source: name, state, since when, error and version."""
+    from beamtime import remote
+
+    if remote.active is None:
+        return []
+    return [client.describe() for client in remote.active.clients.values()]
 
 
 def project_memory(index: Index) -> dict[str, Any] | None:

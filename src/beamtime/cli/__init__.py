@@ -94,6 +94,9 @@ def add_field(parser: argparse.ArgumentParser, field: Any, positional: bool) -> 
     required = field.required
     dest = field.name
     if positional:
+        if get_origin(unwrap(field.type)[0]) is list:
+            parser.add_argument(dest, metavar=name, nargs="*", default=[])
+            return
         if required:
             parser.add_argument(dest, metavar=name)
         else:

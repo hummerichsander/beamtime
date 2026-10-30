@@ -51,6 +51,7 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
     cache = cache_dir(ctx.logdir)
     hub = Hub()
     restart = threading.Event()
+    sources = start_sources(ctx, p, hub)
     daemon = Daemon(logdir=ctx.logdir, cache=cache, on_change=hub.changed)
     sock = None if p.no_ui else bind(p.port)
     daemon.port = None if sock is None else sock.getsockname()[1]
@@ -91,6 +92,11 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
         return {"kind": "serve", "lines": ["stopped"]}
     finally:
         daemon.stop()
+        if sources is not None:
+            from beamtime import remote
+
+            sources.close()
+            remote.active = None
         if sock is not None:
             sock.close()
         if restart.is_set():
@@ -158,6 +164,38 @@ def bind(port: int) -> socket.socket:
         sock.listen(128)
         return sock
     raise OpError(f"ports {port} to {port + PORT_TRIES - 1} are taken; pass --port")
+
+
+def start_sources(ctx: Context, p: r.ServeParams, hub: Any) -> Any:
+    """Register the remotes this serve talks to: those named, else all from the settings.
+
+    Each connects on first use; its change events reach the pages with the source's prefix.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :param hub: The live-update hub.
+    :return: The sources, or ``None`` without remotes."""
+    from beamtime import remote
+    from beamtime.remote.sources import Sources, parse_arg, spec_of
+
+    configured = ctx.settings.get("remotes") or {}
+    if p.sources:
+        specs = [parse_arg(arg, configured) for arg in p.sources]
+    else:
+        specs = [spec_of(name, conf) for name, conf in sorted(configured.items())]
+    if not specs:
+        return None
+    for spec in specs:
+        if p.cache and spec.cache is None:
+            spec.cache = p.cache
+
+    def changed(name: str, event: dict[str, Any]) -> None:
+        paths = event.get("paths") or []
+        hub.changed({f"@{name}" if q in (".", "") else f"@{name}/{q}" for q in paths})
+
+    remote.active = Sources(specs, on_event=changed)
+    say("Sources: " + ", ".join(f"@{s.name} ({s.host or s.name}:{s.path})" for s in specs))
+    return remote.active
 
 
 def code_files() -> dict[str, int]:

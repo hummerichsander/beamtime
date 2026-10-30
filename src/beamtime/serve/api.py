@@ -19,6 +19,8 @@ STATIC = Path(__file__).parent / "static"
 STARTED = time.time()
 PROTOCOL = 1
 READ_LIMIT = 4 << 20
+# page methods with a target, routed like operations; operations route inside `call`.
+PAGES = ("view", "summary", "save_view", "view_text", "code")
 
 
 def dispatch(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] | bytes:
@@ -28,6 +30,22 @@ def dispatch(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] 
     :param method: The method: an operation's MCP name, or a page or remote method.
     :param body: Its parameters.
     :return: The answer; a figure is a PDF."""
+    from beamtime import remote
+
+    if method in PAGES and (remote.active is not None or remote.targets(body)):
+        from beamtime.remote.route import routed
+
+        return routed(method, body, ctx, lambda given: dispatch_here(ctx, method, given))
+    return dispatch_here(ctx, method, body)
+
+
+def dispatch_here(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] | bytes:
+    """Answer one API call on this machine.
+
+    :param ctx: The operation context.
+    :param method: The method.
+    :param body: Its parameters.
+    :return: The answer."""
     match method:
         case "hello":
             return hello(ctx, body)
@@ -151,6 +169,7 @@ def meta(ctx: Context) -> dict[str, Any]:
     :param ctx: The operation context.
     :return: The answer."""
     from beamtime.ops.admin import figure_styles
+    from beamtime.ops.reading import sources
     from beamtime.views.theme import available, pair
 
     return {
@@ -173,6 +192,7 @@ def meta(ctx: Context) -> dict[str, Any]:
         },
         "themes": sorted({re.sub(r"-(light|dark)$", "", n) for n in available(ctx.root)}),
         "figure_styles": figure_styles(),
+        "sources": sources(),
     }
 
 

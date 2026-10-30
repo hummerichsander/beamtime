@@ -18,7 +18,7 @@ DEFAULTS: dict[str, Any] = {
 }
 # what `beamtime set` (and the web UI's settings page) may write into beamtime.yaml.
 SETTABLE = ("theme", "theme_mode", "figure_style")
-REMOTE_KEYS = ("host", "command", "cache", "path")
+REMOTE_KEYS = ("host", "command", "cache", "path", "transport")
 PROJECT_ONLY = ("logdir",)
 
 
