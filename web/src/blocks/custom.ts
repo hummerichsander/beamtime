@@ -120,7 +120,8 @@ export function Custom({ node }: { node: Node }) {
       if (rendering) console.warn(`[block ${node.id}] ${message}`);
       setState((s) => (s.warnings.includes(message) ? s : { ...s, warnings: [...s.warnings, message] }));
     };
-    let lastSave = 0;
+    // the first download always passes, however soon after the page loaded.
+    let lastSave = -Infinity;
     const prefs = prefsOf(view.path);
     const unhover = hovered.subscribe((run) => post({ type: "hover", run }));
     const unprefs = prefs.subscribe((v) => post({ type: "prefs", prefs: v }));
