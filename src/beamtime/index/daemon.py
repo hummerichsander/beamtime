@@ -69,16 +69,13 @@ class Daemon:
 
     def loop(self) -> None:
         """Index everything once, then poll for changes until stopped."""
-        index = Index(logdir=self.logdir, cache=self.cache)
-        try:
+        with Index(logdir=self.logdir, cache=self.cache) as index:
             while not self.stopping.is_set():
                 fresh = index.catch_up(".", budget_s=float("inf"), daemon=True)
                 self.write_status()
                 if fresh.changed and self.on_change is not None:
                     self.on_change(fresh.changed)
                 self.stopping.wait(self.poll_s)
-        finally:
-            index.close()
 
     def stop(self) -> None:
         """Stop indexing and release ``serve.lock``."""

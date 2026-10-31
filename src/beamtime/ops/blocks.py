@@ -17,8 +17,8 @@ from beamtime.format.io import write_created
 from beamtime.format.schema import SchemaError
 from beamtime.ops import call
 from beamtime.ops import registry as r
+from beamtime.ops.authored import author_of, save, target_of, written
 from beamtime.ops.context import Context, OpError
-from beamtime.ops.record import author_of, save, target_of, written
 from beamtime.views import code, store
 from beamtime.views import model as m
 from beamtime.views.library import (

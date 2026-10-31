@@ -317,13 +317,10 @@ def reindex(ctx: Context, p: r.NoParams) -> dict[str, Any]:
     :return: How long it took and how many runs it found."""
     if not ctx.logdir.is_dir():
         raise OpError(f"no log dir at {ctx.logdir}", code=4)
-    index = Index(logdir=ctx.logdir)
-    try:
+    with Index(logdir=ctx.logdir) as index:
         t = time.perf_counter()
         freshness = index.reindex()
         n = index.store.db.execute("SELECT count(*) FROM runs").fetchone()[0]
-    finally:
-        index.close()
     lines = [f"indexed {n} runs in {time.perf_counter() - t:.1f} s"]
     lines += [f"skipped {d}" for d in freshness.damaged]
     return answer("reindex", lines, runs=n)
@@ -353,8 +350,7 @@ def move(ctx: Context, p: r.MoveParams) -> dict[str, Any]:
     source = (ctx.logdir / p.source.strip("/")).resolve()
     if source.is_dir() and ctx.logdir in source.parents and not (source / c.RUN).exists():
         return move_group(ctx, source, p.to)
-    index, run_dir = find_run(ctx, p.source)
-    index.close()
+    run_dir = find_run(ctx, p.source)
     refuse_running(run_dir, "move")
     target = inside(ctx, p.to)
     if (target / c.RUN).exists():
@@ -428,8 +424,7 @@ def remove(ctx: Context, p: r.RemoveParams) -> dict[str, Any]:
     :return: Where it went."""
     target = (ctx.logdir / p.target).resolve()
     if not target.is_dir() or ctx.logdir not in target.parents:
-        index, target = find_run(ctx, p.target)
-        index.close()
+        target = find_run(ctx, p.target)
     for run_dir in iter_runs(target):
         refuse_running(run_dir, "remove")
     rel = target.relative_to(ctx.logdir)

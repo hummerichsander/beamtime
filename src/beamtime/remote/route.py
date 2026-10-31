@@ -88,7 +88,7 @@ def with_author(method: str, params: dict[str, Any], ctx: Context) -> dict[str, 
     :return: The parameters; ``user`` is still the account the remote runs as."""
     if method not in AUTHORED:
         return params
-    from beamtime.ops.record import author_of
+    from beamtime.ops.authored import author_of
 
     return params | {"author": params.get("author") or author_of(ctx, None)[0]}
 

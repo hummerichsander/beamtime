@@ -251,13 +251,10 @@ def page_of(ctx: Context, path: str) -> tuple[str, str | None]:
     name = path.rsplit("/", 1)[-1]
     run = name if is_run_id(name) else None
     if run is not None:
-        index = Index(logdir=ctx.logdir)
-        try:
+        with Index(logdir=ctx.logdir) as index:
             if (found := index.run_path(run)) is None:
                 index.catch_up(".", budget_s=0)
                 found = index.run_path(run)
-        finally:
-            index.close()
         if found is None:
             raise OpError(f"no run {run!r} below the log dir", code=4)
         path = found.relative_to(ctx.logdir).as_posix()
@@ -316,11 +313,8 @@ def locate(ctx: Context, run_id: str, rel: str) -> Path | None:
 
     if not is_run_id(run_id):
         return None
-    index = Index(logdir=ctx.logdir)
-    try:
+    with Index(logdir=ctx.logdir) as index:
         run_dir = index.run_path(run_id)
-    finally:
-        index.close()
     if run_dir is None:
         return None
     path = (run_dir / rel).resolve()

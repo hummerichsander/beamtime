@@ -99,8 +99,7 @@ class Remote:
         """Catch up the watched scopes every few seconds and report what changed."""
         from beamtime.index.index import Index
 
-        index = Index(logdir=self.ctx.logdir)
-        try:
+        with Index(logdir=self.ctx.logdir) as index:
             while not self.stopping.wait(WATCH_S):
                 changed: set[str] = set()
                 for scope in sorted(self.watched):
@@ -110,8 +109,6 @@ class Remote:
                         continue
                 if changed:
                     self.send({"event": "changed", "paths": sorted(changed)})
-        finally:
-            index.close()
 
 
 def run(*, logdir: str, cache: str | None = None) -> int:

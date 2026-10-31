@@ -168,29 +168,26 @@ def query(ctx: Context, p: r.QueryParams) -> dict[str, Any]:
     return ask(ctx, p.query, p.cursor)
 
 
-def find_run(ctx: Context, run_id: str) -> tuple[Index, Path]:
-    """Find a run by id (or a unique id suffix) after catching up.
+def find_run(ctx: Context, run_id: str) -> Path:
+    """Find a run by id (or a unique id suffix, or its name) after catching up.
 
     :param ctx: The operation context.
     :param run_id: The run id.
-    :return: The open index and the run directory."""
-    index = Index(logdir=ctx.logdir)
-    if (path := index.run_path(run_id)) is None:
-        index.catch_up(".", budget_s=0.2)
-        path = index.run_path(run_id)
+    :return: The run directory."""
+    with Index(logdir=ctx.logdir) as index:
+        if (path := index.run_path(run_id)) is None:
+            index.catch_up(".", budget_s=0.2)
+            path = index.run_path(run_id)
+        if path is None:
+            hits = index.store.db.execute(
+                "SELECT path FROM runs WHERE id LIKE ? OR name = ?", (f"%{run_id}", run_id)
+            ).fetchall()
+            if len(hits) > 1:
+                raise OpError(f"{run_id!r} matches {len(hits)} runs; give the full run id", code=2)
+            path = ctx.logdir / hits[0][0] if hits else None
     if path is None:
-        hits = index.store.db.execute(
-            "SELECT path FROM runs WHERE id LIKE ? OR name = ?", (f"%{run_id}", run_id)
-        ).fetchall()
-        if len(hits) == 1:
-            path = ctx.logdir / hits[0][0]
-        elif len(hits) > 1:
-            index.close()
-            raise OpError(f"{run_id!r} matches {len(hits)} runs; give the full run id", code=2)
-    if path is None:
-        index.close()
         raise OpError(f"no run {run_id!r} below {ctx.logdir}; `beamtime runs` lists them", code=4)
-    return index, path
+    return path
 
 
 def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
@@ -203,14 +200,12 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
     from beamtime.record.check import cited_by
     from beamtime.record.proposals import Target
 
-    index, run_dir = find_run(ctx, p.run)
-    try:
+    run_dir = find_run(ctx, p.run)
+    with Index(logdir=ctx.logdir) as index:
         freshness = index.catch_up(run_dir.relative_to(ctx.logdir).as_posix(), 0.2)
         info = read_run_info(run_dir)
         proposals = run_proposals(index, run_dir, info.proposals)
         cited = cited_by(Target(index=index, rel=".", run_id=None), info.id)
-    finally:
-        index.close()
     heartbeat = (run_dir / c.RUN).stat().st_mtime
     status = run_status(info, heartbeat=heartbeat, now=ctx.now or time.time())
     run_card = read_card(run_dir) if (run_dir / c.CARD).exists() else None
@@ -302,8 +297,7 @@ def output(ctx: Context, p: r.OutputParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer: ``lines`` and how many there were in total."""
-    index, run_dir = find_run(ctx, p.run)
-    index.close()
+    run_dir = find_run(ctx, p.run)
     lines = [collapse(line) for line in read_output(run_dir, rank=p.rank).splitlines()]
     total = len(lines)
     if p.grep:
@@ -347,8 +341,7 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer."""
-    index = Index(logdir=ctx.logdir)
-    try:
+    with Index(logdir=ctx.logdir) as index:
         freshness = index.catch_up(".", 0.2) if ctx.logdir.is_dir() else None
         now = time.time()
         counts = Counter(
@@ -357,8 +350,6 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         )
         cache = index.cache
         memory = project_memory(index) if ctx.logdir.is_dir() else None
-    finally:
-        index.close()
     daemon = daemon_status(cache)
     return {
         "kind": "status",

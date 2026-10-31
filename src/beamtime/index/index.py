@@ -266,3 +266,15 @@ class Index:
     def close(self) -> None:
         """Close the database connection."""
         self.store.db.close()
+
+    def __enter__(self) -> "Index":
+        """Use the index in a ``with`` block, which closes it.
+
+        :return: The index."""
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        """Close the index.
+
+        :param exc: The exception, if any."""
+        self.close()

@@ -311,7 +311,7 @@ def about(ctx: Context, group: str) -> str:
     :param ctx: The operation context.
     :param group: The group or run.
     :return: Markdown."""
-    from beamtime.ops.record import target_of
+    from beamtime.ops.authored import target_of
     from beamtime.views.defaults import ordered_metrics, varying_config
     from beamtime.views.library import Library
     from beamtime.views.store import outdated, read, saved
