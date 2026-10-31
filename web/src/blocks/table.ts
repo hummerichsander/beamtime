@@ -73,7 +73,8 @@ function cell(column: string, v: unknown, id: string, live: boolean, color: stri
         data-tip=${off ? "Show in charts (shift: only this)" : "Hide in charts (shift: only this)"} onClick=${toggle}></button>
       <a href=${runUrl(id)} onClick=${(e: Event) => e.stopPropagation()}>${v ?? id}</a></td>`;
   }
-  if (column === "run.status") return html`<td><${Sym} spec=${symbolFor("run", v as string)} /></td>`;
+  // a finished run is the usual case: its check mark says enough; every other state is also named.
+  if (column === "run.status") return html`<td><${Sym} spec=${symbolFor("run", v as string)} word=${v !== "finished"} /></td>`;
   if (column === "run.group") {
     return html`<td><a href=${groupUrl(String(v))} onClick=${(e: Event) => e.stopPropagation()}>${v}</a></td>`;
   }

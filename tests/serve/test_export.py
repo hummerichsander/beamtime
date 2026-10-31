@@ -93,6 +93,7 @@ def test_an_export_opens_from_disk(chromium, ctx: Context, project: Path, tmp_pa
     out = tmp_path / "out"
     answer = call("export", {"group": SWEEP, "html": str(out)}, ctx)
     assert answer["answers"] > 5 and (out / "index.html").is_file()
+    assert "preact" in (out / "static" / "THIRD_PARTY_LICENSES.txt").read_text()
     run = call("data", {"from": SWEEP, "key": "samples"}, ctx)["entries"][0]["run"]
     images = tmp_path / "run"
     call("export", {"group": run, "html": str(images)}, ctx)

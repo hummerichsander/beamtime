@@ -1,14 +1,18 @@
 // Bundle the frontend into the Python package: src/beamtime/serve/static.
 
 import { build } from "esbuild";
-import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 
 const out = "../src/beamtime/serve/static";
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
-await build({
+// every build's inputs, to name the packages the bundle carries.
+const inputs = new Set();
+const keep = (result) => Object.keys(result.metafile.inputs).forEach((f) => inputs.add(f));
+keep(await build({
   entryPoints: { app: "src/main.ts", kit: "src/kit/frame.ts" },
   bundle: true,
+  metafile: true,
   splitting: true,
   format: "esm",
   minify: true,
@@ -19,12 +23,13 @@ await build({
   legalComments: "none",
   logLevel: "warning",
   define: { __EXPORT__: "false" },
-});
+}));
 // pages exported as static HTML open from disk, where browsers load no ES modules: the page and the
 // custom-block kit as classic scripts, libraries included (beamtime export --html).
-await build({
+keep(await build({
   entryPoints: { main: "src/main.ts", kit: "src/kit/frame.ts" },
   bundle: true,
+  metafile: true,
   format: "iife",
   minify: true,
   target: "es2022",
@@ -32,7 +37,7 @@ await build({
   legalComments: "none",
   logLevel: "warning",
   define: { __EXPORT__: "true" },
-});
+}));
 // KaTeX's stylesheet, loaded by the Markdown renderer when a text has math; woff2 fonts only.
 const woff2Only = {
   name: "woff2-only",
@@ -43,16 +48,35 @@ const woff2Only = {
     }));
   },
 };
-await build({
+keep(await build({
   entryPoints: { katex: "node_modules/katex/dist/katex.min.css" },
   bundle: true,
+  metafile: true,
   minify: true,
   outdir: out,
   assetNames: "fonts/[name]-[hash]",
   loader: { ".woff2": "file" },
   plugins: [woff2Only],
   logLevel: "warning",
-});
+}));
 await copyFile("src/index.html", `${out}/index.html`);
 await mkdir(`${out}/kit`, { recursive: true });
 await copyFile("src/kit/frame.html", `${out}/kit/frame.html`);
+await writeFile(`${out}/THIRD_PARTY_LICENSES.txt`, await licenses());
+
+// the licenses of the packages bundled into the frontend, which ship with it (their notices are
+// stripped from the minified files).
+async function licenses() {
+  const names = [...new Set([...inputs].map((f) => f.match(/node_modules\/((?:@[^/]+\/)?[^/]+)/)?.[1]).filter(Boolean))].sort();
+  const parts = [
+    "Beamtime's web interface bundles the following packages. Their licenses follow.\n",
+  ];
+  for (const name of names) {
+    const dir = `node_modules/${name}`;
+    const pkg = JSON.parse(await readFile(`${dir}/package.json`, "utf8"));
+    const file = (await readdir(dir)).find((f) => /^(licen[cs]e|copying)(\.|$)/i.test(f));
+    if (!file) throw new Error(`${name} has no license file to ship`);
+    parts.push(`${"=".repeat(78)}\n${name} ${pkg.version} (${pkg.license})\n${"=".repeat(78)}\n\n${(await readFile(`${dir}/${file}`, "utf8")).trim()}\n`);
+  }
+  return parts.join("\n");
+}

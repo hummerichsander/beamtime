@@ -299,7 +299,8 @@ def write(
     (out / "static" / "export" / "frame.js").write_text(
         f"window.__BT_FRAME__ = {json.dumps(frame)};\n"
     )
-    (out / "static" / "katex.css").write_bytes((static / "katex.css").read_bytes())
+    for name in ("katex.css", "THIRD_PARTY_LICENSES.txt"):
+        (out / "static" / name).write_bytes((static / name).read_bytes())
     (out / "static" / "fonts").mkdir()
     for font in (static / "fonts").iterdir():
         (out / "static" / "fonts" / font.name).write_bytes(font.read_bytes())

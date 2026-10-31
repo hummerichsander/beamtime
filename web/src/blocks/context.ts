@@ -120,6 +120,7 @@ export function Groups({ node }: { node: Node }) {
           <${Sym} spec=${symbolFor("research", r.status)} />
           <span class="gname">${r.path.split("/").pop()}</span>
           <span class="gfacts">
+            ${r.status !== "concluded" ? html`<span class=${`sym-word tone-${symbolFor("research", r.status).tone}`}>${symbolFor("research", r.status).label}</span>` : null}
             ${r.check ? html`<${Sym} spec=${symbolFor("result", r.check)} word />` : null}
             ${r.verdict ? html`<${Sym} spec=${symbolFor("verdict", r.verdict)} />` : null}
             ${progress ? html`<span data-tip=${more}>${progress}</span>` : null}

@@ -14,6 +14,12 @@ dependencies = [
     "pyyaml>=6.0.3",
 ]
 
+[project.urls]
+Homepage = "https://github.com/hummerichsander/beamtime"
+Documentation = "https://hummerichsander.github.io/beamtime/"
+Repository = "https://github.com/hummerichsander/beamtime"
+Changelog = "https://github.com/hummerichsander/beamtime/blob/main/CHANGELOG.md"
+
 [project.scripts]
 beamtime = "beamtime.cli:main"
 

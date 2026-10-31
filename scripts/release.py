@@ -18,13 +18,14 @@ from typing import NoReturn
 import tomllib
 
 ROOT = Path(__file__).parents[1]
-# files a wheel must hold: the frontend (and its export bundle), the agent guide, the themes and
-# the renderer's layout checks.
+# files a wheel must hold: the frontend (with its export bundle and the licenses of the packages
+# it bundles), the agent guide, the themes and the renderer's layout checks.
 REQUIRED = (
     "beamtime/serve/static/index.html",
     "beamtime/serve/static/app.js",
     "beamtime/serve/static/kit.js",
     "beamtime/serve/static/katex.css",
+    "beamtime/serve/static/THIRD_PARTY_LICENSES.txt",
     "beamtime/serve/static/export/main.js",
     "beamtime/serve/static/export/kit.js",
     "beamtime/guide/parts/instructions.md",

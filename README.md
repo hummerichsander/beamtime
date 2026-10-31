@@ -31,10 +31,13 @@ beamtime mcp install       # and in Claude Code
 
 ## Documentation
 
-Start with the [quickstart](docs/quickstart.md), then [how it works](docs/how-it-works.md). The
-[guides](docs/index.md) cover agents, proposals and verdicts, pages, clusters, remote machines,
-PyTorch Lightning, sharing and figures, and settings.
+**[hummerichsander.github.io/beamtime](https://hummerichsander.github.io/beamtime/)**: start with
+the [quickstart](https://hummerichsander.github.io/beamtime/quickstart.html), then
+[how it works](https://hummerichsander.github.io/beamtime/how-it-works.html). The guides cover
+agents, proposals and verdicts, pages, clusters, remote machines, PyTorch Lightning, sharing and
+figures, and settings. The same pages are in [`docs/`](docs/index.md).
 
 ## License
 
-Apache 2.0.
+Apache 2.0. The web interface bundles third-party packages under MIT, ISC, BSD-3-Clause,
+Apache-2.0 and Unlicense terms; their licenses ship with it in `THIRD_PARTY_LICENSES.txt`.
