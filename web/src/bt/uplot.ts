@@ -101,9 +101,10 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
         },
       },
       axes: [
-        { ...axisOf(spec.style, spec.formatX), size: 30 },
+        // read through `current`: a chart kept in place on update still formats the new x axis.
+        { ...axisOf(spec.style, (v) => current.formatX(v)), size: 30 },
         {
-          ...axisOf(spec.style, spec.formatY),
+          ...axisOf(spec.style, (v) => current.formatY(v)),
           size: 52,
           // symlog keeps uPlot's own ticks; log and linear get ours, which uPlot mustn't thin.
           ...(spec.scale === "symlog"
@@ -250,7 +251,8 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
         next.scale === current.scale &&
         next.asinh === current.asinh &&
         !!next.raw === !!current.raw &&
-        next.height === current.height;
+        next.height === current.height &&
+        sameStyle(next.style, current.style);
       if (!same) return false;
       current = next;
       // setData without resetting scales keeps index ranges of the old data, and later redraws
@@ -287,6 +289,11 @@ function png(u: uPlot, background: string | null): string {
   }
   ctx.drawImage(src, 0, 0);
   return out.toDataURL("image/png");
+}
+
+// axis and grid colors are set when a chart is built: another theme rebuilds it.
+function sameStyle(a: ChartStyle, b: ChartStyle): boolean {
+  return (Object.keys(a) as (keyof ChartStyle)[]).every((k) => a[k] === b[k]);
 }
 
 function axisOf(style: ChartStyle, format: (v: number) => string, splits?: () => number[]): uPlot.Axis {

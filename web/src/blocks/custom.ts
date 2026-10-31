@@ -103,6 +103,12 @@ export function Custom({ node }: { node: Node }) {
     };
   }, [code.status, code.data, frame]);
 
+  // the frame follows the page's run names, colors and metrics as they change.
+  useEffect(() => {
+    const msg: ToFrame = { type: "context", names: [...view.names], colors: [...view.colors], metrics: view.metrics };
+    frame?.contentWindow?.postMessage(msg, "*");
+  }, [view.names, view.colors, view.metrics, frame]);
+
   // the frame follows the page's theme.
   useEffect(() => {
     if (theme) frame?.contentWindow?.postMessage({ type: "theme", theme } satisfies ToFrame, "*");

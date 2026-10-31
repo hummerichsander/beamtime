@@ -147,7 +147,9 @@ export function BarBlock({ node }: { node: Node }) {
         for (const b of items) {
           const c = colorOf(b);
           const [x0, x1] = [x(center(b) - w * 0.44), x(center(b) + w * 0.44)];
-          ctx.globalAlpha = focused !== null && focused !== keyOf(b) ? 0.45 : 1;
+          // focused is this chart's own bar, or a run hovered anywhere on the page.
+          const lit = focused === keyOf(b) || (focused !== null && b.runs.includes(focused));
+          ctx.globalAlpha = focused !== null && !lit ? 0.45 : 1;
           ctx.fillStyle = c;
           ctx.beginPath();
           ctx.roundRect(x0, Math.min(y(b.value), y(0)), x1 - x0, Math.abs(y(0) - y(b.value)), 3 * px);

@@ -22,6 +22,7 @@ export type ToFrame =
   | { type: "ping" }
   | { type: "init"; init: Init }
   | { type: "theme"; theme: Theme }
+  | { type: "context"; names: [string, string][]; colors: [string, string][]; metrics: Record<string, MetricInfo> }
   | { type: "result"; id: string; result: Result };
 
 export type ToPage =

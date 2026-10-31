@@ -2,9 +2,10 @@
 // the code on the kit, and reports its height, readiness, errors and layout back.
 
 import { busy, deliver, setRemote } from "../api.ts";
-import { theme } from "../bt/index.ts";
+import { theme, type ViewContext } from "../bt/index.ts";
 import { cssVariables, type Theme } from "../bt/theme.ts";
 import { setAway } from "../router.ts";
+import { Store } from "../state.ts";
 import { makeKit } from "./index.ts";
 import type { Init, ToFrame, ToPage } from "./protocol.ts";
 
@@ -15,6 +16,8 @@ const LIBS: Record<string, () => Promise<unknown>> = {
 };
 
 let started = false;
+// the page's run names, colors and metrics; updated when the page's change.
+const view = new Store<ViewContext>({ path: ".", colors: new Map(), names: new Map(), metrics: {} });
 
 function send(msg: ToPage): void {
   parent.postMessage(msg, "*");
@@ -49,7 +52,7 @@ async function start(init: Init): Promise<void> {
     if (!load) throw new Error(`no library '${name}'; the kit offers ${Object.keys(LIBS).join(", ")}`);
     libs[name] = await load();
   }
-  const view = { path: init.path, colors: new Map(init.colors), names: new Map(init.names), metrics: init.metrics };
+  view.set({ path: init.path, colors: new Map(init.colors), names: new Map(init.names), metrics: init.metrics });
   (window as any).bt = makeKit({ queries: init.queries, params: init.params, view, libs, warn: (message) => send({ type: "warn", message }) });
   const url = URL.createObjectURL(new Blob([init.code], { type: "text/javascript" }));
   const mod = await import(/* @vite-ignore */ url);
@@ -92,6 +95,9 @@ addEventListener("message", (e: MessageEvent<ToFrame>) => {
       break;
     case "theme":
       applyTheme(msg.theme);
+      break;
+    case "context":
+      view.set({ ...view.value, names: new Map(msg.names), colors: new Map(msg.colors), metrics: msg.metrics });
       break;
     case "result":
       deliver(msg.id, msg.result);

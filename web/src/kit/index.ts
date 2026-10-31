@@ -3,7 +3,7 @@
 
 import { h, render, toChildArray, type ComponentChildren, type RefObject, type VNode } from "preact";
 import * as hooks from "preact/hooks";
-import { useContext, useEffect, useRef, useState } from "preact/hooks";
+import { useContext, useEffect, useId, useRef, useState } from "preact/hooks";
 import { html } from "htm/preact";
 
 import { fetchCall, useCall, watch, type Call } from "../api.ts";
@@ -14,13 +14,14 @@ import * as fmt from "../bt/fmt.ts";
 import { lineChart } from "../bt/plot.ts";
 import { groupColors, ramp } from "../bt/theme.ts";
 import { groupUrl, runUrl } from "../router.ts";
+import { Store, useStore } from "../state.ts";
 import { fill, placeholders } from "./protocol.ts";
 import { shape, type KitResult } from "./shape.ts";
 
 export type Host = {
   queries: Record<string, Call>;
   params: Record<string, unknown>;
-  view: ViewContext;
+  view: Store<ViewContext>;
   libs: Record<string, unknown>;
   warn(message: string): void;
 };
@@ -57,8 +58,10 @@ export function makeKit(host: Host) {
     function KitBlock(props: Record<string, any>) {
       const { data, id, ...rest } = props;
       fill?.(rest, data);
-      const node: Node = { block, id: id ?? block, props: rest, data: data?.call ? { main: data.call } : undefined };
-      return html`<${ViewCtx.Provider} value=${host.view}><${Block} node=${node} /><//>`;
+      // each chart its own id, so two charts of a block keep their own settings.
+      const own = `${block}-${useId().replace(/\W/g, "")}`;
+      const node: Node = { block, id: id ?? own, props: rest, data: data?.call ? { main: data.call } : undefined };
+      return html`<${ViewCtx.Provider} value=${useStore(host.view)}><${Block} node=${node} /><//>`;
     };
   const metricsFrom = (props: any, data: KitResult | undefined) => {
     props.y ??= data?.call?.params.y;
@@ -136,7 +139,7 @@ export function makeKit(host: Host) {
         return theme.value?.type ?? "light";
       },
       onChange: (cb: (t: unknown) => void) => theme.subscribe(cb),
-      runColor: (id: string) => host.view.colors.get(id) ?? runColors([id], theme.value).get(id),
+      runColor: (id: string) => host.view.value.colors.get(id) ?? runColors([id], theme.value).get(id),
       groupColor: (values: unknown[], value: unknown): string | undefined => (theme.value ? groupColors(values, theme.value).get(JSON.stringify(value)) : undefined),
       scale(kind: "sequential" | "diverging" | "categorical") {
         const d: any = theme.value?.data ?? {};
@@ -153,7 +156,7 @@ export function makeKit(host: Host) {
     },
     fmt,
     label: fmt.label,
-    name: (run: string) => host.view.names.get(run) ?? run,
+    name: (run: string) => host.view.value.names.get(run) ?? run,
     link: { run: runUrl, group: groupUrl },
     useSize,
     useContext,
