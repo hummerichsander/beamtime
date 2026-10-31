@@ -1,8 +1,8 @@
 # Beamtime
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/hummerichsander/beamtime/main/docs/design/features-dark.svg?v=f091c923">
-  <img alt="What Beamtime adds: testable hypotheses, people and agents working on one shared record, notes and memory written together, views built from reusable blocks, plain files you own, and cluster runs seen from your laptop over ssh." src="https://raw.githubusercontent.com/hummerichsander/beamtime/main/docs/design/features-light.svg?v=31084776" width="100%">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/hummerichsander/beamtime/main/docs/design/features-dark.svg?v=e1616351">
+  <img alt="What Beamtime adds: testable hypotheses, people and agents working on one shared record, notes and memory written together, views built from reusable blocks, plain files you own, and cluster runs seen from your laptop over ssh." src="https://raw.githubusercontent.com/hummerichsander/beamtime/main/docs/design/features-light.svg?v=44e9ec05" width="100%">
 </picture>
 
 Beamtime keeps track of your numerical experiments (simulations, training runs, parameter scans),
