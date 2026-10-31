@@ -1,0 +1,16 @@
+category: record
+smoke: false
+page: scaling/lr-sweep
+prompt: >
+  Make a page for scaling/lr-sweep that tells its story: the proposal, what happened over time
+  (notes, failed and killed runs) and the verdict. Save it as the group's view.
+facts:
+  runs: [diverging, killed]
+  finding: "The proposal was confirmed: lr 3e-4 is best; one run diverged and one was killed."
+  overclaims: ["the proposal was refuted"]
+checklist:
+  - The page shows the proposal and its predictions with their results.
+  - It shows a timeline or notes in time order.
+  - The failed (diverged) and killed runs are visible.
+  - The verdict (confirmed) is visible.
+  - The page has no error messages or empty blocks.

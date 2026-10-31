@@ -8,9 +8,10 @@ import dataclasses
 import secrets
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from importlib.resources import files
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -41,6 +42,50 @@ def render_draft(
     :param theme: ``light`` or ``dark``.
     :param width: The page width in CSS pixels.
     :return: ``{rendered, findings, shots}``, or ``{rendered: False, reason, command}``."""
+    path = "/".join(quote(part) for part in d.group.split("/")) if d.group != "." else ""
+    url = f"/f/local/{path}?draft={quote(d.name)}&render=1&theme={theme}"
+    shoot = (lambda page: screenshots(ctx, page, d, block, theme)) if shots else None
+    return rendered(ctx, url, theme=theme, width=width, shoot=shoot)
+
+
+def render_page(
+    ctx: Context, path: str, file: Path, *, theme: str = "light", width: int = 1280
+) -> dict[str, Any]:
+    """Render a page's saved view once and screenshot it.
+
+    :param ctx: The operation context.
+    :param path: The group or run path.
+    :param file: Where the screenshot goes.
+    :param theme: ``light`` or ``dark``.
+    :param width: The page width in CSS pixels.
+    :return: ``{rendered, findings, shots}``, or ``{rendered: False, reason, command}``."""
+    rel = "/".join(quote(part) for part in path.split("/")) if path != "." else ""
+
+    def shoot(page: Any) -> list[dict[str, Any]]:
+        file.parent.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(file), full_page=True)
+        return [{"file": str(file), "block": None}]
+
+    url = f"/f/local/{rel}?render=1&theme={theme}"
+    return rendered(ctx, url, theme=theme, width=width, shoot=shoot)
+
+
+def rendered(
+    ctx: Context,
+    url: str,
+    *,
+    theme: str,
+    width: int,
+    shoot: Callable[[Any], list[dict[str, Any]]] | None,
+) -> dict[str, Any]:
+    """Open a page in an installed browser: its findings, and its screenshots if asked.
+
+    :param ctx: The operation context.
+    :param url: The page's URL path with its query.
+    :param theme: ``light`` or ``dark``.
+    :param width: The page width in CSS pixels.
+    :param shoot: Takes the screenshots of the settled page, if any.
+    :return: ``{rendered, findings, shots}``, or ``{rendered: False, reason, command}``."""
     try:
         from playwright.sync_api import Error, sync_playwright
     except ImportError:
@@ -59,18 +104,16 @@ def render_draft(
                 "console",
                 lambda m: m.type == "error" and findings.append(error(f"console: {m.text}")),
             )
-            path = "/".join(quote(part) for part in d.group.split("/")) if d.group != "." else ""
-            url = f"{base}/f/local/{path}?draft={quote(d.name)}&render=1&theme={theme}"
             page.goto(f"{base}/f/local?token={token}&render=1")
             started = time.monotonic()
-            page.goto(url)
+            page.goto(f"{base}{url}")
             if not settle(page):
                 findings.append(error(f"the page didn't finish rendering within {TIME_LIMIT_S} s"))
             out["seconds"] = round(time.monotonic() - started, 2)
             out["rendered"] = True
             findings += page.evaluate(files(__package__).joinpath("checks.js").read_text())
-            if shots:
-                out["shots"] = screenshots(ctx, page, d, block, theme)
+            if shoot is not None:
+                out["shots"] = shoot(page)
         except Error as e:
             findings.append(error(f"the render failed: {e}"))
         finally:

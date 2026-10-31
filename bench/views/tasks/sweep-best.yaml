@@ -1,0 +1,18 @@
+category: sweep
+smoke: true
+page: scaling/lr-sweep
+prompt: >
+  I ran a learning-rate sweep in scaling/lr-sweep. Build a page that makes clear which learning rate
+  works best on validation accuracy, and save it as the group's view.
+facts:
+  metrics: [val/acc]
+  finding: "lr 3e-4 gives the best final val/acc (about 0.93); high rates are a few points worse."
+  overclaims: ["lr 0.01 is best", "the differences are statistically significant", "all learning rates perform the same"]
+checklist:
+  - The page shows validation accuracy (val/acc) against the learning rate or per learning rate.
+  - It is possible to read off that lr 3e-4 (0.0003) is best.
+  - Runs with the same learning rate are grouped or averaged over seeds, or seeds are visible.
+  - The finding at the top states the best learning rate.
+  - Every chart has a title or caption saying what it shows.
+  - Axes or columns are labelled with metric and config names.
+  - The page has no error messages or empty charts.

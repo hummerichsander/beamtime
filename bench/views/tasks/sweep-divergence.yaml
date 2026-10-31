@@ -1,0 +1,19 @@
+category: failures
+smoke: true
+page: scaling/lr-sweep
+prompt: >
+  One run in scaling/lr-sweep blew up. Build a page that shows which run diverged, at what point in
+  training, and how it compares to the healthy runs. Save it as the group's view.
+facts:
+  metrics: [train/loss]
+  runs: [diverging]
+  finding: "The run with lr 1e-2 diverges after about 30 % of training; the other runs train normally."
+  overclaims: ["several runs diverged", "the diverging run had lr 3e-4"]
+checklist:
+  - The page shows the training loss curves.
+  - The diverging run stands out (highlighted, separate, or clearly visible as the curve that shoots up).
+  - The step where it diverges can be read off (roughly the first third of training).
+  - The page names the learning rate of the diverging run (0.01).
+  - The loss axis makes the blow-up readable (log scale or limited range).
+  - The finding says which run diverged.
+  - The page has no error messages or empty charts.

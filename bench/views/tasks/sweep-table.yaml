@@ -1,0 +1,18 @@
+category: sweep
+smoke: true
+page: scaling/lr-sweep
+prompt: >
+  Give me a compact page for scaling/lr-sweep: a table of the runs ranked by their best validation
+  accuracy with their learning rate and seed, plus the one chart that matters most. Save it as the
+  group's view.
+facts:
+  metrics: [val/acc]
+  finding: "lr 3e-4 gives the best final val/acc."
+  overclaims: ["lr 0.01 is best"]
+checklist:
+  - There is a table of runs.
+  - The table has columns for learning rate, seed and the best (max) val/acc.
+  - The table is sorted by val/acc, best first.
+  - There is exactly one or two charts, not a wall of charts.
+  - The best value in the table is highlighted or at the top.
+  - The page has no error messages or empty charts.

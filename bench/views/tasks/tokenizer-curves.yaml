@@ -1,0 +1,16 @@
+category: ablation
+smoke: false
+page: tokenizer/bpe-vs-unigram
+prompt: >
+  Show me the training and validation curves of both tokenizers in tokenizer/bpe-vs-unigram side by
+  side, averaged over seeds. Save it as the group's view.
+facts:
+  metrics: [val/ppl]
+  finding: "unigram stays below BPE in val/ppl through training."
+  overclaims: ["BPE is better"]
+checklist:
+  - The page shows curves over training steps.
+  - The two tokenizers are distinguishable (color, legend or separate charts).
+  - Curves are averaged over seeds (mean with band).
+  - Training and validation metrics are both shown.
+  - The page has no error messages or empty charts.

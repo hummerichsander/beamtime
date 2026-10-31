@@ -1,0 +1,17 @@
+category: sweep
+smoke: false
+page: scaling/lr-sweep
+prompt: >
+  How much do the seeds disagree in scaling/lr-sweep? Build a page that shows the spread over seeds
+  for each learning rate, and save it as the group's view.
+facts:
+  metrics: [val/acc]
+  finding: "Seeds agree within about a point at each learning rate; lr 3e-4 stays best across seeds."
+  overclaims: ["the seed matters more than the learning rate"]
+checklist:
+  - The page shows val/acc per learning rate with the spread over seeds (bands, error bars or points per seed).
+  - Learning rates are distinguishable (legend, axis or labels).
+  - The spread is visibly small compared to the differences between learning rates.
+  - The finding states the size of the seed spread.
+  - Every chart has a title or caption.
+  - The page has no error messages or empty charts.

@@ -1,0 +1,14 @@
+category: overview
+smoke: false
+page: scaling
+prompt: >
+  Build a page for the scaling group that summarizes its two experiments (the lr sweep and long
+  context). Save it as the view of scaling.
+facts:
+  finding: "lr 3e-4 is best in the sweep; long-context runs resume correctly."
+  overclaims: []
+checklist:
+  - The page shows both subgroups.
+  - Each subgroup's status or result is visible.
+  - At least one chart or table compares runs across the subgroups or summarizes them.
+  - The page has no error messages or empty blocks.

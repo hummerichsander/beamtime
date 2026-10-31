@@ -1,0 +1,17 @@
+category: run
+smoke: true
+page: "run:diverging"
+prompt: >
+  Run {run:diverging} diverged. Build a page for this run that shows when and how it blew up, and
+  what it printed. Save it as the run's view.
+facts:
+  metrics: [train/loss]
+  runs: [diverging]
+  finding: "The run diverges after about 30 % of training."
+  overclaims: ["the run finished normally"]
+checklist:
+  - The page shows the run's training loss over steps.
+  - The blow-up is visible and its step can be read off.
+  - The run's output (what it printed) is shown.
+  - The page states the learning rate or config of the run.
+  - The page has no error messages or empty charts.

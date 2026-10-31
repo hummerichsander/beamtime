@@ -1,0 +1,17 @@
+category: ablation
+smoke: true
+page: tokenizer/bpe-vs-unigram
+prompt: >
+  tokenizer/bpe-vs-unigram compares two tokenizers. Build a page that shows which one gives the
+  lower validation perplexity, and by how much. Save it as the group's view.
+facts:
+  metrics: [val/ppl]
+  finding: "unigram gives a lower final val/ppl than BPE, by about 0.4."
+  overclaims: ["BPE is better", "the tokenizers perform the same"]
+checklist:
+  - The page compares the two tokenizers on val/ppl.
+  - It is possible to read off that unigram is lower (better).
+  - The size of the gap (about 0.4) can be read off or is stated.
+  - Lower-is-better is respected (no "best" marking on the higher perplexity).
+  - The finding names the better tokenizer.
+  - The page has no error messages or empty charts.

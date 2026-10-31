@@ -1,0 +1,16 @@
+category: sweep
+smoke: true
+page: scaling/lr-sweep
+prompt: >
+  Plot final validation accuracy against learning rate for scaling/lr-sweep, one point per run, on
+  a log x axis, and save it as the group's view.
+facts:
+  metrics: [val/acc]
+  finding: "val/acc peaks at lr 3e-4."
+  overclaims: ["accuracy rises monotonically with the learning rate"]
+checklist:
+  - There is a scatter plot of val/acc against learning rate.
+  - The x axis is logarithmic.
+  - There is one point per run (or per seed).
+  - The peak at lr 3e-4 is visible.
+  - The page has no error messages or empty charts.

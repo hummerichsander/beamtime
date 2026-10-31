@@ -1,0 +1,16 @@
+category: failures
+smoke: true
+page: scaling/long-context
+prompt: >
+  In scaling/long-context one run was preempted and resumed. Build a page that shows whether it
+  continued where it stopped, and the state of the other runs there. Save it as the group's view.
+facts:
+  runs: [resumed]
+  finding: "The resumed run continues where it stopped; one run is lost and one still running."
+  overclaims: ["the resumed run restarted from scratch"]
+checklist:
+  - The page shows the resumed run's curve over steps without a jump back to the start.
+  - The run statuses (resumed, lost, running) are visible.
+  - The lost run is marked as lost.
+  - The finding states that the resume worked.
+  - The page has no error messages or empty charts.

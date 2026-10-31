@@ -1,0 +1,16 @@
+category: logged
+smoke: true
+page: scaling/lr-sweep
+prompt: >
+  The runs in scaling/lr-sweep log sample images. Build a page that shows the samples of the best
+  runs next to their accuracy, and save it as the group's view.
+facts:
+  metrics: [val/acc]
+  finding: "The lr 3e-4 runs are best."
+  overclaims: []
+checklist:
+  - The page shows logged sample images.
+  - The images are labelled with their run or step.
+  - The page shows validation accuracy as well.
+  - It is clear which images belong to the best runs.
+  - The page has no error messages or broken images.

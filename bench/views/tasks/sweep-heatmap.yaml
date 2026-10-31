@@ -1,0 +1,18 @@
+category: custom
+smoke: true
+page: scaling/lr-sweep
+prompt: >
+  For scaling/lr-sweep I want a heatmap: final validation accuracy over learning rate (x) and seed
+  (y), one cell per run. The built-in charts don't do heatmaps, so build it as a custom block. Save
+  the page as the group's view.
+facts:
+  metrics: [val/acc]
+  finding: "lr 3e-4 gives the best final val/acc for every seed."
+  overclaims: ["seed 0 is always best"]
+checklist:
+  - The page has a heatmap (a grid of colored cells).
+  - The heatmap's x axis is the learning rate and its y axis the seed.
+  - The cell color encodes val/acc, with a legend or labelled values.
+  - The best cells are at lr 3e-4.
+  - Axis labels are readable and not overlapping.
+  - The page has no error messages or empty blocks.

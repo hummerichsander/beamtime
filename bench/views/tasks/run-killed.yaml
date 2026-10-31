@@ -1,0 +1,15 @@
+category: run
+smoke: false
+page: "run:killed"
+prompt: >
+  Run {run:killed} was killed. Build a page for it that shows how far it got and why it ended. Save
+  it as the run's view.
+facts:
+  runs: [killed]
+  finding: "The run was killed by a signal before finishing."
+  overclaims: ["the run diverged"]
+checklist:
+  - The page shows the run's curves up to where it stopped.
+  - It shows that the run was killed (status or output).
+  - The output tail is shown.
+  - The page has no error messages or empty charts.

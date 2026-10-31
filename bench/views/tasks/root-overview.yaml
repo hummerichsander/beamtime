@@ -1,0 +1,15 @@
+category: overview
+smoke: true
+page: "."
+prompt: >
+  Build an overview page for the whole log dir: what experiments there are, their status and their
+  main results. Save it as the view of the log dir.
+facts:
+  finding: "lr 3e-4 is best in the sweep; unigram beats BPE; long context resumes correctly."
+  overclaims: []
+checklist:
+  - The page lists the experiment groups.
+  - The status of each group (proposal status, check or verdict) is visible.
+  - The main result of the sweep or the tokenizer comparison is visible.
+  - Recent activity (runs or notes) is shown.
+  - The page has no error messages or empty blocks.
