@@ -9,6 +9,7 @@ import { hovered, pair, theme, type ViewContext } from "../bt/index.ts";
 import { prefsOf, type ViewPrefs } from "../bt/prefs.ts";
 import { paint, type Theme } from "../bt/theme.ts";
 import { setAway } from "../router.ts";
+import { EXPORTED } from "../snapshot.ts";
 import { Store } from "../state.ts";
 import { installTips } from "../ui/tip.ts";
 import { makeKit } from "./index.ts";
@@ -59,15 +60,29 @@ async function start(init: Init): Promise<void> {
   name = init.id;
   share(init.path, init.prefs);
   (window as any).bt = makeKit({ queries: init.queries, params: init.params, view, libs, warn: (message) => send({ type: "warn", message }) });
-  const url = URL.createObjectURL(new Blob([init.code], { type: "text/javascript" }));
-  const mod = await import(/* @vite-ignore */ url);
-  URL.revokeObjectURL(url);
-  if (typeof mod.default !== "function") throw new Error("the block's code must `export default function render(root)`");
-  await mod.default(document.getElementById("root"));
+  const render = await load(init.code);
+  if (typeof render !== "function") throw new Error("the block's code must `export default function render(root)`");
+  await render(document.getElementById("root"));
   await settled();
   const root = document.getElementById("root")!;
   const drawn = root.querySelector("canvas, svg, img") !== null || (root.textContent ?? "").trim() !== "";
   send({ type: "ready", blank: !drawn, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 });
+}
+
+// the block's default export. An exported page opens from disk, where browsers load no modules,
+// so there the code runs as a function body with its default export assigned instead.
+async function load(code: string): Promise<unknown> {
+  if (EXPORTED) {
+    const holder: { render?: unknown } = {};
+    new Function("__bt", code.replace(/\bexport\s+default\s+/, "__bt.render = "))(holder);
+    return holder.render;
+  }
+  const url = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
+  try {
+    return (await import(/* @vite-ignore */ url)).default;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 // no call or chart build pending for a few checks in a row.

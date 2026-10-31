@@ -5,13 +5,14 @@ import { html } from "htm/preact";
 import { useContext, useEffect, useState } from "preact/hooks";
 
 import { busy, useCall, watch, type Call } from "../api.ts";
-import { pdf, save } from "../bt/export.ts";
+import { register } from "../bt/figures.ts";
 import { expanded, host } from "../bt/host.ts";
 import { theme as currentTheme, hovered, pair, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { prefsOf } from "../bt/prefs.ts";
 import { expandable, READS, ResizeGuard, savable, type ToFrame, type ToPage } from "../kit/protocol.ts";
 import { IconButton } from "../ui/primitives.ts";
 import { navigate, rendering } from "../router.ts";
+import { EXPORTED, staticUrl } from "../snapshot.ts";
 import { Notice, Panel } from "./common.ts";
 
 const TIMEOUT = 15_000;
@@ -97,11 +98,11 @@ export function Custom({ node }: { node: Node }) {
           // a block can't flood the page with files: one a second.
           else if (performance.now() - lastSave > 1000) {
             lastSave = performance.now();
-            save(msg.href, msg.name);
+            host().download(msg.href, msg.name);
           }
           break;
         case "figure":
-          pdf(msg.spec, msg.name).catch((err: Error) => warn(`the PDF failed: ${err.message}`));
+          host().figure(msg.spec, msg.name).catch((err: Error) => warn(`the PDF failed: ${err.message}`));
           break;
         case "expand":
           if (expandable(msg.node)) host().expand(msg.node, view);
@@ -147,6 +148,7 @@ export function Custom({ node }: { node: Node }) {
   }, [theme]);
 
   const where = typeof ref === "object" ? ref.path ?? ref.block : String(ref ?? "");
+  register(node.id, { png: () => frame?.contentWindow?.postMessage({ type: "snapshot" } satisfies ToFrame, "*") });
   const ready = visible && code.status === "ready" && !state.error;
   return html`<div ref=${box} class="custom-block">
     <div class="chart-head">
@@ -171,10 +173,22 @@ export function Custom({ node }: { node: Node }) {
       ${state.warnings.map((w) => html`<${Notice} kind="warning">${w}<//>`)}
       ${ready
         ? html`<div class="custom-frame" data-frame-blank=${state.blank ? "1" : undefined} data-frame-overflow=${state.overflow ? "1" : undefined}>
-            <iframe key=${code.data.code} ref=${setFrame} src="/static/kit/frame.html" sandbox="allow-scripts" title=${node.props.title ?? `Custom block ${node.id}`}
+            <iframe key=${code.data.code} ref=${setFrame} sandbox="allow-scripts" ...${frameSource()} title=${node.props.title ?? `Custom block ${node.id}`}
               style=${`height:${height}px`} />
           </div>`
         : null}
     <//>
   </div>`;
+}
+
+// the frame's page: served, or for an exported page written inline with the kit's script and the
+// styles, since a sandboxed frame of a page opened from disk may load no files.
+function frameSource(): Record<string, string> {
+  if (!EXPORTED) return { src: staticUrl("kit/frame.html") };
+  const inline: { kit: string; css: string } = (globalThis as any).__BT_FRAME__ ?? { kit: "", css: "" };
+  const css = inline.css.replace(/<\/(style)/gi, "<\\/$1");
+  const kit = inline.kit.replace(/<\/(script)/gi, "<\\/$1");
+  const srcdoc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>${css}</style></head>`
+    + `<body class="kit-frame"><div id="root"></div><script>${kit}</script></body></html>`;
+  return { srcdoc };
 }

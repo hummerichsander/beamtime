@@ -82,7 +82,10 @@ class SeriesParams(Selection, kw_only=True):
     steps: Annotated[
         list[int | None] | None, msgspec.Meta(description="[first, last] step window")
     ] = None
-    points: int | None = None
+    points: Annotated[
+        int | Literal["all"] | None,
+        msgspec.Meta(description="points per curve; all: every logged point, as exports ask"),
+    ] = None
     by: Annotated[
         list[str] | None, msgspec.Meta(description="aggregate runs by these fields, e.g. config.lr")
     ] = None
@@ -301,6 +304,25 @@ class ViewHistoryParams(Params, kw_only=True):
     """Parameters of ``view history``."""
 
     group: Group = "."
+
+
+class ExportParams(Params, kw_only=True):
+    """Parameters of ``export``."""
+
+    group: Group = "."
+    html: Annotated[
+        str | None, msgspec.Meta(description="a folder for the page, which then opens from disk")
+    ] = None
+    figures: Annotated[
+        str | None, msgspec.Meta(description="a folder for one figure per block")
+    ] = None
+    points: Annotated[
+        int | Literal["all"], msgspec.Meta(description="points per curve; all: every logged point")
+    ] = 1000
+    size: Annotated[
+        Literal["single", "double"],
+        msgspec.Meta(description="figure width: one column (3.3 in) or two (6.9 in)"),
+    ] = "single"
 
 
 class ViewOutdatedParams(Params, kw_only=True):
@@ -723,6 +745,14 @@ OPS = [
         impl=f"{V}:history",
         positional=("group",),
         summary="A page's view versions with author and message, newest first.",
+    ),
+    Op(
+        name="export",
+        local=True,
+        params=ExportParams,
+        impl=f"{V}:export",
+        positional=("group",),
+        summary="Write a page as HTML that opens from disk (--html), or its blocks as figures.",
     ),
     Op(
         name="view outdated",

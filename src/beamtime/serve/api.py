@@ -82,14 +82,9 @@ def dispatch_here(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, 
             page = page_of(ctx, str(body.get("path", ".")))[0]
             return edit_text(ctx, page, body.get("id"), str(body.get("text") or ""))
         case "figure":
-            from beamtime.views.figure import pdf
+            from beamtime.views.export import figure_pdf
 
-            # a project's own style files are paths relative to its root.
-            styles = [
-                str(ctx.root / s) if s.endswith(".mplstyle") else s
-                for s in ctx.settings.get("figure_style") or []
-            ]
-            return pdf(body, styles)
+            return figure_pdf(ctx, body)
         case "code":
             from beamtime.views.store import code_text
 

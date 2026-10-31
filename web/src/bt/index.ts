@@ -4,6 +4,7 @@ import { createContext, type RefObject } from "preact";
 import { useContext, useEffect, useRef, useState } from "preact/hooks";
 
 import { type Call, type Result, useCall } from "../api.ts";
+import { recording } from "../router.ts";
 import { Store, stored, store, useStore } from "../state.ts";
 import { assignColors, paint, type Mode, type Pair, type Theme } from "./theme.ts";
 
@@ -77,7 +78,7 @@ export function runColors(ids: string[], t: Theme | null): Map<string, string> {
 
 export function useVisible(margin = "200px"): [RefObject<HTMLDivElement>, boolean] {
   const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(recording);
   useEffect(() => {
     if (visible || !ref.current) return;
     const io = new IntersectionObserver(

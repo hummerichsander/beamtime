@@ -5,9 +5,11 @@ import { html } from "htm/preact";
 
 import { busy, connect, post } from "./api.ts";
 import { mode } from "./bt/index.ts";
-import { listen, rendering } from "./router.ts";
+import { install } from "./bt/figures.ts";
+import { figures, listen, rendering } from "./router.ts";
 import { App } from "./shell/app.ts";
 import { applyMeta } from "./shell/settings.ts";
+import { EXPORTED } from "./snapshot.ts";
 import { installTips } from "./ui/tip.ts";
 import "./styles/index.css";
 
@@ -18,6 +20,7 @@ if (rendering) {
   if (theme === "light" || theme === "dark") mode.value = theme;
   document.documentElement.classList.add("rendering");
   (window as any).__btBusy = () => busy.n;
+  if (figures) install();
 }
 installTips();
 const first = post("meta").then((m) => {
@@ -27,7 +30,7 @@ const first = post("meta").then((m) => {
   return m;
 });
 // a server restarted with a rebuilt frontend (serve --watch): the page loads the new one.
-if (!rendering) {
+if (!rendering && !EXPORTED) {
   connect(async () => {
     const [was, now] = await Promise.all([first, post("meta")]);
     if (was.bundle !== now.bundle) location.reload();

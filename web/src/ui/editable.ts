@@ -5,6 +5,7 @@ import type { ComponentChildren } from "preact";
 import { html } from "htm/preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 
+import { EXPORTED } from "../snapshot.ts";
 import { Icon } from "./icons.ts";
 
 export function Editable(props: {
@@ -39,10 +40,11 @@ export function Editable(props: {
   }, [editing]);
 
   const [explained, setExplained] = useState(false);
+  const locked = props.locked ?? (EXPORTED ? "a snapshot, read only" : undefined);
   const start = (e: MouseEvent | KeyboardEvent) => {
     if ((e.target as Element).closest("a, button, input, summary")) return;
     // a text that can't change says why when clicked, instead of ignoring the click.
-    if (props.locked) return setExplained(true);
+    if (locked) return setExplained(true);
     e.preventDefault();
     setDraft(saving ?? props.value);
     setError(null);
@@ -95,11 +97,11 @@ export function Editable(props: {
     </div>`;
   }
   const shown = saving ?? props.value;
-  return html`<div class=${`editable${props.locked ? " locked" : ""}${saving !== null ? " saving" : ""} ${props.class ?? ""}`}
-      tabindex=${0} role="button" aria-label=${props.locked ? `${props.label}: ${props.locked}` : `Edit ${props.label}`}
-      data-tip=${props.locked} onClick=${start} onBlur=${() => setExplained(false)}
+  return html`<div class=${`editable${locked ? " locked" : ""}${saving !== null ? " saving" : ""} ${props.class ?? ""}`}
+      tabindex=${0} role="button" aria-label=${locked ? `${props.label}: ${locked}` : `Edit ${props.label}`}
+      data-tip=${locked} onClick=${start} onBlur=${() => setExplained(false)}
       onKeyDown=${(e: KeyboardEvent) => e.key === "Enter" && e.target === e.currentTarget && start(e)}>
     ${shown.trim() ? (props.render ? props.render(shown) : shown) : html`<span class="subtle">${props.placeholder ?? "Click to write"}</span>`}
-    ${explained && props.locked ? html`<span class="edit-hint locked-why" role="status"><${Icon} name="lock" size=${12} /> ${props.locked}</span>` : null}
+    ${explained && locked ? html`<span class="edit-hint locked-why" role="status"><${Icon} name="lock" size=${12} /> ${locked}</span>` : null}
   </div>`;
 }

@@ -1,5 +1,6 @@
 // Every state has a URL: the page, the group or run, and the run open in the drawer.
 
+import { EXPORTED, snapshot } from "./snapshot.ts";
 import { Store } from "./state.ts";
 
 export type Route =
@@ -96,7 +97,11 @@ export function parent(path: string): string {
 }
 
 export const route = new Store<Route>(
-  typeof location === "undefined" ? { page: "missing", url: "" } : parse(location.pathname, location.search),
+  typeof location === "undefined"
+    ? { page: "missing", url: "" }
+    : snapshot
+      ? parse(groupUrl(snapshot.path), "")
+      : parse(location.pathname, location.search),
 );
 
 const scrolls = new Map<string, number>();
@@ -115,6 +120,8 @@ export function setAway(fn: (url: string) => void): void {
 
 export function navigate(url: string, opts: { replace?: boolean } = {}): void {
   if (away) return away(url);
+  // an exported page is one page; other pages aren't part of it.
+  if (EXPORTED) return;
   const el = scroller();
   if (el) scrolls.set(location.pathname + location.search, el.scrollTop);
   if (opts.replace) history.replaceState(null, "", url);
@@ -158,3 +165,7 @@ export function listen(): void {
 
 // the headless renderer opens pages with ?render=1: the view alone, no live updates.
 export const rendering = typeof location !== "undefined" && new URLSearchParams(location.search).get("render") === "1";
+// an export records a page with ?record=1: every block mounted and loaded, folded or not.
+export const recording = rendering && new URLSearchParams(location.search).get("record") === "1";
+// figures for an export are taken with ?figures=1: each block's downloads, captured by id.
+export const figures = rendering && new URLSearchParams(location.search).get("figures") === "1";

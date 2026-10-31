@@ -2,6 +2,7 @@
 
 import json
 import math
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -219,23 +220,20 @@ def series_kind(ctx: Context, q: m.Series) -> dict[str, Any]:
     window = (q.steps[0], q.steps[1]) if q.steps else (None, None)
     if q.x not in ("_step", TIME_KEY, "_elapsed"):
         check_known(ctx, [parse_field(f"metric.{q.x}.last")])
-    points = q.points or ctx.defaults["points"]
     if q.by or q.seeds:
         groups = (
             [(cfg, rs) for cfg, rs in seed_groups(runs, q.seeds)]
             if q.seeds and not q.by
             else group_by(runs, by)
         )
-        n_curves = max(1, len(groups) * len(q.y))
-        per_curve = max(2, min(points, CHART_BUDGET // n_curves))
+        per_curve = point_budget(ctx, q, len(groups) * len(q.y))
         curves = [
             grouped_curve(ctx, label, rs, y, window, per_curve, q)
             for label, rs in groups
             for y in q.y
         ]
     else:
-        n_curves = max(1, len(runs) * len(q.y))
-        per_curve = max(2, min(points, CHART_BUDGET // n_curves))
+        per_curve = point_budget(ctx, q, len(runs) * len(q.y))
         curves = []
         for r in runs:
             cols = Columns(index=ctx.index, run_id=r["_id"])
@@ -250,11 +248,23 @@ def series_kind(ctx: Context, q: m.Series) -> dict[str, Any]:
             ctx,
             matched=len(runs),
             curves=len(curves),
-            points=per_curve,
+            points="all" if q.points == "all" else per_curve,
             downsampled=any(not cv.get("raw", False) for cv in curves),
             from_preview=sum(cv.get("source") == "preview" for cv in curves),
         ),
     }
+
+
+def point_budget(ctx: Context, q: m.Series, curves: int) -> int:
+    """Share the chart's point budget between its curves.
+
+    :param ctx: The query context.
+    :param q: The query.
+    :param curves: How many curves the answer has.
+    :return: Points per curve; every point for ``points: all``."""
+    if q.points == "all":
+        return sys.maxsize
+    return max(2, min(q.points or ctx.defaults["points"], CHART_BUDGET // max(1, curves)))
 
 
 def run_curve(

@@ -3,6 +3,8 @@
 
 import { Marked, type TokenizerAndRendererExtension, type Tokens } from "marked";
 
+import { staticUrl } from "../snapshot.ts";
+
 const RUN_ID = /^\d{8}-\d{6}-[0-9a-z]{8}$/;
 const SAFE_URL = /^(https?:|mailto:|\/(?!\/)|#)/i;
 
@@ -93,7 +95,7 @@ export async function render(text: string): Promise<string> {
     katexStyle = true;
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "/static/katex.css";
+    link.href = staticUrl("katex.css");
     document.head.append(link);
   }
   return markdown(text, katex);

@@ -11,7 +11,7 @@ import { label, step, value } from "../bt/fmt.ts";
 import { plotChart, type PlotSpec } from "../bt/plot.ts";
 import { bars, extent, fit, histograms, logSplits, points, type Bar, type Point } from "../bt/shapes.ts";
 import { linthresh } from "../bt/curves.ts";
-import { fileName, light, recolor, type Background } from "../bt/export.ts";
+import { fileName, light, paper, recolor, type Background } from "../bt/export.ts";
 import { alpha, chartStyle, groupColors, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate } from "../router.ts";
 import type { TipRow } from "../bt/uplot.ts";
@@ -300,7 +300,7 @@ function PlotFrame(props: {
   const title = node.props.title ?? defaultTitle(node);
   const exportPng = async (background: Background) => {
     const t = light();
-    const figure = t && props.make ? props.make(t, height) : null;
+    const figure = t && props.make ? props.make(t, paper.size?.height ?? height) : null;
     if (!figure || !el.current) return;
     host().download(await png(el.current.clientWidth, plotChart, figure, background), fileName(title, "png"));
   };
@@ -320,7 +320,7 @@ function PlotFrame(props: {
       <span class="chart-title">${title}</span>
       ${props.note ? html`<span class="muted small">${props.note}</span>` : null}
       <span class="chart-tools">
-        <${Downloads} png=${exportPng} pdf=${props.figure ? exportPdf : undefined} />
+        <${Downloads} id=${node.id} png=${exportPng} pdf=${props.figure ? exportPdf : undefined} />
         ${node.props.expanded
           ? html`<${IconButton} icon="x" label="Close (Esc)" onClick=${() => expanded.set(null)} />`
           : html`<${IconButton} icon="maximize" label="Expand" onClick=${() => host().expand(node, view)} />`}

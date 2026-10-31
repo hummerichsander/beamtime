@@ -16,6 +16,7 @@ import { groupUrl, navigate, route } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
 import * as calls from "./calls.ts";
+import { snapshot } from "../snapshot.ts";
 
 // a compiled view with what its blocks share: run colors and names, and the view's metrics.
 export function ViewBody(props: { path: string; view: any }) {
@@ -31,6 +32,9 @@ export function ViewBody(props: { path: string; view: any }) {
 
 // where the shown view comes from, its history, and saving the viewer's charts as a version.
 export function ViewSource(props: { path: string; view: any }) {
+  if (snapshot) return html`<div class="view-source"><${Icon} name="clock" size=${14} />
+    <span>a snapshot of <b>${props.path === "." ? "the log dir" : props.path}</b>, taken ${new Date(snapshot.taken * 1000).toLocaleString()};
+      curves at ${snapshot.points === "all" ? "every logged point" : `${snapshot.points} points`}; Beamtime ${snapshot.version}</span></div>`;
   const v = props.view;
   const r = useStore(route);
   const old = r.page === "group" && r.version;

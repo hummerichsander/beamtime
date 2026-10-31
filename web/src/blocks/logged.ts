@@ -6,7 +6,8 @@ import { useContext } from "preact/hooks";
 
 import { useData, ViewCtx, type Node } from "../bt/index.ts";
 import { step } from "../bt/fmt.ts";
-import { sourcedRun } from "../router.ts";
+import { recording, sourcedRun } from "../router.ts";
+import { fileUrl } from "../snapshot.ts";
 import { Notice, Panel } from "./common.ts";
 
 export function Images({ node }: { node: Node }) {
@@ -18,7 +19,7 @@ export function Images({ node }: { node: Node }) {
     <div class="images">
       ${entries.map(
         (e) => html`<figure key=${`${e.run}/${e.path}`}>
-          <img src=${`/api/file/${sourcedRun(e.run, view.path)}/${e.path}`} alt=${e.caption ?? node.props.title} loading="lazy" />
+          <img src=${fileUrl(sourcedRun(e.run, view.path), e.path)} alt=${e.caption ?? node.props.title} loading=${recording ? "eager" : "lazy"} />
           <figcaption>step ${step(e.step)}${e.caption ? ` · ${e.caption}` : ""}</figcaption>
         </figure>`,
       )}

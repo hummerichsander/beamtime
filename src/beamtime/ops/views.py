@@ -504,3 +504,25 @@ def upgrade(ctx: Context, p: r.ViewUpgradeParams) -> dict[str, Any]:
     names = ", ".join(f"{o['name']} {o['pinned']} → {o['newest']}" for o in stale)
     file = write_version(ctx, path, view, p.author, f"upgrade {names}")
     return written(ctx, "view upgrade", file, [f"upgraded {names}"])
+
+
+def export(ctx: Context, p: r.ExportParams) -> dict[str, Any]:
+    """Export a page: as a folder that opens from disk, or as one figure per block.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: What was written, or why it was skipped."""
+    import dataclasses
+
+    from beamtime.views.export import export_figures, export_html
+
+    if (p.html is None) == (p.figures is None):
+        raise OpError(
+            "give --html <folder> for the page, or --figures <folder> for its blocks", code=2
+        )
+    with target_of(ctx, p.group) as target:
+        path = target.rel
+    view = dataclasses.replace(ctx, caller="view")
+    if p.html is not None:
+        return export_html(view, path, Path(p.html).expanduser().resolve(), p.points)
+    return export_figures(view, path, Path(p.figures or "").expanduser().resolve(), p.size)

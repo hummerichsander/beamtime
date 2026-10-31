@@ -228,7 +228,7 @@ instruction-file snippet from `init` and `mcp install`.
 
 ### M9: Export, evaluation and release (2–3 weeks)
 
-- HTML export (custom blocks inlined for `file://`) and per-block figures, `--points`.
+- HTML export (custom blocks inlined for `file://`) and per-block figures, `--points`. Done.
 - The evaluation harness: tasks, scoring, the first runs; iterate on the guide and examples with it.
 - `beamtime demo`; user documentation (quickstart, cluster recipe, Lightning page); the
   instruction-file snippet.

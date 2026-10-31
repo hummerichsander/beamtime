@@ -6,6 +6,9 @@ import type { Theme } from "./theme.ts";
 
 export type Background = "transparent" | "white";
 
+// the paper size an export's figures are drawn at, in CSS pixels; the chart's own size otherwise.
+export const paper: { size: { width: number; height: number } | null } = { size: null };
+
 // the light theme, which every exported figure uses.
 export function light(): Theme | null {
   return pair.value?.light ?? null;
@@ -24,7 +27,8 @@ export async function offscreen(
   background: Background,
 ): Promise<string> {
   const el = document.createElement("div");
-  el.style.cssText = `position:fixed;left:-10000px;top:0;width:${Math.max(320, width)}px`;
+  const w = paper.size?.width ?? Math.max(320, width);
+  el.style.cssText = `position:fixed;left:-10000px;top:0;width:${w}px`;
   document.body.append(el);
   try {
     const chart = await draw(el);

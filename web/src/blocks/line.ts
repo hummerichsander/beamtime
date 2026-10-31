@@ -8,7 +8,7 @@ import { type Call, useCall } from "../api.ts";
 import { hovered, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { align, linthresh, reshape, robustRange, smooth, type Curve, type Curves } from "../bt/curves.ts";
 import { png, useChart } from "../bt/chart.ts";
-import { fileName, light, recolor, type Background } from "../bt/export.ts";
+import { fileName, light, paper, recolor, type Background } from "../bt/export.ts";
 import { expanded, host } from "../bt/host.ts";
 import { duration, label, step, value } from "../bt/fmt.ts";
 import { lineChart, type LineSpec } from "../bt/plot.ts";
@@ -173,7 +173,7 @@ function Chart(props: {
   const exportPng = async (background: Background) => {
     const t = light();
     if (!t || !theme || !el.current) return;
-    const figure = specFor(t, props.height, palette.map((c) => recolor(c, theme, t)));
+    const figure = specFor(t, paper.size?.height ?? props.height, palette.map((c) => recolor(c, theme, t)));
     if (!figure) return;
     host().download(await png(el.current.clientWidth, lineChart, figure, background), fileName(title, "png"));
   };
@@ -209,7 +209,7 @@ function Chart(props: {
       <span class="chart-tools">
         ${zoom ? html`<${IconButton} icon="reset" label="Reset zoom (double-click)" onClick=${() => setZoom(null)} />` : null}
         <${Settings} node=${node} path=${path} prefs=${prefs} />
-        <${Downloads} png=${exportPng} pdf=${exportPdf} csv=${exportCsv} />
+        <${Downloads} id=${node.id} png=${exportPng} pdf=${exportPdf} csv=${exportCsv} />
         ${props.onExpand ? html`<${IconButton} icon="maximize" label="Expand" onClick=${props.onExpand} />` : null}
         ${props.onClose ? html`<${IconButton} icon="x" label="Close (Esc)" onClick=${props.onClose} />` : null}
         ${node.props.added

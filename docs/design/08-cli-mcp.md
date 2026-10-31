@@ -76,7 +76,7 @@ wherever a group does.
 | `beamtime block fork <name> <new-name> [group]` | `block_fork` | a block draft copied from a block (`derived_from`) |
 | `beamtime block validate <draft>` | `block_validate` | checks a block draft, rendering its examples |
 | `beamtime block save <draft> [--group <g>] [--message <text>]` | `block_save` | saves a new block version |
-| `beamtime export <group>` | `export` | `--html`, `--figures`, `--points` ([layer 7](07-web-ui.md#static-export)) |
+| `beamtime export <group>` | `export` | `--html <dir>` or `--figures <dir>`, `--points`, `--size` ([layer 7](07-web-ui.md#static-export)) |
 
 ### User-only commands (CLI only)
 

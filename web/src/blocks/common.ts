@@ -5,6 +5,7 @@ import { html } from "htm/preact";
 import { useState } from "preact/hooks";
 
 import type { Result } from "../api.ts";
+import { recording } from "../router.ts";
 import { stored, store } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
 
@@ -53,7 +54,7 @@ export function Collapsible(props: {
   children?: ComponentChildren;
 }) {
   const key = `section.${props.id}`;
-  const [open, setOpen] = useState<boolean>(() => stored(key, props.open ?? true));
+  const [open, setOpen] = useState<boolean>(() => recording || stored(key, props.open ?? true));
   const toggle = () => {
     store(key, !open);
     setOpen(!open);

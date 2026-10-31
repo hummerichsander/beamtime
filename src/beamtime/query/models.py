@@ -69,7 +69,7 @@ class Series(Selection, kw_only=True):
     y: list[str]
     x: str = "_step"
     steps: list[int | None] | None = None
-    points: int | None = None
+    points: int | Literal["all"] | None = None
     smooth: Smooth | None = None
     by: list[str] | None = None
     band: Literal["minmax", "std", "stderr", "none"] = "minmax"

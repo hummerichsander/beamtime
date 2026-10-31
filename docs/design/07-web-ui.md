@@ -248,19 +248,27 @@ often lack its system libraries), rendering reports that it was skipped and vali
 beamtime export scaling/lr-sweep --html out/                # a self-contained HTML snapshot
 beamtime export scaling/lr-sweep --html out/ --points all   # with exact, full-resolution curves
 beamtime export scaling/lr-sweep --figures figs/            # one figure per block
+beamtime export scaling/lr-sweep --figures figs/ --size double
 ```
 
-- **HTML**: one folder with an `index.html`, the frontend, libraries, and every block's query results
-  frozen as JSON. It opens from disk without a server, keeps interaction within blocks over the
-  frozen data, and states when it was taken. Placeholder queries are answered for the values present
-  in the snapshot. Browsers don't load ES modules from `file://`, so the export bundles each custom
-  block as a classic script inlined into its iframe (`srcdoc`).
+Both are taken by the headless renderer, so they need an installed Chromium, Chrome or Edge, like
+`view render`.
+
+- **HTML**: one folder with an `index.html`, the frontend, libraries, the files the page showed
+  (logged images), and every answer the page loaded, recorded while the renderer opened it with every
+  block mounted (folded sections and tabs included). It opens from disk without a server, keeps
+  interaction within blocks over the frozen data, is read-only, and states when it was taken.
+  Placeholder queries of custom blocks are answered for the runs in the page's tables. Browsers don't
+  load ES modules from `file://` and a sandboxed frame of such a page may load no files, so the export
+  has its own classic-script bundle (`static/export/`), and each custom block's frame carries the kit
+  and styles inline (`srcdoc`). Answers are looked up independent of a chart's width and of defaults,
+  so the page works at any window size.
 - **`--points`** sets how many points per curve the export stores: a number of buckets (default
   1000), or `all` for every logged point. The export states which it used.
 - **Figures**: each block on its own at paper sizes (3.3 × 2.5 in single-column, 6.9 × 2.5 in
-  double-column) in the light theme. Charts draw on canvas and export as high-resolution PNG (and
-  their data as CSV); custom blocks export as SVG if they draw SVG, otherwise as PNG. For vector
-  figures in a paper, plot the exported CSV with matplotlib.
+  double-column) in the light theme: charts as PNG at four device pixels per CSS pixel, their data as
+  CSV, and, with the `figures` extra, a vector PDF drawn by matplotlib in the project's
+  `figure_style`; custom blocks as SVG if they draw SVG, otherwise as PNG.
 
 A PDF report and a dedicated print theme come later.
 
@@ -450,7 +458,8 @@ Decided while building the shell (milestone M5):
   remote groups as `/f/@cluster/...`, and the status bar has a chip per source: connected,
   unreachable since a time, or a snapshot of a time. A remote page that can't answer shows the
   source's state.
-- **Not yet**: static export (M9).
+- **Static export** (M9): `beamtime export --html` records the page through the renderer;
+  `--figures` takes each block's downloads by id at a paper size.
 
 ## Decisions
 

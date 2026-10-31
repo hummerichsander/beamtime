@@ -273,7 +273,8 @@ sync.
   as a view built from what a page logged (`defaults.py`), the view format as msgspec structs
   (`model.py`), compiling views to block trees (`compile.py`), folding viewer settings back
   (`prefs.py`), saved versions and drafts in `.beamtime/drafts/` (`store.py`), static validation (`validate.py`) and the headless renderer
-  (`render.py`, an installed browser only), lexical checks of custom-block code (`code.py`) and library
+  (`render.py`, an installed browser only), static exports (`export.py`: HTML recorded through the
+  renderer, figures by block), lexical checks of custom-block code (`code.py`) and library
   blocks (`library.py`: definitions, lookup from a group up to the root, params); tests in
   `tests/views/` and `tests/serve/test_render.py`
 - `src/beamtime/ops/authored.py`: what every authored write shares (target, author, new version,

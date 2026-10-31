@@ -6,6 +6,7 @@ import { useEffect, useRef } from "preact/hooks";
 import { fetchCall, paused } from "../api.ts";
 import { rows } from "../blocks/common.ts";
 import { groupUrl, navigate, rendering, route, setScroller } from "../router.ts";
+import { EXPORTED } from "../snapshot.ts";
 import { useStore } from "../state.ts";
 import { StatusBar, TopBar } from "./bars.ts";
 import * as calls from "./calls.ts";
@@ -50,7 +51,7 @@ export function App() {
       page = html`<div class="page"><p>No page at ${r.url}. <a href="/f/local">Go to the log dir.</a></p></div>`;
   }
   // the headless renderer gets the view alone.
-  if (rendering) return html`<main class="main render-main" ref=${main}>${page}</main>`;
+  if (rendering || EXPORTED) return html`<main class="main render-main" ref=${main}>${page}</main>`;
   return html`<div class=${`shell${showSidebar ? "" : " no-sidebar"}${drawer ? " with-drawer" : ""}`}>
     <${TopBar} />
     ${showSidebar ? html`<${Sidebar} />` : null}

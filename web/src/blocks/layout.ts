@@ -6,12 +6,14 @@ import { useContext, useState } from "preact/hooks";
 import { useCall } from "../api.ts";
 import { ViewCtx, type Node } from "../bt/index.ts";
 import { ordered, setOrder, setSpan, update, usePrefs, type Span } from "../bt/prefs.ts";
+import { recording } from "../router.ts";
+import { EXPORTED } from "../snapshot.ts";
 import { Icon } from "../ui/icons.ts";
 import { MultiSelect } from "../ui/multiselect.ts";
 import { Block } from "./index.ts";
 
 export function Section({ node }: { node: Node }) {
-  const [open, setOpen] = useState(node.props.open !== false);
+  const [open, setOpen] = useState(recording || node.props.open !== false);
   const children = html`${(node.children ?? []).map((c) => html`<${Block} key=${c.id} node=${c} />`)}`;
   if (!node.props.title) return html`<div class="stack">${children}</div>`;
   return html`<section class="section">
@@ -57,7 +59,7 @@ export function Grid({ node }: { node: Node }) {
   return html`<div class="grid" style=${style}>
     ${cells.map((c) => html`<${Cell} key=${c.id} node=${c} path=${view.path} span=${prefs.spans[c.id] ?? c.props.span ?? 1}
       columns=${cols} onDrop=${(dragged: string) => dragged !== c.id && move(dragged, c.id)} />`)}
-    ${node.props.addable ? html`<${AddChart} path=${view.path} shown=${[...shown, ...prefs.added]} />` : null}
+    ${node.props.addable && !EXPORTED ? html`<${AddChart} path=${view.path} shown=${[...shown, ...prefs.added]} />` : null}
   </div>`;
 }
 
@@ -106,6 +108,8 @@ export function Tabs({ node }: { node: Node }) {
     setOpen(id);
   };
   const active = kids.find((k) => k.id === open) ?? kids[0];
+  // an export records every tab, so each one opens in the snapshot.
+  if (recording) return html`<div class="stack">${kids.map((k) => html`<${Block} key=${k.id} node=${k} />`)}</div>`;
   return html`<div class="tabs">
     <div class="tab-list" role="tablist" aria-label=${node.props.title ?? "Tabs"}>
       ${kids.map((k) => html`<button type="button" role="tab" id=${`tab-${k.id}`} aria-selected=${k.id === active?.id}

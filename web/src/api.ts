@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "preact/hooks";
 
+import { EXPORTED, snapshot } from "./snapshot.ts";
 import { Store } from "./state.ts";
 
 export type Call = { method: string; params: Record<string, unknown>; scope: string };
@@ -41,6 +42,7 @@ export function deliver(id: string, result: Result): void {
 
 export async function post<T = any>(method: string, params: Record<string, unknown> = {}): Promise<T> {
   if (remote) throw new ApiError(`${method} is not available in a custom block`, 2);
+  if (EXPORTED) return frozen<T>(method, params);
   const r = await fetch(`/api/${method}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -50,6 +52,41 @@ export async function post<T = any>(method: string, params: Record<string, unkno
   const body = await r.json().catch(() => ({ error: `HTTP ${r.status}`, code: r.status }));
   if (!r.ok) throw new ApiError(body.error ?? `HTTP ${r.status}`, body.code ?? r.status);
   return body as T;
+}
+
+// an exported page's answers, by call.
+let answers: Map<string, NonNullable<typeof snapshot>["calls"][number]> | null = null;
+
+function frozen<T>(method: string, params: Record<string, unknown>): T {
+  answers ??= new Map((snapshot?.calls ?? []).map((c) => [frozenKey(c.method, c.params), c]));
+  const hit = answers.get(frozenKey(method, params));
+  if (!hit) throw new ApiError("not part of this snapshot; open the page in Beamtime for it", 4);
+  if (hit.error !== undefined) throw new ApiError(hit.error, hit.code ?? 1);
+  return hit.answer as T;
+}
+
+// how an exported page finds an answer: curves come at the export's resolution whatever width a
+// chart has now (sparklines apart), defaults count as given, and key order doesn't matter.
+export function frozenKey(method: string, params: Record<string, unknown>): string {
+  const p: Record<string, unknown> = { ...params };
+  if (method === "series") {
+    p.points = typeof p.points === "number" && p.points < SPARK ? "spark" : undefined;
+    if (p.x === "_step") delete p.x;
+    if (p.band === "minmax") delete p.band;
+  }
+  return `${method} ${stable(p)}`;
+}
+
+// sparklines ask for fewer points than this; charts for more.
+const SPARK = 100;
+
+function stable(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stable).join(",")}]`;
+  if (v && typeof v === "object") {
+    const entries = Object.entries(v).filter(([, x]) => x !== undefined).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `{${entries.map(([k, x]) => `${JSON.stringify(k)}:${stable(x)}`).join(",")}}`;
+  }
+  return JSON.stringify(v);
 }
 
 type Entry = {
@@ -194,7 +231,7 @@ const client = Math.random().toString(36).slice(2, 10);
 let watchTimer: ReturnType<typeof setTimeout> | null = null;
 
 function watchChanged(): void {
-  if (remote) return;
+  if (remote || EXPORTED) return;
   if (watchTimer) clearTimeout(watchTimer);
   watchTimer = setTimeout(() => {
     watchTimer = null;

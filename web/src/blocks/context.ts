@@ -15,6 +15,7 @@ import { Disclosure, IconButton } from "../ui/primitives.ts";
 import { symbolFor } from "../ui/symbols.ts";
 import { prefetchGroup } from "../shell/calls.ts";
 import { Collapsible, Notice, Panel, rows } from "./common.ts";
+import { EXPORTED } from "../snapshot.ts";
 
 export function describe(pr: any): string {
   const parts: string[] = [];
@@ -143,7 +144,7 @@ export function Notes({ node }: { node: Node }) {
   return html`<${Collapsible} id=${`notes:${node.data?.main.scope ?? node.id}`} title=${node.props.title ?? "Notes"}
       count=${result.data ? String(total) : undefined} result=${result}
       action=${html`<${Sym} spec=${{ icon: "circle-help", tone: "muted", label: NOTES_HELP }} />
-        <${IconButton} icon="plus" label="Add a note" onClick=${() => setAdding(true)} />`}>
+        ${EXPORTED ? null : html`<${IconButton} icon="plus" label="Add a note" onClick=${() => setAdding(true)} />`}`}>
     <div class="notes">
       ${adding ? html`<${NewNote} group=${group} onDone=${() => setAdding(false)} />` : null}
       ${result.data && !entries.length && !adding ? html`<p class="muted small">No notes yet.</p>` : null}
@@ -234,8 +235,8 @@ export function NoteItem(props: { note: any; open?: boolean; scope?: string }) {
       ${n.state ? html`<span class="tag tone-warn">${n.state}</span>` : null}
       ${from ? html`<a class="note-group" href=${groupUrl(from)} data-tip="from this group">${shortPath(from, props.scope!)}</a>` : null}
       <span class="note-meta">${author ? `${author} · ` : ""}${ago(when)}</span>
-      <${IconButton} icon="trash" label="Delete this note (moves it to the trash)" class="note-delete" pressed=${confirming}
-        onClick=${(e: MouseEvent) => { e.stopPropagation(); setConfirming(!confirming); }} />
+      ${EXPORTED ? null : html`<${IconButton} icon="trash" label="Delete this note (moves it to the trash)" class="note-delete" pressed=${confirming}
+        onClick=${(e: MouseEvent) => { e.stopPropagation(); setConfirming(!confirming); }} />`}
     </div>
     ${confirming
       ? html`<div class="note-confirm" role="alertdialog" aria-label="Delete this note?">
