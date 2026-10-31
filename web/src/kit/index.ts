@@ -7,9 +7,14 @@ import { useContext, useEffect, useId, useRef, useState } from "preact/hooks";
 import { html } from "htm/preact";
 
 import { fetchCall, useCall, watch, type Call } from "../api.ts";
-import { Block } from "../blocks/index.ts";
+import { Box, type Registry } from "../blocks/box.ts";
+import { DataTable } from "../blocks/data.ts";
+import { Line } from "../blocks/line.ts";
+import { BarBlock, HistogramBlock, Scatter } from "../blocks/plots.ts";
+import { Stat } from "../blocks/stat.ts";
+import { Table } from "../blocks/table.ts";
 import { Notice } from "../blocks/common.ts";
-import { runColors, theme, ViewCtx, type Node, type ViewContext } from "../bt/index.ts";
+import { hovered, runColors, theme, ViewCtx, type Node, type ViewContext } from "../bt/index.ts";
 import * as fmt from "../bt/fmt.ts";
 import { lineChart } from "../bt/plot.ts";
 import { groupColors, ramp } from "../bt/theme.ts";
@@ -17,6 +22,17 @@ import { groupUrl, runUrl } from "../router.ts";
 import { Store, useStore } from "../state.ts";
 import { fill, placeholders } from "./protocol.ts";
 import { shape, type KitResult } from "./shape.ts";
+
+// the built-in blocks a custom block can use: only these come into its frame.
+const KIT_BLOCKS: Registry = {
+  line: Line,
+  scatter: Scatter,
+  bar: BarBlock,
+  histogram: HistogramBlock,
+  table: Table,
+  stat: Stat,
+  data_table: DataTable,
+};
 
 export type Host = {
   queries: Record<string, Call>;
@@ -61,7 +77,7 @@ export function makeKit(host: Host) {
       // each chart its own id, so two charts of a block keep their own settings.
       const own = `${block}-${useId().replace(/\W/g, "")}`;
       const node: Node = { block, id: id ?? own, props: rest, data: data?.call ? { main: data.call } : undefined };
-      return html`<${ViewCtx.Provider} value=${useStore(host.view)}><${Block} node=${node} /><//>`;
+      return html`<${ViewCtx.Provider} value=${useStore(host.view)}><${Box} node=${node} blocks=${KIT_BLOCKS} /><//>`;
     };
   const metricsFrom = (props: any, data: KitResult | undefined) => {
     props.y ??= data?.call?.params.y;
@@ -160,6 +176,9 @@ export function makeKit(host: Host) {
     link: { run: runUrl, group: groupUrl },
     useSize,
     useContext,
+    // the run hovered anywhere on the page: set it to highlight a run in every chart, read it to follow.
+    hover: (run: string | null) => hovered.set(run),
+    useHovered: () => useStore(hovered),
     warn: (message: string) => host.warn(message),
     lib: host.libs,
   };

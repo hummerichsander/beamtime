@@ -12,6 +12,7 @@ function PhaseMap() {
   const runs = bt.useData("runs");
   const [ref, width] = bt.useSize();
   const [run, setRun] = useState(null);
+  const hovered = bt.useHovered();
   if (runs.status === "error") return html`<p class="notice error">${runs.error}</p>`;
   const [, xf, yf, vf] = runs.columns;
   const lower = /\.min$|loss/.test(vf ?? "");
@@ -34,10 +35,11 @@ function PhaseMap() {
     ${runs.status === "ready" && !cells.length ? html`<p class="notice info">No run has ${bt.label(vf)} yet.</p>` : null}
     ${w > 0 && cells.length
       ? html`<svg width=${LEFT + w} height=${height} role="img" style="display: block" aria-label=${`${bt.label(vf)} over ${bt.label(xf)} and ${bt.label(yf)}`}>
-          ${cells.map((c) => html`<g key=${`${c.x}|${c.y}`} style="cursor: pointer" onClick=${() => setRun(c.best)}>
+          ${cells.map((c) => html`<g key=${`${c.x}|${c.y}`} style="cursor: pointer" onClick=${() => setRun(c.best)}
+              onPointerEnter=${() => bt.hover(c.best)} onPointerLeave=${() => bt.hover(null)}>
               <title>${bt.label(xf)} ${c.x} · ${bt.label(yf)} ${c.y}: ${bt.fmt.value(c.value)} (${c.n} run${c.n === 1 ? "" : "s"})</title>
               <rect x=${x(c.x)} y=${y(c.y)} width=${x.bandwidth()} height=${y.bandwidth()} rx="3" fill=${color(c.value)}
-                stroke=${c.best === run ? "var(--bt-fg)" : "none"} stroke-width="2" />
+                stroke=${c.best === run || c.best === hovered ? "var(--bt-fg)" : "none"} stroke-width="2" />
             </g>`)}
           ${ys.map((v) => html`<text x=${LEFT - 8} y=${y(v) + y.bandwidth() / 2} text-anchor="end" dominant-baseline="middle"
               fill="var(--bt-muted)" font-size="12">${bt.fmt.value(v)}</text>`)}

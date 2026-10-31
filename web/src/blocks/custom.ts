@@ -5,8 +5,12 @@ import { html } from "htm/preact";
 import { useContext, useEffect, useState } from "preact/hooks";
 
 import { busy, useCall, watch, type Call } from "../api.ts";
-import { theme as currentTheme, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
-import { READS, ResizeGuard, type ToFrame, type ToPage } from "../kit/protocol.ts";
+import { pdf, save } from "../bt/export.ts";
+import { expanded, host } from "../bt/host.ts";
+import { theme as currentTheme, hovered, pair, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
+import { prefsOf } from "../bt/prefs.ts";
+import { expandable, READS, ResizeGuard, savable, type ToFrame, type ToPage } from "../kit/protocol.ts";
+import { IconButton } from "../ui/primitives.ts";
 import { navigate, rendering } from "../router.ts";
 import { Notice, Panel } from "./common.ts";
 
@@ -51,7 +55,7 @@ export function Custom({ node }: { node: Node }) {
         case "hello":
           post({ type: "init", init: {
             id: node.id, code: code.data.code, libs: node.props.libs ?? [], path: view.path, queries: (node.data ?? {}) as Record<string, Call>, params: node.props.params ?? {},
-            theme: currentTheme.value, names: [...view.names], colors: [...view.colors], metrics: view.metrics,
+            theme: currentTheme.value, pair: pair.value, prefs: prefsOf(view.path).value, names: [...view.names], colors: [...view.colors], metrics: view.metrics,
           } });  // prettier-ignore
           break;
         case "sub":
@@ -80,6 +84,28 @@ export function Custom({ node }: { node: Node }) {
         case "warn":
           warn(msg.message);
           break;
+        case "hover":
+          hovered.set(msg.run);
+          break;
+        case "prefs":
+          if (JSON.stringify(prefs.value) !== JSON.stringify(msg.prefs)) prefs.set(msg.prefs);
+          break;
+        case "download":
+        case "snapshot":
+          if (!msg.href) warn("it draws no SVG or canvas to download");
+          else if (!savable(msg.href, msg.name)) warn(`a download of ${msg.name} was refused: only PNG, SVG and CSV files`);
+          // a block can't flood the page with files: one a second.
+          else if (performance.now() - lastSave > 1000) {
+            lastSave = performance.now();
+            save(msg.href, msg.name);
+          }
+          break;
+        case "figure":
+          pdf(msg.spec, msg.name).catch((err: Error) => warn(`the PDF failed: ${err.message}`));
+          break;
+        case "expand":
+          if (expandable(msg.node)) host().expand(msg.node, view);
+          break;
         case "error":
           // stack lines name the block's file instead of the blob it was loaded from.
           fail(msg.message.replace(/blob:[^\s)]*?\/[\w-]+(?=:\d)/g, where));
@@ -93,9 +119,15 @@ export function Custom({ node }: { node: Node }) {
       if (rendering) console.warn(`[block ${node.id}] ${message}`);
       setState((s) => (s.warnings.includes(message) ? s : { ...s, warnings: [...s.warnings, message] }));
     };
+    let lastSave = 0;
+    const prefs = prefsOf(view.path);
+    const unhover = hovered.subscribe((run) => post({ type: "hover", run }));
+    const unprefs = prefs.subscribe((v) => post({ type: "prefs", prefs: v }));
     addEventListener("message", onMessage);
     post({ type: "ping" });
     return () => {
+      unhover();
+      unprefs();
       removeEventListener("message", onMessage);
       clearTimeout(timer);
       for (const unsub of subs.values()) unsub();
@@ -115,8 +147,21 @@ export function Custom({ node }: { node: Node }) {
   }, [theme]);
 
   const where = typeof ref === "object" ? ref.path ?? ref.block : String(ref ?? "");
-  return html`<div ref=${box}>
-    <${Panel} title=${node.props.title} caption=${node.props.caption} result=${code}>
+  const ready = visible && code.status === "ready" && !state.error;
+  return html`<div ref=${box} class="custom-block">
+    <div class="chart-head">
+      <span class="chart-title">${node.props.title ?? ""}</span>
+      ${ready
+        ? html`<span class="chart-tools">
+            <${IconButton} icon="download" label="Download what it draws (SVG or PNG)"
+              onClick=${() => frame?.contentWindow?.postMessage({ type: "snapshot" } satisfies ToFrame, "*")} />
+            ${node.props.expanded
+              ? html`<${IconButton} icon="x" label="Close (Esc)" onClick=${() => expanded.set(null)} />`
+              : html`<${IconButton} icon="maximize" label="Expand" onClick=${() => host().expand(node, view)} />`}
+          </span>`
+        : null}
+    </div>
+    <${Panel} caption=${node.props.expanded ? undefined : node.props.caption} result=${code}>
       ${state.error
         ? html`<div class="notice error custom-error">
             <b>Custom block ${node.id} failed</b> <span class="muted">(${where})</span>
@@ -124,7 +169,7 @@ export function Custom({ node }: { node: Node }) {
           </div>`
         : null}
       ${state.warnings.map((w) => html`<${Notice} kind="warning">${w}<//>`)}
-      ${visible && code.status === "ready" && !state.error
+      ${ready
         ? html`<div class="custom-frame" data-frame-blank=${state.blank ? "1" : undefined} data-frame-overflow=${state.overflow ? "1" : undefined}>
             <iframe key=${code.data.code} ref=${setFrame} src="/static/kit/frame.html" sandbox="allow-scripts" title=${node.props.title ?? `Custom block ${node.id}`}
               style=${`height:${height}px`} />

@@ -57,6 +57,7 @@ export default function render(root) {
 | `bt.fmt.value(v)`, `bt.fmt.step(n)`, `bt.fmt.duration(s)`, `bt.label(field)`, `bt.name(run)` | formatting |
 | `bt.link.run(id)`, `bt.link.group(path)` | URLs; links open in the page |
 | `bt.useSize()` | `[ref, width]` of an element |
+| `bt.hover(run)`, `bt.useHovered()` | highlight a run in every chart of the page; the run hovered anywhere on it |
 | `bt.warn(message)` | a warning on the block and in `view_validate` |
 | `bt.params` | a library block's params as the view gives them, defaults filled in |
 | `bt.lib.d3` ... | the declared libraries |

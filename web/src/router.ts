@@ -65,6 +65,10 @@ export function groupUrl(
   return `/f/${source}${tail}${qs ? `?${qs}` : ""}`;
 }
 
+export function timelineUrl(from = "."): string {
+  return from === "." ? "/timeline" : `/timeline?from=${encodeURIComponent(from)}`;
+}
+
 // a run's link; on a remote's page, runs are that remote's.
 export function runUrl(id: string, from?: string): string {
   const r = route.value;

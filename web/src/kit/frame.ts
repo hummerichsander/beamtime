@@ -1,11 +1,16 @@
 // The frame side of a custom block: it receives the block's code and context from the page, runs
-// the code on the kit, and reports its height, readiness, errors and layout back.
+// the code on the kit, and reports its height, readiness, errors and layout back. What the sandbox
+// can't do (save files, draw PDFs, open the page's dialog) it asks the page for; the hovered run
+// and the chart settings are shared with the page both ways.
 
 import { busy, deliver, setRemote } from "../api.ts";
-import { theme, type ViewContext } from "../bt/index.ts";
+import { setHost } from "../bt/host.ts";
+import { hovered, pair, theme, type ViewContext } from "../bt/index.ts";
+import { prefsOf, type ViewPrefs } from "../bt/prefs.ts";
 import { cssVariables, type Theme } from "../bt/theme.ts";
 import { setAway } from "../router.ts";
 import { Store } from "../state.ts";
+import { installTips } from "../ui/tip.ts";
 import { makeKit } from "./index.ts";
 import type { Init, ToFrame, ToPage } from "./protocol.ts";
 
@@ -53,6 +58,9 @@ async function start(init: Init): Promise<void> {
     libs[name] = await load();
   }
   view.set({ path: init.path, colors: new Map(init.colors), names: new Map(init.names), metrics: init.metrics });
+  if (init.pair) pair.set(init.pair);
+  name = init.id;
+  share(init.path, init.prefs);
   (window as any).bt = makeKit({ queries: init.queries, params: init.params, view, libs, warn: (message) => send({ type: "warn", message }) });
   const url = URL.createObjectURL(new Blob([init.code], { type: "text/javascript" }));
   const mod = await import(/* @vite-ignore */ url);
@@ -102,6 +110,15 @@ addEventListener("message", (e: MessageEvent<ToFrame>) => {
     case "result":
       deliver(msg.id, msg.result);
       break;
+    case "hover":
+      quiet(() => hovered.set(msg.run));
+      break;
+    case "prefs":
+      if (shared && JSON.stringify(shared.value) !== JSON.stringify(msg.prefs)) quiet(() => shared!.set(msg.prefs));
+      break;
+    case "snapshot":
+      send({ type: "snapshot", ...snapshot() });
+      break;
     default:
       break;
   }
@@ -120,5 +137,61 @@ document.addEventListener("click", (e) => {
   e.preventDefault();
   send({ type: "navigate", url: href });
 });
-new ResizeObserver(() => send({ type: "height", height: Math.ceil(document.documentElement.scrollHeight) })).observe(document.body);
+// the height the page gives the frame; open popovers (top layer) count too, or they'd be cut off.
+function height(): number {
+  const open = [...document.querySelectorAll<HTMLElement>("[popover]")].filter((e) => e.matches(":popover-open"));
+  return Math.ceil(Math.max(document.documentElement.scrollHeight, ...open.map((e) => e.getBoundingClientRect().bottom + 8)));
+}
+
+// a change that came from the page isn't sent back to it.
+let fromPage = false;
+function quiet(change: () => void): void {
+  fromPage = true;
+  try {
+    change();
+  } finally {
+    fromPage = false;
+  }
+}
+
+let name = "block";
+let shared: Store<ViewPrefs> | null = null;
+
+// the page's chart settings for the view: in at the start and on change, the frame's own out.
+function share(path: string, prefs: ViewPrefs): void {
+  shared = prefsOf(path);
+  quiet(() => shared!.set({ ...shared!.value, ...prefs }));
+  shared.subscribe((v) => !fromPage && send({ type: "prefs", prefs: v }));
+}
+
+// what the block draws as a file: its SVG with the theme's colors written in, else its canvas.
+function snapshot(): { href: string | null; name: string } {
+  const root = document.getElementById("root")!;
+  const svg = root.querySelector("svg");
+  if (svg) {
+    const copy = svg.cloneNode(true) as SVGSVGElement;
+    const from = [svg, ...svg.querySelectorAll("*")];
+    const to = [copy, ...copy.querySelectorAll("*")];
+    from.forEach((el, i) => {
+      const style = getComputedStyle(el);
+      for (const prop of ["fill", "stroke", "font-family", "font-size"]) to[i].setAttribute(prop, style.getPropertyValue(prop));
+    });
+    copy.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    const text = new XMLSerializer().serializeToString(copy);
+    return { href: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`, name: `${name}.svg` };
+  }
+  const canvas = root.querySelector("canvas");
+  return { href: canvas ? canvas.toDataURL("image/png") : null, name: `${name}.png` };
+}
+
+setHost({
+  download: (href, file) => send({ type: "download", href, name: file }),
+  figure: async (spec, file) => send({ type: "figure", spec, name: file }),
+  expand: (node) => send({ type: "expand", node }),
+});
+hovered.subscribe((run) => !fromPage && send({ type: "hover", run }));
+installTips();
+const report = () => send({ type: "height", height: height() });
+new ResizeObserver(report).observe(document.body);
+document.addEventListener("toggle", () => requestAnimationFrame(report), true);
 send({ type: "hello" });

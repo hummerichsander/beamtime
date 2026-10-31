@@ -170,3 +170,42 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     assert series, "no refetch after new metric lines"
     assert page.evaluate("window.__marker") == 1
     assert errors == []
+
+
+def test_custom_blocks_share_hover_downloads_and_expand(project: Path, page) -> None:
+    """A custom block's frame shares the hovered run with the page, downloads through the page, and
+    expands into the page's dialog, like the built-in charts."""
+    import yaml
+
+    from beamtime.ops import call
+    from beamtime.ops.context import Context
+
+    ctx = Context.make()
+    sweep = "scaling/lr-sweep"
+    call("view new", {"group": sweep, "from": "custom", "name": "pm"}, ctx)
+    file = project / ".beamtime" / "drafts" / "pm" / "view.yaml"
+    data = yaml.safe_load(file.read_text())
+    data["finding"] = "x"
+    data["body"].append({"table": {"id": "runs", "columns": ["run.name", "config.lr", "config.seed"]}})
+    file.write_text(yaml.safe_dump(data, sort_keys=False))
+    call("view save", {"draft": "pm"}, ctx)
+    script = Path(sys.executable).parent / "beamtime"
+    proc = subprocess.Popen([script, "serve", "--port", "0"], cwd=project, stderr=subprocess.PIPE, text=True)
+    try:
+        url = None
+        while url is None:
+            if m := re.search(r"(http://localhost:\d+)/f/local\?token=(\S+)", proc.stderr.readline()):
+                url = m
+        page.goto(f"{url[1]}/f/local/{sweep}?token={url[2]}")
+        frame = page.frame_locator(".custom-frame iframe")
+        frame.locator("rect").first.wait_for(timeout=30_000)
+        frame.locator("rect").nth(1).hover()
+        page.wait_for_selector("table.runs tr.hovered", timeout=5_000)
+        with page.expect_download() as download:
+            page.locator(".custom-block .chart-tools [aria-label^='Download']").click()
+        assert download.value.suggested_filename == "phase-map.svg"
+        page.locator(".custom-block .chart-tools [aria-label='Expand']").click()
+        page.frame_locator("dialog.chart-dialog[open] iframe").locator("rect").first.wait_for(timeout=30_000)
+    finally:
+        proc.terminate()
+        proc.wait(10)

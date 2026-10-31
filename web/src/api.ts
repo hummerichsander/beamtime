@@ -165,12 +165,14 @@ export function useCall<T = any>(call: Call | null): Result<T> {
   return entryOf(call).result as Result<T>;
 }
 
-// calls fn on every new answer to a call, fetching it while watched; returns the unwatch.
+// calls fn with the answer to a call, now if there is one and on every new one, fetching it while
+// watched; returns the unwatch.
 export function watch(call: Call, fn: (result: Result) => void): () => void {
   const e = entryOf(call);
   const listener = () => fn(e.result);
   e.listeners.add(listener);
   e.used = Date.now();
+  if (e.result.status !== "loading") listener();
   if (e.stale) void load(e);
   watchChanged();
   return () => {

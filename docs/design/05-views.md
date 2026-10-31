@@ -336,7 +336,8 @@ objects keyed by field; curves as a list of `{run, key, group, x, y}` or, aggreg
 **Components.** `bt.ui` holds layout, tables, stats and context blocks (`Grid`, `Row`, `Tabs`,
 `Section`, `Table`, `Stat`, `Note`, `Images`, …); `bt.chart` holds charts (`Line`, `Scatter`, `Bar`,
 `Histogram`, and in wave 2 `Heatmap`, `Parallel`, `Importance`). Each has the props of its YAML form
-and takes its data as a prop. Interactive components report `onSelect(row)` and `onHover(item)`.
+and takes its data as a prop. The run hovered anywhere on the page is shared: `bt.hover(run)` sets
+it, `bt.useHovered()` follows it (row selection callbacks on components come later).
 
 **Theme, formatting and the rest**
 
@@ -346,7 +347,7 @@ and takes its data as a prop. Interactive components report `onSelect(row)` and 
 | `bt.theme.runColor(id)`, `bt.theme.groupColor(field, value)` | stable colors for runs and group values |
 | `bt.theme.scale(kind)` | `sequential`, `diverging`, `categorical` |
 | `bt.theme.mode`, `bt.theme.onChange(cb)` | light or dark, and a callback when it switches |
-| `bt.fmt.value(field, v)`, `bt.fmt.delta(field, v)` | values and differences formatted with the view's `metrics` |
+| `bt.fmt.value(v)` | values formatted compactly (full values in tooltips) |
 | `bt.fmt.step(n)`, `bt.fmt.duration(s)`, `bt.label(field)` | readable steps, durations and labels |
 | `bt.chart.line(el, spec)` | draws curves on uPlot with the theme's axes, grid, fonts and run colors; synced crosshair, hover focus, zoom ([Charts](#charts)) |
 | `bt.link.run(id)`, `bt.link.group(path)` | URLs to runs and groups, opened in the main window |
@@ -784,6 +785,14 @@ Decided while building custom blocks and the library (milestone M7):
   least, each run as a use in a view of the draft's group (and rendered by `block_validate`);
   metric keys and config fields written into the code are errors, fixed ones in the queries
   warnings; a block declaring the same queries as another is pointed out.
+- **Chart features in the frame**: kit charts are the built-in blocks, and what the sandbox can't do
+  goes through the page over the bridge, so they behave as on the page: tooltips; the hovered run
+  shared with the page in both directions; zoom; downloads (the frame renders PNG or CSV, the page
+  saves it after checking type, size and name, at most one a second); PDFs (the page draws them
+  with its token); Expand (the page's dialog shows the chart, whose calls only read); and chart
+  settings, which come from the page's preferences and go back to them, so they persist and are part
+  of Save as view. Every custom block has a toolbar from the page: Download saves what it draws (an
+  SVG with the theme's colors written in, or its canvas as PNG), Expand opens it in the dialog.
 - **Readiness**: the page counts a frame as busy until it reports its first render, an error, or
   15 s; frame errors are logged by the page as `[block <id>] …`, so the renderer reports them, and the
   frame reports blank and overflowing content for the layout checks.

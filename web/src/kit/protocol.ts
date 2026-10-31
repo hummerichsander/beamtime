@@ -2,8 +2,9 @@
 // make, and placeholders in declared queries.
 
 import type { Call, Result } from "../api.ts";
-import type { MetricInfo } from "../bt/index.ts";
-import type { Theme } from "../bt/theme.ts";
+import type { MetricInfo, Node } from "../bt/index.ts";
+import type { ViewPrefs } from "../bt/prefs.ts";
+import type { Pair, Theme } from "../bt/theme.ts";
 
 export type Init = {
   id: string;
@@ -13,6 +14,9 @@ export type Init = {
   queries: Record<string, Call>;
   params: Record<string, unknown>;
   theme: Theme | null;
+  // both themes: figures leave in the light one.
+  pair: Pair | null;
+  prefs: ViewPrefs;
   names: [string, string][];
   colors: [string, string][];
   metrics: Record<string, MetricInfo>;
@@ -23,7 +27,11 @@ export type ToFrame =
   | { type: "init"; init: Init }
   | { type: "theme"; theme: Theme }
   | { type: "context"; names: [string, string][]; colors: [string, string][]; metrics: Record<string, MetricInfo> }
-  | { type: "result"; id: string; result: Result };
+  | { type: "result"; id: string; result: Result }
+  | { type: "hover"; run: string | null }
+  | { type: "prefs"; prefs: ViewPrefs }
+  // the page's download button: the frame answers with an SVG or PNG of what it draws.
+  | { type: "snapshot" };
 
 export type ToPage =
   | { type: "hello" }
@@ -33,7 +41,13 @@ export type ToPage =
   | { type: "height"; height: number }
   | { type: "ready"; blank: boolean; overflow: boolean }
   | { type: "warn"; message: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | { type: "hover"; run: string | null }
+  | { type: "prefs"; prefs: ViewPrefs }
+  | { type: "download"; href: string; name: string }
+  | { type: "figure"; spec: Record<string, unknown>; name: string }
+  | { type: "expand"; node: Node }
+  | { type: "snapshot"; href: string | null; name: string };
 
 // what a frame may ask the page for: reading operations only.
 export const READS = new Set([
@@ -81,6 +95,20 @@ export function fill(call: Call, values: Record<string, unknown>): Call {
     return v;
   };
   return { ...call, params: sub(call.params) as Record<string, unknown> };
+}
+
+// files a frame may hand the page to save: images and data, as data URLs, up to a size.
+export const DOWNLOADS = /^data:(image\/png|image\/svg\+xml|text\/csv)[;,]/;
+export const DOWNLOAD_LIMIT = 32 << 20;
+
+// whether a download from a frame may be saved: a known type, a sane size and file name.
+export function savable(href: string, name: string): boolean {
+  return DOWNLOADS.test(href) && href.length <= DOWNLOAD_LIMIT && /^[\w.-]{1,120}\.(png|svg|csv)$/.test(name);
+}
+
+// a node a frame asks the page to expand: a built-in block whose calls only read.
+export function expandable(node: Node): boolean {
+  return node.block !== "custom" && Object.values(node.data ?? {}).every((c) => READS.has(c.method));
 }
 
 // a block whose height keeps changing is fixed at its last height.

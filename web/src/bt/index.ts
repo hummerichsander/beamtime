@@ -1,16 +1,11 @@
-// The `bt` kit core: data hooks, theme, colors, formatting, links and plotting.
+// What blocks share: the view's context, the data hook, the theme, run colors and the hovered run.
 
-import { createContext, h, render, type RefObject } from "preact";
-import * as hooks from "preact/hooks";
+import { createContext, type RefObject } from "preact";
 import { useContext, useEffect, useRef, useState } from "preact/hooks";
-import { html } from "htm/preact";
 
 import { type Call, type Result, useCall } from "../api.ts";
-import { groupUrl, runUrl } from "../router.ts";
 import { Store, stored, store, useStore } from "../state.ts";
-import * as fmt from "./fmt.ts";
-import { lineChart } from "./plot.ts";
-import { assignColors, cssVariables, groupColors, type Mode, type Pair, type Theme } from "./theme.ts";
+import { assignColors, cssVariables, type Mode, type Pair, type Theme } from "./theme.ts";
 
 export type Node = {
   block: string;
@@ -103,36 +98,3 @@ export function useVisible(margin = "200px"): [RefObject<HTMLDivElement>, boolea
   }, [visible]);
   return [ref, visible];
 }
-
-export function useSize(): [RefObject<HTMLDivElement>, number] {
-  const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    if (!ref.current) return;
-    const ro = new ResizeObserver(([e]) => setWidth(Math.round(e.contentRect.width)));
-    ro.observe(ref.current);
-    return () => ro.disconnect();
-  }, []);
-  return [ref, width];
-}
-
-export const bt = {
-  preact: { h, render, html, ...hooks },
-  useData,
-  theme: {
-    get tokens() {
-      return theme.value;
-    },
-    get mode() {
-      return theme.value?.type ?? "light";
-    },
-    onChange: (cb: (t: Theme | null) => void) => theme.subscribe(cb),
-    runColor: (id: string) => runColors([id], theme.value).get(id),
-    groupColors: (values: unknown[]) => (theme.value ? groupColors(values, theme.value) : new Map()),
-  },
-  fmt,
-  label: fmt.label,
-  chart: { line: lineChart },
-  link: { run: runUrl, group: groupUrl },
-  useSize,
-};

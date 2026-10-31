@@ -12,7 +12,7 @@ import { useChart } from "../bt/chart.ts";
 import { plotChart, type PlotSpec } from "../bt/plot.ts";
 import { timeLabel, timeTicks } from "../bt/shapes.ts";
 import { alpha, chartStyle, type Theme } from "../bt/theme.ts";
-import { groupUrl, navigate, runUrl } from "../router.ts";
+import { groupUrl, navigate, runUrl, timelineUrl } from "../router.ts";
 import type { TipRow } from "../bt/uplot.ts";
 import * as calls from "./calls.ts";
 
@@ -218,8 +218,4 @@ function short(name: string): string {
 function versionTime(id: string): number {
   const iso = `${id.slice(0, 4)}-${id.slice(4, 6)}-${id.slice(6, 8)}T${id.slice(9, 11)}:${id.slice(11, 13)}:${id.slice(13, 15)}Z`;
   return Date.parse(iso) / 1000;
-}
-
-export function timelineUrl(from = "."): string {
-  return from === "." ? "/timeline" : `/timeline?from=${encodeURIComponent(from)}`;
 }

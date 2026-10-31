@@ -7,12 +7,11 @@ import { connection, paused, updated, useCall } from "../api.ts";
 import { rows } from "../blocks/common.ts";
 import { mode } from "../bt/index.ts";
 import { ago } from "../bt/fmt.ts";
-import { groupUrl, route } from "../router.ts";
+import { groupUrl, route, timelineUrl } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
 import { IconButton } from "../ui/primitives.ts";
 import { change } from "./settings.ts";
-import { timelineUrl } from "./timeline.ts";
 import * as calls from "./calls.ts";
 import { lastVisit, meta, palette, sidebar } from "./ui.ts";
 
