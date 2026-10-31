@@ -372,7 +372,7 @@ def render_status(answer: dict[str, Any]) -> str:
         + (
             f"running since pid {daemon.get('pid')}"
             if daemon
-            else "not running (each call catches up itself; serve comes with M5)"
+            else "not running (each call catches up itself; `beamtime serve` keeps the index live)"
         ),
     ]
     if memory := answer.get("memory"):

@@ -291,15 +291,19 @@ def all_versions(folder_dir: Path) -> list[str]:
 class Target:
     """A group or run whose proposal is looked at."""
 
-    def __init__(self, *, index: Index, rel: str, run_id: str | None) -> None:
+    def __init__(
+        self, *, index: Index, rel: str, run_id: str | None, now: float | None = None
+    ) -> None:
         """Name the target.
 
         :param index: The open index.
         :param rel: The group or run path relative to the log dir.
-        :param run_id: The run id if the target is a run."""
+        :param run_id: The run id if the target is a run.
+        :param now: The time run status is judged at; default now (a snapshot passes its own)."""
         self.index = index
         self.rel = rel
         self.run_id = run_id
+        self.now = now
 
     @property
     def dir(self) -> Path:
@@ -347,7 +351,7 @@ class Target:
         from beamtime.query.kinds import derived_status
 
         cond, params = self.membership(version)
-        now = time.time()
+        now = self.now or time.time()
         recorded = ", ".join(
             f"json_extract(info, '{json_path(('proposal_hashes', k))}')" for k in self.keys
         )
@@ -376,7 +380,9 @@ class Target:
         :param fields: Fields to fetch.
         :param seeds: The seed field, when seed groups are formed later.
         :return: One dict per run, as ``query.kinds.select_runs`` gives them."""
-        ctx = Context(index=self.index, caller="cli", scope=".", run_id=None, now=time.time())
+        ctx = Context(
+            index=self.index, caller="cli", scope=".", run_id=None, now=self.now or time.time()
+        )
         sel = m.Selection(where=where, seeds=seeds)
         runs, _ = select_runs(ctx, sel, fields, config=True, restrict=self.membership(version))
         return runs

@@ -100,7 +100,7 @@ def children(target: Target) -> tuple[int, int]:
     done = total = 0
     for name in names:
         rel = name if target.rel in (".", "") else f"{target.rel}/{name}"
-        child = Target(index=target.index, rel=rel, run_id=None)
+        child = Target(index=target.index, rel=rel, run_id=None, now=target.now)
         if (version := current(child.dir)) is None:
             continue
         total += 1

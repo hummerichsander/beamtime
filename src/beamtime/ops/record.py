@@ -56,7 +56,7 @@ def target_of(ctx: Context, group: str, *, create: bool = False) -> Iterator[Tar
         except QueryError as e:
             raise OpError(str(e), code=4 if e.code == "not_found" else 2) from None
         try:
-            yield Target(index=index, rel=rel, run_id=run_id)
+            yield Target(index=index, rel=rel, run_id=run_id, now=ctx.now)
         except RecordError as e:
             raise OpError(str(e), code=3) from None
     finally:

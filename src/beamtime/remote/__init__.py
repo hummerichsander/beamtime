@@ -12,18 +12,22 @@ if TYPE_CHECKING:
 active: "Sources | None" = None
 
 
+# parameters that name a place: a group, a run, a page.
+TARGETS = ("group", "from", "run", "path", "view", "source", "to", "target")
+
+
 def targets(params: dict[str, Any]) -> bool:
-    """Tell whether parameters name a remote source anywhere a target can be.
+    """Tell whether a call names a remote source as its target.
 
     :param params: An operation's parameters.
-    :return: Whether a string value (or a query's ``from``) starts with ``@``."""
-    for v in params.values():
-        if isinstance(v, str) and v.startswith("@"):
+    :return: Whether a target (or a query's ``from``) starts with ``@``."""
+    for key in TARGETS:
+        if isinstance(v := params.get(key), str) and v.startswith("@"):
             return True
-        if isinstance(v, dict):
-            for inner in v.values():
-                if isinstance(inner, dict) and str(inner.get("from", "")).startswith("@"):
-                    return True
+    if isinstance(query := params.get("query"), dict):
+        return any(
+            isinstance(q, dict) and str(q.get("from", "")).startswith("@") for q in query.values()
+        )
     return False
 
 

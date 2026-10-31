@@ -10,9 +10,8 @@ from typing import Any
 from beamtime import remote
 from beamtime.format.ids import is_run_id
 from beamtime.ops.context import Context, OpError
+from beamtime.remote import TARGETS
 
-# parameters that name a place: a group, a run, a page.
-TARGETS = ("group", "from", "run", "path", "view", "source", "to", "target")
 # listings over "." that merge across sources.
 LISTINGS = ("groups", "runs", "series", "data", "timeline", "notes", "keys")
 # work on drafts in this project's .beamtime/, which a remote group can't use (yet).
@@ -27,6 +26,23 @@ DRAFTS = (
     "block_save",
 )
 PATH_KEYS = ("group", "from", "scope", "folder")
+# what users wrote or logged: its keys may be called group or path, and it is never a place.
+USER_CONTENT = (
+    "config",
+    "proposal",
+    "where",
+    "a",
+    "b",
+    "plan",
+    "by",
+    "fields",
+    "body",
+    "columns",
+    "text",
+    "description",
+    "values",
+    "tags",
+)
 PATH_COLUMNS = ("path", "run.group", "run.path")
 
 Local = Callable[[dict[str, Any]], Any]
@@ -51,12 +67,7 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
                 f"@{source}, run it there (ssh)",
                 code=2,
             )
-        stripped = strip(params, source)
-        if "author" in stripped or method in AUTHORED:
-            from beamtime.ops.record import author_of
-
-            # the laptop's author goes along; `user` is the account the remote runs as.
-            stripped["author"] = stripped.get("author") or author_of(ctx, None)[0]
+        stripped = with_author(method, strip(params, source), ctx)
         try:
             answer = client_for(ctx, source).request(method, stripped, caller=ctx.caller)
         except Unreachable as e:
@@ -76,6 +87,20 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
 AUTHORED = ("note_add", "proposal_set", "memory_update", "view_upgrade", "name")
 # what a read-only snapshot refuses.
 WRITES = (*AUTHORED, "view_text", "save_view", "note_rm")
+
+
+def with_author(method: str, params: dict[str, Any], ctx: Context) -> dict[str, Any]:
+    """Name this machine's author on a write that goes to a remote.
+
+    :param method: The API method.
+    :param params: Its parameters.
+    :param ctx: The operation context.
+    :return: The parameters; ``user`` is still the account the remote runs as."""
+    if "author" not in params and method not in AUTHORED:
+        return params
+    from beamtime.ops.record import author_of
+
+    return params | {"author": params.get("author") or author_of(ctx, None)[0]}
 
 
 def from_snapshot(
@@ -173,7 +198,9 @@ def prefix(answer: Any, source: str) -> Any:
         ref = isinstance(x.get("view"), str) or "block" in x or "block_draft" in x or entry
         out = {}
         for k, v in x.items():
-            if k in PATH_KEYS or (k == "path" and not ref) or (k == "view" and ref):
+            if k in USER_CONTENT:
+                out[k] = v
+            elif k in PATH_KEYS or (k == "path" and not ref) or (k == "view" and ref):
                 out[k] = p(v)
             elif k == "source" and v == "local":
                 out[k] = f"@{source}"
@@ -222,6 +249,7 @@ def elsewhere(method: str, params: dict[str, Any], ctx: Context, run: str, missi
     :param missing: The local not-found error, raised again if no remote knows the run.
     :return: The answer of the remote that has the run."""
     assert remote.active is not None
+    params = with_author(method, params, ctx)
     for name, client in remote.active.clients.items():
         try:
             return prefix(client.request(method, params, caller=ctx.caller), name)

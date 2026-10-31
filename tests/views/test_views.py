@@ -329,3 +329,17 @@ def test_system_metrics_get_their_own_section() -> None:
     assert [c["props"]["y"] for c in nodes["curves"]["children"]] == ["val/acc", "train/loss"]
     assert nodes["system"]["props"]["title"] == "System (2)" and nodes["system"]["props"]["open"] is False
     assert [c["props"]["y"] for c in nodes["more"]["children"][0]["children"]] == ["lr"]
+
+
+def test_ui_changes_on_a_broken_view_say_how_to_repair(ctx: Context, project: Path) -> None:
+    """Save as view and text panels refuse a broken saved version with a clear message."""
+    from beamtime.ops.views import edit_text, save_page
+
+    folder = project / "beamtime" / SWEEP / "view"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "20261031-100000-abcd.yaml").write_text("body: [unclosed\n")
+    ui = Context.make(caller="view")
+    with pytest.raises(OpError, match="is broken"):
+        save_page(ui, SWEEP, {}, "T", "F")
+    with pytest.raises(OpError, match="view new"):
+        edit_text(ui, SWEEP, None, "x")

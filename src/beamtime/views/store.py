@@ -208,6 +208,9 @@ def code_text(ctx: Context, ref: dict[str, Any]) -> dict[str, Any]:
     else:
         folder = view_dir(ctx, str(ref.get("view") or ".")).resolve()
     file = (folder / rel).resolve()
+    allowed = (ctx.logdir.resolve(), drafts(ctx).resolve())
+    if not any(root in folder.parents for root in allowed):
+        raise OpError(f"no code file {rel!r} (code lives in the log dir or the drafts)", code=4)
     if folder / "code" not in file.parents or file.suffix != ".js" or not file.is_file():
         raise OpError(f"no code file {rel!r} (code files are code/<name>.js)", code=4)
     return {"kind": "code", "path": rel, "code": file.read_text()}

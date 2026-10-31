@@ -71,8 +71,8 @@ def resolve_from(index: Index, base: str, target: str) -> tuple[str, str | None]
     :return: The group relative to the log dir, and the run id if one run was named."""
     if target.startswith("@"):
         raise QueryError(
-            f"from {target!r}: remote sources come with remotes (milestone M8); "
-            "query local groups for now"
+            f"from {target!r}: no remote source of that name is connected; configure it under "
+            "remotes: in the settings, and run `beamtime serve` or name it in the call"
         )
     name = target.rstrip("/").rsplit("/", 1)[-1]
     if is_run_id(name):
@@ -319,7 +319,7 @@ def run_research(ctx: Context, run_id: str, path: str) -> dict[str, Any]:
     from beamtime.record.proposals import Target
     from beamtime.record.status import research_status
 
-    return research_status(Target(index=ctx.index, rel=path, run_id=run_id))
+    return research_status(Target(index=ctx.index, rel=path, run_id=run_id, now=ctx.now))
 
 
 def seed_groups(
@@ -987,7 +987,7 @@ def groups_kind(ctx: Context, q: m.Groups) -> dict[str, Any]:
         depth = 0 if path in (".", "") else path.count("/") + 1
         if path in run_paths or (q.depth != "all" and depth - base > int(q.depth)):
             continue
-        research = research_status(Target(index=ctx.index, rel=path, run_id=None))
+        research = research_status(Target(index=ctx.index, rel=path, run_id=None, now=ctx.now))
         values = {"path": path} | {f"proposal.{k}": research[k] for k in PROPOSAL_FIELDS}
         if not matches(q.where, values):
             continue
@@ -1059,9 +1059,10 @@ def read_table(path: Path) -> tuple[list[str], list[list[Any]]]:
     :return: The columns and the rows."""
     match path.suffix.lower():
         case ".csv":
-            reader = csv.reader(io.StringIO(path.read_text()))
-            header, *body = list(reader)
-            columns = header
+            lines = list(csv.reader(io.StringIO(path.read_text())))
+            if not lines:
+                raise QueryError(f"{path.name} is empty; a CSV starts with a header row")
+            columns, *body = lines
             rows = [[number_or_text(v) for v in row] for row in body]
         case ".json":
             data = json.loads(path.read_text())

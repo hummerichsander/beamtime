@@ -98,6 +98,29 @@ def default_name(path: str) -> str:
     return m.slug(path.rsplit("/", 1)[-1]) if path != "." else "root"
 
 
+def page_yaml(ctx: Context, path: str) -> dict[str, Any]:
+    """Read the page's current view in YAML form, for a change made in the web UI.
+
+    :param ctx: The operation context.
+    :param path: The group or run path.
+    :return: The view as a mapping.
+    :raises OpError: If the saved version is broken; the UI then says how to repair it."""
+    import yaml
+
+    text, origin = current_yaml(ctx, path)
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError:
+        data = None
+    if not isinstance(data, dict) or "(invalid)" in origin:
+        raise OpError(
+            f"the view of {path} ({origin}) is broken, so it can't be changed here; repair it in "
+            f"a draft: `beamtime view new {path}`",
+            code=3,
+        )
+    return data
+
+
 def current_yaml(ctx: Context, path: str) -> tuple[str, str]:
     """Write the page's current view as draft YAML: its newest version, else the default.
 
@@ -290,12 +313,10 @@ def save_page(
     :param title: The view's title.
     :param finding: The view's finding.
     :return: The new version."""
-    import yaml
 
     from beamtime.views.compile import apply_prefs
 
-    text, _ = current_yaml(ctx, path)
-    data = yaml.safe_load(text)
+    data = page_yaml(ctx, path)
     data["body"] = apply_prefs(data.get("body") or [], prefs)
     data["title"], data["finding"] = title or None, finding or None
     try:
@@ -377,11 +398,10 @@ def edit_text(ctx: Context, path: str, node_id: str | None, text: str) -> dict[s
     :param node_id: The ``markdown`` block to change, or ``None`` to add one at the top.
     :param text: Its Markdown; empty removes the block.
     :return: The new version."""
-    import yaml
 
     from beamtime.views.compile import yaml_walk
 
-    data = yaml.safe_load(current_yaml(ctx, path)[0])
+    data = page_yaml(ctx, path)
     body = data.get("body") or []
     if node_id is None:
         taken = {props.get("id") for _, props in yaml_walk(body)}
