@@ -327,7 +327,9 @@ def merge(
             )
             first["entries"] = entries[-(params.get("limit") or defaults["entries"]) :]
         case "notes":
-            limit = params.get("limit") or 30
+            from beamtime.ops.record import NOTES_PAGE
+
+            limit = NOTES_PAGE if params.get("limit") is None else params["limit"]
             entries = sorted(
                 (e for _, a in answers for e in a.get("entries", [])),
                 key=lambda e: e["id"],

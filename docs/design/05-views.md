@@ -291,16 +291,16 @@ A custom block is an ES module written by the agent, stored with the view as
 
 ```js
 // grokking-map.js
-const {html, useState} = bt.preact;
+const {html} = bt.preact;
 
 function GrokkingMap() {
   const runs = bt.useData("runs");
-  const [selected, setSelected] = useState(runs.rows[0]?.["run.id"]);
+  // the run hovered in this table or any chart of the page, else the first one.
+  const selected = bt.useHovered() ?? runs.rows[0]?.["run.id"];
   const detail = bt.useData("detail", {run: selected});
   return html`
     <${bt.ui.Grid} columns=${2}>
-      <${bt.ui.Table} data=${runs} columns=${["config.weight_decay", "metric.val/acc.max"]}
-                      onSelect=${r => setSelected(r["run.id"])} />
+      <${bt.ui.Table} data=${runs} columns=${["config.weight_decay", "metric.val/acc.max"]} />
       <${bt.chart.Line} data=${detail} y=${["train/acc", "val/acc"]}
                         caption="Train and validation accuracy of the selected run." />
     <//>`;

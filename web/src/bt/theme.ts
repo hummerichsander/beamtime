@@ -17,6 +17,14 @@ export type Theme = {
 export type Pair = { light: Theme; dark: Theme; problems: string[] };
 export type Mode = "system" | "light" | "dark";
 
+// put a theme on the document: its variables, and light or dark for the browser's own controls.
+export function paint(t: Theme): void {
+  const root = document.documentElement;
+  for (const [k, v] of Object.entries(cssVariables(t))) root.style.setProperty(k, v);
+  root.dataset.mode = t.type;
+  root.style.colorScheme = t.type;
+}
+
 export function cssVariables(theme: Theme): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(theme.colors)) out[`--bt-${k.replace(/\./g, "-")}`] = String(v);

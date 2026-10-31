@@ -5,7 +5,7 @@ import { useContext, useState } from "preact/hooks";
 
 import { hovered, useData, useRunColors, ViewCtx, type MetricInfo, type Node } from "../bt/index.ts";
 import { toggleRun, usePrefs } from "../bt/prefs.ts";
-import { ago, label, lowerIsBetter, value } from "../bt/fmt.ts";
+import { ago, compare, label, lowerIsBetter, value } from "../bt/fmt.ts";
 import { groupUrl, navigate, route, runUrl } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Sym } from "../ui/icons.ts";
@@ -103,14 +103,6 @@ function bestValues(data: Record<string, any>[], columns: string[], metrics: Rec
 
 function numeric(data: Record<string, any>[], c: string): boolean {
   return data.some((r) => typeof r[c] === "number");
-}
-
-function compare(a: unknown, b: unknown): number {
-  if (a === b) return 0;
-  if (a === null || a === undefined) return 1;
-  if (b === null || b === undefined) return -1;
-  if (typeof a === "number" && typeof b === "number") return a - b;
-  return String(a).localeCompare(String(b));
 }
 
 function sparks(answer: { curves: any[] } | null): Map<string, (number | null)[]> {

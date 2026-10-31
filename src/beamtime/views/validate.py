@@ -214,14 +214,14 @@ def queries(
     for name, c in (t.get("data") or {}).items():
         params = c["params"]
         if isinstance(n, (m.Custom, m.Use)) and placeholders_of(params):
-            params, rest = example_values(ctx, c["scope"], params, t["props"].get("examples"))
+            params, rest = example_values(ctx, c["scope"], params)
             if rest:
                 out.append(
                     Finding(
                         level="warning",
                         **at,
                         message=f"{name}: not run, nothing to fill {', '.join(rest)} with",
-                        fix="give example values: examples: [{run: <id>}]",
+                        fix="check this query in `view render`, where the page fills it",
                     )
                 )
                 continue
@@ -306,23 +306,19 @@ def placeholders_of(params: dict[str, Any]) -> list[str]:
 
 
 def example_values(
-    ctx: Context,
-    scope: str,
-    params: dict[str, Any],
-    examples: list[dict] | None,
+    ctx: Context, scope: str, params: dict[str, Any]
 ) -> tuple[dict[str, Any], list[str]]:
-    """Fill a query's placeholders to run it once: from examples, else ``from`` with a run.
+    """Fill a query's placeholders to run it once: a ``from`` placeholder with the page's first run.
 
     :param ctx: The operation context.
     :param scope: The page, whose first run stands in for a ``from`` placeholder.
     :param params: The call's parameters.
-    :param examples: Example values, if the block has any.
     :return: The filled parameters, and the placeholders left open."""
     from beamtime.views.code import fill, placeholders
 
-    values = dict((examples or [{}])[0])
+    values: dict[str, Any] = {}
     target = params.get("from")
-    if isinstance(target, str) and target.startswith("$") and target[1:] not in values:
+    if isinstance(target, str) and target.startswith("$"):
         page = {k: v for k, v in params.items() if k in ("where", "depth")}
         answer = call("runs", {"from": scope, "select": ["run.id"], "limit": 1} | page, ctx)
         if answer["rows"]:

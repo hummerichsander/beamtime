@@ -12,6 +12,21 @@ export function value(v: unknown): string {
   return trim(v.toPrecision(4));
 }
 
+// sort order for table cells: numbers as numbers, the rest as text, missing values last.
+export function compare(a: unknown, b: unknown): number {
+  if (a === b) return 0;
+  if (a === null || a === undefined) return 1;
+  if (b === null || b === undefined) return -1;
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a).localeCompare(String(b));
+}
+
+// a version or note id (20261028-215111-36js) as an ISO time.
+export function versionTime(v: string | null | undefined): string | null {
+  if (!v) return null;
+  return `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}T${v.slice(9, 11)}:${v.slice(11, 13)}:${v.slice(13, 15)}Z`;
+}
+
 export function step(n: number | null | undefined): string {
   if (n === null || n === undefined) return "–";
   return Math.abs(n) >= 1e4 ? big(n) : String(n);

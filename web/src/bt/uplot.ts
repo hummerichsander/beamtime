@@ -3,7 +3,7 @@
 import uPlot from "uplot";
 
 import { align, logRange, logTicks, type Curve } from "./curves.ts";
-import type { ChartStyle } from "./theme.ts";
+import { alpha, type ChartStyle } from "./theme.ts";
 
 export type LineSpec = {
   curves: Curve[];
@@ -63,7 +63,7 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
   ];
   if (spec.raw) {
     spec.curves.forEach((_, i) => {
-      series.push({ stroke: tint(spec.colors[i], 0.22), width: 1, spanGaps: true, points: { show: false } });
+      series.push({ stroke: alpha(spec.colors[i], 0.22), width: 1, spanGaps: true, points: { show: false } });
     });
   }
   const bands: uPlot.Band[] = [];
@@ -71,7 +71,7 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
     spec.curves.forEach((_, i) => {
       series.push({ stroke: "transparent", width: 0, spanGaps: true, points: { show: false } });
       series.push({ stroke: "transparent", width: 0, spanGaps: true, points: { show: false } });
-      bands.push({ series: [bandAt + 1 + i * 2, bandAt + i * 2], fill: tint(spec.colors[i], spec.style.band) });
+      bands.push({ series: [bandAt + 1 + i * 2, bandAt + i * 2], fill: alpha(spec.colors[i], spec.style.band) });
     });
   }
   let focused: number | null = null;
@@ -479,12 +479,6 @@ function line(label: string, value: string, color: string | null, strong: boolea
   val.textContent = value;
   row.append(dot, name, val);
   return row;
-}
-
-export function tint(hex: string, alpha: number): string {
-  const h = hex.replace("#", "");
-  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 // linear ticks at 1, 2 or 5 times a power of ten, about five of them.

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { useCall } from "../api.ts";
 import { rows } from "../blocks/common.ts";
 import { useTheme } from "../bt/index.ts";
-import { ago, duration } from "../bt/fmt.ts";
+import { ago, duration, versionTime } from "../bt/fmt.ts";
 import { useChart } from "../bt/chart.ts";
 import { plotChart, type PlotSpec } from "../bt/plot.ts";
 import { timeLabel, timeTicks } from "../bt/shapes.ts";
@@ -51,7 +51,7 @@ export function TimelinePage(props: { from: string }) {
       lane: i,
     }));
   const marks: Mark[] = (notes.data?.entries ?? []).map((n: any) => ({
-    id: n.id, type: n.type, group: n.group, description: n.description, t: versionTime(n.id),
+    id: n.id, type: n.type, group: n.group, description: n.description, t: Date.parse(versionTime(n.id)!) / 1000,
   }));  // prettier-ignore
   return html`<div class="page timeline-page">
     <header class="header">
@@ -212,10 +212,4 @@ function clamp([a, b]: [number, number], full: [number, number]): [number, numbe
 
 function short(name: string): string {
   return name.length > 22 ? `${name.slice(0, 21)}…` : name;
-}
-
-// a note's id (20261028-215111-36js) as seconds.
-function versionTime(id: string): number {
-  const iso = `${id.slice(0, 4)}-${id.slice(4, 6)}-${id.slice(6, 8)}T${id.slice(9, 11)}:${id.slice(11, 13)}:${id.slice(13, 15)}Z`;
-  return Date.parse(iso) / 1000;
 }

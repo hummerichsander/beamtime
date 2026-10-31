@@ -410,7 +410,8 @@ def examples_view(block: BlockDef) -> dict[str, Any]:
     return {
         "schema": 1,
         "title": f"{block.name}: examples",
-        "finding": block.description,
+        # the examples page shows the block, not a result; it states what the block does.
+        "finding": block.description or f"The {block.name} block, once per example.",
         "body": body,
     }
 
@@ -432,7 +433,7 @@ def examples_check(ctx: Context, draft: str, group: str, block: BlockDef) -> lis
         source=f"block draft {draft} examples",
         blocks={block.name: draft},
     )
-    return [f for f in findings if f.message != "no finding"]
+    return findings
 
 
 def examples_draft(ctx: Context, draft: str, group: str, block: BlockDef) -> store.Draft:
@@ -571,7 +572,8 @@ def fetch(source: str, tmp: Path) -> tuple[Path, dict[str, Any]]:
     if shutil.which("git") is None:
         raise OpError(f"{source} is no folder here, and git isn't installed to clone it", 4)
     args = ["git", "clone", "--quiet", "--depth", "1", *(["--branch", ref] if ref else [])]
-    done = subprocess.run([*args, url, str(tmp / "repo")], capture_output=True, text=True)
+    # -- ends the options: a source starting with - is a URL, never a flag for git.
+    done = subprocess.run([*args, "--", url, str(tmp / "repo")], capture_output=True, text=True)
     if done.returncode != 0:
         raise OpError(f"git clone {url} failed: {done.stderr.strip()}", code=4)
     commit = subprocess.run(

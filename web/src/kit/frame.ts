@@ -7,7 +7,7 @@ import { busy, deliver, setRemote } from "../api.ts";
 import { setHost } from "../bt/host.ts";
 import { hovered, pair, theme, type ViewContext } from "../bt/index.ts";
 import { prefsOf, type ViewPrefs } from "../bt/prefs.ts";
-import { cssVariables, type Theme } from "../bt/theme.ts";
+import { paint, type Theme } from "../bt/theme.ts";
 import { setAway } from "../router.ts";
 import { Store } from "../state.ts";
 import { installTips } from "../ui/tip.ts";
@@ -40,10 +40,7 @@ let themed: () => void;
 const hasTheme = new Promise<void>((resolve) => (themed = resolve));
 
 function applyTheme(t: Theme): void {
-  const root = document.documentElement;
-  for (const [k, v] of Object.entries(cssVariables(t))) root.style.setProperty(k, v);
-  root.dataset.mode = t.type;
-  root.style.colorScheme = t.type;
+  paint(t);
   theme.set(t);
   themed();
 }

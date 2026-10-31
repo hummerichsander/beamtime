@@ -8,7 +8,7 @@ import { invalidate, post, useCall } from "../api.ts";
 import { Block } from "../blocks/index.ts";
 import { Notice, rows } from "../blocks/common.ts";
 import { diffLines, fold } from "../bt/diff.ts";
-import { ago } from "../bt/fmt.ts";
+import { ago, versionTime } from "../bt/fmt.ts";
 import { runColors, useTheme, ViewCtx } from "../bt/index.ts";
 import { changed, update, usePrefs } from "../bt/prefs.ts";
 import { editText, fresh, upgradeView } from "../bt/writes.ts";
@@ -190,10 +190,4 @@ function Compare(props: { path: string; a: string; b: string }) {
       <div><h3 class="block-title">${vb?.title ?? props.b}</h3><${ViewBody} path=${props.path} view=${vb} /></div>
     </div>
   </div>`;
-}
-
-// a version id (20261028-215111-36js) as an ISO time.
-function versionTime(v: string | null): string | null {
-  if (!v) return null;
-  return `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}T${v.slice(9, 11)}:${v.slice(11, 13)}:${v.slice(13, 15)}Z`;
 }

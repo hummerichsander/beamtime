@@ -4,7 +4,7 @@ import { html } from "htm/preact";
 import { useContext, useState } from "preact/hooks";
 
 import { useData, ViewCtx, type Node } from "../bt/index.ts";
-import { label, step, value } from "../bt/fmt.ts";
+import { compare, label, step, value } from "../bt/fmt.ts";
 import { tableOf } from "../bt/shapes.ts";
 import { runUrl, timelineUrl } from "../router.ts";
 import { Icon } from "../ui/icons.ts";
@@ -65,12 +65,4 @@ export function Timeline({ node }: { node: Node }) {
       )}
     </div>
   <//>`;
-}
-
-function compare(a: unknown, b: unknown): number {
-  if (a === b) return 0;
-  if (a === null || a === undefined) return 1;
-  if (b === null || b === undefined) return -1;
-  if (typeof a === "number" && typeof b === "number") return a - b;
-  return String(a).localeCompare(String(b));
 }

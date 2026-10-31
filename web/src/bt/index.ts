@@ -5,7 +5,7 @@ import { useContext, useEffect, useRef, useState } from "preact/hooks";
 
 import { type Call, type Result, useCall } from "../api.ts";
 import { Store, stored, store, useStore } from "../state.ts";
-import { assignColors, cssVariables, type Mode, type Pair, type Theme } from "./theme.ts";
+import { assignColors, paint, type Mode, type Pair, type Theme } from "./theme.ts";
 
 export type Node = {
   block: string;
@@ -27,10 +27,7 @@ export function applyTheme(): void {
   if (!p) return;
   const wanted = mode.value === "system" ? (dark.matches ? "dark" : "light") : mode.value;
   const t = p[wanted];
-  const root = document.documentElement;
-  for (const [k, v] of Object.entries(cssVariables(t))) root.style.setProperty(k, v);
-  root.dataset.mode = t.type;
-  root.style.colorScheme = t.type;
+  paint(t);
   store("theme", t);
   theme.set(t);
 }
@@ -46,8 +43,7 @@ dark.addEventListener("change", applyTheme);
 // the last theme is applied before the first answer arrives, so pages don't flash.
 const last = stored<Theme | null>("theme", null);
 if (last) {
-  for (const [k, v] of Object.entries(cssVariables(last))) document.documentElement.style.setProperty(k, v);
-  document.documentElement.dataset.mode = last.type;
+  paint(last);
   theme.value = last;
 }
 

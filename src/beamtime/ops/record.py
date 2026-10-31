@@ -31,6 +31,9 @@ from beamtime.record.proposals import (
 )
 from beamtime.record.status import research_status
 
+# notes per page when no limit is given.
+NOTES_PAGE = 30
+
 
 def dump(fields: dict[str, Any]) -> str:
     """Write YAML in the order given.
@@ -56,7 +59,7 @@ def notes(ctx: Context, p: r.NotesParams) -> dict[str, Any]:
     if p.before is not None:
         # ids sort by time, so older notes have smaller ids.
         entries = [e for e in entries if e["id"] < p.before]
-    limit = p.limit if p.limit is not None else 30
+    limit = p.limit if p.limit is not None else NOTES_PAGE
     more = len(entries) > limit
     answer = {
         "kind": "notes",
