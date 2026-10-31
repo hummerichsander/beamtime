@@ -226,13 +226,13 @@ SLURM, and the pending SDK check under SLURM) follows as a recipe. Taken on alon
 logging (hardware and system metrics), custom `.mplstyle` files in `figure_style`, and an
 instruction-file snippet from `init` and `mcp install`.
 
-### M9: Export, evaluation and release (2–3 weeks) — built; publishing pending
+### M9: Export, evaluation and release (2–3 weeks) — done; 0.1.0 released
 
 - HTML export (custom blocks inlined for `file://`) and per-block figures, `--points`. Done.
 - The evaluation harness: tasks, scoring, the first runs; iterate on the guide and examples with it. Done: `bench/views/`, 15 tasks.
 - `beamtime demo`; user documentation (quickstart, cluster recipe, Lightning page); the
   instruction-file snippet. Done: a Beamtime-styled docs site (`web/docs.mjs`, GitHub Pages).
-- Packaging: the wheel with the built frontend, release automation, PyPI. Done up to publishing: 0.1.0, `scripts/release.py`, `release.yml`.
+- Packaging: the wheel with the built frontend, release automation, PyPI. Done: 0.1.0 on PyPI, published by `release.yml` with trusted publishing.
 - Timing budgets measured on the generator's data; fixes from daily use; a few outside testers. Measured before the release: all three budgets met (07-web-ui, M5 notes).
 
 **v1, after about 16–22 weeks.**

@@ -181,7 +181,7 @@ and say why.
 **Status: implementation.** M0 (foundations), M1 (SDK), M2 (index and queries), M3 (CLI and
 MCP), M4 (research record), M5 (web UI shell), the UI refactor, M6 (views), M7 (custom blocks and
 the library) and M8 (remotes; tested on Docker, a real cluster run pending) are done; M9 (export, the view-task
-harness, docs site, release tooling) is built, publishing 0.1.0 pending; milestones follow
+harness, docs site, release tooling) is done and 0.1.0 is on PyPI; milestones follow
 `docs/implementation-plan.md`.
 Each milestone implements the design sections it names; a deviation is decided and written back into
 the design before the code lands.
