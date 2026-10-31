@@ -1,0 +1,26 @@
+# Changelog
+
+## 0.1.0
+
+The first release.
+
+- **Logging**: `beamtime.init()` and `run.log()` record metrics, config (dicts, dataclasses,
+  Pydantic, argparse, OmegaConf), output, crashes, signals and resumes as plain files; images,
+  tables, text and histograms; artifacts and checkpoints; hardware and system metrics; git state.
+  Only rank 0 records under torchrun, SLURM and Lightning. The SDK needs Python 3.10 and PyYAML.
+- **Clusters**: SLURM jobs, preemption and requeue; runs that stop sending updates show as lost.
+- **Looking at runs**: `beamtime runs`, `series`, `card`, `output`, `timeline`, `keys`, and a query
+  language with filters, seeds and windowed metric statistics.
+- **Proposals and verdicts**: versioned proposals frozen once runs record them, plans, predictions
+  checked with t-intervals, notes, verdicts, a group status, and a memory for agents.
+- **Web UI**: `beamtime serve`, live while runs train; charts with zoom, smoothing, grouping and
+  downloads (PNG, CSV, PDF in your matplotlib style); notes and texts edited in place.
+- **Views**: pages agents build from blocks, custom blocks in a sandbox, and library blocks shared
+  between groups and projects.
+- **Agents**: an MCP server with the same operations as the CLI, prompts for the research loop,
+  and `--instructions` for Claude Code, Cursor and Codex. Agents add; they never delete or move.
+- **Remote machines**: a cluster's runs next to yours over ssh, live; read-only snapshots for when
+  it's away.
+- **Export**: a page as a folder that opens from disk (`beamtime export --html`), and its charts as
+  figures for a paper (`--figures`).
+- **Lightning**: `BeamtimeLogger`.

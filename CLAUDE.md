@@ -179,7 +179,8 @@ and say why.
 
 **Status: implementation.** M0 (foundations), M1 (SDK), M2 (index and queries), M3 (CLI and
 MCP), M4 (research record), M5 (web UI shell), the UI refactor, M6 (views), M7 (custom blocks and
-the library) and M8 (remotes; tested on Docker, a real cluster run pending) are done; milestones follow
+the library) and M8 (remotes; tested on Docker, a real cluster run pending) are done; M9 (export, the view-task
+harness, docs site, release tooling) is built, publishing 0.1.0 pending; milestones follow
 `docs/implementation-plan.md`.
 Each milestone implements the design sections it names; a deviation is decided and written back into
 the design before the code lands.
@@ -304,6 +305,9 @@ sync.
 - `tests/golden/schema1/`: frozen, byte-exact reader fixtures; never regenerate or reformat them
 - `.github/workflows/ci.yml`: lint, tests on 3.11–3.13 and macOS, SDK tests on 3.10 and Windows, budgets,
   the web build and the browser test
+- Releases: `scripts/release.py` checks the tree, the bundle and the wheel and smoke-installs it, then
+  prints the publish command (it publishes nothing); `.github/workflows/release.yml` publishes a
+  `v*` tag with trusted publishing; `pages.yml` deploys the docs site; `CHANGELOG.md` per version
 - Run checks with `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`
 - SDK side on 3.10, without touching `.venv`:
   `UV_PROJECT_ENVIRONMENT=/tmp/bt-venv310 uv run --python 3.10 pytest -q tests/sdk tests/format tests/synth tests/test_boundaries.py tests/test_cli.py`
