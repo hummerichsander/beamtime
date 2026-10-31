@@ -39,6 +39,8 @@ class Task:
     facts: dict[str, Any]
     checklist: list[str]
     seed: int = 7
+    # whether the view should also work on other pages (a run, a subgroup, an empty group).
+    robust: bool = True
 
     @classmethod
     def load(cls, file: Path) -> "Task":

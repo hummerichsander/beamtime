@@ -72,7 +72,7 @@ def row(record: dict[str, Any], score: dict[str, Any]) -> dict[str, Any]:
         "runs": ratio(score.get("runs")),
         "finding": (score.get("finding") or {}).get("true", False),
         "checklist": f"{sum(i['yes'] for i in items)}/{len(items)}" if items else "–",
-        "robust": all(v is not False for v in robust.values()) if robust else False,
+        "robust": all(v is not False for v in robust.values()) if robust else "–",
         "turns": record.get("turns"),
         "seconds": record.get("seconds"),
         "_checklist": met,
@@ -93,7 +93,8 @@ def share(rows: list[dict[str, Any]], key: str) -> str:
     :param rows: The rows.
     :param key: The key.
     :return: E.g. ``8/10``."""
-    return f"{sum(bool(r[key]) for r in rows)}/{len(rows)}"
+    counted = [r for r in rows if r[key] != "–"]
+    return f"{sum(bool(r[key]) for r in counted)}/{len(counted)}"
 
 
 def mean(values: list[float]) -> str:

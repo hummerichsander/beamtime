@@ -9,6 +9,7 @@ an empty group). Writes score.json next to each run's record.json.
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -65,7 +66,8 @@ def score_run(folder: Path) -> dict[str, Any]:
     out["runs"] = covered_runs(ctx, view, page, [roles[r] for r in facts.get("runs") or []])
     out["finding"] = judge_finding(view.finding or "", facts, folder)
     out["checklist"] = judge_checklist(ctx, page, task.checklist, folder)
-    out["robust"] = robustness(ctx, page, data)
+    # an overview names its groups, so it is only meaningful on its own page.
+    out["robust"] = robustness(ctx, page, data) if task.robust else {}
     return out
 
 
@@ -163,9 +165,10 @@ def robustness(ctx: Any, page: str, data: Any) -> dict[str, bool | None]:
         "subgroup": subgroups[0].relative_to(ctx.logdir).as_posix() if subgroups else None,
         "empty": "bench-empty",
     }
-    return {
-        kind: None if p is None else not validated(ctx, p, data)[1] for kind, p in pages.items()
-    }
+    try:
+        return {k: None if p is None else not validated(ctx, p, data)[1] for k, p in pages.items()}
+    finally:
+        shutil.rmtree(empty)
 
 
 def judge_finding(finding: str, facts: dict[str, Any], folder: Path) -> dict[str, Any]:
@@ -182,8 +185,9 @@ def judge_finding(finding: str, facts: dict[str, Any], folder: Path) -> dict[str
         f"Truth: {facts.get('finding')}\n"
         f"Known overclaims to watch for: {json.dumps(facts.get('overclaims') or [])}\n"
         f"Finding: {finding}\n"
-        "Is the finding consistent with the truth (it may say less, but nothing false)? Does it "
-        "overclaim (state more certainty, generality or significance than the truth supports)? "
+        "Is the finding consistent with the truth? It may say less, and it may add details the "
+        "truth doesn't mention, as long as nothing contradicts the truth. Does it overclaim "
+        "(state more certainty, generality or significance than the truth supports)? "
         'Answer with JSON only: {"true": bool, "overclaims": [str], "why": str}'
     )
     return ask(prompt, folder, tools="")

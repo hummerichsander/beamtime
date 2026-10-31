@@ -228,7 +228,11 @@ def queries(
         try:
             answer = call(BY_TOOL[c["method"]].name, params, ctx)
         except OpError as e:
-            out.append(Finding(level="error", **at, message=f"{name}: {e}"))
+            # a group without a proposal yet is a state the block shows, not a broken view.
+            missing = e.code == 4 and c["method"] in ("proposal_show", "check")
+            out.append(
+                Finding(level="warning" if missing else "error", **at, message=f"{name}: {e}")
+            )
             continue
         if name == "main":
             out += answer_checks(ctx, n, at, answer, c["params"], keys)
