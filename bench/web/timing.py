@@ -46,6 +46,8 @@ def main() -> None:
             page = browser.new_page(viewport={"width": 1440, "height": 900})
             page.goto(url)
             page.wait_for_function(READY)
+            # the tree loads after the page; the measures need its groups.
+            page.wait_for_function("() => document.querySelectorAll('a.tree-item').length > 2")
             folders = [a.get_attribute("href") for a in page.query_selector_all("a.tree-item")][1:6]
             first, nav = [], []
             for href in folders * 3:

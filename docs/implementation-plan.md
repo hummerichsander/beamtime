@@ -233,7 +233,7 @@ instruction-file snippet from `init` and `mcp install`.
 - `beamtime demo`; user documentation (quickstart, cluster recipe, Lightning page); the
   instruction-file snippet. Done: a Beamtime-styled docs site (`web/docs.mjs`, GitHub Pages).
 - Packaging: the wheel with the built frontend, release automation, PyPI.
-- Timing budgets measured on the generator's data; fixes from daily use; a few outside testers.
+- Timing budgets measured on the generator's data; fixes from daily use; a few outside testers. Measured before the release: all three budgets met (07-web-ui, M5 notes).
 
 **v1, after about 16–22 weeks.**
 

@@ -47,9 +47,8 @@ def read_yaml_doc(path: Path, *, kind: str) -> AuthoredDoc:
     :param path: The file.
     :param kind: ``proposal``, ``view`` or ``block``.
     :return: The document."""
-    import yaml
 
-    return _doc(path, yaml.safe_load(path.read_text()), "", kind)
+    return _doc(path, load_yaml(path.read_text()), "", kind)
 
 
 def read_markdown_doc(path: Path, *, kind: str) -> AuthoredDoc:
@@ -68,11 +67,10 @@ def split_frontmatter(text: str, *, source: str) -> tuple[Any, str]:
     :param text: The file's text.
     :param source: Where it came from, for messages.
     :return: The parsed frontmatter and the body."""
-    import yaml
 
     if (m := _FRONTMATTER.match(text)) is None:
         raise SchemaError(f"{source}: expected YAML frontmatter between '---' lines.")
-    return yaml.safe_load(m["front"]), m["body"]
+    return load_yaml(m["front"]), m["body"]
 
 
 def versions(folder: Path) -> list[Path]:
@@ -148,3 +146,13 @@ def note_links(meta: dict[str, Any], body: str) -> list[tuple[str, str]]:
         out += [("note", str(i)) for i in (ids if isinstance(ids, list) else [ids])]
     out += parse_links(body)
     return list(dict.fromkeys(out))
+
+
+def load_yaml(text: str) -> Any:
+    """Parse YAML safely, with libyaml's C parser where PyYAML has it (several times faster).
+
+    :param text: The YAML.
+    :return: The value."""
+    import yaml
+
+    return yaml.load(text, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))

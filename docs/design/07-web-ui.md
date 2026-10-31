@@ -449,9 +449,11 @@ Decided while building the shell (milestone M5):
   pages and lagged), and focus moves to the new heading unless it stayed in the tree; inline editors grow with
   `field-sizing: content`; Enter that confirms an IME composition doesn't save.
 - **Measured** on the generator's scale-M log dir (495 runs, 352 in one sweep, `bench/web/timing.py`,
-  local, warm cache): first view median 136–151 ms (budget 300 ms), group to group median 80 ms
-  (budget 100 ms; slowest about 115 ms), the longest pointer event while sweeping a chart median
-  16 ms (budget 50 ms).
+  local, warm cache), before the M9 release: first view median 117 ms (budget 300 ms; slowest
+  about 210 ms), group to group median 58 ms (budget 100 ms; slowest about 75 ms), the longest
+  pointer event while sweeping a chart median 16 ms (budget 50 ms). Group to group had grown to
+  110 ms; hovering a group link now also prefetches its blocks' calls once the view is in, a check
+  is computed once per request, and authored YAML is parsed with libyaml.
 - **Custom blocks** (M7): a block that throws, fails to load or keeps resizing is replaced by an error
   panel naming the block, its code file and the error; the rest of the view stays intact.
 - **Sources** (M8): the tree has one root per source (this machine, then each remote), URLs name

@@ -68,12 +68,28 @@ def rounded(x: float | None) -> float | None:
 
 
 def evaluate(target: Target, version: str, proposal: Proposal | None = None) -> dict[str, Any]:
-    """Check a proposal version against the runs that recorded it.
+    """Check a proposal version against the runs that recorded it, once per target.
+
+    A page asks for a group's check several times (its status, its proposal, its header); the
+    target keeps the answer, so each is computed once while the index is open.
 
     :param target: The group or run.
     :param version: The version id.
     :param proposal: The version, if already read.
     :return: The check: result, provisional, progress and one entry per prediction."""
+    seen = target.checks.get(version)
+    if seen is None or proposal is not None and proposal != seen[0]:
+        seen = target.checks[version] = (proposal, checked(target, version, proposal))
+    return seen[1]
+
+
+def checked(target: Target, version: str, proposal: Proposal | None) -> dict[str, Any]:
+    """Compute a proposal version's check.
+
+    :param target: The group or run.
+    :param version: The version id.
+    :param proposal: The version, if already read.
+    :return: The check."""
     out: dict[str, Any] = {"group": target.rel, "version": version}
     members = target.members(version)
     try:

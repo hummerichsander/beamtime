@@ -1,6 +1,7 @@
 // The calls the shell makes, in one place so pages and prefetching share cache entries.
 
-import { type Call, prefetch } from "../api.ts";
+import { type Call, fetchCall, prefetch } from "../api.ts";
+import type { Node } from "../bt/index.ts";
 import { sourcedRun } from "../router.ts";
 
 // the group tree covers every source; pages of this machine show only this machine.
@@ -30,8 +31,23 @@ export const allRuns = (): Call => ({
   scope: ".",
 });
 
-// what a group page asks for first, fetched while the pointer rests on a link to it.
+// what a group page asks for, fetched while the pointer rests on a link to it: the page's own calls,
+// then, once its view is in, its blocks' calls (charts size theirs to the page, so not those).
 export function prefetchGroup(path: string): void {
   for (const call of [view(path), group(path), runIds(path), summary(path)]) prefetch(call);
+  fetchCall<{ view?: Node }>(view(path))
+    .then((answer) => {
+      for (const call of blockCalls(answer.view)) prefetch(call);
+    })
+    .catch(() => {});
 }
+
+function blockCalls(node: Node | undefined): Call[] {
+  if (!node) return [];
+  const own = SIZED.has(node.block) ? [] : Object.values(node.data ?? {});
+  return [...own, ...(node.children ?? []).flatMap(blockCalls)];
+}
+
+// blocks whose calls depend on their width or run in a frame, so a prefetch would miss.
+const SIZED = new Set(["line", "custom"]);
 export const history = (path: string): Call => ({ method: "view_history", params: { group: path }, scope: path });

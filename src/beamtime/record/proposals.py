@@ -7,7 +7,7 @@ from typing import Any, Literal
 import msgspec
 
 from beamtime.format import constants as c
-from beamtime.format.authored import file_hash, newest, versions
+from beamtime.format.authored import file_hash, load_yaml, newest, versions
 from beamtime.format.run import derived_status
 from beamtime.index.index import Index
 from beamtime.query import models as m
@@ -265,7 +265,7 @@ def load(folder_dir: Path, version: str) -> Proposal:
 
     path = folder_dir / c.PROPOSAL / f"{version}.yaml"
     try:
-        data = yaml.safe_load(path.read_text())
+        data = load_yaml(path.read_text())
     except FileNotFoundError:
         raise RecordError(f"no proposal version {version} in {folder_dir.name}/proposal") from None
     except yaml.YAMLError as e:
@@ -305,6 +305,8 @@ class Target:
         self.rel = rel
         self.run_id = run_id
         self.now = now
+        # the proposal checked and its check, by version, computed once (record.check.evaluate).
+        self.checks: dict[str, tuple[Any, dict[str, Any]]] = {}
 
     @property
     def dir(self) -> Path:
