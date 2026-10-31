@@ -1,8 +1,9 @@
 # Beamtime
 
-Beamtime keeps track of your machine-learning experiments, for you and your coding agent.
+Beamtime keeps track of your numerical experiments (simulations, training runs, parameter scans),
+for you and your coding agent.
 
-- **Two lines in your training script.** Metrics, config, output, crashes and resumes are recorded
+- **Two lines in your script.** Metrics, config, output, crashes and resumes are recorded
   as plain files in your project. No server, no account, nothing uploaded.
 - **Every experiment says what you expect and what you found.** Write a proposal before you run;
   Beamtime checks it against the numbers; you or your agent record the verdict.
@@ -19,9 +20,9 @@ beamtime init
 ```python
 import beamtime
 
-run = beamtime.init(dir="lr-sweep", config={"lr": 3e-4})
+run = beamtime.init(dir="dt-scan", config={"dt": 1e-3})
 for step in range(1000):
-    run.log({"train/loss": train_step()})
+    run.log({"energy": simulate_step()})
 ```
 
 ```sh

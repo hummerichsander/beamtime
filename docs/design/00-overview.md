@@ -1,6 +1,7 @@
 # Beamtime design overview
 
-Beamtime is an agents-first experiment logger: runs are plain files, every experiment carries a
+Beamtime is an experiment logger for numerical experiments (simulations, training runs, parameter
+scans), shared by people and their coding agents: runs are plain files, every experiment carries a
 frozen proposal with checkable predictions, notes and a compressed memory form the research record,
 and agents build the result views. This overview is the entry point to the design. It fixes the
 canonical names that every layer uses, the scope of v1, and the cross-cutting rules.
@@ -73,7 +74,7 @@ layout blocks `section`, `row`, `grid`, `tabs`. Wave 2: `importance`, `heatmap`,
 | `beamtime[serve]` | 3.11+ | Starlette, uvicorn, the MCP SDK, Playwright (with an installed Chromium, Chrome or Edge) | Linux, macOS |
 | `beamtime[figures]` | 3.11+ | Matplotlib, SciencePlots: vector PDF figures from the web UI | Linux, macOS |
 
-The SDK modules never import CLI or server modules, so the SDK can run in older training
+The SDK modules never import CLI or server modules, so the SDK can run in older
 environments. On Windows, the SDK captures output through a pipe, retries file replacements that a
 reader blocks, and installs no SIGTERM handler.
 
@@ -84,7 +85,7 @@ reader blocks, and installs no SIGTERM handler.
   they were written.
 - **Agent writes are additive.** Agents never delete, install, configure, start servers or move runs;
   they give the user the command to enter.
-- **Never break the training run.** The SDK never raises after `init` and never blocks the process.
+- **Never break the experiment.** The SDK never raises after `init` and never blocks the process.
 - **One read path.** Every number is computed by one implementation, so the CLI, MCP and the UI
   never disagree.
 

@@ -1,7 +1,7 @@
 # Beamtime
 
-Beamtime keeps track of your machine-learning experiments. Your training script logs metrics with
-two lines of code; Beamtime stores them as plain files in your project and shows them in your
+Beamtime keeps track of your numerical experiments: simulations, training runs, parameter scans.
+Your script logs metrics with two lines of code; Beamtime stores them as plain files in your project and shows them in your
 browser, from your laptop or a cluster.
 
 Every experiment starts with a sentence saying what you expect, and ends with what you found. Your

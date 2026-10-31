@@ -181,7 +181,7 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--quiet", action="store_true", default=argparse.SUPPRESS)
     parser = argparse.ArgumentParser(
         prog="beamtime",
-        description="Agents-first experiment logging.",
+        description="Experiment tracking for people and their coding agents.",
         epilog=EXAMPLES,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

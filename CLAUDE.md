@@ -1,6 +1,7 @@
 # Beamtime
 
-Agents-first experiment logging, an alternative to W&B and TensorBoard. ML researchers and their coding
+Experiment tracking for people and their coding agents, an alternative to W&B and TensorBoard.
+Researchers running numerical experiments (simulations, ML training, parameter scans) and their coding
 agents log runs (each with a proposal and a verdict) from local machines and HPC clusters, and
 agents build custom views from Beamtime's building blocks.
 
@@ -201,7 +202,7 @@ sync.
   `memory/` and `blocks/`. Every file carries `schema`; readers accept every version forever; there
   is no migration.
 - **The SDK** (`docs/design/02-sdk.md`) needs Python 3.10+, the standard library and PyYAML, runs on
-  Linux, macOS and Windows, never breaks or blocks training, records proposal membership in
+  Linux, macOS and Windows, never breaks or blocks the experiment, records proposal membership in
   `_run.json`, and captures output through a bounded pipe. CLI and `serve` need Python 3.11+.
 - **Runs record data, views present it.** The run card and `_preview.json` make run tables and
   overviews cheap without an index.

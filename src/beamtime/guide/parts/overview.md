@@ -45,12 +45,12 @@ view like a built-in block (`- phase-map: {x: config.lr, y: config.wd, value: me
 
   | Question | Block |
   |---|---|
-  | How did training go? | `line` over steps |
+  | How did a run evolve? | `line` over steps |
   | Which setting is best? | `table` sorted by the metric, `stat` for the best |
-  | How does a metric depend on one hyperparameter? | `scatter` with `seeds` and a `fit` if it helps |
-  | How do two hyperparameters interact? | `scatter` colored by one |
+  | How does a metric depend on one parameter? | `scatter` with `seeds` and a `fit` if it helps |
+  | How do two parameters interact? | `scatter` colored by one |
   | Does a change help? | `bar` grouped by the change, with error bars |
-  | What does the model produce? | `images`, `text`, `data_table` |
+  | What does a run produce? | `images`, `text`, `data_table` |
   | Where does the research stand? | `proposal`, `groups`, `timeline`, `memory` |
 
 - **Tame many runs** (more than about eight curves) with `color: <field>`, `by: [<field>]` or

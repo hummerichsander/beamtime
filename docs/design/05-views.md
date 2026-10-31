@@ -646,13 +646,13 @@ research shows work better than long rule lists.
 
   | Question | Block |
   |---|---|
-  | How did training go? | `line` over steps |
+  | How did a run evolve? | `line` over steps |
   | Which setting is best? | `table` sorted by the metric, `stat` for the best |
-  | How does a metric depend on one hyperparameter? | `scatter`, with `seeds` and a fit if it helps |
-  | How do two hyperparameters interact? | `heatmap` (wave 2), or `scatter` colored by one |
+  | How does a metric depend on one parameter? | `scatter`, with `seeds` and a fit if it helps |
+  | How do two parameters interact? | `heatmap` (wave 2), or `scatter` colored by one |
   | Which hyperparameters matter? | `importance`, then `parallel` (wave 2) |
   | Does a change help? | `bar` or `table` grouped by the change; baselines with `match` (wave 2) |
-  | What does the model produce? | `images`, `text`, `data_table` |
+  | What does a run produce? | `images`, `text`, `data_table` |
   | Where does the research stand? | `proposal`, `groups`, `timeline`, `memory` |
 
 - **Tame many runs** with `color`, `by` or `seeds`.

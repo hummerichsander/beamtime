@@ -2,12 +2,12 @@
 
 Status: **reviewed; v1 scope per the [overview](00-overview.md#scope)**
 
-The SDK is what training code imports. It writes the storage format of [layer 1](01-storage.md) and
+The SDK is what experiment code imports: a simulation, a training loop, a parameter scan. It writes the storage format of [layer 1](01-storage.md) and
 nothing else: no network, no database, no server.
 
 ## Principles
 
-1. **Never break the training run.** Once `init` has returned, no SDK error propagates into user
+1. **Never break the experiment.** Once `init` has returned, no SDK error propagates into user
    code and no SDK operation blocks the process. Problems become a warning on stderr, a `warning`
    event and a count in the run card; the run goes on. Only `init` may raise, and only for misuse
    (invalid arguments, an unknown `resume` id), never for I/O trouble.
