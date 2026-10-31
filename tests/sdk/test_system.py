@@ -1,5 +1,8 @@
 import json
+import sys
 from pathlib import Path
+
+import pytest
 
 FAKE_SMI = """#!/bin/sh
 case "$1" in
@@ -47,6 +50,11 @@ def fake_gpu(tmp_path: Path) -> dict[str, str]:
     return {"PATH": f"{bin_dir}:{os.environ['PATH']}"}
 
 
+# the fake nvidia-smi is a shell script, which Windows doesn't run.
+FAKE_GPU = pytest.mark.skipif(sys.platform == "win32", reason="the fake nvidia-smi is a shell script")
+
+
+@FAKE_GPU
 def test_hardware_and_system_metrics(script, logdir: Path, tmp_path: Path) -> None:
     """The hardware is recorded at start; sys/* rows sit at logged steps, one per step."""
     done = script(TRAIN.format(before="", on=True), env=fake_gpu(tmp_path))
@@ -62,6 +70,7 @@ def test_hardware_and_system_metrics(script, logdir: Path, tmp_path: Path) -> No
     assert len({r["_step"] for r in system}) == len(system)
 
 
+@FAKE_GPU
 def test_system_metrics_can_be_turned_off(script, logdir: Path, tmp_path: Path) -> None:
     """system_metrics=False writes no sys/* rows; the hardware is still recorded."""
     done = script(TRAIN.format(before="", on=False), env=fake_gpu(tmp_path))

@@ -9,4 +9,4 @@ build/
 .beamtime/
 web/node_modules/
 bench/views/runs/
-site/
+/site/

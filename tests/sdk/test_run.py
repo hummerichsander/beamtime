@@ -180,6 +180,7 @@ def test_bad_input_warns_and_continues(script: Script, logdir: Path) -> None:
     assert proc.stderr.decode().count("beamtime: warning") == 4
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows doesn't delete files a process has open")
 def test_io_errors_never_reach_the_script(script: Script, logdir: Path) -> None:
     """Deleting the run directory mid-run produces warnings, not exceptions."""
     proc = script(

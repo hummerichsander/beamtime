@@ -115,7 +115,8 @@ def test_config_conversion() -> None:
         def model_dump(self) -> dict:
             return {"width": 64}
 
-    assert to_config(Cfg()) == {"lr": 3e-4, "path": "/data"}
+    # paths keep the platform's own form: \\data on Windows.
+    assert to_config(Cfg()) == {"lr": 3e-4, "path": str(Path("/data"))}
     assert to_config(argparse.Namespace(a=1)) == {"a": 1}
     assert to_config(Model()) == {"width": 64}
     assert to_config(None) == {}
