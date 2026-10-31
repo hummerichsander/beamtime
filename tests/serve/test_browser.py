@@ -39,6 +39,22 @@ def server(project: Path):
     proc.wait(10)
 
 
+def box_of(page, selector: str) -> dict:
+    """Wait until a chart's overlay is laid out, and measure it.
+
+    A chart is drawn, and redrawn when more of its data arrives, a moment after its canvas
+    appears; meanwhile its overlay has no box.
+
+    :param page: The Playwright page.
+    :param selector: The overlay, e.g. ``.chart .u-over`` (the first match counts).
+    :return: Its bounding box."""
+    deadline = time.time() + 10
+    while (box := page.locator(selector).first.bounding_box()) is None or not box["width"]:
+        assert time.time() < deadline, f"{selector} never got a size"
+        page.wait_for_timeout(100)
+    return box
+
+
 @pytest.fixture
 def page():
     """A headless Chromium page; skipped where no Chromium can run.
@@ -79,7 +95,7 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
 
     asked: list[dict] = []
     page.on("request", lambda r: r.url.endswith("/api/series") and asked.append(json.loads(r.post_data)))
-    over = page.locator(".chart .u-over").first.bounding_box()
+    over = box_of(page, ".chart .u-over")
     page.mouse.move(over["x"] + over["width"] * 0.2, over["y"] + 40)
     page.mouse.down()
     page.mouse.move(over["x"] + over["width"] * 0.5, over["y"] + 50, steps=6)
@@ -144,7 +160,7 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     # the timeline draws runs and notes, and zooms with the wheel.
     page.goto(f"{base}/timeline?from=scaling")
     page.wait_for_selector(".timeline-chart canvas")
-    box = page.locator(".timeline-chart .u-over").bounding_box()
+    box = box_of(page, ".timeline-chart .u-over")
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.wheel(0, -400)
     page.wait_for_timeout(300)
