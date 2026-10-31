@@ -1,0 +1,19 @@
+{
+  "sections": [
+    { "title": "Start here", "pages": ["index.md", "quickstart.md", "how-it-works.md"] },
+    {
+      "title": "Guides",
+      "pages": [
+        "guides/agents.md",
+        "guides/research-record.md",
+        "guides/views.md",
+        "guides/cluster.md",
+        "guides/remotes.md",
+        "guides/lightning.md",
+        "guides/export.md",
+        "guides/settings.md"
+      ]
+    },
+    { "title": "Reference", "pages": ["reference/cli.md"] }
+  ]
+}

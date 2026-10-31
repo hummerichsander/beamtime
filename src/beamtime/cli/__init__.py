@@ -136,6 +136,9 @@ def add_field(parser: argparse.ArgumentParser, field: Any, positional: bool) -> 
             kw |= {"type": lambda t: t.split(","), "metavar": "A,B"}
         case _ if get_origin(members[0]) is Literal:
             kw["choices"] = get_args(members[0])
+        case _ if members[0] is int and len(members) > 1:
+            # a number or a word, e.g. --points 500 or --points all.
+            kw["type"] = scalar
         case _ if members[0] in (int, float):
             kw["type"] = members[0]
         case _:

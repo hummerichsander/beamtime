@@ -20,6 +20,7 @@ import { MultiSelect } from "../ui/multiselect.ts";
 import { IconButton, Popover } from "../ui/primitives.ts";
 import { Downloads, expandedHeight, HEIGHT } from "./chart.ts";
 import { Notice, Panel } from "./common.ts";
+import { EXPORTED } from "../snapshot.ts";
 
 const LEGEND_MAX = 12;
 const X_AXES = [
@@ -50,7 +51,8 @@ export function seriesCall(node: Node, prefs: Effective, zoom: [number, number] 
   delete params.steps;
   if (prefs.by === "seeds") params.seeds = "config.seed";
   else if (prefs.by) params.by = [prefs.by];
-  if (zoom && prefs.x === "_step") params.steps = [Math.floor(zoom[0]), Math.ceil(zoom[1])];
+  // an exported page has no server to ask for the window: it zooms into the stored curve.
+  if (zoom && prefs.x === "_step" && !EXPORTED) params.steps = [Math.floor(zoom[0]), Math.ceil(zoom[1])];
   else if (prefs.steps && (prefs.steps[0] !== null || prefs.steps[1] !== null)) params.steps = prefs.steps;
   return { ...base, params };
 }
@@ -130,7 +132,7 @@ function Chart(props: {
       band: (smoothed.aggregated || smoothed.curves.length === 1) && prefs.band !== "none",
       range,
       zoom,
-      zoomFetched: prefs.x === "_step",
+      zoomFetched: prefs.x === "_step" && !EXPORTED,
       sync: `view:${path}`,
       formatX: formatterFor(prefs.x),
       formatY: (v) => value(v),

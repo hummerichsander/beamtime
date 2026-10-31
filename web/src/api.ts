@@ -66,11 +66,13 @@ function frozen<T>(method: string, params: Record<string, unknown>): T {
 }
 
 // how an exported page finds an answer: curves come at the export's resolution whatever width a
-// chart has now (sparklines apart), defaults count as given, and key order doesn't matter.
+// chart has now (sparklines apart), a zoom shows the stored curve's range, defaults count as
+// given, and key order doesn't matter.
 export function frozenKey(method: string, params: Record<string, unknown>): string {
   const p: Record<string, unknown> = { ...params };
   if (method === "series") {
     p.points = typeof p.points === "number" && p.points < SPARK ? "spark" : undefined;
+    delete p.steps;
     if (p.x === "_step") delete p.x;
     if (p.band === "minmax") delete p.band;
   }
