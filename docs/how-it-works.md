@@ -1,5 +1,7 @@
 # How it works
 
+![How Beamtime works: your experiment writes plain run directories; an index caches them; one operation set answers the web UI, the CLI and the MCP server, for people and coding agents; remote clusters answer over ssh.](design/architecture-overview.svg)
+
 ## Runs are folders
 
 Every call to `beamtime.init()` creates a **run**: one folder with a few plain files, such as the

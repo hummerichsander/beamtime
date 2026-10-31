@@ -8,6 +8,8 @@ Every experiment starts with a sentence saying what you expect, and ends with wh
 coding agent (Claude Code, Cursor, Codex) reads the same runs, answers questions about them and
 builds pages for you.
 
+![What Beamtime adds: testable hypotheses, people and agents working on one shared record, notes and memory written together, views built from reusable blocks, plain files you own, and cluster runs seen from your laptop over ssh.](design/features.svg)
+
 ## Start here
 
 1. **[Quickstart](quickstart.md)**: install Beamtime, log a run, and look at it. Five minutes.
