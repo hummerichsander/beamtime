@@ -8,15 +8,6 @@
 Beamtime keeps track of your numerical experiments (simulations, training runs, parameter scans),
 for you and your coding agent.
 
-- **Two lines in your script.** Metrics, config, output, crashes and resumes are recorded
-  as plain files in your project. No server, no account, nothing uploaded.
-- **Every experiment says what you expect and what you found.** Write a proposal before you run;
-  Beamtime checks it against the numbers; you or your agent record the verdict.
-- **Your agent works with it.** Claude Code, Cursor or Codex read your runs, answer questions about
-  them and build pages for you.
-- **Laptop and cluster side by side.** Runs on a cluster show up next to your local ones, live,
-  over ssh.
-
 ```sh
 pip install 'beamtime[serve]'
 beamtime init
@@ -48,7 +39,7 @@ figures, and settings. The same pages are in [`docs/`](docs/index.md).
 Apache 2.0. The web interface bundles third-party packages under MIT, ISC, BSD-3-Clause,
 Apache-2.0 and Unlicense terms; their licenses ship with it in `THIRD_PARTY_LICENSES.txt`.
 
-# Acknowlegements
+## Acknowlegements
 The project was developed using agentic LLM systems—specifically Antropic's claude code with Opus 
 5.5 (October 2026). The code was collaboratively *designed* by humans and LLMs; every single line of
 code—including unit and end-to-end tests—was *written* by LLMs. Human-led end-to-end tests are 
