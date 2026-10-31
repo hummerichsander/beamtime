@@ -1,5 +1,6 @@
 """Folders below the log dir: groups, runs and reserved names."""
 
+import shutil
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -41,3 +42,16 @@ def iter_runs(folder: Path) -> Iterator[Path]:
     for child in sorted(folder.iterdir()):
         if child.is_dir() and not is_reserved(child.name):
             yield from iter_runs(child)
+
+
+def to_trash(logdir: Path, rel: Path, stamp: str) -> Path:
+    """Move a file or folder into the log dir's trash, keeping its path below a time stamp.
+
+    :param logdir: The log dir.
+    :param rel: What to move, relative to the log dir.
+    :param stamp: The trash folder, e.g. ``20261024-101532``; one per removal.
+    :return: Where it went, relative to the log dir."""
+    dest = Path(c.TRASH) / stamp / rel
+    (logdir / dest).parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(logdir / rel), str(logdir / dest))
+    return dest

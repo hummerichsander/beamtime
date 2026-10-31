@@ -6,6 +6,7 @@ from typing import Any
 from beamtime.format import constants as c
 from beamtime.format.authored import newest, read_markdown_doc, versions
 from beamtime.format.schema import SchemaError
+from beamtime.format.times import iso, parse_iso
 from beamtime.index.store import in_scope
 from beamtime.record.proposals import Target
 
@@ -22,20 +23,12 @@ def to_time(value: Any) -> float | None:
         t = value
     elif isinstance(value, str):
         try:
-            t = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parse_iso(value)
         except ValueError:
             return None
     else:
         return None
     return (t if t.tzinfo else t.replace(tzinfo=timezone.utc)).timestamp()
-
-
-def iso(t: float) -> str:
-    """Format a unix time like ``2026-10-25T14:00:00Z``.
-
-    :param t: The time.
-    :return: The text."""
-    return datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def chain(target: Target) -> list[dict[str, Any]]:

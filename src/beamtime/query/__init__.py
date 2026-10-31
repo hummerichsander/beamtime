@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from beamtime.index.index import Index
-from beamtime.query.kinds import KIND_FUNCTIONS, Caller, Context, resolve_from
+from beamtime.query.kinds import KIND_FUNCTIONS
 from beamtime.query.models import QueryError, parse
+from beamtime.query.select import Caller, Context, resolve_from
 
 __all__ = ["QueryError", "run"]
 

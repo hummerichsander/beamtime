@@ -4,7 +4,7 @@ import json
 import math
 from typing import Any
 
-from beamtime.query.kinds import group_by, seed_groups
+from beamtime.query.aggregate import group_by, seed_groups
 from beamtime.query.models import QueryError
 from beamtime.query.where import fields_of, matches
 from beamtime.record.plans import progress
@@ -303,7 +303,7 @@ def reference(target: Target, run_id: str, field: str) -> float | None:
     :param field: The reduced field.
     :return: Its value, or ``None`` if it is missing."""
     from beamtime.query import models as m
-    from beamtime.query.kinds import Context, select_runs
+    from beamtime.query.select import Context, select_runs
 
     ctx = Context(index=target.index, caller="cli", scope=".", run_id=None, now=0.0)
     try:

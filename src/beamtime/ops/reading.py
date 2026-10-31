@@ -8,6 +8,7 @@ from typing import Any
 
 from beamtime.format import constants as c
 from beamtime.format.run import (
+    derived_status,
     read_card,
     read_config,
     read_events,
@@ -15,6 +16,7 @@ from beamtime.format.run import (
     read_run_info,
     run_status,
 )
+from beamtime.format.times import iso
 from beamtime.index.cache import daemon_status
 from beamtime.index.index import Index
 from beamtime.ops import registry as r
@@ -22,7 +24,7 @@ from beamtime.ops.budget import MAX_CHARS, cut, offset_of
 from beamtime.ops.context import Context, OpError
 from beamtime.query import QueryError
 from beamtime.query import run as run_query
-from beamtime.query.kinds import derived_status, describe_event, iso
+from beamtime.query.kinds import describe_event
 
 RECENT_EVENTS = 10
 
@@ -127,7 +129,7 @@ def file(ctx: Context, p: r.FileParams) -> dict[str, Any]:
     :return: The answer."""
     if p.draft is None:
         return ask(ctx, {"file": {"view": p.view, "path": p.path}})
-    from beamtime.query.kinds import read_table
+    from beamtime.query.files import read_table
     from beamtime.views.store import draft
 
     folder = draft(ctx, p.draft).dir.resolve()

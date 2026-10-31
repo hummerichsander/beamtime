@@ -93,9 +93,19 @@ def run_status(info: RunInfo, *, heartbeat: float, now: float) -> DerivedStatus:
     :param heartbeat: The modification time of ``_run.json``, in unix seconds.
     :param now: The time to judge against, e.g. a pulled snapshot's time.
     :return: The run status, or ``lost``."""
-    if info.status == "running" and now - heartbeat > c.LOST_AFTER_S:
+    return derived_status(info.status, heartbeat, now)
+
+
+def derived_status(status: Any, heartbeat: float | None, now: float) -> Any:
+    """Apply the one lost-run rule: running with a heartbeat older than ``LOST_AFTER_S`` is lost.
+
+    :param status: The status ``_run.json`` records.
+    :param heartbeat: The modification time of ``_run.json``.
+    :param now: The time to judge against.
+    :return: The status shown."""
+    if status == "running" and heartbeat is not None and now - heartbeat > c.LOST_AFTER_S:
         return "lost"
-    return info.status
+    return status
 
 
 def read_config(run_dir: Path) -> dict[str, Any]:

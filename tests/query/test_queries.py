@@ -339,7 +339,7 @@ def test_sql_prefilter_never_changes_answers(ask, monkeypatch, where: dict) -> N
     """The SQL prefilter returns exactly what the Python evaluator alone returns."""
     query = {"runs": {"where": where, "select": ["run.id"], "limit": 1000}}
     with_sql = {r[0] for r in ask(query)["rows"]}
-    monkeypatch.setattr("beamtime.query.kinds.prefilter", lambda where, exprs: ("", []))
+    monkeypatch.setattr("beamtime.query.select.prefilter", lambda where, exprs: ("", []))
     assert {r[0] for r in ask(query)["rows"]} == with_sql
 
 

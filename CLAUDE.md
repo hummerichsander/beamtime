@@ -249,8 +249,9 @@ sync.
 - `src/beamtime/sdk/`: the SDK; tests that call `init` run scripts in subprocesses (`script` fixture in
   `tests/sdk/conftest.py`), so hooks and fd capture never touch pytest
 - `src/beamtime/index/`: the cache (SQLite + column files), ingest, discovery, locks, the daemon loop
-- `src/beamtime/query/`: the query language; `beamtime.query.run(query, logdir=...)` answers any kind;
-  `read.py` is the one read path every number goes through
+- `src/beamtime/query/`: the query language; `beamtime.query.run(query, logdir=...)` answers any kind
+  (`kinds.py`); `select.py` resolves scopes and selects runs, `aggregate.py` groups and summarizes,
+  `files.py` reads view data files; `read.py` is the one read path every number goes through
 - `src/beamtime/record/`: the research record: proposal models and membership (`Target`), the check
   (`check.py`), t-intervals in pure Python (`stats.py`), plans, notes, group status and memory;
   tests in `tests/record/`, the done criterion in `test_end_to_end.py`

@@ -14,13 +14,14 @@ from beamtime.format.authored import split_frontmatter
 from beamtime.format.ids import is_run_id, new_version_id
 from beamtime.format.io import write_created
 from beamtime.format.schema import SchemaError
-from beamtime.format.tree import is_reserved, is_run
+from beamtime.format.times import stamp
+from beamtime.format.tree import is_reserved, is_run, to_trash
 from beamtime.index.index import Index
 from beamtime.ops import registry as r
 from beamtime.ops.budget import cut, offset_of
 from beamtime.ops.context import Context, OpError
-from beamtime.query.kinds import known_keys, resolve_from
 from beamtime.query.models import QueryError
+from beamtime.query.select import known_keys, resolve_from
 from beamtime.record import memory as mem
 from beamtime.record.check import evaluate
 from beamtime.record.notes import build, listing
@@ -320,10 +321,8 @@ def note_rm(ctx: Context, p: r.NoteRmParams) -> dict[str, Any]:
     :param p: The parameters.
     :return: What moved where."""
     import json
-    import shutil
-    from datetime import datetime, timezone
 
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    when = stamp()
     lines = []
     with target_of(ctx, ".") as target:
         db = target.index.store.db
@@ -337,10 +336,8 @@ def note_rm(ctx: Context, p: r.NoteRmParams) -> dict[str, Any]:
             note = rows[note][1].get("supersedes")
         for note in chain:
             rel = Path(rows[note][0])
-            dest = ctx.logdir / c.TRASH / stamp / rel
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(ctx.logdir / rel), str(dest))
-            lines.append(f"moved {rel.as_posix()} to {dest.relative_to(ctx.logdir).as_posix()}")
+            dest = to_trash(ctx.logdir, rel, when)
+            lines.append(f"moved {rel.as_posix()} to {dest.as_posix()}")
     lines.append("`beamtime gc --yes` deletes the trash for good")
     return {"kind": "note rm", "lines": lines, "notes": chain, "meta": {}}
 
@@ -405,7 +402,7 @@ def metric_warnings(target: Target, proposal: Proposal) -> list[str]:
     :param target: The group or run.
     :param proposal: The proposal.
     :return: One line per unknown metric."""
-    from beamtime.query.kinds import Context as QueryContext
+    from beamtime.query.select import Context as QueryContext
 
     ctx = QueryContext(
         index=target.index, caller="cli", scope=target.rel, run_id=target.run_id, now=time.time()

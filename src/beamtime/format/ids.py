@@ -4,6 +4,8 @@ import random
 import re
 from datetime import datetime, timezone
 
+from beamtime.format.times import stamp
+
 ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
 
 _TIME = r"\d{8}-\d{6}"
@@ -18,10 +20,8 @@ def _new_id(n: int, *, now: datetime | None, rng: random.Random | None) -> str:
     :param now: The time; defaults to the current UTC time.
     :param rng: The random source; defaults to the system's.
     :return: The id."""
-    now = now or datetime.now(timezone.utc)
     rng = rng or random.SystemRandom()
-    stamp = now.astimezone(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    return f"{stamp}-{''.join(rng.choice(ALPHABET) for _ in range(n))}"
+    return f"{stamp(now)}-{''.join(rng.choice(ALPHABET) for _ in range(n))}"
 
 
 def new_run_id(*, now: datetime | None = None, rng: random.Random | None = None) -> str:

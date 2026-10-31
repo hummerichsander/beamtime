@@ -12,7 +12,6 @@ import threading
 import time
 import traceback
 from collections.abc import Callable, Iterator, Mapping
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
@@ -25,6 +24,7 @@ from beamtime.format.io import json_line, read_json, write_created, write_replac
 from beamtime.format.names import random_name
 from beamtime.format.run import read_card, read_config, read_effective_metrics
 from beamtime.format.schema import schema_of
+from beamtime.format.times import iso, parse_iso
 from beamtime.sdk import env
 from beamtime.sdk.capture import Capture, LogFiles
 from beamtime.sdk.data import Data, plain
@@ -49,15 +49,6 @@ def current() -> "Run | None":
 
     :return: The run, or ``None`` if none is active."""
     return _current
-
-
-def iso(t: float) -> str:
-    """Format a unix time as ISO 8601 UTC with milliseconds.
-
-    :param t: The time.
-    :return: E.g. ``2026-10-24T10:15:32.104Z``."""
-    stamp = datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")
-    return stamp[:-3] + "Z"
 
 
 def jsonable(obj: Any) -> Any:
@@ -223,7 +214,7 @@ class Run:
         self.resuming = resuming
         self.resume_last_step = resume_last_step
         self.started = time.time()
-        self.created = datetime.fromisoformat(info["created_at"].replace("Z", "+00:00"))
+        self.created = parse_iso(info["created_at"])
         self.wake = threading.Event()
         self.stopping = False
         self.pump = threading.Thread(target=self.pump_loop, name="beamtime-pump", daemon=True)
@@ -474,7 +465,7 @@ class Run:
         offset = metrics.stat().st_size if metrics.exists() else 0
         self.info["attempts"].append(
             {
-                "started_at": iso(self.started),
+                "started_at": iso(self.started, ms=True),
                 "host": self.info["host"].get("hostname"),
                 "resume_step": resume,
             }
@@ -569,7 +560,7 @@ class Run:
 
         :return: ``_run_card.json`` and ``_preview.json``."""
         with self.lock:
-            duration = time.time() - self.created.timestamp()
+            duration = time.time() - self.created
             steps = self.step or 0
             card = {
                 "schema": 1,
@@ -664,7 +655,7 @@ class Run:
                 if reason:
                     event["reason"] = reason
                 self.queue(c.EVENTS, event)
-                self.info.update(status=status, ended_at=iso(time.time()), exit=exit)
+                self.info.update(status=status, ended_at=iso(time.time(), ms=True), exit=exit)
             self.stopping = True
             self.wake.set()
             if self.pump.is_alive():
@@ -886,8 +877,7 @@ def find_by_job_key(folder: Path, job_key: str) -> Path | None:
             info = read_json(d / c.RUN)
         except (OSError, ValueError):
             continue
-        created = datetime.fromisoformat(info["created_at"].replace("Z", "+00:00"))
-        recent = time.time() - created.timestamp() < RANK_RECENT_S
+        recent = time.time() - parse_iso(info["created_at"]) < RANK_RECENT_S
         if info.get("job_key") == job_key and info.get("status") == "running" and recent:
             found.append(d)
     return max(found, default=None, key=lambda d: d.name)
@@ -1012,10 +1002,12 @@ def new_run(
         "name": name or random_name(),
         "tags": tags,
         "status": "running",
-        "created_at": iso(now),
+        "created_at": iso(now, ms=True),
         "ended_at": None,
         "exit": None,
-        "attempts": [{"started_at": iso(now), "host": host["hostname"], "resume_step": None}],
+        "attempts": [
+            {"started_at": iso(now, ms=True), "host": host["hostname"], "resume_step": None}
+        ],
         "proposals": proposals,
         "proposal_hashes": hashes,
         "job_key": env.job_key(environ),

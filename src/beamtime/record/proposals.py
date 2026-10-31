@@ -8,11 +8,12 @@ import msgspec
 
 from beamtime.format import constants as c
 from beamtime.format.authored import file_hash, newest, versions
+from beamtime.format.run import derived_status
 from beamtime.index.index import Index
 from beamtime.query import models as m
 from beamtime.query.fields import json_path, parse_field
-from beamtime.query.kinds import Context, select_runs
 from beamtime.query.models import QueryError, closest
+from beamtime.query.select import Context, select_runs
 from beamtime.query.where import fields_of
 
 Op = Literal["<", "<=", ">", ">="]
@@ -348,7 +349,6 @@ class Target:
 
         :param version: The version id.
         :return: Per run: id, path, status (``lost`` derived) and recorded hash."""
-        from beamtime.query.kinds import derived_status
 
         cond, params = self.membership(version)
         now = self.now or time.time()
@@ -379,7 +379,7 @@ class Target:
         :param where: The condition, in the query syntax.
         :param fields: Fields to fetch.
         :param seeds: The seed field, when seed groups are formed later.
-        :return: One dict per run, as ``query.kinds.select_runs`` gives them."""
+        :return: One dict per run, as ``query.select.select_runs`` gives them."""
         ctx = Context(
             index=self.index, caller="cli", scope=".", run_id=None, now=self.now or time.time()
         )

@@ -296,7 +296,7 @@ def merge(
     :param params: The call's parameters.
     :param ctx: The operation context, for its caller's default limits.
     :return: The merged answer."""
-    from beamtime.query.kinds import DEFAULTS
+    from beamtime.query.select import DEFAULTS
 
     first = dict(answers[0][1])
     defaults = DEFAULTS[ctx.caller]
@@ -352,7 +352,7 @@ def merge_runs(answers: list[dict], params: dict[str, Any], limit: int) -> dict[
     :param params: The call's parameters (``sort``).
     :param limit: How many rows to keep.
     :return: ``columns`` and ``rows``."""
-    from beamtime.query.kinds import sort_rows
+    from beamtime.query.aggregate import sort_rows
 
     columns: list[str] = []
     for a in answers:

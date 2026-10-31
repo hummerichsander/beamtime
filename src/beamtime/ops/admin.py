@@ -12,13 +12,14 @@ import sqlite3
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from beamtime.format import constants as c
 from beamtime.format.io import read_json
-from beamtime.format.tree import is_reserved, iter_runs
+from beamtime.format.run import derived_status
+from beamtime.format.times import stamp
+from beamtime.format.tree import is_reserved, iter_runs, to_trash
 from beamtime.index.cache import cache_dir, daemon_status
 from beamtime.index.index import Index
 from beamtime.ops import registry as r
@@ -335,7 +336,7 @@ def refuse_running(run_dir: Path, verb: str) -> None:
     :param verb: What was asked, for the message."""
     info = read_json(run_dir / c.RUN)
     beat = (run_dir / c.RUN).stat().st_mtime
-    if info.get("status") == "running" and time.time() - beat <= c.LOST_AFTER_S:
+    if derived_status(info.get("status"), beat, time.time()) == "running":
         raise OpError(
             f"{run_dir.name} is still running (heartbeat "
             f"{time.time() - beat:.0f} s ago); {verb} it once it has ended",
@@ -434,17 +435,11 @@ def remove(ctx: Context, p: r.RemoveParams) -> dict[str, Any]:
     rel = target.relative_to(ctx.logdir)
     if rel.parts and rel.parts[0] == c.TRASH:
         raise OpError("that is already in the trash; `beamtime gc --yes` empties it", code=2)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    dest = ctx.logdir / c.TRASH / stamp / rel
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(target), str(dest))
+    dest = to_trash(ctx.logdir, rel, stamp())
     return answer(
         "rm",
-        [
-            f"moved {rel} to {dest.relative_to(ctx.logdir)}",
-            "`beamtime gc --yes` deletes the trash for good",
-        ],
-        trash=dest.relative_to(ctx.logdir).as_posix(),
+        [f"moved {rel} to {dest}", "`beamtime gc --yes` deletes the trash for good"],
+        trash=dest.as_posix(),
     )
 
 
