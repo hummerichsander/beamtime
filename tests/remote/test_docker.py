@@ -14,11 +14,9 @@ from pathlib import Path
 
 import pytest
 
-from beamtime import remote
-from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
+from beamtime.remote import answer as call
 from beamtime.remote.client import Spec
-from beamtime.remote.sources import Sources
 from beamtime.synth import generate
 
 SWEEP = "scaling/lr-sweep"
@@ -93,17 +91,22 @@ def container(tmp_path_factory: pytest.TempPathFactory):
 
 
 @pytest.fixture
-def box(container, project: Path):
-    """The container as the source ``@box`` of a running serve.
+def box(container, project: Path) -> Path:
+    """The container's log dir as seen from here.
 
     :param container: The container.
     :param project: The local project.
-    :return: The remote's log dir as seen from here."""
-    _, logdir, _ = container
-    remote.active = Sources([Spec(name="box", host="box", path="/data/beamtime")])
-    yield logdir
-    remote.active.close()
-    remote.active = None
+    :return: The log dir."""
+    return container[1]
+
+
+@pytest.fixture
+def box_spec(container) -> Spec:
+    """The container as the source ``@box``, over ssh.
+
+    :param container: The container.
+    :return: The spec."""
+    return Spec(name="box", host="box", path="/data/beamtime")
 
 
 def test_over_ssh_reads_merge_and_a_verdict_lands_there(box: Path, ctx: Context) -> None:

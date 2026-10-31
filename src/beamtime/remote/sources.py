@@ -94,10 +94,8 @@ def client_for(ctx: Context, name: str) -> RemoteClient:
     :param ctx: The operation context, for the remotes in its settings.
     :param name: The source, without the ``@``.
     :return: Its client."""
-    from beamtime import remote
-
-    if remote.active is not None and name in remote.active.clients:
-        return remote.active.get(name)
+    if ctx.sources is not None and name in ctx.sources.clients:
+        return ctx.sources.get(name)
     if name not in opened:
         configured = ctx.settings.get("remotes") or {}
         if name not in configured:

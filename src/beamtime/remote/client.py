@@ -24,6 +24,19 @@ class Unreachable(OpError):
     """A remote that can't answer now; a snapshot may answer for it."""
 
 
+class RemoteError(OpError):
+    """An error the remote end answered with."""
+
+    def __init__(self, source: str, reason: str, *, code: int = 1) -> None:
+        """Create the error.
+
+        :param source: The remote's name.
+        :param reason: The remote's own message.
+        :param code: Its exit code."""
+        super().__init__(f"@{source}: {reason}", code=code)
+        self.reason = reason
+
+
 @dataclass(kw_only=True)
 class Spec:
     """How to reach a remote: from the settings, or named on the command line."""
@@ -165,10 +178,12 @@ class RemoteClient:
         if not waiting.done.wait(timeout):
             with self.lock:
                 self.pending.pop(rid, None)
-            raise OpError(f"@{self.name} didn't answer {method} within {timeout:.0f} s", code=1)
+            # slow, not gone: the connection stays, and a snapshot may answer meanwhile.
+            raise Unreachable(f"@{self.name} didn't answer {method} within {timeout:.0f} s")
         answer = waiting.answer or {}
         if (error := answer.get("error")) is not None:
-            raise OpError(f"@{self.name}: {error.get('message')}", code=int(error.get("code", 1)))
+            code = int(error.get("code", 1))
+            raise RemoteError(self.name, str(error.get("message")), code=code)
         if answer.get("lost"):
             raise self.unreachable()
         return answer.get("result")
@@ -204,9 +219,11 @@ class RemoteClient:
             except OpError as e:
                 self.close()
                 if self.state != "unreachable":
-                    self.fail(str(e).removeprefix(f"@{self.name}: "))
+                    self.fail(e.reason if isinstance(e, RemoteError) else str(e))
                 raise self.unreachable() from None
-            self.state, self.since, self.error, self.failures = "connected", time.time(), None, 0
+            with self.lock:
+                self.state, self.since, self.error = "connected", time.time(), None
+                self.failures = 0
             if self.subscribed:
                 self.send("subscribe", {"paths": self.subscribed}, "cli", HELLO_S)
 
@@ -257,21 +274,26 @@ class RemoteClient:
         """Mark the connection lost and fail every waiting request.
 
         :param reason: What happened."""
+        self.drop_pending()
+        if self.state != "unreachable":
+            self.fail(reason)
+
+    def drop_pending(self) -> None:
+        """Fail every waiting request: their answers can't come any more."""
         with self.lock:
             waiting, self.pending = list(self.pending.values()), {}
             self.alive = False
         for w in waiting:
             w.answer = {"lost": True}
             w.done.set()
-        if self.state != "unreachable":
-            self.fail(reason)
 
     def fail(self, reason: str) -> None:
         """Record a failed connection.
 
         :param reason: Why."""
-        self.state, self.since, self.error = "unreachable", time.time(), reason
-        self.failures += 1
+        with self.lock:
+            self.state, self.since, self.error = "unreachable", time.time(), reason
+            self.failures += 1
 
     def last_error(self) -> str | None:
         """Name the remote end's last error output.
@@ -294,7 +316,9 @@ class RemoteClient:
 
     def close(self) -> None:
         """End the connection; the remote end exits when its stdin closes."""
-        proc, self.proc = self.proc, None
+        with self.lock:
+            proc, self.proc = self.proc, None
+        self.drop_pending()
         if proc is None:
             return
         try:
@@ -303,5 +327,6 @@ class RemoteClient:
             proc.wait(timeout=5)
         except (OSError, subprocess.TimeoutExpired):
             proc.kill()
-        if self.state == "connected":
-            self.state, self.since = "idle", time.time()
+        with self.lock:
+            if self.state == "connected":
+                self.state, self.since = "idle", time.time()

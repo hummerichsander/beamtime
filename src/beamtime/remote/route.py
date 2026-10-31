@@ -5,26 +5,22 @@ it back. Listings over ``.`` ask every source of the running serve and merge. A 
 log dir doesn't know is looked for on the remotes, since run ids are unique everywhere."""
 
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from beamtime import remote
 from beamtime.format.ids import is_run_id
 from beamtime.ops.context import Context, OpError
+from beamtime.ops.registry import OPS
 from beamtime.remote import TARGETS
 
-# listings over "." that merge across sources.
-LISTINGS = ("groups", "runs", "series", "data", "timeline", "notes", "keys")
-# work on drafts in this project's .beamtime/, which a remote group can't use (yet).
-DRAFTS = (
-    "view_new",
-    "view_validate",
-    "view_render",
-    "view_save",
-    "block_promote",
-    "block_fork",
-    "block_validate",
-    "block_save",
-)
+# from the registry: listings merge across sources, drafts stay in this project, snapshots refuse
+# writes (and the web UI's own writes), writes that take an author get this machine's.
+LISTINGS = {op.tool for op in OPS if op.listing}
+DRAFTS = {op.tool for op in OPS if op.drafts}
+WRITES = {op.tool for op in OPS if op.writes} | {"view_text", "save_view"}
+AUTHORED = {op.tool for op in OPS if "author" in op.params.__struct_fields__}
+# a listing waits this long for a remote before it answers without it.
+LISTING_S = 20.0
 PATH_KEYS = ("group", "from", "scope", "folder")
 # what users wrote or logged: its keys may be called group or path, and it is never a place.
 USER_CONTENT = (
@@ -73,20 +69,14 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
         except Unreachable as e:
             return from_snapshot(method, strip(params, source), ctx, source, e)
         return prefix(answer, source)
-    if method in LISTINGS and remote.active is not None and ctx.merge and fans_out(params):
+    if method in LISTINGS and ctx.sources is not None and ctx.merge and fans_out(params):
         return federate(method, params, ctx, local)
     try:
         return local(params)
     except OpError as e:
-        if e.code != 4 or remote.active is None or (run := run_target(params)) is None:
+        if e.code != 4 or ctx.sources is None or (run := run_target(params)) is None:
             raise
         return elsewhere(method, params, ctx, run, e)
-
-
-# writes whose author the laptop names.
-AUTHORED = ("note_add", "proposal_set", "memory_update", "view_upgrade", "name")
-# what a read-only snapshot refuses.
-WRITES = (*AUTHORED, "view_text", "save_view", "note_rm")
 
 
 def with_author(method: str, params: dict[str, Any], ctx: Context) -> dict[str, Any]:
@@ -96,7 +86,7 @@ def with_author(method: str, params: dict[str, Any], ctx: Context) -> dict[str, 
     :param params: Its parameters.
     :param ctx: The operation context.
     :return: The parameters; ``user`` is still the account the remote runs as."""
-    if "author" not in params and method not in AUTHORED:
+    if method not in AUTHORED:
         return params
     from beamtime.ops.record import author_of
 
@@ -248,9 +238,9 @@ def elsewhere(method: str, params: dict[str, Any], ctx: Context, run: str, missi
     :param run: The run id the call targets.
     :param missing: The local not-found error, raised again if no remote knows the run.
     :return: The answer of the remote that has the run."""
-    assert remote.active is not None
+    assert ctx.sources is not None
     params = with_author(method, params, ctx)
-    for name, client in remote.active.clients.items():
+    for name, client in ctx.sources.clients.items():
         try:
             return prefix(client.request(method, params, caller=ctx.caller), name)
         except OpError:
@@ -266,20 +256,31 @@ def federate(method: str, params: dict[str, Any], ctx: Context, local: Local) ->
     :param ctx: The operation context.
     :param local: Answers the call here.
     :return: The merged answer; ``meta.sources`` says which source answered."""
-    assert remote.active is not None
-    answers = [("local", local(params))]
-    states = [{"name": "local", "state": "connected"}]
-    for name, client in remote.active.clients.items():
+    assert ctx.sources is not None
+    clients = list(ctx.sources.clients.items())
+
+    def ask(name: str, client: Any) -> tuple[dict | None, dict[str, Any]]:
         scoped = params | {"from": client.spec.scope}
         try:
-            answers.append((name, prefix(client.request(method, scoped, caller=ctx.caller), name)))
-            states.append({"name": f"@{name}", "state": "connected"})
+            answer = client.request(method, scoped, caller=ctx.caller, timeout=LISTING_S)
+            return prefix(answer, name), {"name": f"@{name}", "state": "connected"}
         except OpError as e:
             try:
-                answers.append((name, from_snapshot(method, scoped, ctx, name, e)))
-                states.append({"name": f"@{name}", "state": "snapshot", "error": str(e)})
+                snap = from_snapshot(method, scoped, ctx, name, e)
+                return snap, {"name": f"@{name}", "state": "snapshot", "error": str(e)}
             except OpError:
-                states.append({"name": f"@{name}", "state": "unreachable", "error": str(e)})
+                return None, {"name": f"@{name}", "state": "unreachable", "error": str(e)}
+
+    # every remote at once: a page waits for the slowest, not for the sum of them.
+    with ThreadPoolExecutor(max(1, len(clients))) as pool:
+        asked = [pool.submit(ask, name, client) for name, client in clients]
+        answers = [("local", local(params))]
+        states = [{"name": "local", "state": "connected"}]
+        for (name, _), future in zip(clients, asked, strict=True):
+            answer, state = future.result()
+            states.append(state)
+            if answer is not None:
+                answers.append((name, answer))
     merged = merge(method, answers, params, ctx)
     merged["meta"] = {**answers[0][1].get("meta", {}), **merged.get("meta", {}), "sources": states}
     return merged
@@ -409,18 +410,19 @@ def merge_keys(answers: list[dict]) -> dict[str, Any]:
 FILE_LIMIT = 64 << 20
 
 
-def remote_file(run: str, rel: str, source: str | None = None) -> bytes | None:
+def remote_file(ctx: Context, run: str, rel: str, source: str | None = None) -> bytes | None:
     """Fetch a file of a run that lives on a remote, such as a logged image.
 
+    :param ctx: The operation context, with the serve's sources.
     :param run: The run id.
     :param rel: The file's path inside the run.
     :param source: The remote it is on, if known; else every remote is asked.
     :return: Its content, or ``None`` if no remote has it."""
     import base64
 
-    if remote.active is None:
+    if ctx.sources is None:
         return None
-    clients = remote.active.clients
+    clients = ctx.sources.clients
     for client in [clients[source]] if source in clients else clients.values():
         try:
             base = client.request("card", {"run": run})["run"]["path"]

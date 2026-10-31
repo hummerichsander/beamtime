@@ -1,10 +1,11 @@
+import dataclasses
 import json
 from pathlib import Path
 
 import pytest
 
-from beamtime import remote
 from beamtime.ops import call
+from beamtime.remote import answer
 from beamtime.ops.context import Context, OpError
 from beamtime.remote.client import Spec
 from beamtime.remote.pull import snapshots_dir
@@ -35,14 +36,14 @@ def test_pull_copies_a_group_incrementally(box: Path, ctx: Context) -> None:
 def test_a_snapshot_answers_while_the_remote_is_away(box: Path, ctx: Context) -> None:
     """Without the remote, its snapshot answers reads and refuses writes."""
     call("pull", {"target": f"box:{SWEEP}"}, ctx)
-    remote.active.close()
+    ctx.sources.close()
     away = Spec(name="box", path=str(box), command="false", transport="command")
-    remote.active = Sources([away])
-    runs = call("runs", {"from": f"@box/{SWEEP}", "select": ["run.group"]}, ctx)
+    ctx = dataclasses.replace(ctx, sources=Sources([away]))
+    runs = answer("runs", {"from": f"@box/{SWEEP}", "select": ["run.group"]}, ctx)
     assert runs["meta"]["snapshot"] and {r[1] for r in runs["rows"]} == {f"@box/{SWEEP}"}
     with pytest.raises(OpError, match="read-only"):
-        call("note add", {"group": f"@box/{SWEEP}", "type": "idea", "description": "x"}, ctx)
-    groups = call("groups", {"from": "."}, ctx)
+        answer("note add", {"group": f"@box/{SWEEP}", "type": "idea", "description": "x"}, ctx)
+    groups = answer("groups", {"from": "."}, ctx)
     assert {"name": "@box", "state": "snapshot"}.items() <= groups["meta"]["sources"][-1].items()
     assert f"@box/{SWEEP}" in [r[0] for r in groups["rows"]]
 

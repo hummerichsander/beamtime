@@ -3,9 +3,12 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from beamtime.settings import Settings, load
+
+if TYPE_CHECKING:
+    from beamtime.remote.sources import Sources
 
 Caller = Literal["cli", "mcp", "view"]
 
@@ -33,6 +36,8 @@ class Context:
     caller: Caller = "cli"
     # listings of "." merge every source; the web UI's pages of this machine ask for it only here.
     merge: bool = True
+    # the remotes a running serve holds connections to; a one-shot call has none.
+    sources: "Sources | None" = None
     # the time run status is judged at: now, or a snapshot's time.
     now: float | None = None
 

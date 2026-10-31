@@ -1,16 +1,10 @@
 """Remote sources (layer 4): other machines' log dirs, reached over ssh and named ``@<name>/...``.
 
-This module stays tiny, since every operation call checks it: the running ``serve`` registers its
-sources here, and ``targets`` tells whether parameters name one."""
+This module stays tiny, since every CLI and MCP call loads it: ``targets`` tells whether parameters
+name a source, and ``answer`` routes the call. A running ``serve`` holds its sources on its
+operation context (``Context.sources``)."""
 
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from beamtime.remote.sources import Sources
-
-# the sources a running `beamtime serve` holds; a one-shot CLI call has none.
-active: "Sources | None" = None
-
+from typing import Any
 
 # parameters that name a place: a group, a run, a page.
 TARGETS = ("group", "from", "run", "path", "view", "source", "to", "target")
@@ -40,13 +34,20 @@ def answer(name: str, params: dict[str, Any], ctx: Any) -> dict[str, Any]:
     :param ctx: The operation context.
     :return: The answer."""
     from beamtime.ops import call
+    from beamtime.ops.context import OpError
     from beamtime.ops.registry import BY_NAME
 
     op = BY_NAME[name]
-    if not op.user_only and (targets(params) or ctx.settings.get("remotes")):
-        from beamtime.remote import via_serve
+    if op.local or ctx.sources is None and not targets(params) and not ctx.settings.get("remotes"):
+        return call(name, params, ctx)
+    if op.user_only:
+        if targets(params):
+            raise OpError(f"{name} is a user command; run it on the remote itself (ssh)", code=2)
+        return call(name, params, ctx)
+    from beamtime.remote import via_serve
+    from beamtime.remote.route import routed
 
-        if via_serve.involves_remotes(ctx, op.tool, params):
-            if (found := via_serve.call(ctx, op.tool, params)) is not None:
-                return found
-    return call(name, params, ctx)
+    if via_serve.involves_remotes(ctx, op.tool, params):
+        if (found := via_serve.call(ctx, op.tool, params)) is not None:
+            return found
+    return routed(op.tool, params, ctx, lambda given: call(name, given, ctx))

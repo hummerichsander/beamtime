@@ -508,6 +508,12 @@ class Op:
     positional: tuple[str, ...] = ()
     user_only: bool = False
     stdin: str | None = None
+    # how remotes treat it: a listing merges across sources; a write is refused by snapshots;
+    # draft work needs this project's drafts; local runs here even with an @remote target (pull).
+    listing: bool = False
+    writes: bool = False
+    drafts: bool = False
+    local: bool = False
 
     @property
     def tool(self) -> str:
@@ -536,6 +542,7 @@ OPS = [
     ),
     Op(
         name="keys",
+        listing=True,
         params=KeysParams,
         impl=f"{R}:keys",
         positional=("from_",),
@@ -543,6 +550,7 @@ OPS = [
     ),
     Op(
         name="groups",
+        listing=True,
         params=GroupsParams,
         impl=f"{R}:groups",
         positional=("from_",),
@@ -550,6 +558,7 @@ OPS = [
     ),
     Op(
         name="runs",
+        listing=True,
         params=RunsParams,
         impl=f"{R}:runs",
         positional=("from_",),
@@ -564,6 +573,7 @@ OPS = [
     ),
     Op(
         name="series",
+        listing=True,
         params=SeriesParams,
         impl=f"{R}:series",
         positional=("from_",),
@@ -571,6 +581,7 @@ OPS = [
     ),
     Op(
         name="data",
+        listing=True,
         params=DataParams,
         impl=f"{R}:data",
         positional=("from_", "key"),
@@ -592,6 +603,7 @@ OPS = [
     ),
     Op(
         name="timeline",
+        listing=True,
         params=TimelineParams,
         impl=f"{R}:timeline",
         positional=("from_",),
@@ -599,6 +611,7 @@ OPS = [
     ),
     Op(
         name="notes",
+        listing=True,
         params=NotesParams,
         impl=f"{W}:notes",
         positional=("from_",),
@@ -627,6 +640,7 @@ OPS = [
     ),
     Op(
         name="note add",
+        writes=True,
         params=NoteAddParams,
         impl=f"{W}:note_add",
         positional=("group",),
@@ -635,6 +649,7 @@ OPS = [
     ),
     Op(
         name="proposal set",
+        writes=True,
         params=ProposalSetParams,
         impl=f"{W}:proposal_set",
         positional=("group", "file"),
@@ -643,6 +658,7 @@ OPS = [
     ),
     Op(
         name="memory update",
+        writes=True,
         params=MemoryUpdateParams,
         impl=f"{W}:memory_update",
         positional=("group", "file"),
@@ -664,6 +680,7 @@ OPS = [
     ),
     Op(
         name="view new",
+        drafts=True,
         params=ViewNewParams,
         impl=f"{V}:new",
         positional=("group",),
@@ -671,6 +688,7 @@ OPS = [
     ),
     Op(
         name="view validate",
+        drafts=True,
         params=ViewValidateParams,
         impl=f"{V}:validate",
         positional=("draft",),
@@ -678,6 +696,7 @@ OPS = [
     ),
     Op(
         name="view render",
+        drafts=True,
         params=ViewRenderParams,
         impl=f"{V}:render",
         positional=("draft",),
@@ -685,6 +704,7 @@ OPS = [
     ),
     Op(
         name="view save",
+        drafts=True,
         params=ViewSaveParams,
         impl=f"{V}:save_draft",
         positional=("draft",),
@@ -713,6 +733,7 @@ OPS = [
     ),
     Op(
         name="view upgrade",
+        writes=True,
         params=ViewUpgradeParams,
         impl=f"{V}:upgrade",
         positional=("group",),
@@ -734,6 +755,7 @@ OPS = [
     ),
     Op(
         name="block promote",
+        drafts=True,
         params=BlockPromoteParams,
         impl=f"{B}:promote",
         positional=("group", "block_id", "name"),
@@ -741,6 +763,7 @@ OPS = [
     ),
     Op(
         name="block fork",
+        drafts=True,
         params=BlockForkParams,
         impl=f"{B}:fork",
         positional=("name", "new_name"),
@@ -748,6 +771,7 @@ OPS = [
     ),
     Op(
         name="block validate",
+        drafts=True,
         params=BlockValidateParams,
         impl=f"{B}:validate",
         positional=("draft",),
@@ -755,6 +779,7 @@ OPS = [
     ),
     Op(
         name="block save",
+        drafts=True,
         params=BlockSaveParams,
         impl=f"{B}:save_draft",
         positional=("draft",),
@@ -837,6 +862,7 @@ OPS = [
     ),
     Op(
         name="name",
+        writes=True,
         params=NameParams,
         impl=f"{W}:name",
         positional=("run", "name"),
@@ -860,6 +886,7 @@ OPS = [
     ),
     Op(
         name="pull",
+        local=True,
         params=PullParams,
         impl="beamtime.remote.pull:pull_op",
         positional=("target",),
@@ -868,6 +895,7 @@ OPS = [
     ),
     Op(
         name="note rm",
+        writes=True,
         params=NoteRmParams,
         impl=f"{W}:note_rm",
         positional=("note",),

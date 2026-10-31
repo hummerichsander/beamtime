@@ -1,12 +1,12 @@
+import dataclasses
 import sys
 import time
 from pathlib import Path
 
 import pytest
 
-from beamtime import remote
-from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
+from beamtime.remote import answer as call
 from beamtime.remote.client import Spec
 from beamtime.remote.sources import Sources
 from beamtime.serve.api import dispatch
@@ -40,9 +40,7 @@ def test_listings_of_everything_merge(box: Path, ctx: Context) -> None:
     timeline = call("timeline", {"from": ".", "limit": 50}, ctx)["entries"]
     assert [e["t"] for e in timeline] == sorted(e["t"] for e in timeline)
     keys = call("keys", {"from": "."}, ctx)
-    held, remote.active = remote.active, None
-    alone = call("keys", {"from": "."}, ctx)
-    remote.active = held
+    alone = call("keys", {"from": "."}, dataclasses.replace(ctx, sources=None))
     assert keys["runs"] > 0 and keys["runs"] == runs["meta"]["matched"]
     assert alone["runs"] < keys["runs"]
 
@@ -75,12 +73,13 @@ def test_runs_are_found_wherever_they_are(box: Path, ctx: Context) -> None:
 
 def test_pages_of_remote_groups(box: Path, ctx: Context) -> None:
     """A remote group's view comes from the remote; its blocks' calls point back there."""
-    page = dispatch(Context.make(caller="view"), "view", {"path": f"@box/{SWEEP}"})
+    view = dataclasses.replace(ctx, caller="view")
+    page = dispatch(view, "view", {"path": f"@box/{SWEEP}"})
     assert page["path"] == f"@box/{SWEEP}"
     calls = [n["data"]["main"] for n in walk(page["view"]) if n.get("data", {}).get("main")]
     assert calls and all(c["scope"].startswith("@box") for c in calls)
     first = calls[0]
-    answer = dispatch(Context.make(caller="view"), first["method"], first["params"])
+    answer = dispatch(view, first["method"], first["params"])
     assert answer["meta"].get("source", "@box") == "@box"
 
 
@@ -93,7 +92,7 @@ def test_errors_name_the_source(box: Path, ctx: Context, tmp_path: Path) -> None
     with pytest.raises(OpError, match="user command"):
         call("rm", {"target": f"@box/{SWEEP}"}, ctx)
     broken = Spec(name="gone", path=str(tmp_path), command="false", transport="command")
-    remote.active.clients.update(Sources([broken]).clients)
+    ctx.sources.clients.update(Sources([broken]).clients)
     started = time.monotonic()
     for _ in range(3):
         with pytest.raises(OpError, match="@gone is unreachable since"):
@@ -143,7 +142,7 @@ def test_a_run_copied_to_a_remote_is_told_apart(box: Path, ctx: Context, project
     assert call("card", {"run": run}, ctx)["run"]["path"] == f"{SWEEP}/{run}"
     there = call("card", {"run": f"@box/{run}"}, ctx)["run"]["path"]
     assert there == f"@box/copied/{run}"
-    page = dispatch(Context.make(caller="view"), "view", {"path": f"@box/{run}"})
+    page = dispatch(dataclasses.replace(ctx, caller="view"), "view", {"path": f"@box/{run}"})
     assert page["path"] == f"@box/copied/{run}"
 
 
@@ -157,6 +156,52 @@ def test_logged_files_of_remote_runs(box: Path, ctx: Context) -> None:
     with_file = [e for e in entries if e.get("path")]
     assert with_file and not with_file[0]["path"].startswith("@")
     e = with_file[0]
-    content = remote_file(e["run"], e["path"], "box")
+    content = remote_file(ctx, e["run"], e["path"], "box")
     run_dir = next(box.rglob(e["run"]))
     assert content == (run_dir / e["path"]).read_bytes()
+
+
+HUNG = """
+import json, sys
+for line in sys.stdin:
+    message = json.loads(line)
+    if message["method"] == "hello":
+        print(json.dumps({"id": message["id"], "result": {"version": "0"}}), flush=True)
+"""
+
+
+def test_a_hung_remote_is_left_out_of_listings(
+    ctx: Context, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A remote that shakes hands but never answers delays a listing by the timeout, no more."""
+    from beamtime.remote import route
+
+    (tmp_path / "hung.py").write_text(HUNG)
+    hung = Spec(name="hung", path=".", command=f"{sys.executable} {tmp_path / 'hung.py'}",
+                transport="command")  # fmt: skip
+    ctx.sources.clients.update(Sources([hung]).clients)
+    monkeypatch.setattr(route, "LISTING_S", 0.5)
+    started = time.monotonic()
+    groups = call("groups", {"from": "."}, ctx)
+    assert time.monotonic() - started < 10
+    states = {s["name"]: s["state"] for s in groups["meta"]["sources"]}
+    assert states == {"local": "connected", "@box": "connected", "@hung": "unreachable"}
+    assert any(r[0].startswith("@box") for r in groups["rows"])
+
+
+def test_closing_fails_waiting_requests(tmp_path: Path) -> None:
+    """A request waiting on a connection that closes fails at once instead of at its timeout."""
+    import threading
+
+    from beamtime.remote.client import RemoteClient, Unreachable
+
+    (tmp_path / "hung.py").write_text(HUNG)
+    client = RemoteClient(spec=Spec(name="hung", path=".", transport="command",
+                                    command=f"{sys.executable} {tmp_path / 'hung.py'}"))  # fmt: skip
+    with pytest.raises(Unreachable, match="didn't answer runs within"):
+        client.request("runs", {}, timeout=0.3)
+    threading.Timer(0.3, client.close).start()
+    started = time.monotonic()
+    with pytest.raises(Unreachable):
+        client.request("runs", {}, timeout=30)
+    assert time.monotonic() - started < 10

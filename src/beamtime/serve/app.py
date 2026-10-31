@@ -5,7 +5,7 @@ import mimetypes
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import msgspec
 from starlette.applications import Starlette
@@ -23,6 +23,9 @@ from starlette.staticfiles import StaticFiles
 from beamtime.ops.context import Context, OpError
 from beamtime.serve.api import STATIC, dispatch, locate
 from beamtime.serve.live import Hub
+
+if TYPE_CHECKING:
+    from beamtime.remote.sources import Sources
 
 STATUS = {1: 400, 2: 400, 3: 422, 4: 404}
 
@@ -45,7 +48,7 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
             return error("the body is a JSON object of parameters", 2)
         if method == "watch":
             hub.watch(str(body.get("client")), dict(body.get("watched") or {}))
-            await run_in_threadpool(subscribe_remotes, hub)
+            await run_in_threadpool(subscribe_remotes, hub, ctx.sources)
             return reply({"kind": "watch", "watching": len(body.get("watched") or {})})
         # the CLI and MCP send their calls about remotes here, with their own answer sizes.
         caller = request.headers.get("x-beamtime-caller")
@@ -77,7 +80,8 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
         if path is None:
             from beamtime.remote.route import remote_file
 
-            if (content := await run_in_threadpool(remote_file, run_id, rel, source)) is not None:
+            content = await run_in_threadpool(remote_file, ctx, run_id, rel, source)
+            if content is not None:
                 kind = mimetypes.guess_type(rel)[0] or "application/octet-stream"
                 return Response(
                     content, media_type=kind, headers={"cache-control": "private, max-age=3600"}
@@ -142,16 +146,17 @@ def error(message: str, code: int) -> Response:
     return reply({"error": message, "code": code}, STATUS.get(code, 400))
 
 
-def subscribe_remotes(hub: Hub) -> None:
+def subscribe_remotes(hub: Hub, sources: "Sources | None") -> None:
     """Tell each connected remote which of its scopes open pages watch.
 
-    :param hub: The live-update hub with every page's watched scopes."""
-    from beamtime import remote
-
-    if remote.active is None:
+    :param hub: The live-update hub with every page's watched scopes.
+    :param sources: The serve's remotes."""
+    if sources is None:
         return
-    scopes = {scope for client in hub.clients.values() for scope in client.watched.values()}
-    for name, client in remote.active.clients.items():
+    # copies: pages come and go on the event loop while this runs in a worker thread.
+    watched = [list(client.watched.values()) for client in list(hub.clients.values())]
+    scopes = {scope for each in watched for scope in each}
+    for name, client in sources.clients.items():
         if client.state != "connected":
             continue
         own = [s for s in scopes if s == f"@{name}" or s.startswith(f"@{name}/")]

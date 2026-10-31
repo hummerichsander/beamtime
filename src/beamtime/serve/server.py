@@ -72,7 +72,7 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
             return {"kind": "serve", "lines": ["stopped"]}
         token = load_token(cache)
         url = f"http://localhost:{daemon.port}/f/local?token={token}"
-        app = build(ctx=dataclasses.replace(ctx, caller="view"), hub=hub)
+        app = build(ctx=dataclasses.replace(ctx, caller="view", sources=sources), hub=hub)
         guarded = TokenGuard(app, token=token, port=daemon.port)
         say(f"Beamtime serves {ctx.logdir}\n  {url}\nCtrl-C stops.")
         if p.open:
@@ -93,10 +93,7 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
     finally:
         daemon.stop()
         if sources is not None:
-            from beamtime import remote
-
             sources.close()
-            remote.active = None
         if sock is not None:
             sock.close()
         if restart.is_set():
@@ -175,7 +172,6 @@ def start_sources(ctx: Context, p: r.ServeParams, hub: Any) -> Any:
     :param p: The parameters.
     :param hub: The live-update hub.
     :return: The sources, or ``None`` without remotes."""
-    from beamtime import remote
     from beamtime.remote.sources import Sources, parse_arg, spec_of
 
     configured = ctx.settings.get("remotes") or {}
@@ -193,7 +189,7 @@ def start_sources(ctx: Context, p: r.ServeParams, hub: Any) -> Any:
         paths = event.get("paths") or []
         hub.changed({f"@{name}" if q in (".", "") else f"@{name}/{q}" for q in paths})
 
-    remote.active = Sources(specs, on_event=changed)
+    sources = Sources(specs, on_event=changed)
     shown = [
         f"@{s.name} ({s.host or s.name}:{s.path})"
         if s.transport == "ssh"
@@ -201,7 +197,7 @@ def start_sources(ctx: Context, p: r.ServeParams, hub: Any) -> Any:
         for s in specs
     ]
     say("Sources: " + ", ".join(shown))
-    return remote.active
+    return sources
 
 
 def code_files() -> dict[str, int]:

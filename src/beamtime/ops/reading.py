@@ -369,22 +369,21 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         "daemon": daemon,
         "web_ui": f"http://localhost:{daemon['port']}" if daemon and daemon.get("port") else None,
         "remotes": sorted(ctx.settings.get("remotes") or {}),
-        "sources": sources(),
+        "sources": sources(ctx),
         "snapshots": snapshots(ctx),
         "memory": memory,
         "meta": {"freshness": freshness.dump() if freshness else None},
     }
 
 
-def sources() -> list[dict[str, Any]]:
+def sources(ctx: Context) -> list[dict[str, Any]]:
     """Describe the remotes this process holds connections to.
 
+    :param ctx: The operation context.
     :return: One entry per source: name, state, since when, error and version."""
-    from beamtime import remote
-
-    if remote.active is None:
+    if ctx.sources is None:
         return []
-    return [client.describe() for client in remote.active.clients.values()]
+    return [client.describe() for client in ctx.sources.clients.values()]
 
 
 def snapshots(ctx: Context) -> list[dict[str, Any]]:

@@ -118,7 +118,9 @@ beamtime pull cluster:scaling/lr-sweep
 - **Every operation whose target names a source** (`group`, `from`, `run`, a view or a query's
   `from`) runs on that source with the prefix stripped; paths in its answer get the prefix back.
   Operations on `.` that list (`groups`, `runs`, `series`, `data`, `timeline`, `notes`, `keys`) ask
-  every connected source and merge; everything else stays local.
+  every source at once and merge; everything else stays local. Which operations list, write or
+  work on drafts is a flag on each operation in the registry. A source that doesn't answer a listing
+  within 20 s is left out of it (its snapshot answers if there is one) and marked in `meta.sources`.
 - **Merging by answer kind**: run rows are sorted again with the query's sort and cut to its limit,
   exact because each source returned its top rows by that sort; groups, curves and data entries are
   concatenated in source order; timeline entries are merged by time and notes by id; `keys` unions

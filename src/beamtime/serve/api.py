@@ -19,8 +19,9 @@ STATIC = Path(__file__).parent / "static"
 STARTED = time.time()
 PROTOCOL = 1
 READ_LIMIT = 4 << 20
-# page methods with a target, routed like operations; operations route inside `call`.
+# page methods with a target; with the operations, what the API routes to remote sources.
 PAGES = ("view", "summary", "save_view", "view_text", "code")
+ROUTED = (*PAGES, *(op.tool for op in BY_TOOL.values() if not op.local))
 
 
 def dispatch(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] | bytes:
@@ -34,13 +35,13 @@ def dispatch(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] 
 
     from beamtime import remote
 
-    if remote.active is not None and (ctx.caller == "view" or "everywhere" in body):
+    if ctx.sources is not None and (ctx.caller == "view" or "everywhere" in body):
         # the web UI's page of this machine is this machine; the group tree asks for everywhere.
         body = dict(body)
         ctx = dataclasses.replace(ctx, merge=bool(body.pop("everywhere", False)))
     elif "everywhere" in body:
         body = {k: v for k, v in body.items() if k != "everywhere"}
-    if method in PAGES and (remote.active is not None or remote.targets(body)):
+    if method in ROUTED and (ctx.sources is not None or remote.targets(body)):
         from beamtime.remote.route import routed
 
         return routed(method, body, ctx, lambda given: dispatch_here(ctx, method, given))
@@ -216,7 +217,7 @@ def meta(ctx: Context) -> dict[str, Any]:
         },
         "themes": sorted({re.sub(r"-(light|dark)$", "", n) for n in available(ctx.root)}),
         "figure_styles": figure_styles() + project_styles(ctx.root),
-        "sources": sources(),
+        "sources": sources(ctx),
     }
 
 
