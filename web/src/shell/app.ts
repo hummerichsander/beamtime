@@ -13,6 +13,7 @@ import { Drawer } from "./drawer.ts";
 import { GroupPage, RunRedirect } from "./page.ts";
 import { Settings } from "./settings.ts";
 import { TimelinePage } from "./timeline.ts";
+import { ExpandedChart } from "./expanded.ts";
 import { Palette } from "./palette.ts";
 import { Sidebar } from "./sidebar.ts";
 import { buildTree, siblings } from "./tree.ts";
@@ -58,6 +59,7 @@ export function App() {
     <${StatusBar} />
     ${query !== null ? html`<${Palette} query=${query} />` : null}
     ${showHelp ? html`<${Help} />` : null}
+    <${ExpandedChart} />
   </div>`;
 }
 

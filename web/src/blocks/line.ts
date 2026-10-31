@@ -7,18 +7,20 @@ import { useContext, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { type Call, useCall } from "../api.ts";
 import { hovered, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { align, linthresh, reshape, robustRange, smooth, type Curve, type Curves } from "../bt/curves.ts";
-import { fileName, light, offscreen, pdf, recolor, save, type Background } from "../bt/export.ts";
+import { png, useChart } from "../bt/chart.ts";
+import { fileName, light, recolor, type Background } from "../bt/export.ts";
+import { expanded, host } from "../bt/host.ts";
 import { duration, label, step, value } from "../bt/fmt.ts";
-import { lineChart, type LineChart, type LineSpec } from "../bt/plot.ts";
+import { lineChart, type LineSpec } from "../bt/plot.ts";
 import { effective, setChart, toggleRun, update, usePrefs, type ChartPrefs, type Effective } from "../bt/prefs.ts";
 import { chartStyle, groupColors, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate } from "../router.ts";
 import { Icon } from "../ui/icons.ts";
 import { MultiSelect } from "../ui/multiselect.ts";
 import { IconButton, Popover } from "../ui/primitives.ts";
+import { Downloads, expandedHeight, HEIGHT } from "./chart.ts";
 import { Notice, Panel } from "./common.ts";
 
-const HEIGHT = 220;
 const LEGEND_MAX = 12;
 const X_AXES = [
   ["_step", "step"],
@@ -28,25 +30,11 @@ const X_AXES = [
 
 export function Line({ node }: { node: Node }) {
   const view = useContext(ViewCtx);
-  const [expanded, setExpanded] = useState(false);
   return html`<div class="block chart-block">
-    <${Chart} node=${node} path=${view.path} height=${HEIGHT} onExpand=${() => setExpanded(true)} />
-    ${expanded ? html`<${Expanded} node=${node} path=${view.path} onClose=${() => setExpanded(false)} />` : null}
+    ${node.props.expanded
+      ? html`<${Chart} node=${node} path=${view.path} height=${expandedHeight()} expanded onClose=${() => expanded.set(null)} />`
+      : html`<${Chart} node=${node} path=${view.path} height=${HEIGHT} onExpand=${() => host().expand(node, view)} />`}
   </div>`;
-}
-
-function Expanded(props: { node: Node; path: string; onClose: () => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const d = dialog.current!;
-    d.showModal();
-    d.addEventListener("close", props.onClose);
-    return () => d.removeEventListener("close", props.onClose);
-  }, []);
-  return html`<dialog class="sheet wide chart-dialog" ref=${dialog} aria-label=${props.node.props.y} closedby="any">
-    <${Chart} node=${props.node} path=${props.path} height=${Math.round(innerHeight * 0.62)} expanded
-      onClose=${() => dialog.current?.close()} />
-  </dialog>`;
 }
 
 // the series call a chart makes: the node's call with the viewer's settings applied.
@@ -113,7 +101,6 @@ function Chart(props: {
   const byField = useCall(node.props.color && visible ? node.data?.colors ?? null : null).data;
   const colors = useMemo(() => (byField && theme ? fieldColors(byField, node.props.color, theme) : runs), [byField, theme, runs]);
   const el = useRef<HTMLDivElement>(null);
-  const chart = useRef<LineChart | null>(null);
   const log = prefs.scale === "log";
   // while a new call (a zoom, a setting) loads, the legend keeps the last answer; the chart
   // waits for the new data, so a zoom never snaps back in between.
@@ -158,38 +145,14 @@ function Chart(props: {
     return () => ro.disconnect();
   }, [el.current]);
 
-  useEffect(() => {
-    if (!result.data || !theme || !el.current) return;
-    const base = specFor(theme, props.height, palette);
-    if (!base) return;
-    const spec: LineSpec = {
-      ...base,
-      onFocus: (c) => hovered.set(c ? (c.run ?? (c.group !== null ? `by:${c.group}` : null)) : null),
-      onZoom: (w) => setZoom(w),
-      onClick: (c) => c.run && navigate(groupUrl(path, { run: c.run }), { replace: true }),
-    };
-    if (chart.current?.update(spec)) return;
-    let cancelled = false;
-    chart.current?.destroy();
-    chart.current = null;
-    el.current.replaceChildren();
-    void lineChart(el.current, spec).then((c) => {
-      if (cancelled) c.destroy();
-      else chart.current = c;
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [result.data, theme, colors, JSON.stringify(prefs), all.hidden, zoom]);
-
-  useEffect(() => () => chart.current?.destroy(), []);
-  useEffect(
-    () =>
-      hovered.subscribe((run) => {
-        if (chart.current && !el.current?.matches(":hover")) chart.current.focus(run);
-      }),
-    [],
-  );
+  const base = result.data && theme ? specFor(theme, props.height, palette) : null;
+  const spec: LineSpec | null = base && {
+    ...base,
+    onFocus: (c) => hovered.set(c ? (c.run ?? (c.group !== null ? `by:${c.group}` : null)) : null),
+    onZoom: (w) => setZoom(w),
+    onClick: (c) => c.run && navigate(groupUrl(path, { run: c.run }), { replace: true }),
+  };
+  useChart(el, lineChart, spec, [result.data, colors, JSON.stringify(prefs), all.hidden, zoom], theme);
 
   const metrics = useContext(ViewCtx).metrics;
   const shownMetrics = prefs.y?.length ? prefs.y : metricsOf(node);
@@ -210,9 +173,9 @@ function Chart(props: {
   const exportPng = async (background: Background) => {
     const t = light();
     if (!t || !theme || !el.current) return;
-    const spec = specFor(t, props.height, palette.map((c) => recolor(c, theme, t)));
-    if (!spec) return;
-    save(await offscreen(el.current.clientWidth, (div) => lineChart(div, spec), background), fileName(title, "png"));
+    const figure = specFor(t, props.height, palette.map((c) => recolor(c, theme, t)));
+    if (!figure) return;
+    host().download(await png(el.current.clientWidth, lineChart, figure, background), fileName(title, "png"));
   };
   const exportPdf = async () => {
     const t = light();
@@ -221,7 +184,7 @@ function Chart(props: {
     const series = smoothed.curves.filter(isShown);
     setProblem(null);
     try {
-      await pdf({
+      await host().figure({
         kind: "line",
         title,
         xlabel: X_AXES.find(([k]) => k === prefs.x)?.[1] ?? prefs.x,
@@ -234,7 +197,7 @@ function Chart(props: {
       setProblem((err as Error).message);
     }
   };
-  const exportCsv = () => smoothed && save(csv(smoothed), fileName(title, "csv"));
+  const exportCsv = () => smoothed && host().download(csv(smoothed), fileName(title, "csv"));
 
   // what the renderer's layout check counts; aggregated or colored charts tame many runs.
   const visibleCurves = curves?.aggregated || node.props.color ? 0 : curves?.curves.filter(isShown).length;
@@ -277,19 +240,6 @@ function Chart(props: {
         </div>`
       : null}
   </div>`;
-}
-
-export function Downloads(props: { png: (b: Background) => void; pdf?: () => void; csv?: () => void }) {
-  // a choice closes the menu.
-  const close = (e: Event) => (e.target as Element).closest<HTMLElement>("[popover]")?.hidePopover();
-  return html`<${Popover} icon="download" label="Download" title="Download">
-    <div class="menu-list" onClick=${close}>
-      <button type="button" onClick=${() => props.png("transparent")}><${Icon} name="image" size=${15} /> PNG, transparent</button>
-      <button type="button" onClick=${() => props.png("white")}><${Icon} name="image" size=${15} /> PNG, white background</button>
-      ${props.pdf ? html`<button type="button" onClick=${props.pdf}><${Icon} name="file-text" size=${15} /> PDF (vector)</button>` : null}
-      ${props.csv ? html`<button type="button" onClick=${props.csv}><${Icon} name="file-text" size=${15} /> CSV data</button>` : null}
-    </div>
-  <//>`;
 }
 
 function Settings(props: { node: Node; path: string; prefs: Effective }) {

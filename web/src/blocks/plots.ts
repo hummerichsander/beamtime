@@ -2,19 +2,22 @@
 // (grouped, with error bars) and `histogram` (logged distributions as outlines per run).
 
 import { html } from "htm/preact";
-import { useContext, useEffect, useRef, useState } from "preact/hooks";
+import { useContext, useRef, useState } from "preact/hooks";
 
+import { png, useChart } from "../bt/chart.ts";
+import { expanded, host } from "../bt/host.ts";
 import { hovered, useData, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { label, step, value } from "../bt/fmt.ts";
-import { plotChart, type Plot, type PlotSpec } from "../bt/plot.ts";
+import { plotChart, type PlotSpec } from "../bt/plot.ts";
 import { bars, extent, fit, histograms, logSplits, points, type Bar, type Point } from "../bt/shapes.ts";
 import { linthresh } from "../bt/curves.ts";
-import { fileName, light, offscreen, pdf, recolor, save, type Background } from "../bt/export.ts";
+import { fileName, light, recolor, type Background } from "../bt/export.ts";
 import { alpha, chartStyle, groupColors, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate } from "../router.ts";
 import type { TipRow } from "../bt/uplot.ts";
+import { IconButton } from "../ui/primitives.ts";
+import { Downloads, expandedHeight } from "./chart.ts";
 import { Notice, Panel } from "./common.ts";
-import { Downloads } from "./line.ts";
 
 const HEIGHT = 260;
 
@@ -28,7 +31,7 @@ export function Scatter({ node }: { node: Node }) {
   const yLog = p.y_scale === "log";
   const xSym = p.x_scale === "symlog" ? linthresh([pts.map((q) => q.x)]) : undefined;
   const ySym = p.y_scale === "symlog" ? linthresh([pts.map((q) => q.y)]) : undefined;
-  const make = (theme: Theme): PlotSpec | null => {
+  const make = (theme: Theme, height: number): PlotSpec | null => {
     const xr = extent(pts.map((q) => q.x), xLog);
     const yr = extent(pts.flatMap((q) => (q.err ? [q.y - q.err, q.y + q.err] : [q.y])), yLog);
     if (!xr || !yr) return null;
@@ -39,7 +42,7 @@ export function Scatter({ node }: { node: Node }) {
     const bg = String(theme.colors.bg);
     return {
       style: chartStyle(theme),
-      height: HEIGHT,
+      height,
       x: { range: xr, log: xLog, symlog: xSym, format: value, ...(xLog ? { splits: logSplits(xr) } : {}) },
       y: { range: yr, log: yLog, symlog: ySym, format: value, ...(yLog ? { splits: logSplits(yr) } : {}) },
       draw: ({ ctx, x, y, px, focused }) => {
@@ -127,7 +130,7 @@ export function BarBlock({ node }: { node: Node }) {
   const items = bars(result.data, p.x, p.y, p.by ?? null, p.error ?? "std", p.sort ?? "x");
   const cats = [...new Set(items.map((b) => b.label))];
   const groups = [...new Set(items.map((b) => b.group))];
-  const make = (theme: Theme): PlotSpec | null => {
+  const make = (theme: Theme, height: number): PlotSpec | null => {
     const values = items.flatMap((b) => [b.lo, b.hi, b.value]);
     if (!items.length) return null;
     const lo = Math.min(0, ...values);
@@ -140,7 +143,7 @@ export function BarBlock({ node }: { node: Node }) {
     const center = (b: Bar) => cats.indexOf(b.label) - 0.38 + (groups.indexOf(b.group) + 0.5) * w;
     return {
       style: chartStyle(theme),
-      height: HEIGHT,
+      height,
       x: { range: [-0.6, cats.length - 0.4], log: false, format: (v) => cats[Math.round(v)] ?? "", splits: cats.map((_, i) => i) },
       y: { range: [lo < 0 ? lo - pad : 0, hi + pad], log: false, format: value },
       draw: ({ ctx, x, y, px, focused }) => {
@@ -224,14 +227,14 @@ export function HistogramBlock({ node }: { node: Node }) {
     ylabel: "count",
     series: hs.map((h) => ({ label: view.names.get(h.run) ?? h.run, start: h.start, end: h.end, count: h.count })),
   });
-  const make = (theme: Theme): PlotSpec | null => {
+  const make = (theme: Theme, height: number): PlotSpec | null => {
     const xr = extent(hs.flatMap((h) => [...h.start, ...h.end]), false, 0);
     const top = Math.max(0, ...hs.flatMap((h) => h.count));
     if (!xr || !top) return null;
     const colorOf = (run: string, i: number) => runColor(run, i, theme);
     return {
       style: chartStyle(theme),
-      height: HEIGHT,
+      height,
       x: { range: xr, log: false, format: value },
       y: { range: [0, top * 1.06], log: false, format: value },
       draw: ({ ctx, x, y, px, focused }) => {
@@ -277,7 +280,7 @@ export function HistogramBlock({ node }: { node: Node }) {
 function PlotFrame(props: {
   node: Node;
   result: any;
-  make: ((theme: Theme) => PlotSpec | null) | null;
+  make: ((theme: Theme, height: number) => PlotSpec | null) | null;
   // the figure the server draws as PDF, in the given (light) theme's colors.
   figure?: (theme: Theme) => Record<string, unknown> | null;
   deps: unknown[];
@@ -287,48 +290,27 @@ function PlotFrame(props: {
 }) {
   const { node, result } = props;
   const theme = useTheme();
+  const view = useContext(ViewCtx);
   const [box, visible] = useVisible();
   const el = useRef<HTMLDivElement>(null);
-  const plot = useRef<Plot | null>(null);
-  useEffect(() => {
-    if (!visible || !theme || !el.current || !props.make) return;
-    const spec = props.make(theme);
-    if (!spec) return;
-    if (plot.current) {
-      plot.current.update(spec);
-      return;
-    }
-    let cancelled = false;
-    void plotChart(el.current, spec).then((c) => {
-      if (cancelled) c.destroy();
-      else plot.current = c;
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [visible, theme, ...props.deps]);
-  // a theme change redraws from scratch: axes and grid take their colors at creation.
-  useEffect(() => () => {
-    plot.current?.destroy();
-    plot.current = null;
-    el.current?.replaceChildren();
-  }, [theme]);
-  useEffect(() => hovered.subscribe((run) => plot.current?.focus(run)), []);
+  const height = node.props.expanded ? expandedHeight() : HEIGHT;
+  const spec = visible && theme && props.make ? props.make(theme, height) : null;
+  useChart(el, plotChart, spec, [visible, height, ...props.deps], theme);
   const [problem, setProblem] = useState<string | null>(null);
   const title = node.props.title ?? defaultTitle(node);
   const exportPng = async (background: Background) => {
     const t = light();
-    const spec = t && props.make ? props.make(t) : null;
-    if (!spec || !el.current) return;
-    save(await offscreen(el.current.clientWidth, (div) => plotChart(div, spec), background), fileName(title, "png"));
+    const figure = t && props.make ? props.make(t, height) : null;
+    if (!figure || !el.current) return;
+    host().download(await png(el.current.clientWidth, plotChart, figure, background), fileName(title, "png"));
   };
   const exportPdf = async () => {
     const t = light();
-    const spec = t && props.figure ? props.figure(t) : null;
-    if (!spec) return;
+    const figure = t && props.figure ? props.figure(t) : null;
+    if (!figure) return;
     setProblem(null);
     try {
-      await pdf({ title, ...spec }, fileName(title, "pdf"));
+      await host().figure({ title, ...figure }, fileName(title, "pdf"));
     } catch (err) {
       setProblem((err as Error).message);
     }
@@ -339,13 +321,16 @@ function PlotFrame(props: {
       ${props.note ? html`<span class="muted small">${props.note}</span>` : null}
       <span class="chart-tools">
         <${Downloads} png=${exportPng} pdf=${props.figure ? exportPdf : undefined} />
+        ${node.props.expanded
+          ? html`<${IconButton} icon="x" label="Close (Esc)" onClick=${() => expanded.set(null)} />`
+          : html`<${IconButton} icon="maximize" label="Expand" onClick=${() => host().expand(node, view)} />`}
       </span>
     </div>
     ${problem ? html`<p class="block-error">${problem}</p>` : null}
     <${Panel} result=${result} caption=${node.props.caption}>
       ${props.empty
         ? html`<${Notice}>${props.empty}<//>`
-        : html`<div class=${`chart${result.status === "ready" ? "" : " pending"}`} ref=${el} style=${`min-block-size:${HEIGHT}px`}></div>
+        : html`<div class=${`chart${result.status === "ready" ? "" : " pending"}`} ref=${el} style=${`min-block-size:${height}px`}></div>
             ${props.legend ?? null}`}
     <//>
   </div>`;

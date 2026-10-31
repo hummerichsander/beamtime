@@ -8,7 +8,8 @@ import { useCall } from "../api.ts";
 import { rows } from "../blocks/common.ts";
 import { useTheme } from "../bt/index.ts";
 import { ago, duration } from "../bt/fmt.ts";
-import { plotChart, type Plot, type PlotSpec } from "../bt/plot.ts";
+import { useChart } from "../bt/chart.ts";
+import { plotChart, type PlotSpec } from "../bt/plot.ts";
 import { timeLabel, timeTicks } from "../bt/shapes.ts";
 import { alpha, chartStyle, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate, runUrl } from "../router.ts";
@@ -71,7 +72,6 @@ export function TimelinePage(props: { from: string }) {
 function Lanes(props: { bars: Bar[]; marks: Mark[] }) {
   const theme = useTheme();
   const el = useRef<HTMLDivElement>(null);
-  const plot = useRef<Plot | null>(null);
   const times = [...props.bars.flatMap((b) => [b.start, b.end]), ...props.marks.map((m) => m.t)];
   const full: [number, number] = times.length ? pad(Math.min(...times), Math.max(...times)) : pad(Date.now() / 1000 - 86400, Date.now() / 1000);
   const [range, setRange] = useState<[number, number]>(full);
@@ -135,27 +135,7 @@ function Lanes(props: { bars: Bar[]; marks: Mark[] }) {
     };
   };
 
-  useEffect(() => {
-    if (!theme || !el.current) return;
-    if (plot.current) {
-      plot.current.update(spec(theme));
-      return;
-    }
-    let cancelled = false;
-    void plotChart(el.current, spec(theme)).then((p) => {
-      if (cancelled) p.destroy();
-      else plot.current = p;
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [theme, range, props.bars, props.marks]);
-  useEffect(() => () => plot.current?.destroy(), []);
-  useEffect(() => () => {
-    plot.current?.destroy();
-    plot.current = null;
-    el.current?.replaceChildren();
-  }, [theme]);
+  const plot = useChart(el, plotChart, theme ? spec(theme) : null, [range, props.bars, props.marks], theme);
 
   // wheel zooms around the pointer; dragging pans.
   const onWheel = (e: WheelEvent) => {
