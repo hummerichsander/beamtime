@@ -9,8 +9,9 @@ from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
 from beamtime.serve.api import view as page_view
 from beamtime.views import model as m
-from beamtime.views.compile import apply_prefs, compile_view, from_tree
+from beamtime.views.compile import compile_view
 from beamtime.views.defaults import default_view
+from beamtime.views.prefs import apply_prefs
 
 SWEEP = "scaling/lr-sweep"
 
@@ -94,8 +95,9 @@ body:
 
 def test_default_view_round_trips_with_prefs(ctx: Context) -> None:
     """The default view written as YAML compiles back to the same charts; prefs fold in."""
-    tree = default_view(ctx, SWEEP)
-    body = from_tree(tree, path=SWEEP)
+    default = default_view(ctx, SWEEP)
+    tree = compile_view(default, path=SWEEP)
+    body = m.to_yaml_form(default)["body"]
     view = m.parse({"body": body}, source="default")
     again = compile_view(view, path=SWEEP)
     lines = lambda t: [n["props"]["y"] for n in walk(t) if n["block"] == "line"]  # noqa: E731
@@ -242,7 +244,7 @@ def yaml_walk(body: list) -> list:
 
     :param body: The nodes.
     :return: ``(block, props)`` pairs."""
-    from beamtime.views.compile import yaml_walk as walk_
+    from beamtime.views.model import yaml_walk as walk_
 
     return walk_(body)
 
@@ -325,10 +327,10 @@ def test_system_metrics_get_their_own_section() -> None:
 
     metrics = ["val/acc", "train/loss", "lr", "sys/cpu", "sys/gpu0/util"]
     assert essential(["sys/cpu", "sys/memory"]) == []
-    nodes = {n["id"]: n for n in curves("g", metrics, None, False, [])}
-    assert [c["props"]["y"] for c in nodes["curves"]["children"]] == ["val/acc", "train/loss"]
-    assert nodes["system"]["props"]["title"] == "System (2)" and nodes["system"]["props"]["open"] is False
-    assert [c["props"]["y"] for c in nodes["more"]["children"][0]["children"]] == ["lr"]
+    nodes = {n.id: n for n in curves(metrics, None, False)}
+    assert [c.y for c in nodes["curves"].children] == ["val/acc", "train/loss"]
+    assert nodes["system"].title == "System (2)" and nodes["system"].open is False
+    assert [c.y for c in nodes["more"].children[0].children] == ["lr"]
 
 
 def test_ui_changes_on_a_broken_view_say_how_to_repair(ctx: Context, project: Path) -> None:
@@ -343,3 +345,20 @@ def test_ui_changes_on_a_broken_view_say_how_to_repair(ctx: Context, project: Pa
         save_page(ui, SWEEP, {}, "T", "F")
     with pytest.raises(OpError, match="view new"):
         edit_text(ui, SWEEP, None, "x")
+
+
+def test_block_example_drafts_keep_their_names(ctx: Context) -> None:
+    """A view draft can't take a name the block examples render under."""
+    with pytest.raises(OpError, match="kept for block examples"):
+        call("view new", {"group": SWEEP, "name": "block-curve"}, ctx)
+
+
+def test_the_default_view_is_a_view(ctx: Context) -> None:
+    """The default view compiles like an authored one and starts a draft as written."""
+    from beamtime.ops.views import current_yaml
+
+    view = default_view(ctx, SWEEP)
+    assert [m.block_of(n) for n in view.body][-2:] == ["memory", "notes"]
+    text, origin = current_yaml(ctx, SWEEP)
+    assert origin == "the built-in default view"
+    assert m.parse(yaml.safe_load(text), source="t").body == view.body

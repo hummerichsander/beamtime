@@ -186,6 +186,7 @@ class Output(Node, tag="output"):
     run: Annotated[str | None, msgspec.Meta(description="default: the page's run")] = None
     lines: int = 40
     rank: int = 0
+    open: bool = True
 
 
 class Custom(Node, tag="custom"):
@@ -526,3 +527,19 @@ def dump(data: dict[str, Any]) -> str:
     Dumper.add_representer(dict, mapping)
     Dumper.add_representer(list, sequence)
     return yaml.dump(data, Dumper=Dumper, sort_keys=False, allow_unicode=True, width=100)
+
+
+def yaml_walk(body: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
+    """List the nodes of a body in YAML form, depth first.
+
+    :param body: The nodes.
+    :return: ``(block, props)`` pairs; props are the nodes' own dicts."""
+    out = []
+    for n in body:
+        ((block, props),) = n.items()
+        if not isinstance(props, dict):
+            props = {"children": props} if isinstance(props, list) else {}
+            n[block] = props
+        out.append((block, props))
+        out += yaml_walk(props.get("children") or [])
+    return out

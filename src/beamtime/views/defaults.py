@@ -1,14 +1,12 @@
-"""The built-in default view, built as a block tree from what a group or run logged.
-
-A block tree node is ``{block, id, props, data, children}``; ``data`` maps names to API
-calls ``{method, params, scope}``, where ``scope`` is the group or run path whose
-changes make the call stale. Authored views (M6) compile to the same tree."""
+"""The built-in default view: an ``m.View`` made from what a group or run logged, compiled like any
+authored view, and written out as one when a draft starts from it."""
 
 from typing import Any
 
 from beamtime.format.ids import is_run_id
 from beamtime.ops import call
 from beamtime.ops.context import Context
+from beamtime.views import model as m
 
 ESSENTIAL = 4
 SEED_GROUPING_ABOVE = 8
@@ -17,40 +15,37 @@ RECENT = 10
 NOTES = 3
 LOWER_IS_BETTER = ("loss", "err", "ppl", "perplexity", "nll", "mse", "mae", "wer", "cer")
 EVAL_PREFIXES = ("val", "valid", "eval", "test")
+# the SDK's system metrics: their own collapsed section, never a headline chart.
+SYSTEM = "sys/"
+EMPTY = (
+    "No runs here yet. Runs appear once a script calls beamtime.init() with this group as its dir."
+)
 
 
-def default_view(ctx: Context, path: str) -> dict[str, Any]:
+def default_view(ctx: Context, path: str) -> m.View:
     """Build the default view of a group or run.
 
     :param ctx: The operation context.
     :param path: The group below the log dir (``.`` for the log dir), or a run's path.
-    :return: The root node of the block tree."""
+    :return: The view."""
     if is_run_id(path.rsplit("/", 1)[-1]):
-        return run_view(ctx, path)
-    return group_view(ctx, path)
+        return m.View(body=run_body(ctx, path))
+    return m.View(body=group_body(ctx, path))
 
 
-def group_view(ctx: Context, path: str) -> dict[str, Any]:
+def group_body(ctx: Context, path: str) -> list[m.Block]:
     """Build the default view of a group: what it shows, concisely.
 
     :param ctx: The operation context.
     :param path: The group below the log dir.
-    :return: The root node."""
+    :return: The body."""
     runs, direct = counts(ctx, path)
     # the header states the proposal and its predictions; the body starts with the data.
-    children: list[dict[str, Any]] = []
     if not runs:
-        children.append(node("note", "empty", text=EMPTY, kind="info"))
-        return node("section", "root", children=[*children, *record(path)])
+        return [m.Note(id="empty", text=EMPTY), *record(run=False)]
+    body: list[m.Block] = []
     if direct < runs:
-        children.append(
-            node(
-                "groups",
-                "subgroups",
-                title="Groups",
-                data={"main": api("groups", {"from": path, "depth": 1}, path)},
-            )
-        )
+        body.append(m.Groups(id="subgroups", title="Groups"))
     keys = call("keys", {"from": path}, ctx)
     varying = varying_config(keys)
     main = (essential(ordered_metrics(keys)) or [None])[0]
@@ -59,82 +54,49 @@ def group_view(ctx: Context, path: str) -> dict[str, Any]:
         own = direct < runs
         own_keys = call("keys", {"from": path, "depth": 1}, ctx) if own else keys
         many = "config.seed" in varying and direct > SEED_GROUPING_ABOVE
-        found = ordered_metrics(own_keys)
-        children += curves(path, found, "config.seed" if many else None, own, varying)
-    if direct:
-        select = ["run.name", "run.status", *varying, *([f"metric.{main}.last"] if main else [])]
+        body += curves(ordered_metrics(own_keys), "config.seed" if many else None, own)
+        columns = ["run.name", "run.status", *varying, *([f"metric.{main}.last"] if main else [])]
+        table = m.Table(id="runs", title="Runs", columns=columns, limit=TABLE_LIMIT, sparkline=main)
+        body.append(table)
     else:
         # runs from different experiments share no config or metric: say where and when instead.
-        select = ["run.name", "run.status", "run.group", "run.created_at"]
-        main = None
-    limit = TABLE_LIMIT if direct else RECENT
-    children.append(
-        node(
-            "table",
-            "runs",
-            title="Runs" if direct else "Recent runs",
-            columns=select,
-            sparkline=main,
-            data={
-                "main": api("runs", {"from": path, "select": select, "sort": ["-run.created_at"],
-                                     "limit": limit}, path),
-                **({"spark": api("series", {"from": path, "y": [main], "points": 48}, path)}
-                   if main else {}),
-            },
-        )
-    )  # fmt: skip
-    children += record(path)
-    return node("section", "root", children=children)
+        columns = ["run.name", "run.status", "run.group", "run.created_at"]
+        body.append(m.Table(id="runs", title="Recent runs", columns=columns, limit=RECENT))
+    return [*body, *record(run=False)]
 
 
-def record(path: str, run: str | None = None) -> list[dict[str, Any]]:
+def record(*, run: bool) -> list[m.Block]:
     """Make the notes and memory blocks every page has, so they look the same at every level.
 
-    :param path: The group or run path.
-    :param run: The run id on a run page, which has notes but no memory.
-    :return: The nodes."""
-    params = {"from": run or path, "limit": NOTES, "full": True, "current": True}
-    notes = node("notes", "notes", title="Notes", data={"main": api("notes", params, path)})
-    if run is not None:
-        return [notes]
-    memory = node("memory", "memory", title="Memory",
-                  data={"main": api("memory_show", {"group": path}, path)})  # fmt: skip
-    return [memory, notes]
+    :param run: Whether the page is a run's, which has notes but no memory.
+    :return: The blocks."""
+    notes = m.Notes(id="notes", title="Notes", limit=NOTES)
+    return [notes] if run else [m.Memory(id="memory", title="Memory"), notes]
 
 
-def run_view(ctx: Context, path: str) -> dict[str, Any]:
+def run_body(ctx: Context, path: str) -> list[m.Block]:
     """Build the default view of a run.
 
     :param ctx: The operation context.
     :param path: The run's path below the log dir.
-    :return: The root node."""
+    :return: The body."""
     run_id = path.rsplit("/", 1)[-1]
     keys = call("keys", {"from": run_id}, ctx)
     metrics = ordered_metrics(keys)
     status = next(iter(keys["status"]), None)
-    children = curves(path, metrics, None, False, [])
+    body = curves(metrics, None, False)
     for key, kind, _, _ in keys["data"]["rows"]:
-        params = {"from": run_id, "key": key, "step": "last"}
         match kind:
             case "image":
-                block = "images"
+                body.append(m.Images(id=f"images-{m.slug(key)}", title=key, key=key))
             case "text":
-                block = "text"
+                body.append(m.Text(id=f"text-{m.slug(key)}", title=key, key=key))
             case _:
                 continue
-        children.append(node(block, f"{block}-{slug(key)}", title=key,
-                             data={"main": api("data", params, path)}))  # fmt: skip
-    children += record(path, run_id)
-    children.append(
-        node(
-            "output",
-            "output",
-            title="Output",
-            open=status in ("failed", "killed", "lost") or not metrics,
-            data={"main": api("output", {"run": run_id, "tail": 40}, path)},
-        )
-    )
-    return node("section", "root", children=children)
+    body += record(run=True)
+    opened = status in ("failed", "killed", "lost") or not metrics
+    body.append(m.Output(id="output", title="Output", open=opened))
+    return body
 
 
 def summary(ctx: Context, path: str, lead: tuple[str, bool] | None = None) -> dict[str, Any] | None:
@@ -193,114 +155,54 @@ def counts(ctx: Context, path: str) -> tuple[int, int]:
     :param ctx: The operation context.
     :param path: The group.
     :return: Runs at or below the group, and runs directly in it."""
-    count = lambda depth: call("runs", {"from": path, "depth": depth, "select": ["run.status"],  # noqa: E731
-                                        "limit": 1}, ctx)["meta"]["matched"]  # fmt: skip
-    return count("all"), count(1)
+    return count(ctx, path, "all"), count(ctx, path, 1)
 
 
-def curves(
-    path: str, metrics: list[str], seeds: str | None, own: bool, varying: list[str]
-) -> list[dict[str, Any]]:
-    """Make the essential charts, and the rest in a collapsed section.
+def count(ctx: Context, path: str, depth: Any) -> int:
+    """Count a group's runs to some depth.
 
-    :param path: The group or run path.
+    :param ctx: The operation context.
+    :param path: The group.
+    :param depth: ``all``, or 1 for the group's own runs.
+    :return: The number of runs."""
+    query = {"from": path, "depth": depth, "select": ["run.status"], "limit": 1}
+    return call("runs", query, ctx)["meta"]["matched"]
+
+
+def curves(metrics: list[str], seeds: str | None, own: bool) -> list[m.Block]:
+    """Make the essential charts, and the rest and the system metrics in collapsed sections.
+
     :param metrics: The metrics, ordered.
     :param seeds: ``config.seed`` to average over seeds, or ``None``.
     :param own: Whether to show only the runs directly in the group.
-    :param varying: Config keys that differ between runs, to aggregate by.
-    :return: The nodes: a grid, and a section with more."""
+    :return: The blocks: a grid, and sections with more."""
     first = essential(metrics)
-    system = [m for m in metrics if m.startswith(SYSTEM)]
-    rest = [m for m in metrics if m not in first and m not in system]
-    out = []
+    system = [k for k in metrics if k.startswith(SYSTEM)]
+    rest = [k for k in metrics if k not in first and k not in system]
+    out: list[m.Block] = []
     if first:
-        # viewers add charts and set view-wide chart options here; new charts copy this call.
-        template = api("series", series_params(path, seeds, own), path)
-        out.append(node("grid", "curves", children=[line(path, m, seeds, own) for m in first],
-                        min_width=420, addable=True, template=template, metrics=metrics,
-                        varying=[k for k in varying if k != "config.seed"]))  # fmt: skip
-    if rest:
-        grid = node("grid", "more-curves", children=[line(path, m, seeds, own) for m in rest],
-                    min_width=420)  # fmt: skip
-        out.append(node("section", "more", title=f"More metrics ({len(rest)})", open=False,
-                        children=[grid]))  # fmt: skip
-    if system:
-        grid = node("grid", "system-curves", children=[line(path, m, None, own) for m in system],
-                    min_width=420)  # fmt: skip
-        out.append(node("section", "system", title=f"System ({len(system)})", open=False,
-                        children=[grid]))  # fmt: skip
+        # the first grid of curves is where viewers add charts.
+        out.append(m.Grid(id="curves", children=[line(k, seeds, own) for k in first]))
+    for id_, title, shown, by in (
+        ("more", "More metrics", rest, seeds),
+        ("system", "System", system, None),
+    ):
+        if shown:
+            grid = m.Grid(id=f"{id_}-curves", children=[line(k, by, own) for k in shown])
+            out.append(
+                m.Section(id=id_, title=f"{title} ({len(shown)})", open=False, children=[grid])
+            )
     return out
 
 
-# the SDK's system metrics: their own collapsed section, never a headline chart.
-SYSTEM = "sys/"
-EMPTY = (
-    "No runs here yet. Runs appear once a script calls beamtime.init() with this group as its dir."
-)
-
-
-def node(block: str, id: str, *, children: list | None = None, data: dict | None = None,
-         **props: Any) -> dict[str, Any]:  # fmt: skip
-    """Make a block tree node.
-
-    :param block: The block name, e.g. ``line``.
-    :param id: The block's id.
-    :param children: Child nodes of a layout block.
-    :param data: Named API calls.
-    :param props: The block's props.
-    :return: The node."""
-    out: dict[str, Any] = {"block": block, "id": id, "props": props}
-    if children is not None:
-        out["children"] = children
-    if data is not None:
-        out["data"] = data
-    return out
-
-
-def api(method: str, params: dict[str, Any], scope: str) -> dict[str, Any]:
-    """Describe an API call a block makes.
-
-    :param method: The API method (an MCP tool name).
-    :param params: Its parameters.
-    :param scope: The group or run path whose changes make the answer stale.
-    :return: The call."""
-    return {"method": method, "params": params, "scope": scope}
-
-
-def line(path: str, metric: str, seeds: str | None, own: bool = False) -> dict[str, Any]:
+def line(metric: str, seeds: str | None, own: bool) -> m.Line:
     """Make the line block of one metric.
 
-    :param path: The group or run path.
     :param metric: The metric key.
     :param seeds: ``config.seed`` to average over seeds, or ``None`` for one curve per run.
     :param own: Whether to show only the runs directly in the group.
-    :return: The node."""
-    params = series_params(path, seeds, own) | {"y": [metric]}
-    scale = "log" if lower_is_better(metric) and "loss" in metric else "linear"
-    note = ", ".join([*(["seed mean and range"] if seeds else []), *(["own runs"] if own else [])])
-    return node(
-        "line",
-        f"line-{slug(metric)}",
-        y=metric,
-        scale=scale,
-        note=note or None,
-        data={"main": api("series", params, path)},
-    )
-
-
-def series_params(path: str, seeds: str | None, own: bool) -> dict[str, Any]:
-    """Make the parameters every chart of a view shares, without the metric.
-
-    :param path: The group or run path.
-    :param seeds: ``config.seed`` to average over seeds, or ``None``.
-    :param own: Whether to show only the runs directly in the group.
-    :return: The ``series`` parameters."""
-    params: dict[str, Any] = {"from": path, "points": 300}
-    if own:
-        params["depth"] = 1
-    if seeds:
-        params |= {"seeds": seeds, "band": "minmax"}
-    return params
+    :return: The block."""
+    return m.Line(id=f"line-{m.slug(metric)}", y=metric, seeds=seeds, depth=1 if own else "all")
 
 
 def ordered_metrics(keys: dict[str, Any]) -> list[str]:
@@ -318,11 +220,10 @@ def essential(metrics: list[str]) -> list[str]:
 
     :param metrics: The metrics, ordered.
     :return: At most four; schedules and diagnostics (lr, grad norms) are left for "more"."""
-    prefix = lambda m: m.split("/", 1)[0] if "/" in m else ""  # noqa: E731
-    metrics = [m for m in metrics if not m.startswith(SYSTEM)]
-    evals = [m for m in metrics if prefix(m) in EVAL_PREFIXES]
-    losses = [m for m in metrics if prefix(m) == "train" and "loss" in m]
-    plain = [m for m in metrics if not prefix(m) and lower_is_better(m) or m in ("acc", "accuracy")]
+    metrics = [k for k in metrics if not k.startswith(SYSTEM)]
+    evals = [k for k in metrics if prefix(k) in EVAL_PREFIXES]
+    losses = [k for k in metrics if prefix(k) == "train" and "loss" in k]
+    plain = [k for k in metrics if not prefix(k) and lower_is_better(k) or k in ("acc", "accuracy")]
     picked = list(dict.fromkeys([*evals, *losses, *plain]))
     return picked[:ESSENTIAL] or metrics[:ESSENTIAL]
 
@@ -345,9 +246,9 @@ def lower_is_better(metric: str) -> bool:
     return any(word in leaf for word in LOWER_IS_BETTER)
 
 
-def slug(key: str) -> str:
-    """Turn a key into an id.
+def prefix(metric: str) -> str:
+    """Name a metric's namespace.
 
-    :param key: E.g. ``val/acc``.
-    :return: E.g. ``val-acc``."""
-    return "".join(ch if ch.isalnum() else "-" for ch in key).strip("-")
+    :param metric: E.g. ``val/acc``.
+    :return: E.g. ``val``; empty without one."""
+    return metric.split("/", 1)[0] if "/" in metric else ""

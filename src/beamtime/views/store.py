@@ -7,6 +7,7 @@ Saved versions are ``view/<version>.yaml`` in the group or run; drafts are
 import dataclasses
 import json
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,8 @@ from beamtime.views import model as m
 DRAFT_NAME = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 VIEW_FILE = "view.yaml"
 DRAFT_META = "_draft.json"
+# view drafts a block draft's examples render in; users' drafts can't take these names.
+EXAMPLES = "block-"
 
 
 def view_dir(ctx: Context, path: str) -> Path:
@@ -104,19 +107,49 @@ def draft(ctx: Context, name: str) -> Draft:
         raise OpError(
             f"no draft {name!r}; start one with `beamtime view new <group>`{hint}", code=4
         )
-    meta = json.loads((folder / DRAFT_META).read_text())
+    meta = draft_meta(folder)
     return Draft(name=name, dir=folder, group=meta["group"], blocks=meta.get("blocks") or {})
 
 
-def check_name(name: str) -> str:
+def write_draft_meta(
+    folder: Path, *, group: str, origin: str, blocks: dict[str, str] | None = None
+) -> None:
+    """Record what a view or block draft is for, in its ``_draft.json``.
+
+    :param folder: The draft's folder.
+    :param group: The group it is for, or checked against.
+    :param origin: Where it started from, e.g. ``current`` or an example's name.
+    :param blocks: Block drafts standing in for library blocks of the same name."""
+    meta = {"schema": 1, "group": group, "from": origin, "created": time.time()}
+    if blocks:
+        meta["blocks"] = blocks
+    (folder / DRAFT_META).write_text(json.dumps(meta) + "\n")
+
+
+def draft_meta(folder: Path) -> dict[str, Any]:
+    """Read a draft's ``_draft.json``.
+
+    :param folder: The draft's folder.
+    :return: ``{group, from, created}``, and ``blocks`` for an examples draft."""
+    return json.loads((folder / DRAFT_META).read_text())
+
+
+def check_name(name: str, *, new: bool = False) -> str:
     """Refuse draft names that aren't plain folder names.
 
     :param name: The name.
+    :param new: Whether a user's view draft starts under it, which can't take reserved names.
     :return: The name."""
     if not DRAFT_NAME.fullmatch(name):
         raise OpError(f"draft name {name!r}: use lowercase letters, digits, '.', '-', '_'", code=2)
     if name == c.BLOCKS:
         raise OpError(f"draft name {name!r} is taken by the block drafts", code=2)
+    if new and name.startswith(EXAMPLES):
+        raise OpError(
+            f"draft name {name!r}: names starting with {EXAMPLES} are kept for block examples; "
+            "pass another --name",
+            code=2,
+        )
     return name
 
 
@@ -131,8 +164,8 @@ def shown(
     :param draft_name: A draft to show, for the renderer.
     :return: ``{view, source, version, author, user, title, finding, metrics, versions}``."""
     from beamtime.format.ids import is_run_id
-    from beamtime.views.compile import compile_view
-    from beamtime.views.defaults import default_view, node, record
+    from beamtime.views.compile import compile_view, walk_tree
+    from beamtime.views.defaults import default_view, record
     from beamtime.views.library import Library
 
     files = saved(ctx, path)
@@ -151,19 +184,21 @@ def shown(
             view = read(file, source=f"{path}/view/{file.name}")
             out |= {"source": "view", "version": file.stem}
         else:
-            return out | {"view": default_view(ctx, path)}
+            view = default_view(ctx, path)
         tree = compile_view(view, path=path, draft=draft_name, library=library)
     except SchemaError as e:
         # a broken version never breaks the page: the default shows, with what is wrong.
-        tree = default_view(ctx, path)
-        notice = node("note", "invalid-view", kind="warning", text=f"{e} Showing the default view.")
-        tree["children"].insert(0, notice)
-        return out | {"view": tree, "source": "default", "invalid": str(e)}
+        view = default_view(ctx, path)
+        text = f"{e} Showing the default view."
+        view.body.insert(0, m.Note(id="invalid-view", kind="warning", text=text))
+        tree = compile_view(view, path=path)
+        out |= {"source": "default", "invalid": str(e)}
     # every page shows its notes and memory; a view only decides where, by including them.
     blocks = {n.get("block") for n in walk_tree(tree)}
-    leaf = path.rsplit("/", 1)[-1]
-    tree["children"] += [n for n in record(path, leaf if is_run_id(leaf) else None)
-                         if n["block"] not in blocks]  # fmt: skip
+    missing = [
+        b for b in record(run=is_run_id(path.rsplit("/", 1)[-1])) if m.block_of(b) not in blocks
+    ]
+    tree["children"] += compile_view(m.View(body=missing), path=path)["children"]
     return out | {
         "view": tree,
         "author": view.author,
@@ -234,11 +269,3 @@ def lead(ctx: Context, path: str) -> tuple[str, bool] | None:
         given = info.higher_is_better
         return metric, (lower_is_better(metric) if given is None else not given)
     return None
-
-
-def walk_tree(t: dict[str, Any]) -> list[dict[str, Any]]:
-    """List a block tree's nodes, depth first.
-
-    :param t: The root.
-    :return: Every node."""
-    return [t, *(x for k in t.get("children", []) for x in walk_tree(k))]

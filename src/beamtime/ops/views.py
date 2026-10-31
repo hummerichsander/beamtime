@@ -4,9 +4,7 @@ Drafts live in ``.beamtime/drafts/<name>/``; saving writes a new version into th
 ``view/``, with data files copied under content hashes, and never changes an existing file."""
 
 import hashlib
-import json
 import re
-import time
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +27,7 @@ def new(ctx: Context, p: r.ViewNewParams) -> dict[str, Any]:
     :return: The draft's name and file."""
     with target_of(ctx, p.group) as target:
         path = target.rel
-    name = store.check_name(p.name or default_name(path))
+    name = store.check_name(p.name or default_name(path), new=True)
     folder = store.drafts(ctx) / name
     if folder.exists():
         raise OpError(
@@ -52,8 +50,7 @@ def new(ctx: Context, p: r.ViewNewParams) -> dict[str, Any]:
                 write_created(folder / ref, content)
         elif (source := store.view_dir(ctx, path) / ref).is_file():
             write_created(folder / ref, source.read_bytes())
-    meta = {"schema": 1, "group": path, "from": p.from_ or "current", "created": time.time()}
-    (folder / store.DRAFT_META).write_text(json.dumps(meta) + "\n")
+    store.write_draft_meta(folder, group=path, origin=p.from_ or "current")
     file = folder / store.VIEW_FILE
     return {
         "kind": "view new",
@@ -76,7 +73,7 @@ def data_refs(text: str) -> list[str]:
     :return: The ``data/...`` and ``code/...`` references."""
     import yaml
 
-    from beamtime.views.compile import yaml_walk
+    from beamtime.views.model import yaml_walk
 
     try:
         body = (yaml.safe_load(text) or {}).get("body") or []
@@ -127,7 +124,6 @@ def current_yaml(ctx: Context, path: str) -> tuple[str, str]:
     :param ctx: The operation context.
     :param path: The group or run path.
     :return: The YAML text, and where it came from."""
-    from beamtime.views.compile import from_tree
     from beamtime.views.defaults import default_view
 
     if files := store.saved(ctx, path):
@@ -140,8 +136,7 @@ def current_yaml(ctx: Context, path: str) -> tuple[str, str]:
         for k in ("author", "user", "message"):
             data.pop(k, None)
         return m.dump(data), f"version {files[-1].stem}"
-    body = from_tree(default_view(ctx, path), path=path)
-    data = {"schema": 1, "title": None, "finding": None, "body": body}
+    data = {"schema": 1, "title": None, "finding": None} | m.to_yaml_form(default_view(ctx, path))
     return m.dump(data), "the built-in default view"
 
 
@@ -314,7 +309,7 @@ def save_page(
     :param finding: The view's finding.
     :return: The new version."""
 
-    from beamtime.views.compile import apply_prefs
+    from beamtime.views.prefs import apply_prefs
 
     data = page_yaml(ctx, path)
     data["body"] = apply_prefs(data.get("body") or [], prefs)
@@ -399,7 +394,7 @@ def edit_text(ctx: Context, path: str, node_id: str | None, text: str) -> dict[s
     :param text: Its Markdown; empty removes the block.
     :return: The new version."""
 
-    from beamtime.views.compile import yaml_walk
+    from beamtime.views.model import yaml_walk
 
     data = page_yaml(ctx, path)
     body = data.get("body") or []

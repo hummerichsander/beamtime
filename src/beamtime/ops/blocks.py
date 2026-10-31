@@ -176,8 +176,7 @@ def new_draft(
         raise OpError(f"block draft {name!r} exists at {folder}; edit it, or pick another name")
     write_created(folder / block.code, source)
     (folder / BLOCK_FILE).write_text(block_yaml(block))
-    meta = {"schema": 1, "group": group, "from": origin, "created": time.time()}
-    (folder / store.DRAFT_META).write_text(json.dumps(meta) + "\n")
+    store.write_draft_meta(folder, group=group, origin=origin)
     return folder
 
 
@@ -271,8 +270,7 @@ def open_draft(ctx: Context, name: str) -> tuple[Path, str]:
         raise OpError(
             f"no block draft {name!r}; start one with `block promote` or `block fork`{hint}", code=4
         )
-    meta = json.loads((folder / store.DRAFT_META).read_text())
-    return folder, meta["group"]
+    return folder, store.draft_meta(folder)["group"]
 
 
 def check(
@@ -445,18 +443,11 @@ def examples_draft(ctx: Context, draft: str, group: str, block: BlockDef) -> sto
     :param group: The group.
     :param block: The definition.
     :return: The view draft, named ``block-<name>``."""
-    name = f"block-{draft}"
+    name = f"{store.EXAMPLES}{draft}"
     folder = store.drafts(ctx) / name
     folder.mkdir(parents=True, exist_ok=True)
     (folder / store.VIEW_FILE).write_text(m.dump(examples_view(block)))
-    meta = {
-        "schema": 1,
-        "group": group,
-        "from": f"block {draft}",
-        "created": time.time(),
-        "blocks": {block.name: draft},
-    }
-    (folder / store.DRAFT_META).write_text(json.dumps(meta) + "\n")
+    store.write_draft_meta(folder, group=group, origin=f"block {draft}", blocks={block.name: draft})
     return store.draft(ctx, name)
 
 

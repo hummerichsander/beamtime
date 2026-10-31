@@ -208,7 +208,7 @@ wave 1.
 | `note` | a short text, optionally as a callout (`info`, `warning`, `success`) | `text`, `kind` |
 | `markdown` | a text panel in Markdown with math, edited in place in the UI | `text` |
 | `notes` | the newest notes, current versions only | `types`, `limit` |
-| `output` | the tail of a run's captured output | `run`, `lines`, `rank` |
+| `output` | the tail of a run's captured output | `run`, `lines`, `rank`, `open` |
 
 **Code** (wave 1): `custom`. There is no free chart-spec block: charts beyond the widgets are custom
 blocks on `bt.chart` (uPlot) or D3 ([Charts](#charts)).
@@ -802,8 +802,12 @@ Decided while building views (milestone M6):
 - **No inheritance**: a page shows its own newest view, else the built-in default.
 - **The model** is a msgspec tagged union on `block` (`beamtime/views/model.py`); YAML nodes are
   normalized to it, and errors name the node path (`body[2].children[0].line.y`).
-- **Compiling** turns a view into the same block tree as the built-in default (`{block, id, props,
-  data, children}`, with `data` naming API calls), so the frontend renders both alike.
+- **Compiling** turns a view into a block tree (`{block, id, props, data, children}`, with `data`
+  naming API calls). The built-in default is itself a view, built from what the page logged and
+  compiled the same way, so `view new` writes it out as it shows.
+- **Drafts** live in `.beamtime/drafts/<name>/` with a `_draft.json` naming their group; block
+  drafts in `.beamtime/drafts/blocks/<name>/`. A block draft's examples render in the view draft
+  `block-<name>`, a name users' drafts can't take.
 - **`custom`** was accepted by the schema in M6 and runs since M7 (see above).
 - **Save as view** in the UI writes the charts with their settings (metrics, x axis, smoothing,
   aggregation, band, scale, outliers), the charts a viewer added, and the title and finding, as a

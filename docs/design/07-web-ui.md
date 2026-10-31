@@ -410,8 +410,8 @@ Decided while building the shell (milestone M5):
   stream sends `stale` events with call ids, at most one a second per page; the page refetches those
   calls, keeps the old answer on screen while it does, and updates charts through uPlot's
   `setData`. After a reconnect it refetches everything on screen.
-- **The built-in default view** is built on the server as a block tree (`{block, id, props, data,
-  children}`, where `data` names API calls), the same tree authored views will compile to in M6. A
+- **The built-in default view** is built on the server as a view and compiled to a block tree
+  (`{block, id, props, data, children}`, where `data` names API calls) like authored views. A
   group with runs of its own gets at most four essential charts (validation and test metrics, then
   training losses; averaged over `config.seed` beyond eight runs) and the rest under a folded "More
   metrics", the run table (name, status, varying config, the main metric, a sparkline), its memory

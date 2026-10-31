@@ -1,9 +1,8 @@
-"""Compiling views to block trees, and writing block trees and viewer settings back as views.
+"""Compiling views, authored or the built-in default, to the block tree the frontend renders.
 
-``compile_view`` turns an authored view into the tree the built-in default produces
-(``{block, id, props, data, children}``), so the frontend renders both alike. ``from_tree`` goes
-the other way for the default view, and ``apply_prefs`` folds a viewer's chart settings into a
-view's body for "Save as view"."""
+A block tree node is ``{block, id, props, data, children}``; ``data`` maps names to API calls
+``{method, params, scope}``, where ``scope`` is the group or run path whose changes make the call
+stale."""
 
 import posixpath
 from typing import TYPE_CHECKING, Any
@@ -11,12 +10,40 @@ from typing import TYPE_CHECKING, Any
 from beamtime.format.ids import is_run_id
 from beamtime.format.schema import SchemaError
 from beamtime.views import model as m
-from beamtime.views.defaults import api, lower_is_better, node
+from beamtime.views.defaults import lower_is_better
 
 if TYPE_CHECKING:
     from beamtime.views.library import Library
 
 RUNS_LIMIT = 10000
+
+
+def node(block: str, id: str, *, children: list | None = None, data: dict | None = None,
+         **props: Any) -> dict[str, Any]:  # fmt: skip
+    """Make a block tree node.
+
+    :param block: The block name, e.g. ``line``.
+    :param id: The block's id.
+    :param children: Child nodes of a layout block.
+    :param data: Named API calls.
+    :param props: The block's props.
+    :return: The node."""
+    out: dict[str, Any] = {"block": block, "id": id, "props": props}
+    if children is not None:
+        out["children"] = children
+    if data is not None:
+        out["data"] = data
+    return out
+
+
+def api(method: str, params: dict[str, Any], scope: str) -> dict[str, Any]:
+    """Describe an API call a block makes.
+
+    :param method: The API method (an MCP tool name).
+    :param params: Its parameters.
+    :param scope: The group or run path whose changes make the answer stale.
+    :return: The call."""
+    return {"method": method, "params": params, "scope": scope}
 
 
 class Compiler:
@@ -173,7 +200,7 @@ class Compiler:
                         "note", n.id, kind="warning", text="output: name a run (run: <id>)."
                     )
                 call = api("output", {"run": run, "tail": n.lines, "rank": n.rank}, self.path)
-                return node("output", n.id, data={"main": call}, open=True, **common)
+                return node("output", n.id, data={"main": call}, open=n.open, **common)
             case m.Custom():
                 data = {name: self.declared(q, n) for name, q in n.queries.items()}
                 code = {"view": self.path, "path": n.code} | (
@@ -233,6 +260,10 @@ class Compiler:
         info = self.view.metrics.get(ys[0])
         guess = "log" if lower_is_better(ys[0]) and "loss" in ys[0] else "linear"
         scale = n.scale or (info.scale if info and info.scale else guess)
+        note = [
+            *(["seed mean and range"] if n.seeds else []),
+            *(["own runs"] if n.depth == 1 else []),
+        ]
         return node(
             "line",
             n.id,
@@ -247,6 +278,7 @@ class Compiler:
             raw=None if n.raw else False,
             legend=None if n.legend else False,
             color=n.color,
+            note=", ".join(note) or None,
             **common,
         )
 
@@ -358,190 +390,9 @@ def compile_view(
     return Compiler(view=view, path=path, draft=draft, library=library).tree()
 
 
-def from_tree(tree: dict[str, Any], *, path: str) -> list[dict[str, Any]]:
-    """Write the built-in default's block tree as a view body in YAML form.
+def walk_tree(t: dict[str, Any]) -> list[dict[str, Any]]:
+    """List a block tree's nodes, depth first.
 
-    :param tree: The root node of a default view.
-    :param path: The page it was built for.
-    :return: The body's nodes, ``{block: props}``."""
-    return [n for k in tree.get("children", []) if (n := yaml_node(k, path)) is not None]
-
-
-def yaml_node(t: dict[str, Any], path: str) -> dict[str, Any] | None:
-    """Write one default node in YAML form.
-
-    :param t: The tree node.
-    :param path: The page.
-    :return: The node, or ``None`` for nodes without a YAML form."""
-    p, block = t.get("props", {}), t["block"]
-    params = t.get("data", {}).get("main", {}).get("params", {})
-    out: dict[str, Any] = {"id": t["id"]}
-    out |= {k: p[k] for k in ("title", "caption") if p.get(k) is not None}
-    if params.get("depth") == 1:
-        out["depth"] = 1
-    match block:
-        case "section" | "row" | "grid":
-            if block == "section" and p.get("open") is False:
-                out["open"] = False
-            if block == "grid":
-                out |= {k: p[k] for k in ("columns", "min_width") if p.get(k) is not None}
-            kids = [n for k in t.get("children", []) if (n := yaml_node(k, path)) is not None]
-            out["children"] = kids
-        case "line":
-            out["y"] = p["y"]
-            out |= {k: params[k] for k in ("seeds", "by", "band") if params.get(k)}
-            if out.get("band") == "minmax":
-                del out["band"]
-            if p.get("scale") == "log":
-                out["scale"] = "log"
-        case "table":
-            out |= {"columns": p.get("columns"), "limit": params.get("limit", 100)}
-            out |= {"sparkline": p["sparkline"]} if p.get("sparkline") else {}
-            if (sort := params.get("sort")) and sort != ["-run.created_at"]:
-                out["sort"] = sort
-        case "images" | "text":
-            out |= {"key": params["key"]} | (
-                {"step": params["step"]} if params.get("step") != "last" else {}
-            )
-        case "notes":
-            out["limit"] = params.get("limit", 3)
-        case "output":
-            out["lines"] = params.get("tail", 40)
-        case "note":
-            out |= {"text": p.get("text", ""), "kind": p.get("kind", "info")}
-        case "markdown":
-            out["text"] = p.get("text", "")
-        case "memory" | "groups":
-            pass
-        case _:
-            return None
-    return {block: out}
-
-
-def apply_prefs(body: list[dict[str, Any]], prefs: dict[str, Any]) -> list[dict[str, Any]]:
-    """Fold a viewer's chart settings and added charts into a view body.
-
-    :param body: The body in YAML form; changed in place.
-    :param prefs: ``{charts, added, order, spans}`` as the web UI keeps them per page.
-    :return: The body."""
-    for _, props in yaml_walk(body):
-        if (order := (prefs.get("order") or {}).get(props.get("id"))) and props.get("children"):
-            props["children"] = reorder(props["children"], order)
-        if (span := (prefs.get("spans") or {}).get(props.get("id"))) is not None:
-            if span == 1:
-                props.pop("span", None)
-            else:
-                props["span"] = span
-    shared = clean(prefs.get("view") or {})
-    charts = prefs.get("charts") or {}
-    lines = [props for b, props in yaml_walk(body) if b == "line"]
-    for props in lines:
-        settings = shared | clean(charts.get(props.get("id"), {}))
-        settle(props, settings)
-    shown = {
-        y for props in lines for y in ([props["y"]] if isinstance(props["y"], str) else props["y"])
-    }
-    added = [mt for mt in prefs.get("added") or [] if mt not in shown]
-    if added:
-        grid = next(
-            (
-                props
-                for b, props in yaml_walk(body)
-                if b == "grid" and any("line" in k for k in props.get("children", []))
-            ),
-            None,
-        )
-        new = []
-        for mt in added:
-            props = {"id": f"added-{m.slug(mt)}", "y": mt}
-            settle(props, shared | clean(charts.get(f"added-{mt}", {})))
-            new.append({"line": props})
-        if grid is not None:
-            grid.setdefault("children", []).extend(new)
-        else:
-            body.append({"grid": {"id": "added", "children": new}})
-    return body
-
-
-def reorder(kids: list[dict[str, Any]], order: list[str]) -> list[dict[str, Any]]:
-    """Put a layout's children in the viewer's order.
-
-    :param kids: The children in YAML form.
-    :param order: Ids in the wanted order; children not listed keep theirs, after them.
-    :return: The children reordered."""
-    at = {id_: i for i, id_ in enumerate(order)}
-    ranked = [
-        (at.get(next(iter(k.values())).get("id"), len(order) + i), k) for i, k in enumerate(kids)
-    ]
-    return [k for _, k in sorted(ranked, key=lambda r: r[0])]
-
-
-def settle(props: dict[str, Any], settings: dict[str, Any]) -> None:
-    """Write chart settings into a ``line`` node's props.
-
-    :param props: The node's props; changed in place.
-    :param settings: The settings, as the web UI names them."""
-    for key, value in settings.items():
-        match key:
-            case "y":
-                if value:
-                    props["y"] = value[0] if len(value) == 1 else list(value)
-            case "by":
-                props.pop("seeds", None)
-                props.pop("by", None)
-                if value == "seeds":
-                    props["seeds"] = "config.seed"
-                elif value:
-                    props["by"] = [value]
-            case "scale":
-                # explicit, since a loss without a scale is drawn on a log axis.
-                props["scale"] = value
-            case "steps":
-                if value and any(v is not None for v in value):
-                    props["steps"] = list(value)
-                else:
-                    props.pop("steps", None)
-            case "x" | "smooth" | "band" | "outliers" | "raw" | "legend" | "ymin" | "ymax":
-                default = {
-                    "x": "_step",
-                    "smooth": 0,
-                    "band": "minmax",
-                    "outliers": False,
-                    "raw": True,
-                    "legend": True,
-                    "ymin": None,
-                    "ymax": None,
-                }[key]
-                if value == default:
-                    props.pop(key, None)
-                else:
-                    props[key] = value
-            case _:
-                pass
-
-
-def clean(settings: dict[str, Any]) -> dict[str, Any]:
-    """Drop unset settings.
-
-    :param settings: The settings.
-    :return: Those with a value, and ``by`` when set to none."""
-    # by: null is a choice (each run, even where the view aggregates); so are cleared limits.
-    return {
-        k: v for k, v in settings.items() if v is not None or k in ("by", "ymin", "ymax", "steps")
-    }
-
-
-def yaml_walk(body: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
-    """List the nodes of a body in YAML form, depth first.
-
-    :param body: The nodes.
-    :return: ``(block, props)`` pairs; props are the nodes' own dicts."""
-    out = []
-    for n in body:
-        ((block, props),) = n.items()
-        if not isinstance(props, dict):
-            props = {"children": props} if isinstance(props, list) else {}
-            n[block] = props
-        out.append((block, props))
-        out += yaml_walk(props.get("children") or [])
-    return out
+    :param t: The root.
+    :return: Every node."""
+    return [t, *(x for k in t.get("children", []) for x in walk_tree(k))]

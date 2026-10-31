@@ -13,7 +13,7 @@ from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import BY_TOOL
 from beamtime.views import model as m
-from beamtime.views.compile import compile_view
+from beamtime.views.compile import compile_view, walk_tree
 
 MAX_CURVES = 8
 
@@ -69,7 +69,7 @@ def static(
     tree = compile_view(view, path=path, draft=draft, library=library)
     nodes = {n.id: n for n in m.walk(view.body)}
     keys: dict[str, dict[str, Any]] = {}
-    for t in tree_walk(tree):
+    for t in walk_tree(tree):
         if (n := nodes.get(t["id"])) is not None:
             findings += queries(ctx, n, t, keys)
     return view, findings
@@ -293,14 +293,6 @@ def answer_checks(
             if not answer.get("entries") and not answer.get("rows"):
                 out.append(Finding(level="warning", **at, message="no data in scope"))
     return out
-
-
-def tree_walk(t: dict[str, Any]) -> list[dict[str, Any]]:
-    """List a block tree's nodes, depth first.
-
-    :param t: The root.
-    :return: Every node."""
-    return [t, *(x for k in t.get("children", []) for x in tree_walk(k))]
 
 
 def placeholders_of(params: dict[str, Any]) -> list[str]:
