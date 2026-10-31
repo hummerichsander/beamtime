@@ -270,13 +270,14 @@ sync.
   bundle in `static/`; tests in `tests/serve/` (`test_browser.py` runs headless Chromium, skipped
   without it)
 - `src/beamtime/views/`: themes (`theme.py`, built-in pair in `themes/`), the built-in default view
-  as a block tree (`defaults.py`), the view format as msgspec structs (`model.py`), compiling views
-  to block trees and folding viewer settings back (`compile.py`), saved versions and drafts in
-  `.beamtime/drafts/` (`store.py`), static validation (`validate.py`) and the headless renderer
+  as a view built from what a page logged (`defaults.py`), the view format as msgspec structs
+  (`model.py`), compiling views to block trees (`compile.py`), folding viewer settings back
+  (`prefs.py`), saved versions and drafts in `.beamtime/drafts/` (`store.py`), static validation (`validate.py`) and the headless renderer
   (`render.py`, an installed browser only), lexical checks of custom-block code (`code.py`) and library
   blocks (`library.py`: definitions, lookup from a group up to the root, params); tests in
   `tests/views/` and `tests/serve/test_render.py`
-- `src/beamtime/ops/views.py`: the `view` operations; `src/beamtime/ops/blocks.py`: the `block`
+- `src/beamtime/ops/authored.py`: what every authored write shares (target, author, new version,
+  answer); `src/beamtime/ops/views.py`: the `view` operations; `src/beamtime/ops/blocks.py`: the `block`
   operations (drafts in `.beamtime/drafts/blocks/`, export and import, also from git);
   `src/beamtime/guide/`: the agent guide (Markdown parts and five example views with
   `{{placeholders}}` filled from a group's keys; the custom example's code in `examples/code/`)
