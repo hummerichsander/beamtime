@@ -292,6 +292,10 @@ def test_set_writes_beamtime_yaml_and_keeps_the_rest(ctx: Context, project: Path
         call("set", {"key": "theme_mode", "value": "sepia"}, ctx)
     with pytest.raises(OpError, match="no theme"):
         call("set", {"key": "theme", "value": "nope"}, ctx)
+    call("set", {"key": "colormap", "value": "magma"}, ctx)
+    assert ctx.settings.get("colormap") == "magma"
+    with pytest.raises(OpError, match="no colormap"):
+        call("set", {"key": "colormap", "value": "RdBu"}, ctx)
     if pytest.importorskip("scienceplots"):
         with pytest.raises(OpError, match="unknown style"):
             call("set", {"key": "figure_style", "value": ["science", "nope"]}, ctx)

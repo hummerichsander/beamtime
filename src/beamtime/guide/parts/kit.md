@@ -52,8 +52,8 @@ export default function render(root) {
 | result | `status` (`loading`, `ready`, `error`), `error`, `columns`, `rows` (objects keyed by field), `curves` (`{run, key, group, x, y \| min, max, last, mean, count}`), `data` (the raw answer); a `runs` answer's `columns` always start with `run.id`, selected or not |
 | `bt.chart.Line`, `Scatter`, `Bar`, `Histogram` | built-in charts: the props of their YAML form, plus `data` (a result) |
 | `bt.ui.Table`, `Stat`, `DataTable`, `Grid`, `Row`, `Section`, `Tabs`/`Tab`, `Note` | built-in blocks and layouts |
-| `bt.theme.tokens`, `.mode`, `.onChange(cb)` | the theme; also as CSS variables (`var(--bt-fg)`, `var(--bt-muted)`, ...) |
-| `bt.theme.runColor(id)`, `.groupColor(values, value)`, `.scale(kind)` | colors: a run's, a group value's, `sequential`/`diverging` (t in 0..1) or `categorical` (index) |
+| `bt.theme.tokens`, `.mode`, `.onChange(cb)` | the theme (`colors.ink`, `colors["data-1"]`, ...); also as CSS variables (`var(--ink)`, `var(--muted)`, `var(--line)`, ...) |
+| `bt.theme.runColor(id)`, `.runDash(id)`, `.groupColor(values, value)`, `.scale(kind)` | a run's color and line style (stroke-dasharray values), a group value's color, the colormaps set in the settings as `sequential`/`diverging` (t in 0..1), or `categorical` (index) |
 | `bt.fmt.value(v)`, `bt.fmt.step(n)`, `bt.fmt.duration(s)`, `bt.label(field)`, `bt.name(run)` | formatting |
 | `bt.link.run(id)`, `bt.link.group(path)` | URLs; links open in the page |
 | `bt.useSize()` | `[ref, width]` of an element |

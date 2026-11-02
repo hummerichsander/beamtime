@@ -5,7 +5,7 @@ import { html } from "htm/preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 
 import { useCall } from "../api.ts";
-import { rows } from "../blocks/common.ts";
+import { Notice, rows } from "../blocks/common.ts";
 import { useTheme } from "../bt/index.ts";
 import { ago, duration, versionTime } from "../bt/fmt.ts";
 import { useChart } from "../bt/chart.ts";
@@ -14,8 +14,10 @@ import { timeLabel, timeTicks } from "../bt/shapes.ts";
 import { alpha, chartStyle, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate, runUrl, timelineUrl } from "../router.ts";
 import type { TipRow } from "../bt/uplot.ts";
+import { Field, Section } from "../ui/primitives.ts";
 import * as calls from "./calls.ts";
 
+const STATUS: Record<string, string> = { running: "accent", finished: "good", failed: "bad", killed: "warn", lost: "muted" };
 const LANE = 20;
 const NOTE_LANE = -1;
 const RANGES = [
@@ -53,20 +55,22 @@ export function TimelinePage(props: { from: string }) {
   const marks: Mark[] = (notes.data?.entries ?? []).map((n: any) => ({
     id: n.id, type: n.type, group: n.group, description: n.description, t: Date.parse(versionTime(n.id)!) / 1000,
   }));  // prettier-ignore
-  return html`<div class="page timeline-page">
-    <header class="header">
-      <h1 class="title" tabindex="-1">Timeline</h1>
+  return html`<div class="page timeline-page"><div class="sections">
+    <${Section} label="timeline"><header class="header">
+      <h1 class="page-title title" tabindex="-1">Timeline</h1>
       <div class="timeline-filter">
-        <label class="field inline"><span class="field-label">Group</span>
+        <${Field} label="Group" inline>
           <select value=${props.from} onChange=${(e: Event) => navigate(timelineUrl((e.target as HTMLSelectElement).value), { replace: true })}>
             ${tree.map((p) => html`<option value=${p}>${p === "." ? "everything" : p}</option>`)}
-          </select></label>
+          </select><//>
         <span class="muted small">${bars.length} runs · ${marks.length} notes · wheel zooms, drag pans, click opens</span>
       </div>
-    </header>
-    ${runs.status === "error" ? html`<p class="notice error">${runs.error}</p>` : null}
-    ${runs.data && notes.data ? html`<${Lanes} bars=${bars} marks=${marks} />` : html`<div class="skeleton late" style="block-size: 320px"></div>`}
-  </div>`;
+    </header><//>
+    <${Section} label="runs">
+      ${runs.status === "error" ? html`<${Notice} kind="error">${runs.error}<//>` : null}
+      ${runs.data && notes.data ? html`<${Lanes} bars=${bars} marks=${marks} />` : html`<div class="skeleton late" style="block-size: 320px"></div>`}
+    <//>
+  </div></div>`;
 }
 
 function Lanes(props: { bars: Bar[]; marks: Mark[] }) {
@@ -80,8 +84,8 @@ function Lanes(props: { bars: Bar[]; marks: Mark[] }) {
 
   const spec = (t: Theme): PlotSpec => {
     const ticks = timeTicks(range[0], range[1]);
-    const status = (s: string) => String(t.colors[s] ?? t.colors.muted);
-    const noteColor = (type: string) => String(t.colors[type === "verdict" ? "good" : type === "decision" ? "accent" : type === "question" ? "warn" : "muted"]);
+    const status = (s: string) => t.colors[STATUS[s] ?? "muted"];
+    const noteColor = (type: string) => t.colors[type === "verdict" ? "good" : type === "decision" ? "accent" : type === "question" ? "warn" : "muted"];
     return {
       style: chartStyle(t),
       height,
@@ -160,7 +164,7 @@ function Lanes(props: { bars: Bar[]; marks: Mark[] }) {
           onClick=${() => setRange(clamp([last - s, last + s * 0.02], [Math.min(full[0], last - s), full[1]]))}>last ${name}</button>`)}
       <button type="button" role="radio" aria-checked=${range[0] === full[0] && range[1] === full[1]} onClick=${() => setRange(full)}>all</button>
     </div>
-    <div class="chart" ref=${el} style=${`min-block-size:${height}px`}
+    <div class="chart-plot" ref=${el} style=${`min-block-size:${height}px`}
       onWheel=${onWheel} onPointerDown=${onDown} onPointerMove=${onMove} onPointerUp=${() => (drag.current = null)}></div>
     <p class="muted small">${legend(theme)}</p>
   </div>`;

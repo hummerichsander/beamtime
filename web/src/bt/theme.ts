@@ -1,39 +1,51 @@
-// Theme tokens as CSS variables, light/dark mode, stable run colors and the chart style.
+// The theme on the page: light/dark, a theme file's colors as CSS variables, stable run colors and
+// line styles, and the chart style.
 
 export type Theme = {
   name: string;
   type: "light" | "dark";
-  colors: Record<string, string | number>;
-  data: {
-    categorical: string[];
-    sequential: string[];
-    diverging: string[];
-    baseline: { color: string; dash: number[] };
-  };
-  fonts: Record<string, string>;
-  sizes: Record<string, number>;
-  shape: Record<string, unknown>;
+  colors: Record<string, string>;
+  // line styles of runs, the same order as data-1 to data-6.
+  dashes: number[][];
+  stroke: number;
+  font: string;
+  ramps: { sequential: string[]; diverging: string[] };
 };
 export type Pair = { light: Theme; dark: Theme; problems: string[] };
 export type Mode = "system" | "light" | "dark";
 
-// put a theme on the document: its variables, and light or dark for the browser's own controls.
+// put a theme on the document: tokens.css has the default values, a theme file's colors go on top.
 export function paint(t: Theme): void {
   const root = document.documentElement;
   for (const [k, v] of Object.entries(cssVariables(t))) root.style.setProperty(k, v);
-  root.dataset.mode = t.type;
-  root.style.colorScheme = t.type;
+  root.dataset.theme = t.type;
 }
 
 export function cssVariables(theme: Theme): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(theme.colors)) out[`--bt-${k.replace(/\./g, "-")}`] = String(v);
-  for (const [k, v] of Object.entries(theme.fonts)) out[`--bt-font-${k}`] = v;
-  for (const [k, v] of Object.entries(theme.sizes)) out[`--bt-size-${k}`] = `${v}px`;
-  out["--bt-radius"] = `${Number(theme.shape.radius ?? 6)}px`;
-  out["--bt-density"] = String(Number(theme.shape.density ?? 1));
-  out["--bt-column"] = `${Number(theme.shape.column ?? 900)}px`;
-  return out;
+  return Object.fromEntries(Object.entries(theme.colors).map(([k, v]) => [`--${k}`, v]));
+}
+
+// run n is drawn in data-n with dash-n.
+export function palette(theme: Theme): string[] {
+  return theme.dashes.map((_, i) => theme.colors[`data-${i + 1}`]);
+}
+
+// which run style a color is (1 to 6), or null for a color from a colormap.
+export function slotOf(color: string | undefined, theme: Theme | null): number | null {
+  if (!color || !theme) return null;
+  const i = palette(theme).indexOf(color);
+  return i < 0 ? null : i + 1;
+}
+
+export function dashOf(color: string | undefined, theme: Theme): number[] {
+  const slot = slotOf(color, theme);
+  return slot === null ? [] : theme.dashes[slot - 1];
+}
+
+// the class of a swatch, or its color when it isn't a run style.
+export function swatch(color: string | undefined, theme: Theme | null): { class: string; style?: string } {
+  const slot = slotOf(color, theme);
+  return slot === null ? { class: "swatch", style: color ? `color:${color}` : undefined } : { class: `swatch run-${slot}` };
 }
 
 // a hash of the run id picks a preferred slot; in id order, later runs move to the next free one.
@@ -66,13 +78,14 @@ export function groupColors(values: unknown[], theme: Theme): Map<string, string
   const sorted = numeric
     ? distinct.sort((a, b) => JSON.parse(a) - JSON.parse(b))
     : distinct.sort();
+  const colors = palette(theme);
   const out = new Map<string, string>();
   sorted.forEach((v, i) => {
     out.set(
       v,
-      numeric && sorted.length > theme.data.categorical.length
-        ? ramp(theme.data.sequential, sorted.length === 1 ? 1 : i / (sorted.length - 1))
-        : theme.data.categorical[i % theme.data.categorical.length],
+      numeric && sorted.length > colors.length
+        ? ramp(theme.ramps.sequential, sorted.length === 1 ? 1 : i / (sorted.length - 1))
+        : colors[i % colors.length],
     );
   });
   return out;
@@ -109,13 +122,5 @@ export type ChartStyle = {
 
 export function chartStyle(theme: Theme): ChartStyle {
   const c = theme.colors;
-  return {
-    axis: String(c.muted),
-    grid: String(c.grid),
-    text: String(c.muted),
-    font: `${(theme.sizes.sm ?? 12) - 0.5}px ${theme.fonts.sans}`,
-    line: Number(theme.shape.line ?? 1.5),
-    dim: Number(c.dim ?? 0.2),
-    band: 0.2,
-  };
+  return { axis: c.muted, grid: c.line, text: c.muted, font: theme.font, line: theme.stroke, dim: 0.2, band: 0.2 };
 }

@@ -93,7 +93,7 @@ export function Editable(props: {
       <textarea ref=${field} class="edit-field" value=${draft} aria-label=${props.label} placeholder=${props.placeholder}
         rows=${props.multiline ? Math.min(18, Math.max(4, draft.split("\n").length + 1)) : 1}
         onInput=${(e: Event) => setDraft((e.target as HTMLTextAreaElement).value)} onKeyDown=${onKey} onBlur=${save}></textarea>
-      <span class="edit-hint">${props.multiline ? "⌘Enter saves" : "Enter saves"} · Esc cancels${error ? html` · <span class="bad-text">${error}</span>` : null}</span>
+      <span class="edit-hint small">${props.multiline ? "⌘Enter saves" : "Enter saves"} · Esc cancels${error ? html` · <span class="bad-text">${error}</span>` : null}</span>
     </div>`;
   }
   const shown = saving ?? props.value;
@@ -101,7 +101,7 @@ export function Editable(props: {
       tabindex=${0} role="button" aria-label=${locked ? `${props.label}: ${locked}` : `Edit ${props.label}`}
       data-tip=${locked} onClick=${start} onBlur=${() => setExplained(false)}
       onKeyDown=${(e: KeyboardEvent) => e.key === "Enter" && e.target === e.currentTarget && start(e)}>
-    ${shown.trim() ? (props.render ? props.render(shown) : shown) : html`<span class="subtle">${props.placeholder ?? "Click to write"}</span>`}
-    ${explained && locked ? html`<span class="edit-hint locked-why" role="status"><${Icon} name="lock" size=${12} /> ${locked}</span>` : null}
+    ${shown.trim() ? (props.render ? props.render(shown) : shown) : html`<span class="muted">${props.placeholder ?? "Click to write"}</span>`}
+    ${explained && locked ? html`<span class="edit-hint small locked-why" role="status"><${Icon} name="lock" size=${14} /> ${locked}</span>` : null}
   </div>`;
 }

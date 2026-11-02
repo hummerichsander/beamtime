@@ -39,17 +39,17 @@ function PhaseMap() {
               onPointerEnter=${() => bt.hover(c.best)} onPointerLeave=${() => bt.hover(null)}>
               <title>${bt.label(xf)} ${c.x} · ${bt.label(yf)} ${c.y}: ${bt.fmt.value(c.value)} (${c.n} run${c.n === 1 ? "" : "s"})</title>
               <rect x=${x(c.x)} y=${y(c.y)} width=${x.bandwidth()} height=${y.bandwidth()} rx="3" fill=${color(c.value)}
-                stroke=${c.best === run || c.best === hovered ? "var(--bt-fg)" : "none"} stroke-width="2" />
+                stroke=${c.best === run || c.best === hovered ? "var(--ink)" : "none"} stroke-width="2" />
             </g>`)}
           ${ys.map((v) => html`<text x=${LEFT - 8} y=${y(v) + y.bandwidth() / 2} text-anchor="end" dominant-baseline="middle"
-              fill="var(--bt-muted)" font-size="12">${bt.fmt.value(v)}</text>`)}
+              fill="var(--muted)" class="small">${bt.fmt.value(v)}</text>`)}
           ${xs.map((v) => html`<text x=${x(v) + x.bandwidth() / 2} y=${ys.length * CELL + 16} text-anchor="middle"
-              fill="var(--bt-muted)" font-size="12">${bt.fmt.value(v)}</text>`)}
-          <text x=${LEFT + w / 2} y=${height - 4} text-anchor="middle" fill="var(--bt-muted)" font-size="12">${bt.label(xf)}</text>
-          <text x="0" y=${(ys.length * CELL) / 2} dominant-baseline="middle" fill="var(--bt-muted)" font-size="12">${bt.label(yf)}</text>
+              fill="var(--muted)" class="small">${bt.fmt.value(v)}</text>`)}
+          <text x=${LEFT + w / 2} y=${height - 4} text-anchor="middle" fill="var(--muted)" class="small">${bt.label(xf)}</text>
+          <text x="0" y=${(ys.length * CELL) / 2} dominant-baseline="middle" fill="var(--muted)" class="small">${bt.label(yf)}</text>
         </svg>`
       : null}
-    <p class="muted small">Stronger color is better.${run ? "" : " Click a cell to see the curves of its best run."}</p>
+    <p class="muted small">Color runs from worst to best along the colormap.${run ? "" : " Click a cell to see the curves of its best run."}</p>
     ${run ? html`<${Detail} run=${run} />` : null}
   </div>`;
 }

@@ -3,11 +3,10 @@
 // Every page gets the app's top bar with search (⌘K), and search.json indexes every section.
 
 import { existsSync } from "node:fs";
-import { readFile, writeFile, mkdir, rm, copyFile } from "node:fs/promises";
+import { readdir, readFile, writeFile, mkdir, rm, copyFile } from "node:fs/promises";
 import { dirname, join, normalize, relative } from "node:path";
 import { Marked } from "marked";
 
-import { cssVariables } from "./src/bt/theme.ts";
 
 const docs = "../docs";
 const out = "../site";
@@ -34,7 +33,10 @@ const index = [];
 
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
-await writeFile(join(out, "docs.css"), (await themeCss()) + (await readFile("docs/docs.css", "utf8")));
+// the site uses the design system's tokens and fonts as they are.
+await writeFile(join(out, "docs.css"), (await readFile("src/styles/tokens.css", "utf8")) + (await readFile("docs/docs.css", "utf8")));
+await mkdir(join(out, "fonts"), { recursive: true });
+for (const f of await readdir("src/styles/fonts")) await copyFile(`src/styles/fonts/${f}`, join(out, "fonts", f));
 await copyFile("docs/docs.js", join(out, "docs.js"));
 await writeFile(join(out, ".nojekyll"), "");
 for (const [i, page] of pages.entries()) {
@@ -69,30 +71,6 @@ async function loadIcons(names) {
 function icon(name, size = 16) {
   return `<svg class="icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" ` +
     `stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`;
-}
-
-// the light theme's tokens, the dark theme's for dark systems, and both for an explicit choice.
-async function themeCss() {
-  const read = async (name) => JSON.parse(await readFile(`../src/beamtime/views/themes/${name}.json`, "utf8"));
-  // a theme that extends another takes the other's values where it sets none.
-  const theme = async (name) => {
-    const t = await read(name);
-    if (!t.extends) return t;
-    const base = await theme(t.extends);
-    return Object.fromEntries(Object.keys({ ...base, ...t }).map((k) => [k, typeof base[k] === "object" && !Array.isArray(base[k]) ? { ...base[k], ...t[k] } : t[k] ?? base[k]]));
-  };
-  // the shell tokens fall back to core tokens, as in src/beamtime/views/theme.py (SHELL).
-  const SHELL = {
-    "sidebar.bg": "surface", "sidebar.fg": "fg", "topbar.bg": "bg", "input.bg": "bg", "input.border": "border",
-    "focus": "accent", "scrollbar": "border",
-  };
-  const withShell = (t) => ({ ...t, colors: { ...Object.fromEntries(Object.entries(SHELL).map(([k, v]) => [k, t.colors[v]])), ...t.colors } });
-  const vars = (t) => Object.entries(cssVariables(withShell(t))).map(([k, v]) => `${k}: ${v};`).join(" ");
-  const light = vars(await theme("beamtime-light"));
-  const dark = vars(await theme("beamtime-dark"));
-  return `:root { ${light} color-scheme: light; }\n` +
-    `@media (prefers-color-scheme: dark) { :root:not([data-mode="light"]) { ${dark} color-scheme: dark; } }\n` +
-    `:root[data-mode="dark"] { ${dark} color-scheme: dark; }\n`;
 }
 
 function render(page, text) {

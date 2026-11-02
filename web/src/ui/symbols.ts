@@ -1,16 +1,16 @@
-// What each state looks like: an icon, a color token and a word, so color is never alone.
+// What each state looks like: an icon, a tone and a word, so color is never alone.
 
-export type Tone = "good" | "bad" | "warn" | "muted" | "accent" | "running" | "finished" | "failed" | "killed" | "lost";
+export type Tone = "good" | "bad" | "warn" | "muted" | "accent";
 export type SymbolSpec = { icon: string; tone: Tone; label: string; pulse?: boolean };
 export type Kind = "run" | "result" | "verdict" | "note" | "research" | "thing";
 
 const TABLE: Record<Kind, Record<string, SymbolSpec>> = {
   run: {
-    running: { icon: "circle-dot", tone: "running", label: "running", pulse: true },
-    finished: { icon: "check", tone: "finished", label: "finished" },
-    failed: { icon: "circle-x", tone: "failed", label: "failed" },
-    killed: { icon: "square", tone: "killed", label: "killed" },
-    lost: { icon: "cloud-off", tone: "lost", label: "lost" },
+    running: { icon: "circle-dot", tone: "accent", label: "running", pulse: true },
+    finished: { icon: "check", tone: "good", label: "finished" },
+    failed: { icon: "circle-x", tone: "bad", label: "failed" },
+    killed: { icon: "square", tone: "warn", label: "killed" },
+    lost: { icon: "cloud-off", tone: "muted", label: "lost" },
   },
   result: {
     pass: { icon: "check", tone: "good", label: "pass" },
@@ -35,7 +35,7 @@ const TABLE: Record<Kind, Record<string, SymbolSpec>> = {
   research: {
     open: { icon: "circle", tone: "muted", label: "open" },
     proposed: { icon: "target", tone: "accent", label: "proposed" },
-    running: { icon: "circle-dot", tone: "running", label: "running", pulse: true },
+    running: { icon: "circle-dot", tone: "accent", label: "running", pulse: true },
     evaluable: { icon: "scale", tone: "warn", label: "evaluable" },
     concluded: { icon: "circle-check", tone: "good", label: "concluded" },
   },

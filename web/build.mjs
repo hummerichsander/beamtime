@@ -20,6 +20,8 @@ keep(await build({
   outdir: out,
   entryNames: "[name]",
   chunkNames: "chunks/[name]-[hash]",
+  assetNames: "fonts/[name]",
+  loader: { ".woff2": "file" },
   legalComments: "none",
   logLevel: "warning",
   define: { __EXPORT__: "false" },
@@ -34,6 +36,9 @@ keep(await build({
   minify: true,
   target: "es2022",
   outdir: `${out}/export`,
+  // the same font files as the page's, one folder up.
+  assetNames: "../fonts/[name]",
+  loader: { ".woff2": "file" },
   legalComments: "none",
   logLevel: "warning",
   define: { __EXPORT__: "true" },
@@ -63,6 +68,10 @@ await copyFile("src/index.html", `${out}/index.html`);
 await mkdir(`${out}/kit`, { recursive: true });
 await copyFile("src/kit/frame.html", `${out}/kit/frame.html`);
 await writeFile(`${out}/THIRD_PARTY_LICENSES.txt`, await licenses());
+// the fonts' license texts ship next to the fonts.
+for (const f of await readdir("src/styles/fonts")) {
+  if (f.endsWith(".txt")) await copyFile(`src/styles/fonts/${f}`, `${out}/fonts/${f}`);
+}
 
 // the licenses of the packages bundled into the frontend, which ship with it (their notices are
 // stripped from the minified files).

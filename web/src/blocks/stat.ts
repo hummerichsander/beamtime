@@ -33,8 +33,8 @@ export function Stat({ node }: { node: Node }) {
   const v = result.data ? aggregate(p.field ? selected.map((r) => r[p.field]) : selected, p.aggregate ?? "count", !!p.lower) : null;
   const live = selected.some((r) => r["run.status"] === "running") && p.aggregate !== "count";
   return html`<div class="stat" data-tip=${v === null ? undefined : String(v)}>
-    <div class="stat-label">${p.title ?? p.field}</div>
-    <div class=${`stat-value${live ? " live" : ""}${result.status === "loading" ? " pending" : ""}`}>
+    <div class="stat-label small">${p.title ?? p.field}</div>
+    <div class=${`number${live ? " live" : ""}${result.status === "loading" ? " pending" : ""}`}>
       ${result.status === "loading" ? " " : value(v)}
     </div>
   </div>`;

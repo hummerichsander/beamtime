@@ -20,7 +20,7 @@ export function Images({ node }: { node: Node }) {
       ${entries.map(
         (e) => html`<figure key=${`${e.run}/${e.path}`}>
           <img src=${fileUrl(sourcedRun(e.run, view.path), e.path)} alt=${e.caption ?? node.props.title} loading=${recording ? "eager" : "lazy"} />
-          <figcaption>step ${step(e.step)}${e.caption ? ` · ${e.caption}` : ""}</figcaption>
+          <figcaption class="small">step ${step(e.step)}${e.caption ? ` · ${e.caption}` : ""}</figcaption>
         </figure>`,
       )}
     </div>
@@ -35,7 +35,7 @@ export function Text({ node }: { node: Node }) {
     ${entries.map(
       (e) => html`<div class="text-entry" key=${`${e.run}/${e.step}`}>
         <div class="muted small">step ${step(e.step)}${e.caption ? ` · ${e.caption}` : ""}</div>
-        <pre>${e.text ?? ""}</pre>
+        <pre class="code">${e.text ?? ""}</pre>
       </div>`,
     )}
   <//>`;

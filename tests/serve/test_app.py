@@ -128,7 +128,7 @@ def test_meta_has_the_theme_pair(api) -> None:
     meta = api("meta").json()
     assert meta["project"] == "proj"
     assert meta["theme"]["light"]["type"] == "light"
-    assert meta["theme"]["dark"]["colors"]["sidebar.bg"] == "#252523"
+    assert meta["theme"]["dark"]["colors"]["surface"] == "#252523"
 
 
 def test_serve_refuses_a_second_daemon(project: Path) -> None:

@@ -326,7 +326,7 @@ INDEX = """<!doctype html>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="static/export/main.css" />
   </head>
-  <body>
+  <body class="body">
     <div id="app"></div>
     <script src="snapshot.js"></script>
     <script src="static/export/frame.js"></script>

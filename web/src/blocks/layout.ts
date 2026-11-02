@@ -10,22 +10,27 @@ import { recording } from "../router.ts";
 import { EXPORTED } from "../snapshot.ts";
 import { Icon } from "../ui/icons.ts";
 import { MultiSelect } from "../ui/multiselect.ts";
+import { LabelCtx } from "./common.ts";
 import { Block } from "./index.ts";
 
 export function Section({ node }: { node: Node }) {
   const [open, setOpen] = useState(recording || node.props.open !== false);
   const children = html`${(node.children ?? []).map((c) => html`<${Block} key=${c.id} node=${c} />`)}`;
+  const label = useContext(LabelCtx);
   if (!node.props.title) return html`<div class="stack">${children}</div>`;
-  return html`<section class="section">
-    <button type="button" class="section-title" aria-expanded=${open} onClick=${() => setOpen(!open)}>
-      <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${16} />${node.props.title}
+  const repeated = label === node.props.title.toLowerCase();
+  return html`<div class="view-section">
+    <button type="button" class="view-section-title heading" aria-expanded=${open} aria-label=${repeated ? `${open ? "Close" : "Open"} ${node.props.title}` : undefined}
+        onClick=${() => setOpen(!open)}>
+      <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${16} />${repeated ? null : node.props.title}
     </button>
     ${open ? html`<div class="stack">${children}</div>` : null}
-  </section>`;
+  </div>`;
 }
 
 export function Row({ node }: { node: Node }) {
-  return html`<div class="row">
+  const stats = (node.children ?? []).every((c) => c.block === "stat");
+  return html`<div class=${stats ? "stats" : "row"}>
     ${(node.children ?? []).map((c) => html`<${Block} key=${c.id} node=${c} />`)}
   </div>`;
 }
@@ -78,7 +83,7 @@ function Cell(props: { node: Node; path: string; span: Span; columns?: number; o
       <span class="cell-handle" draggable="true" role="button" tabindex="-1" aria-label="Drag to move"
         data-tip="Drag to move" onDragStart=${(e: DragEvent) => e.dataTransfer?.setData("text/x-block", props.node.id)}>
         <${Icon} name="grip" size=${14} /></span>
-      <button type="button" class="cell-width" data-tip=${`Width: ${name(props.span)}; click for ${name(next)}`}
+      <button type="button" class="cell-width small" data-tip=${`Width: ${name(props.span)}; click for ${name(next)}`}
         aria-label=${`Width ${name(props.span)}`} onClick=${() => setSpan(props.path, props.node.id, next)}>
         ${props.span === "full" ? "↔" : props.span}</button>
     </div>
@@ -111,7 +116,7 @@ export function Tabs({ node }: { node: Node }) {
   // an export records every tab, so each one opens in the snapshot.
   if (recording) return html`<div class="stack">${kids.map((k) => html`<${Block} key=${k.id} node=${k} />`)}</div>`;
   return html`<div class="tabs">
-    <div class="tab-list" role="tablist" aria-label=${node.props.title ?? "Tabs"}>
+    <div class="tab-list heading" role="tablist" aria-label=${node.props.title ?? "Tabs"}>
       ${kids.map((k) => html`<button type="button" role="tab" id=${`tab-${k.id}`} aria-selected=${k.id === active?.id}
           aria-controls=${`panel-${k.id}`} onClick=${() => choose(k.id)}>${k.props.title ?? k.id}</button>`)}
     </div>

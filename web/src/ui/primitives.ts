@@ -1,4 +1,4 @@
-// Small building blocks: icon buttons, tags, meters, disclosures and anchored popover panels.
+// Small building blocks: buttons, icon buttons, fields, tags, disclosures and anchored popover panels.
 
 import type { ComponentChildren } from "preact";
 import { html } from "htm/preact";
@@ -22,15 +22,41 @@ export function IconButton(props: {
 }
 
 export function Tag(props: { tone?: string; tip?: string; children?: ComponentChildren }) {
-  return html`<span class=${`tag tone-${props.tone ?? "muted"}`} data-tip=${props.tip}>${props.children}</span>`;
+  return html`<span class=${`tag small tone-${props.tone ?? "muted"}`} data-tip=${props.tip}>${props.children}</span>`;
 }
 
-export function Meter(props: { fraction: number | null; label: string }) {
-  const pct = props.fraction === null ? 0 : Math.round(Math.min(1, Math.max(0, props.fraction)) * 100);
-  return html`<span class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${pct}
-      aria-label=${props.label} data-tip=${props.label}>
-    <span class="meter-fill" style=${`inline-size:${pct}%`}></span>
-  </span>`;
+// one row of the page: a short label in the margin and the content, between hairlines.
+export function Section(props: { label?: string; class?: string; children?: ComponentChildren }) {
+  return html`<section class=${`section ${props.class ?? ""}`}>
+    <div class="section-label code">${props.label}</div>
+    <div class="section-body">${props.children}</div>
+  </section>`;
+}
+
+// an action with an icon and a short label, no fill: accent text; danger is bad, quiet is muted.
+export function Button(props: {
+  icon: string;
+  kind?: "danger" | "quiet";
+  type?: "button" | "submit";
+  disabled?: boolean;
+  onClick?: (e: MouseEvent) => void;
+  class?: string;
+  tip?: string;
+  children?: ComponentChildren;
+}) {
+  const cls = ["button body", props.kind, props.class].filter(Boolean).join(" ");
+  return html`<button type=${props.type ?? "button"} class=${cls} disabled=${props.disabled} onClick=${props.onClick} data-tip=${props.tip}>
+    <${Icon} name=${props.icon} size=${16} />${props.children}
+  </button>`;
+}
+
+// a label in small above an input; an error or a hint below. The child is the control itself.
+export function Field(props: { label: string; inline?: boolean; error?: string | null; icon?: string; class?: string; children?: ComponentChildren }) {
+  return html`<label class=${`field small${props.inline ? " inline" : ""} ${props.class ?? ""}`}>
+    <span class="field-label">${props.label}</span>
+    <span class="input body">${props.icon ? html`<${Icon} name=${props.icon} size=${15} />` : null}${props.children}</span>
+    ${props.error ? html`<span class="field-hint error">${props.error}</span>` : null}
+  </label>`;
 }
 
 export function Disclosure(props: { summary: ComponentChildren; open?: boolean; children?: ComponentChildren }) {
@@ -75,7 +101,7 @@ export function Popover(props: {
     <${IconButton} icon=${props.icon} label=${props.label} popovertarget=${id} />
     <div id=${id} popover="auto" class=${`panel-popover ${props.class ?? ""}`} ref=${panel}
         aria-label=${props.title ?? props.label}>
-      ${props.title ? html`<h4 class="popover-title">${props.title}</h4>` : null}
+      ${props.title ? html`<h4 class="popover-title small">${props.title}</h4>` : null}
       ${props.children}
     </div>
   </div>`;

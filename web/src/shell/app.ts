@@ -8,6 +8,7 @@ import { rows } from "../blocks/common.ts";
 import { groupUrl, navigate, rendering, route, setScroller } from "../router.ts";
 import { EXPORTED } from "../snapshot.ts";
 import { useStore } from "../state.ts";
+import { Button } from "../ui/primitives.ts";
 import { StatusBar, TopBar } from "./bars.ts";
 import * as calls from "./calls.ts";
 import { Drawer } from "./drawer.ts";
@@ -128,9 +129,9 @@ function Help() {
   }, []);
   return html`<dialog class="sheet" ref=${dialog} aria-labelledby="help-title" closedby="any">
     <div class="help">
-      <h3 id="help-title">Keyboard shortcuts</h3>
-      <table class="kv">${SHORTCUTS.map(([k, d]) => html`<tr><td><kbd>${k}</kbd></td><td>${d}</td></tr>`)}</table>
-      <form method="dialog" style="margin-block-start: 14px"><button class="link" autofocus>Close</button></form>
+      <h3 class="heading" id="help-title">Keyboard shortcuts</h3>
+      <table class="kv">${SHORTCUTS.map(([k, d]) => html`<tr><td><kbd class="small">${k}</kbd></td><td>${d}</td></tr>`)}</table>
+      <form method="dialog" style="margin-block-start: 16px"><${Button} type="submit" icon="x" kind="quiet">Close<//></form>
     </div>
   </dialog>`;
 }

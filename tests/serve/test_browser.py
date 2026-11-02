@@ -88,7 +88,7 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     page.click("a.group-row:has-text('lr-sweep')")
     page.wait_for_selector(".page h1:has-text('lr-sweep')", timeout=2000)
     page.wait_for_selector(".chart canvas")
-    assert page.locator(".preds .pred .sym.tone-good").count() >= 2
+    assert page.locator(".checks .check.tone-good").count() >= 2
     # a view transition that hangs reports itself only after its timeout.
     page.wait_for_timeout(4500)
     assert errors == []
@@ -215,6 +215,9 @@ def test_custom_blocks_share_hover_downloads_and_expand(project: Path, page) -> 
         page.goto(f"{url[1]}/f/local/{sweep}?token={url[2]}")
         frame = page.frame_locator(".custom-frame iframe")
         frame.locator("rect").first.wait_for(timeout=30_000)
+        # the frame is sandboxed (an opaque origin): its fonts are CORS requests.
+        inner = next(f for f in page.frames if "kit/frame" in f.url)
+        assert inner.evaluate("document.fonts.load('12.5px \"IBM Plex Sans\"').then((f) => f.length > 0)")
         frame.locator("rect").nth(1).hover()
         page.wait_for_selector("table.runs tr.hovered", timeout=5_000)
         with page.expect_download() as download:

@@ -12,12 +12,15 @@ DEFAULTS: dict[str, Any] = {
     "theme": "beamtime",
     # system, light or dark: the web UI's mode, unless a viewer picks another for themselves.
     "theme_mode": "system",
+    # the matplotlib colormaps of numeric groups and heatmaps: sequential, and around a center.
+    "colormap": "viridis",
+    "colormap_diverging": "coolwarm",
     # matplotlib style sheets for figures (scienceplots' and matplotlib's), as for plt.style.use.
     "figure_style": ["science", "nature"],
     "remotes": {},
 }
 # what `beamtime set` (and the web UI's settings page) may write into beamtime.yaml.
-SETTABLE = ("theme", "theme_mode", "figure_style")
+SETTABLE = ("theme", "theme_mode", "colormap", "colormap_diverging", "figure_style")
 REMOTE_KEYS = ("host", "command", "cache", "path", "transport")
 PROJECT_ONLY = ("logdir",)
 

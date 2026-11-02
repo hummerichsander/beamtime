@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from beamtime.views.theme import CORE, SHELL, ThemeError, pair, resolve
+from beamtime.views.theme import ThemeError, base, colormaps, names, pair, resolve
 
 
 @pytest.fixture
@@ -27,57 +27,57 @@ def write(root: Path, file: str, **theme) -> None:
     (root / "themes" / f"{file}.json").write_text(json.dumps({"schema": 1, **theme}))
 
 
-def test_default_pair_is_complete(root: Path) -> None:
-    """Both default variants define every core and shell token."""
-    themes = pair("beamtime", root)
-    assert themes["problems"] == []
-    for mode in ("light", "dark"):
-        t = themes[mode]
-        assert t["type"] == mode
-        assert set(CORE) | set(SHELL) == set(t["colors"])
-        assert len(t["data"]["categorical"]) == 8 and t["fonts"]["serif"]
-    assert themes["dark"]["sizes"] == themes["light"]["sizes"]
+def test_default_pair_comes_from_the_tokens(root: Path) -> None:
+    """The default theme is the design system's, in both modes."""
+    p = pair("beamtime", root)
+    assert p["problems"] == []
+    assert p["light"]["colors"]["paper"] == "#faf9f6"
+    assert p["dark"]["colors"]["paper"] == "#1e1e1c"
+    assert p["light"]["dashes"][0] == [] and p["light"]["dashes"][1] == [6, 3]
+    assert p["light"]["stroke"] == 1.6
+    assert "IBM Plex Sans" in p["light"]["font"]
 
 
-def test_a_dozen_colors_make_a_theme(root: Path) -> None:
-    """Missing tokens come from the default of the same type; the shell follows own colors."""
-    write(root, "night", name="Night", type="dark", colors={"bg": "#000000", "surface": "#111111",
-                                                             "accent": "#ff8800"})  # fmt: skip
-    t = resolve("night", root)
-    assert t["colors"]["bg"] == "#000000" and t["colors"]["fg"] == "#eceae4"
-    assert t["colors"]["sidebar.bg"] == "#111111" and t["colors"]["focus"] == "#ff8800"
-    assert t["data"]["categorical"][0] == "#3987e5"
-    assert t["problems"] == []
+def test_a_theme_file_overrides_colors_only(root: Path) -> None:
+    """A pair of files recolors the layout; what a file leaves out stays the default."""
+    write(root, "atom-one-dark", name="Atom One Dark", type="dark",
+          colors={"paper": "#282c34", "ink": "#abb2bf", "accent": "#61afef"})  # fmt: skip
+    write(root, "atom-one-light", name="Atom One Light", type="light", colors={"paper": "#fafafa"})
+    assert "atom-one" in names(root)
+    p = pair("atom-one", root)
+    assert p["problems"] == []
+    assert p["dark"]["name"] == "Atom One Dark"
+    assert p["dark"]["colors"]["paper"] == "#282c34"
+    assert p["dark"]["colors"]["good"] == base("dark")["colors"]["good"]
+    assert p["light"]["colors"]["paper"] == "#fafafa"
 
 
-def test_extends_and_explicit_shell_tokens(root: Path) -> None:
-    """A theme extends another; explicit shell tokens win over the fallback."""
-    write(root, "base", name="Base", type="light", colors={"accent": "#123456"})
-    write(root, "child", name="Child", type="light", extends="base",
-          colors={"sidebar.bg": "#eeeeee", "bogus": "#000"})  # fmt: skip
-    t = resolve("child", root)
-    assert t["colors"]["accent"] == "#123456" and t["colors"]["button.bg"] == "#123456"
-    assert t["colors"]["sidebar.bg"] == "#eeeeee"
-    assert t["problems"] == ["theme 'child': unknown color 'bogus'"]
+def test_a_single_file_serves_both_modes(root: Path) -> None:
+    """One file is used for light and dark."""
+    write(root, "solo", name="Solo", type="dark", colors={"paper": "#000000"})
+    p = pair("solo", root)
+    assert p["light"]["colors"]["paper"] == p["dark"]["colors"]["paper"] == "#000000"
 
 
-def test_pairs_single_files_and_errors(root: Path) -> None:
-    """A name picks its -light/-dark pair, a single file serves both, errors fall back."""
-    write(root, "lab-light", name="Lab Light", type="light", colors={"accent": "#aa0000"})
-    write(root, "lab-dark", name="Lab Dark", type="dark", colors={"accent": "#ff5555"})
-    themes = pair("lab", root)
-    assert themes["light"]["colors"]["accent"] == "#aa0000"
-    assert themes["dark"]["colors"]["accent"] == "#ff5555"
+def test_problems_are_reported_and_ignored(root: Path) -> None:
+    """Unknown tokens and bad values are named; a missing theme falls back to the default."""
+    write(root, "odd", name="Odd", type="light", colors={"nope": "#000000", "ink": "red"})
+    t = resolve("odd", root)
+    assert t["colors"]["ink"] == base("light")["colors"]["ink"]
+    assert len(t["problems"]) == 2
+    with pytest.raises(ThemeError, match="no theme 'gone'"):
+        resolve("gone", root)
+    p = pair("gone", root)
+    assert "using the default theme" in p["problems"][0]
+    assert p["light"]["colors"]["paper"] == "#faf9f6"
 
-    assert pair("lab-dark", root)["light"]["name"] == "Lab Dark"
 
-    write(root, "a", name="A", type="light", extends="b")
-    write(root, "b", name="B", type="light", extends="a")
-    with pytest.raises(ThemeError, match="cycle"):
-        resolve("a", root)
-    broken = pair("a", root)
-    assert broken["light"]["name"] == "Beamtime Light" and "cycle" in broken["problems"][0]
-    assert "no theme 'missing'" in pair("missing", root)["problems"][0]
-
-    (root / "themes" / "bad.json").write_text('{"schema": 1, "name": "Bad", "type": "sepia"}')
-    assert "bad.json" in pair("bad", root)["problems"][0]
+def test_colormaps_are_chosen_by_name(root: Path) -> None:
+    """The settings pick the ramps; an unknown name falls back and says so."""
+    maps = colormaps()
+    p = pair("beamtime", root, "magma", "PuOr")
+    assert p["light"]["ramps"]["sequential"] == maps["sequential"]["magma"]
+    assert p["dark"]["ramps"]["diverging"] == maps["diverging"]["PuOr"]
+    q = pair("beamtime", root, "nope")
+    assert q["light"]["ramps"]["sequential"] == maps["sequential"]["viridis"]
+    assert "no sequential colormap 'nope'" in q["problems"][0]

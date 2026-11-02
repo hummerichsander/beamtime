@@ -113,18 +113,18 @@ export function Palette(props: { query: string }) {
   };
   let section = "";
   return html`<dialog class="sheet" ref=${dialog} aria-label="Search" closedby="any">
-    <div class="palette-input"><${Icon} name="search" size=${18} />
-      <input autofocus value=${query} placeholder="Groups, runs by name, id or status, commands" aria-label="Search"
+    <div class="palette-input"><${Icon} name="search" size=${16} />
+      <input class="body" autofocus value=${query} placeholder="Groups, runs by name, id or status, commands" aria-label="Search"
         aria-controls="palette-list" aria-activedescendant=${ranked[active] ? `pal-${active}` : undefined}
         onInput=${(e: Event) => { setQuery((e.target as HTMLInputElement).value); setActive(0); }} onKeyDown=${onKey} />
     </div>
     <ul class="palette-list" id="palette-list" role="listbox">
       ${ranked.map((it, i) => {
         const head = it.section !== section && !query ? (section = it.section) : null;
-        return html`${head ? html`<li class="section" role="presentation">${head}</li>` : null}
+        return html`${head ? html`<li class="palette-head small" role="presentation">${head}</li>` : null}
           <li id=${`pal-${i}`} class="item" role="option" aria-selected=${i === active}
               onMouseMove=${() => setActive(i)} onClick=${() => pick(it)}>
-            <${Sym} spec=${it.sym} /><span class="label">${it.label}</span><span class="detail">${it.detail}</span>
+            <${Sym} spec=${it.sym} /><span class="label">${it.label}</span><span class="detail small">${it.detail}</span>
           </li>`;
       })}
     </ul>

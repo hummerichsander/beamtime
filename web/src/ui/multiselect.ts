@@ -63,13 +63,13 @@ export function MultiSelect(props: {
   return html`<div class="multiselect" onFocusOut=${(e: FocusEvent) => {
       if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setOpen(false);
     }}>
-    <div class="ms-field" onClick=${() => input.current?.focus()}>
+    <div class="ms-field input body" onClick=${() => input.current?.focus()}>
       ${props.single
         ? null
-        : props.value.map((v) => html`<span class="ms-chip" key=${v}>${v}
+        : props.value.map((v) => html`<span class="ms-chip small" key=${v}>${v}
             ${props.value.length > 1
               ? html`<button type="button" aria-label=${`Remove ${v}`} onClick=${(e: Event) => { e.stopPropagation(); toggle(v); }}>
-                  <${Icon} name="x" size=${12} /></button>`
+                  <${Icon} name="x" size=${14} /></button>`
               : null}</span>`)}
       <input ref=${input} value=${query} placeholder=${props.placeholder ?? "Search"} aria-label=${props.label}
         role="combobox" aria-expanded=${open} aria-controls=${id} aria-autocomplete="list"
@@ -81,11 +81,11 @@ export function MultiSelect(props: {
         }} />
     </div>
     ${open
-      ? html`<ul class="ms-list" id=${id} role="listbox" aria-multiselectable=${!props.single}>
+      ? html`<ul class="ms-list small" id=${id} role="listbox" aria-multiselectable=${!props.single}>
           ${shown.length ? null : html`<li class="ms-empty">No match</li>`}
           ${shown.map((o, i) => html`<li key=${o} role="option" aria-selected=${chosen.has(o)} class=${i === active ? "active" : ""}
               onPointerDown=${(e: Event) => e.preventDefault()} onClick=${() => toggle(o)} onPointerEnter=${() => setActive(i)}>
-            <span class="ms-tick">${chosen.has(o) ? html`<${Icon} name="check" size=${13} />` : null}</span>${o}</li>`)}
+            <span class="ms-tick">${chosen.has(o) ? html`<${Icon} name="check" size=${14} />` : null}</span>${o}</li>`)}
         </ul>`
       : null}
   </div>`;

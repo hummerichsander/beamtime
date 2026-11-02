@@ -17,7 +17,7 @@ import { Notice } from "../blocks/common.ts";
 import { hovered, runColors, theme, ViewCtx, type Node, type ViewContext } from "../bt/index.ts";
 import * as fmt from "../bt/fmt.ts";
 import { lineChart } from "../bt/plot.ts";
-import { groupColors, ramp } from "../bt/theme.ts";
+import { dashOf, groupColors, palette, ramp } from "../bt/theme.ts";
 import { groupUrl, runUrl } from "../router.ts";
 import { Store, useStore } from "../state.ts";
 import { fill, placeholders } from "./protocol.ts";
@@ -157,14 +157,21 @@ export function makeKit(host: Host) {
       onChange: (cb: (t: unknown) => void) => theme.subscribe(cb),
       runColor: (id: string) => host.view.value.colors.get(id) ?? runColors([id], theme.value).get(id),
       groupColor: (values: unknown[], value: unknown): string | undefined => (theme.value ? groupColors(values, theme.value).get(JSON.stringify(value)) : undefined),
+      runDash(id: string): number[] {
+        const color = host.view.value.colors.get(id) ?? runColors([id], theme.value).get(id);
+        return theme.value ? dashOf(color, theme.value) : [];
+      },
       scale(kind: "sequential" | "diverging" | "categorical") {
-        const d: any = theme.value?.data ?? {};
+        const t = theme.value;
+        if (!t) throw new Error("no theme yet");
         switch (kind) {
-          case "categorical":
-            return (i: number) => d.categorical[i % d.categorical.length];
+          case "categorical": {
+            const colors = palette(t);
+            return (i: number) => colors[i % colors.length];
+          }
           case "sequential":
           case "diverging":
-            return (t: number) => ramp(d[kind], Math.min(1, Math.max(0, t)));
+            return (x: number) => ramp(t.ramps[kind], Math.min(1, Math.max(0, x)));
           default:
             throw new Error(`no scale ${kind}`);
         }

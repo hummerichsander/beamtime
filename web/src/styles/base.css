@@ -1,98 +1,56 @@
-/* Base: page, type, links, controls. Fallbacks only cover the first paint before the theme loads. */
+/* Base: page, links, controls, and small parts the design system has no component for. */
 
 * { box-sizing: border-box; }
-html, body { margin: 0; block-size: 100%; }
-html { background: var(--bt-bg, #faf9f6); color: var(--bt-fg, #1c1d20); }
-@media (prefers-color-scheme: dark) {
-  html:not([data-mode]) { background: #1e1e1c; color: #eceae4; }
-}
-body {
-  font-family: var(--bt-font-sans, system-ui, sans-serif);
-  font-size: var(--bt-size-md, 15px);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  font-variant-numeric: lining-nums;
-}
-a {
-  color: var(--bt-link);
-  text-decoration: none;
-  &:hover { text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); text-underline-offset: 3px; }
-}
-code, pre, kbd { font-family: var(--bt-font-mono, ui-monospace, monospace); font-size: 0.86em; }
-kbd {
-  padding: 0 5px; border: 1px solid var(--bt-border); border-block-end-width: 2px; border-radius: 5px;
-  color: var(--bt-muted); font-size: var(--bt-size-xs);
-}
+html, body { block-size: 100%; }
+html { margin: 0; }
+body { font-variant-numeric: lining-nums; }
+code, pre, kbd { font-family: var(--font-mono); font-size: inherit; }
+kbd { padding: 0 var(--space-1); border: var(--stroke-rule) solid var(--border); border-radius: var(--radius); color: var(--muted); }
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; padding: 0; }
-input { font: inherit; color: inherit; }
-:focus-visible { outline: 2px solid var(--bt-focus); outline-offset: 2px; border-radius: 3px; }
-h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
-.serif { font-family: var(--bt-font-serif, Georgia, serif); }
-.muted { color: var(--bt-muted); }
-.subtle { color: var(--bt-subtle); }
-.small { font-size: var(--bt-size-sm); }
-.num { font-variant-numeric: tabular-nums lining-nums; }
-.link { color: var(--bt-link); }
-.bad-text { color: var(--bt-bad); }
-.warn-text { color: var(--bt-warn); }
+input, textarea, select { font: inherit; color: inherit; }
+h1, h2, h3, h4, h5 { margin: 0; text-wrap: balance; }
+:focus-visible { border-radius: 3px; }
+.link { color: var(--accent); }
+.link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.bad-text { color: var(--bad); }
+.warn-text { color: var(--warn); }
 .sr-only { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-::selection { background: color-mix(in srgb, var(--bt-accent) 22%, transparent); }
+::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 ::-webkit-scrollbar { inline-size: 10px; block-size: 10px; }
-::-webkit-scrollbar-thumb { background: var(--bt-scrollbar); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
 
-/* icons and symbols: color comes with an icon and a word, never alone */
-.icon { flex: none; vertical-align: -0.15em; }
-.sym { display: inline-flex; align-items: center; gap: 5px; line-height: 1; }
-.sym-word { font-size: var(--bt-size-sm); font-weight: 500; }
-.tone-good, .tone-finished { color: var(--bt-good); }
-.tone-bad, .tone-failed { color: var(--bt-bad); }
-.tone-warn, .tone-killed { color: var(--bt-warn); }
-.tone-muted { color: var(--bt-muted); }
-.tone-accent, .tone-running { color: var(--bt-accent); }
-.tone-lost { color: var(--bt-lost); }
 @media (prefers-reduced-motion: no-preference) {
   .sym.pulse .icon { animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: 0.4; } }
 }
 
-.icon-button {
-  display: inline-flex; align-items: center; justify-content: center; inline-size: 30px; block-size: 30px;
-  border-radius: var(--bt-radius); color: var(--bt-muted); transition: background 120ms, color 120ms;
-  &:hover { background: color-mix(in srgb, var(--bt-fg) 7%, transparent); color: var(--bt-fg); }
-  &[aria-pressed="true"] { color: var(--bt-accent); }
-}
-.tag {
-  display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px;
-  font-size: var(--bt-size-sm); background: color-mix(in srgb, currentColor 9%, transparent); white-space: nowrap;
-}
-.meter { display: inline-block; inline-size: 72px; block-size: 5px; border-radius: 3px; background: var(--bt-border); overflow: hidden; vertical-align: middle; }
-.meter-fill { display: block; block-size: 100%; background: var(--bt-accent); }
+/* controls the Field markup doesn't reach: textareas in .input */
+.input textarea { flex: 1; min-inline-size: 0; border: 0; background: none; color: var(--ink); font: inherit; outline: none; resize: vertical; }
+.field.inline { grid-auto-flow: column; justify-content: start; align-items: center; gap: var(--space-2); }
+
 .disclosure > summary {
-  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; color: var(--bt-muted);
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: var(--space-2); color: var(--muted);
   &::-webkit-details-marker { display: none; }
-  &:hover { color: var(--bt-fg); }
+  &:hover { color: var(--ink); }
 }
 .disclosure-chevron { transition: rotate 120ms; }
 .disclosure[open] > summary .disclosure-chevron { rotate: 90deg; }
-.skeleton { border-radius: var(--bt-radius); background: color-mix(in srgb, var(--bt-fg) 5%, transparent); }
+.skeleton { border-radius: var(--radius); background: color-mix(in srgb, var(--ink) 5%, transparent); }
 /* skeletons appear only if loading takes longer than 300 ms. */
 .skeleton.late { animation: appear 0s 300ms both; }
 @keyframes appear { from { visibility: hidden; } to { visibility: visible; } }
 
-/* the shared tooltip (ui/tip.ts) */
+/* floating panels: the only things with a shadow */
 .bt-hint {
-  position: fixed; inset: auto; margin: 0; max-inline-size: 300px; padding: 5px 9px;
-  border: 1px solid var(--bt-border); border-radius: calc(var(--bt-radius) - 3px);
-  background: var(--bt-tooltip-bg); color: var(--bt-fg); font-size: var(--bt-size-sm); line-height: 1.35;
+  position: fixed; inset: auto; margin: 0; max-inline-size: 300px; padding: var(--space-1) var(--space-2);
+  border: var(--stroke-rule) solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink);
 }
-/* anchored popover panels (ui/primitives.ts) */
 .panel-popover {
-  position: fixed; inset: auto; margin: 0; min-inline-size: 240px; padding: 12px 14px;
-  border: 1px solid var(--bt-border); border-radius: var(--bt-radius);
-  background: var(--bt-surface-raised); color: var(--bt-fg);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--bt-fg) 10%, transparent);
+  position: fixed; inset: auto; margin: 0; min-inline-size: 240px; padding: var(--space-3);
+  border: var(--stroke-rule) solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 10%, transparent);
 }
-.popover-title { margin: 0 0 10px; font-size: var(--bt-size-sm); }
+.popover-title { margin: 0 0 var(--space-2); }
 @media (prefers-reduced-motion: no-preference) {
   .panel-popover, .bt-hint {
     opacity: 0; translate: 0 -2px;
@@ -101,37 +59,36 @@ h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
   }
 }
 
-/* rendered Markdown (ui/markdown.ts): notes and memory read in the serif */
+/* rendered Markdown (ui/markdown.ts): the wrapping element carries .prose */
 .md {
-  font-family: var(--bt-font-serif, Georgia, serif); font-size: calc(var(--bt-size-md) * 1.04); line-height: 1.62;
-  max-inline-size: 72ch; text-wrap: pretty;
+  max-inline-size: var(--measure); text-wrap: pretty;
   & > :first-child { margin-block-start: 0; }
-  & h1, & h2, & h3, & h4 { font-size: var(--bt-size-lg); margin: 1em 0 0.3em; }
+  & h1, & h2, & h3, & h4 { margin: 1em 0 0.3em; }
   & p, & ul, & ol { margin: 0.45em 0; }
-  & code { background: var(--bt-surface); padding: 1px 4px; border-radius: 4px; }
-  & pre { background: var(--bt-surface); padding: 8px 10px; border-radius: var(--bt-radius); overflow: auto; }
+  & code { background: var(--surface); padding: 1px var(--space-1); border-radius: var(--radius); }
+  & pre { background: var(--surface); padding: var(--space-2); border-radius: var(--radius); overflow: auto; }
   & pre code { background: none; padding: 0; }
-  & table { border-collapse: collapse; font-family: var(--bt-font-sans); font-size: var(--bt-size-sm); }
-  & th, & td { border-block-end: 1px solid var(--bt-border); padding: 3px 12px 3px 0; text-align: start; }
+  & table { border-collapse: collapse; }
+  & th, & td { border-block-end: var(--stroke-rule) solid var(--line); padding: var(--space-1) var(--space-3) var(--space-1) 0; text-align: start; }
   & .math { overflow-x: auto; }
   &.clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--clamp); overflow: hidden; }
 }
-.more { font-size: var(--bt-size-sm); }
 
 /* inline editing (ui/editable.ts): the text is the field */
 .editable {
-  border-radius: calc(var(--bt-radius) - 3px); margin-inline: -6px; padding-inline: 6px; cursor: text;
-  transition: background 120ms, box-shadow 120ms;
-  &:hover { background: color-mix(in srgb, var(--bt-accent) 5%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bt-accent) 18%, transparent); }
-  &.locked { cursor: default; &:hover { background: none; box-shadow: none; } }
+  border-radius: var(--radius); margin-inline: calc(-1 * var(--space-1)); padding-inline: var(--space-1); cursor: text;
+  transition: background 120ms;
+  &:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+  &.locked { cursor: default; &:hover { background: none; } }
   &.saving { opacity: 0.6; }
-  &.editing { background: none; box-shadow: none; }
+  &.editing { background: none; }
 }
 .edit-field {
-  display: block; inline-size: 100%; margin: 0; padding: 4px 6px; resize: vertical;
-  font: inherit; font-style: inherit; color: inherit; line-height: inherit; letter-spacing: inherit;
-  background: var(--bt-input-bg); border: 1px solid var(--bt-focus); border-radius: calc(var(--bt-radius) - 3px); outline: none;
+  display: block; inline-size: 100%; margin: 0; padding: var(--space-1); resize: vertical;
+  font: inherit; color: inherit; background: var(--paper);
+  border: var(--stroke-rule) solid var(--accent); border-radius: var(--radius); outline: none;
   field-sizing: content; min-block-size: 1.6em;
 }
-.editable.markdown .edit-field { font-family: var(--bt-font-mono); font-size: var(--bt-size-sm); font-style: normal; line-height: 1.55; }
-.edit-hint { display: block; margin-block-start: 4px; font-family: var(--bt-font-sans); font-style: normal; font-size: var(--bt-size-xs); color: var(--bt-muted); }
+.editable.markdown .edit-field { font-family: var(--font-mono); font-style: normal; }
+.edit-hint { display: block; margin-block-start: var(--space-1); font-family: var(--font-sans); font-style: normal; font-weight: 400; color: var(--muted); }
+.locked-why { display: flex; align-items: center; gap: var(--space-1); }

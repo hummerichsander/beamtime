@@ -5,11 +5,11 @@ import { useEffect } from "preact/hooks";
 
 import { fetchCall, useCall } from "../api.ts";
 import { Notice } from "../blocks/common.ts";
-import { groupUrl, navigate, restoreScroll } from "../router.ts";
+import { groupUrl, isRunId, navigate, restoreScroll } from "../router.ts";
 import { useStore } from "../state.ts";
-import { Icon } from "../ui/icons.ts";
+import { Section } from "../ui/primitives.ts";
 import * as calls from "./calls.ts";
-import { Header } from "./header.ts";
+import { Header, ProposalSection } from "./header.ts";
 import { History, ViewBody, ViewSource } from "./views.ts";
 import { meta, SHORTCUTS } from "./ui.ts";
 
@@ -17,7 +17,12 @@ export function GroupPage(props: { path: string; version?: string | null; draft?
   useEffect(() => {
     document.title = `${props.path === "." ? "local" : props.path} · Beamtime`;
   }, [props.path]);
-  if (props.history) return html`<div class="page"><${Header} path=${props.path} /><${History} path=${props.path} /></div>`;
+  if (props.history) {
+    return html`<div class="page"><div class="sections">
+      <${Section} label=${labelFor(props.path)}><${Header} path=${props.path} /><//>
+      <${Section} label="history"><${History} path=${props.path} /><//>
+    </div></div>`;
+  }
   return html`<div class="page">
     <${ViewPage} path=${props.path} version=${props.version ?? null} draft=${props.draft ?? null} />
   </div>`;
@@ -28,14 +33,26 @@ function ViewPage(props: { path: string; version: string | null; draft: string |
   useEffect(() => {
     if (view.status === "ready") requestAnimationFrame(restoreScroll);
   }, [view.status === "ready"]);
-  return html`
-    <${Header} path=${props.path} finding=${view.data?.finding} />
-    ${view.data ? html`<${ViewSource} path=${props.path} view=${view.data} />` : null}
-    ${view.status === "error"
-      ? unreachable(props.path, view.error)
-        ? html`<${Notice} kind="warning">${view.error} The page fills in once the remote answers again.<//>`
-        : html`<${Notice} kind="error">${view.error}<//>`
-      : html`<${ViewBody} path=${props.path} view=${view.data} />`}`;
+  const before = html`
+    <${Section} label=${labelFor(props.path)}>
+      <${Header} path=${props.path} finding=${view.data?.finding} />
+      ${view.data ? html`<${ViewSource} path=${props.path} view=${view.data} />` : null}
+    <//>
+    ${isRunId(props.path.split("/").pop() ?? "") ? null : html`<${ProposalSection} path=${props.path} />`}`;
+  if (view.status === "error") {
+    return html`<div class="sections">${before}
+      <${Section} label="view">
+        ${unreachable(props.path, view.error)
+          ? html`<${Notice} kind="warning">${view.error} The page fills in once the remote answers again.<//>`
+          : html`<${Notice} kind="error">${view.error}<//>`}
+      <//>
+    </div>`;
+  }
+  return html`<${ViewBody} path=${props.path} view=${view.data} before=${before} />`;
+}
+
+function labelFor(path: string): string {
+  return isRunId(path.split("/").pop() ?? "") ? "run" : "group";
 }
 
 // a remote that doesn't answer is a state of the source, not an error of the page.

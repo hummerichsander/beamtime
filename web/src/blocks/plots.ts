@@ -12,7 +12,7 @@ import { plotChart, type PlotSpec } from "../bt/plot.ts";
 import { bars, extent, fit, histograms, logSplits, points, type Bar, type Point } from "../bt/shapes.ts";
 import { linthresh } from "../bt/curves.ts";
 import { fileName, light, paper, recolor, type Background } from "../bt/export.ts";
-import { alpha, chartStyle, groupColors, type Theme } from "../bt/theme.ts";
+import { alpha, chartStyle, groupColors, palette, swatch, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate } from "../router.ts";
 import type { TipRow } from "../bt/uplot.ts";
 import { IconButton } from "../ui/primitives.ts";
@@ -37,9 +37,9 @@ export function Scatter({ node }: { node: Node }) {
     if (!xr || !yr) return null;
     const byValue = p.color ? groupColors(pts.map((q) => q.color), theme) : null;
     const colorOf = (q: Point): string =>
-      byValue?.get(JSON.stringify(q.color)) ?? theme.data.categorical[0];
+      byValue?.get(JSON.stringify(q.color)) ?? theme.colors["data-1"];
     const line = p.fit ? fit(pts, p.fit) : null;
-    const bg = String(theme.colors.bg);
+    const bg = theme.colors.paper;
     return {
       style: chartStyle(theme),
       height,
@@ -138,7 +138,7 @@ export function BarBlock({ node }: { node: Node }) {
     const pad = (hi - lo || 1) * 0.06;
     // without by, each category takes its value's color, as lines aggregated by the same field do.
     const byValue = groupColors(p.by ? groups : cats.map(numberOr), theme);
-    const colorOf = (b: Bar) => byValue.get(JSON.stringify(p.by ? b.group : numberOr(b.label))) ?? theme.data.categorical[0];
+    const colorOf = (b: Bar) => byValue.get(JSON.stringify(p.by ? b.group : numberOr(b.label))) ?? theme.colors["data-1"];
     const w = 0.76 / groups.length;
     const center = (b: Bar) => cats.indexOf(b.label) - 0.38 + (groups.indexOf(b.group) + 0.5) * w;
     return {
@@ -161,7 +161,7 @@ export function BarBlock({ node }: { node: Node }) {
             const xm = x(center(b));
             const cap = Math.min(6 * px, (x1 - x0) / 4);
             ctx.beginPath();
-            ctx.strokeStyle = String(theme.colors.fg);
+            ctx.strokeStyle = theme.colors.ink;
             ctx.lineWidth = 1.25 * px;
             ctx.moveTo(xm, y(b.lo));
             ctx.lineTo(xm, y(b.hi));
@@ -219,7 +219,7 @@ export function HistogramBlock({ node }: { node: Node }) {
   // run colors are the page theme's; an exported figure takes the same slots of its own.
   const runColor = (run: string, i: number, t: Theme) => {
     const c = colors.get(run);
-    return c && page ? recolor(c, page, t) : t.data.categorical[i % t.data.categorical.length];
+    return c && page ? recolor(c, page, t) : palette(t)[i % palette(t).length];
   };
   const figure = () => ({
     kind: "histogram",
@@ -315,9 +315,9 @@ function PlotFrame(props: {
       setProblem((err as Error).message);
     }
   };
-  return html`<div class="block chart-block chart-frame" ref=${box}>
+  return html`<figure class="chart chart-frame block" ref=${box}>
     <div class="chart-head">
-      <span class="chart-title">${title}</span>
+      <b class="chart-title">${title}</b>
       ${props.note ? html`<span class="muted small">${props.note}</span>` : null}
       <span class="chart-tools">
         <${Downloads} id=${node.id} png=${exportPng} pdf=${props.figure ? exportPdf : undefined} />
@@ -326,14 +326,15 @@ function PlotFrame(props: {
           : html`<${IconButton} icon="maximize" label="Expand" onClick=${() => host().expand(node, view)} />`}
       </span>
     </div>
-    ${problem ? html`<p class="block-error">${problem}</p>` : null}
-    <${Panel} result=${result} caption=${node.props.caption}>
+    ${problem ? html`<p class="block-error small">${problem}</p>` : null}
+    <${Panel} result=${result}>
       ${props.empty
         ? html`<${Notice}>${props.empty}<//>`
-        : html`<div class=${`chart${result.status === "ready" ? "" : " pending"}`} ref=${el} style=${`min-block-size:${height}px`}></div>
+        : html`<div class=${`chart-plot${result.status === "ready" ? "" : " pending"}`} ref=${el} style=${`min-block-size:${height}px`}></div>
             ${props.legend ?? null}`}
     <//>
-  </div>`;
+    ${node.props.caption ? html`<figcaption class="caption"><b></b> ${node.props.caption}</figcaption>` : null}
+  </figure>`;
 }
 
 function ValueLegend(props: { values: unknown[]; field: string }) {
@@ -342,10 +343,10 @@ function ValueLegend(props: { values: unknown[]; field: string }) {
   const map = groupColors(props.values, theme);
   const entries = [...map.entries()];
   const shown = entries.length > 10 ? [entries[0], entries[entries.length - 1]] : entries;
-  return html`<div class="legend" aria-label=${`Colors by ${label(props.field)}`}>
-    <span class="muted small">${label(props.field)}</span>
+  return html`<div class="legend small" aria-label=${`Colors by ${label(props.field)}`}>
+    <span class="muted">${label(props.field)}</span>
     ${shown.map(([k, c], i) => html`${entries.length > 10 && i === 1 ? html`<span class="muted">…</span>` : null}
-      <span class="legend-item static"><span class="legend-dot" style=${`background:${c}`}></span>${value(JSON.parse(k))}</span>`)}
+      <span class="legend-item static"><span class=${swatch(c, theme).class} style=${swatch(c, theme).style}></span>${value(JSON.parse(k))}</span>`)}
   </div>`;
 }
 

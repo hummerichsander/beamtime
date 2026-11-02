@@ -1,38 +1,59 @@
 // A page's view: its body, where it comes from (the default, a version, a draft), "Save as view",
 // and the version history with a YAML diff and two versions side by side.
 
+import type { ComponentChildren } from "preact";
 import { html } from "htm/preact";
 import { useMemo, useState } from "preact/hooks";
 
 import { invalidate, post, useCall } from "../api.ts";
 import { Block } from "../blocks/index.ts";
-import { Notice, rows } from "../blocks/common.ts";
+import { LabelCtx, Notice, rows } from "../blocks/common.ts";
 import { diffLines, fold } from "../bt/diff.ts";
 import { ago, versionTime } from "../bt/fmt.ts";
-import { runColors, useTheme, ViewCtx } from "../bt/index.ts";
+import { runColors, useTheme, ViewCtx, type Node } from "../bt/index.ts";
+import { labelOf } from "../bt/labels.ts";
 import { changed, update, usePrefs } from "../bt/prefs.ts";
 import { editText, fresh, upgradeView } from "../bt/writes.ts";
 import { groupUrl, navigate, route } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
+import { Button, Field, Section } from "../ui/primitives.ts";
 import * as calls from "./calls.ts";
 import { snapshot } from "../snapshot.ts";
 
 // a compiled view with what its blocks share: run colors and names, and the view's metrics.
-export function ViewBody(props: { path: string; view: any }) {
+export function ViewBody(props: { path: string; view: any; before?: ComponentChildren; plain?: boolean }) {
   const ids = useCall(calls.runIds(props.path));
   const theme = useTheme();
   const runs = rows(ids.data);
   const colors = useMemo(() => runColors(runs.map((r) => r["run.id"]), theme), [ids.data, theme]);
   const names = useMemo(() => new Map(runs.map((r) => [r["run.id"], r["run.name"] ?? r["run.id"]])), [ids.data]);
-  if (!props.view) return html`<div class="view"><div class="skeleton late" style="block-size: 320px"></div></div>`;
+  const shell = props.plain ? "view plain" : "sections view";
+  if (!props.view) {
+    return html`<div class=${shell}>${props.before}
+      ${props.plain
+        ? html`<div class="skeleton late" style="block-size: 320px"></div>`
+        : html`<${Section} label="view"><div class="skeleton late" style="block-size: 320px"></div><//>`}
+    </div>`;
+  }
   const value = { path: props.path, colors, names, metrics: props.view.metrics ?? {} };
-  return html`<div class="view"><${ViewCtx.Provider} value=${value}><${Block} node=${props.view.view} /><//></div>`;
+  const root: Node = props.view.view;
+  if (props.plain) return html`<div class=${shell}><${ViewCtx.Provider} value=${value}><${Block} node=${root} /><//></div>`;
+  // every top-level block sits in its own Section; layouts below it stay inside.
+  const blocks = root.block === "section" && !root.props.title ? root.children ?? [] : [root];
+  return html`<div class=${shell}>${props.before}
+    <${ViewCtx.Provider} value=${value}>
+      ${blocks.map((b) => {
+        const label = labelOf(b);
+        return html`<${Section} key=${b.id} label=${label}><${LabelCtx.Provider} value=${label}><${Block} node=${b} /><//><//>`;
+      })}
+    <//>
+  </div>`;
 }
 
 // where the shown view comes from, its history, and saving the viewer's charts as a version.
 export function ViewSource(props: { path: string; view: any }) {
-  if (snapshot) return html`<div class="view-source"><${Icon} name="clock" size=${14} />
+  if (snapshot) return html`<div class="view-source small"><${Icon} name="clock" size=${14} />
     <span>a snapshot of <b>${props.path === "." ? "the log dir" : props.path}</b>, taken ${new Date(snapshot.taken * 1000).toLocaleString()};
       curves at ${snapshot.points === "all" ? "every logged point" : `${snapshot.points} points`}; Beamtime ${snapshot.version}</span></div>`;
   const v = props.view;
@@ -52,7 +73,7 @@ export function ViewSource(props: { path: string; view: any }) {
     default:
       what = html`the built-in view`;
   }
-  return html`<div class="view-source">
+  return html`<div class="view-source small">
     <${Icon} name="layout" size=${14} /><span>${what}</span>
     ${old ? html`<a href=${groupUrl(props.path)}>an older version · show the current one</a>` : null}
     ${history}
@@ -125,19 +146,16 @@ function SaveView(props: { path: string; view: any }) {
     }
   };
   if (!open) {
-    return html`<button type="button" class="link small save-view" onClick=${() => setOpen(true)}
-        data-tip="Save your chart settings and added charts as this page's view, for everyone">
-      <${Icon} name="save" size=${14} /> Save as view</button>`;
+    return html`<${Button} icon="save" class="save-view" onClick=${() => setOpen(true)}
+        tip="Save your chart settings and added charts as this page's view, for everyone">Save as view<//>`;
   }
   return html`<form class="save-form" onSubmit=${save}>
-    <label class="field"><span class="field-label">Title</span>
-      <input value=${title} onInput=${(e: Event) => setTitle((e.target as HTMLInputElement).value)} /></label>
-    <label class="field"><span class="field-label">Finding</span>
-      <input value=${finding} placeholder="the key result in one sentence"
-        onInput=${(e: Event) => setFinding((e.target as HTMLInputElement).value)} /></label>
+    <${Field} label="Title"><input value=${title} onInput=${(e: Event) => setTitle((e.target as HTMLInputElement).value)} /><//>
+    <${Field} label="Finding"><input value=${finding} placeholder="the key result in one sentence"
+        onInput=${(e: Event) => setFinding((e.target as HTMLInputElement).value)} /><//>
     <div class="save-actions">
-      <button type="submit" class="button primary" disabled=${busy}>${busy ? "Saving…" : "Save as view"}</button>
-      <button type="button" class="link small" onClick=${() => setOpen(false)}>cancel</button>
+      <${Button} type="submit" icon=${busy ? "hourglass" : "save"} disabled=${busy}>${busy ? "Saving…" : "Save as view"}<//>
+      <${Button} icon="x" kind="quiet" onClick=${() => setOpen(false)}>Cancel<//>
       ${error ? html`<span class="bad-text small">${error}</span>` : null}
     </div>
   </form>`;
@@ -154,7 +172,7 @@ export function History(props: { path: string }) {
   };
   if (result.status === "error") return html`<${Notice} kind="error">${result.error}<//>`;
   return html`<section class="history">
-    <h2 class="history-title"><${Icon} name="history" size=${18} /> View history</h2>
+    <h2 class="history-title heading"><${Icon} name="history" size=${16} /> View history</h2>
     ${result.data && !entries.length ? html`<${Notice}>No saved view yet; the page shows the built-in view.<//>` : null}
     <ol class="versions">
       ${entries.map(
@@ -183,15 +201,15 @@ function Compare(props: { path: string; a: string; b: string }) {
   const vb = useCall(calls.view(props.path, props.b)).data;
   const lines = a && b ? fold(diffLines(a.yaml, b.yaml)) : [];
   return html`<div class="compare">
-    <h3 class="block-title">Changes from ${ago(versionTime(props.a))} to ${ago(versionTime(props.b))}</h3>
-    <pre class="diff">${lines.map((l) =>
+    <h3 class="block-title heading">Changes from ${ago(versionTime(props.a))} to ${ago(versionTime(props.b))}</h3>
+    <pre class="diff code">${lines.map((l) =>
       l.kind === "skip"
         ? html`<div class="diff-skip">⋯ ${l.count} unchanged lines</div>`
         : html`<div class=${`diff-${l.kind}`}>${l.kind === "added" ? "+ " : l.kind === "removed" ? "− " : "  "}${l.text}</div>`,
     )}</pre>
     <div class="side-by-side">
-      <div><h3 class="block-title">${va?.title ?? props.a}</h3><${ViewBody} path=${props.path} view=${va} /></div>
-      <div><h3 class="block-title">${vb?.title ?? props.b}</h3><${ViewBody} path=${props.path} view=${vb} /></div>
+      <div><h3 class="block-title heading">${va?.title ?? props.a}</h3><${ViewBody} path=${props.path} view=${va} plain /></div>
+      <div><h3 class="block-title heading">${vb?.title ?? props.b}</h3><${ViewBody} path=${props.path} view=${vb} plain /></div>
     </div>
   </div>`;
 }

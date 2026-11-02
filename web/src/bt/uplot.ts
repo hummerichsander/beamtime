@@ -10,6 +10,8 @@ export type LineSpec = {
   // unsmoothed curves, drawn faint behind smoothed ones; null when not smoothing.
   raw: Curve[] | null;
   colors: string[];
+  // each curve's line style, in CSS pixels: run n is drawn in data-n with dash-n.
+  dashes: number[][];
   hidden: Set<string>;
   style: ChartStyle;
   height: number;
@@ -44,7 +46,7 @@ const ZOOM_EVENTS = new Set(["mousedown", "mouseup", "dblclick"]);
 export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
   let current = spec;
   const tip = document.createElement("div");
-  tip.className = "bt-tip";
+  tip.className = "bt-tip small";
   tip.hidden = true;
   const n = spec.curves.length;
   const rawAt = spec.raw ? n + 1 : -1;
@@ -57,6 +59,8 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       label: c.label,
       stroke: spec.colors[i],
       width: spec.style.line,
+      // uPlot takes dashes in canvas pixels.
+      dash: spec.dashes[i]?.map((v) => v * devicePixelRatio),
       spanGaps: true,
       points: { show: false },
     })),
@@ -369,7 +373,7 @@ export function plotChart(el: HTMLElement, spec: PlotSpec): Plot {
   let focused: string | null = null;
   let under: string | null = null;
   const tip = document.createElement("div");
-  tip.className = "bt-tip";
+  tip.className = "bt-tip small";
   tip.hidden = true;
   const width = () => Math.max(120, Math.floor(el.getBoundingClientRect().width));
   const scale = (axis: () => PlotAxis): uPlot.Scale => ({

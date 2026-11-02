@@ -2,7 +2,7 @@
 // white background, drawn offscreen, and PDF drawn by the server with matplotlib.
 
 import { pair } from "./index.ts";
-import type { Theme } from "./theme.ts";
+import { palette, slotOf, type Theme } from "./theme.ts";
 
 export type Background = "transparent" | "white";
 
@@ -14,10 +14,10 @@ export function light(): Theme | null {
   return pair.value?.light ?? null;
 }
 
-// a color of one theme's categorical palette as the same slot of another's.
+// a run color of one theme as the same slot of another's.
 export function recolor(color: string, from: Theme, to: Theme): string {
-  const i = from.data.categorical.indexOf(color);
-  return i < 0 ? color : to.data.categorical[i % to.data.categorical.length];
+  const slot = slotOf(color, from);
+  return slot === null ? color : palette(to)[slot - 1];
 }
 
 // draws a chart offscreen at the given width, takes its PNG and removes it again.

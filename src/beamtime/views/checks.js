@@ -5,7 +5,8 @@
   const add = (level, n, message) => out.push({level, id: n.dataset.blockId, block: n.dataset.block, message});
   for (const n of leaves) {
     const r = n.getBoundingClientRect();
-    const drawn = [...n.querySelectorAll("canvas, img, svg")].some((e) => e.getBoundingClientRect().width > 4);
+    // an icon of the interface (a notice's, say) isn't something the block drew.
+    const drawn = [...n.querySelectorAll("canvas, img, svg:not(.icon)")].some((e) => e.getBoundingClientRect().width > 4);
     // a custom block's frame measures its own document and reports it on .custom-frame.
     const frame = n.querySelector(".custom-frame");
     if (frame) {

@@ -19,7 +19,7 @@ import tomllib
 
 ROOT = Path(__file__).parents[1]
 # files a wheel must hold: the frontend (with its export bundle and the licenses of the packages
-# it bundles), the agent guide, the themes and the renderer's layout checks.
+# it bundles), the agent guide, the design tokens and the renderer's layout checks.
 REQUIRED = (
     "beamtime/serve/static/index.html",
     "beamtime/serve/static/app.js",
@@ -29,8 +29,11 @@ REQUIRED = (
     "beamtime/serve/static/export/main.js",
     "beamtime/serve/static/export/kit.js",
     "beamtime/guide/parts/instructions.md",
-    "beamtime/views/themes/beamtime-light.json",
-    "beamtime/views/themes/beamtime-dark.json",
+    "beamtime/serve/static/fonts/XCharter-Roman.woff2",
+    "beamtime/serve/static/fonts/XCharter-LICENSE.txt",
+    "beamtime/serve/static/fonts/IBMPlex-LICENSE.txt",
+    "beamtime/views/tokens.json",
+    "beamtime/views/colormaps.json",
     "beamtime/views/checks.js",
 )
 SMOKE = """
@@ -91,7 +94,7 @@ def main() -> None:
 
 
 def check_wheel(wheel: Path, version: str) -> None:
-    """Check that a wheel holds the frontend, the guide, the themes and the version.
+    """Check that a wheel holds the frontend, the guide, the tokens and the version.
 
     :param wheel: The wheel.
     :param version: The expected version."""

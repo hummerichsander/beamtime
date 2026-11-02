@@ -343,9 +343,10 @@ it, `bt.useHovered()` follows it (row selection callbacks on components come lat
 
 | Function | Purpose |
 |---|---|
-| `bt.theme.tokens` | semantic colors, font sizes and spacing; also as CSS variables (`--bt-fg`, …) |
+| `bt.theme.tokens` | the theme's colors; also as CSS variables (`--ink`, `--muted`, …) |
 | `bt.theme.runColor(id)`, `bt.theme.groupColor(field, value)` | stable colors for runs and group values |
-| `bt.theme.scale(kind)` | `sequential`, `diverging`, `categorical` |
+| `bt.theme.runDash(id)` | a run's line style |
+| `bt.theme.scale(kind)` | the colormaps as `sequential`, `diverging`; `categorical` |
 | `bt.theme.mode`, `bt.theme.onChange(cb)` | light or dark, and a callback when it switches |
 | `bt.fmt.value(v)` | values formatted compactly (full values in tooltips) |
 | `bt.fmt.step(n)`, `bt.fmt.duration(s)`, `bt.label(field)` | readable steps, durations and labels |
@@ -384,7 +385,7 @@ with hundreds of runs and thousands of points per curve.
 
 - **Data only from declared queries.** uPlot draws arrays it is given and loads nothing itself, so no
   URL loading or expression evaluation has to be locked down.
-- **The theme styles the charts**: axes and grid from `muted` and `grid`, fonts from the type tokens,
+- **The theme styles the charts**: axes and grid from `muted` and `line`, fonts from the type tokens,
   run colors from the categorical palette, bands from the run color with transparency.
 - **Interactions** (synced crosshair, hover focus, legend toggles, zoom with exact refetch, smoothing,
   aggregation, settings per chart and per view) are described in [layer 7](07-web-ui.md#charts).
@@ -397,79 +398,57 @@ with hundreds of runs and thousands of points per curve.
 
 ## Theme
 
-Beamtime owns the look of every view. A theme defines it; views never contain colors, fonts or sizes.
+Beamtime owns the look of every view; views never contain colors, fonts or sizes. The design system
+([design.md](../design.md)) defines it, and `src/beamtime/views/tokens.json` is its source of truth.
 
 ### Tokens
 
 | Group | Tokens |
 |---|---|
-| Surfaces | `bg`, `surface`, `surface-raised`, `border`, `grid` |
-| Text | `fg`, `muted`, `subtle`, `link` |
-| Accent and state | `accent`, `selection`, `dim` (opacity for de-emphasized runs) |
-| Status | `good`, `bad`, `warn`, `info`, and per run status `running`, `finished`, `failed`, `killed`, `lost` |
-| Data | `categorical` (8 colors, checked for color-blind separation on the theme's background), `sequential`, `diverging`, `baseline` (color and dash) |
-| Type | `font-sans`, `font-serif`, `font-mono`, a size scale (`xs` … `xxl`), tabular figures |
-| Shape | spacing scale, `radius`, line width, point size, `density`, `column` (the width of text) |
-| Shell | sidebar, top bar, status bar, lists, inputs, buttons, badges, focus, tooltips, scrollbars ([layer 7](07-web-ui.md#theme-in-the-ui)) |
+| Surfaces | `paper`, `surface`, `line`, `border` |
+| Text | `ink`, `muted` |
+| Accent and state | `accent`, `good`, `bad`, `warn` |
+| Data | `data-1` to `data-6` with line styles `dash-1` to `dash-6` |
+| Type | `serif`, `sans`, `mono`; the styles `title`, `heading`, `statement`, `prose`, `caption`, `body`, `small`, `number`, `code` |
+| Shape | `space-1` to `space-4`, `radius`, `radius-pill`, `margin`, `measure`, `measure-short`, `stroke-data`, `stroke-rule`, `stroke-icon` |
 
-The web UI, built-in blocks, the chart style and the CSS variables of custom blocks all read the
-same tokens.
+The web UI, built-in blocks, the chart style and the CSS variables of custom blocks all read the same
+tokens. Type styles are classes in the markup; stylesheets never set a size.
 
 ### Theme files
 
 ```json
-{
-  "schema": 1,
-  "name": "Beamtime Light",
-  "type": "light",
-  "extends": null,
-  "colors": {"bg": "#faf9f6", "surface": "#f2f0eb", "border": "#e3e0d8", "grid": "#ebe8e1",
-             "fg": "#1c1d20", "muted": "#64625c", "accent": "#2f5aa8",
-             "good": "#3f7d3a", "bad": "#b8433a", "warn": "#a06a12"},
-  "data": {
-    "categorical": ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"],
-    "sequential": ["#e3eaf5", "#2f5aa8", "#142c5c"],
-    "diverging": ["#b8433a", "#f2f0eb", "#2f5aa8"],
-    "baseline": {"color": "#8f8c84", "dash": [4, 3]}
-  },
-  "fonts": {"sans": "system-ui, -apple-system, 'Segoe UI', sans-serif",
-            "serif": "Charter, 'Bitstream Charter', 'Iowan Old Style', Georgia, serif",
-            "mono": "ui-monospace, 'SF Mono', Menlo, monospace"},
-  "sizes": {"xs": 10.5, "sm": 12.5, "md": 15, "lg": 19, "xl": 23.5, "xxl": 36.5},
-  "shape": {"radius": 9, "density": 0.9, "column": 900}
-}
+{"schema": 1, "name": "Atom One Dark", "type": "dark",
+ "colors": {"paper": "#282c34", "ink": "#abb2bf", "accent": "#61afef"}}
 ```
 
-- **`type`** is `light` or `dark`; themes come in pairs, and the viewer's system preference picks the
-  variant.
-- **`extends`** names another theme; only differing tokens need listing. Missing tokens fall back to
-  the default theme, so a theme can be a dozen colors.
-- **Where themes come from**: the built-in ones, `~/.config/beamtime/themes/` for the user's own, and
-  `themes/` next to `beamtime.yaml` for a project's.
+- A theme recolors the fixed layout: **colors only**, by token name, as `#rrggbb`. Tokens it leaves out
+  keep the default of its `type`. Fonts, sizes and spacing can't be themed, because type classes fix them.
+- **`type`** is `light` or `dark`. `x-light.json` and `x-dark.json` form the pair `x`; a single file is
+  used in both modes.
+- **Where themes come from**: `~/.config/beamtime/themes/` for the user's own, and `themes/` next to
+  `beamtime.yaml` for a project's. `beamtime` is the built-in pair from the tokens.
 - **Choosing**: `theme:` in the user settings or the project's `beamtime.yaml`
-  ([layer 1](01-storage.md#settings)); a viewer's choice in the UI wins for that viewer.
-- Fonts default to the system font stack, so nothing has to be downloaded.
+  ([layer 1](01-storage.md#settings)); a viewer's choice of mode in the UI wins for that viewer.
+- Unknown tokens and bad values are reported on the settings page and ignored.
 
 ### The default theme
 
-**Beamtime Light** and **Beamtime Dark** ("paper and ink blue") are warm and quiet, like a lab
-notebook: off-white paper (`#faf9f6`) or warm charcoal (`#1e1e1c`), ink rather than black, warm grays,
-one ink-blue accent, thin grid lines, no gradients. Titles, statements, notes and memory use a serif
-(Charter, then Iowan Old Style, then Georgia, whose old-style digits are only a fallback); controls
-use the system sans; numbers use tabular lining figures. The base size is 15 px on a 1.25 scale.
-Color is reserved for data and status. The categorical palette has eight colors, checked for
-color-blind separation on both backgrounds; on the light one a few stay below 3:1 contrast, so runs
-are always named next to their color (legends, tooltips, the run table). Exported figures use the
-light variant.
+Warm and quiet, like a lab notebook: off-white paper (`#faf9f6`) or warm charcoal (`#1e1e1c`), ink
+rather than black, one ink-blue accent, no gradients. XCharter for what people read, IBM Plex Sans for
+the interface, IBM Plex Mono for code and margin labels; the fonts ship with the frontend. Color is
+reserved for data and status. Exported figures use the light variant.
 
 ### Colors for runs and groups
 
-- **Runs** get a stable color: a hash of the run id picks a preferred palette slot; within a view,
-  collisions move later runs (in id order) to the next free slot. Runs shown together never share a
-  color.
-- **Groups** colored by a categorical field use the categorical palette in sorted value order; by a
-  numeric field, the sequential scale ordered by value.
-- **Baseline runs** use the theme's `baseline` style; **selection** dims other runs with `dim`.
+- **Runs** get a stable style: a hash of the run id picks a preferred slot of six; within a view,
+  collisions move later runs (in id order) to the next free slot. A slot is a color and a line style,
+  in charts, legends and table swatches alike. Beyond six runs, slots repeat: group runs instead.
+- **Groups** colored by a categorical field use the same slots in sorted value order; by a numeric field
+  with more than six values, the `colormap` setting ordered by value.
+- **Colormaps** are matplotlib's, sampled into `src/beamtime/views/colormaps.json` by
+  `scripts/colormaps.py`. `colormap` and `colormap_diverging` choose them; `bt.theme.scale` reads them.
+- **Selection** dims other runs to a fixed 20 %.
 
 ## Block library
 
@@ -823,20 +802,18 @@ Decided while building views (milestone M6):
 
 Decided while building themes (milestone M5):
 
-- **Theme files** are JSON with `colors`, `data`, `fonts`, `sizes` (the type scale in px) and `shape`
-  (`radius`, `line`, `point`, `space`); the built-in pair lives in `beamtime/views/themes/`.
+- **Theme files** are JSON with `colors` only, by the design system's token names; the default pair
+  comes from `beamtime/views/tokens.json`.
 - **Pairs by name**: the `theme` setting `lab` selects `lab-light` and `lab-dark`; the name of a single
-  file serves both modes. A broken setting (a missing theme, a cycle in `extends`, an invalid file)
+  file serves both modes. A broken setting (a missing theme, an invalid file)
   falls back to the default pair and shows the problem in the settings page.
-- **Resolution** happens in Python: the `extends` chain, then the default theme of the same `type`.
-  Shell tokens come from the theme's own files, else from its core colors (`sidebar.bg` from
-  `surface`, `focus` from `accent`, …), so a theme with a dozen colors gets a matching shell. The page
-  receives both variants and switches between them with the system preference or the viewer's
-  choice (kept in the browser).
-- **Run colors**: an FNV-1a hash of the run id picks a slot of the categorical palette; runs are
+- **Resolution** happens in Python: a theme's colors over the tokens of its `type`. The page receives
+  both variants and switches between them with the system preference or the viewer's choice (kept in
+  the browser).
+- **Run colors**: an FNV-1a hash of the run id picks one of the six run slots (a color and a line style); runs are
   placed in id order and move to the next free slot on a collision, over all runs of the viewed
-  group, so a run keeps its color across the blocks of a view. Beyond the palette's size, colors
-  repeat. Group values use the categorical palette in sorted order, or the sequential ramp for more
+  group, so a run keeps its style across the blocks of a view. Beyond six, slots
+  repeat. Group values use the same slots in sorted order, or the `colormap` setting's ramp for more
   numeric values than the palette has colors.
 
 ## Later

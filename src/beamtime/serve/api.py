@@ -4,7 +4,6 @@ MCP names, the page methods the web UI needs, and ``hello`` and ``files`` for re
 Nothing here needs Starlette, so a remote answers over stdio with the base install."""
 
 import base64
-import re
 import time
 from importlib.metadata import version
 from pathlib import Path
@@ -190,7 +189,7 @@ def meta(ctx: Context) -> dict[str, Any]:
     :return: The answer."""
     from beamtime.ops.admin import figure_styles, project_styles
     from beamtime.ops.reading import sources
-    from beamtime.views.theme import available, pair
+    from beamtime.views.theme import colormaps, names, pair
 
     return {
         "kind": "meta",
@@ -198,7 +197,12 @@ def meta(ctx: Context) -> dict[str, Any]:
         "root": str(ctx.root),
         "logdir": str(ctx.logdir),
         "version": version("beamtime"),
-        "theme": pair(str(ctx.settings.get("theme") or "beamtime"), ctx.root),
+        "theme": pair(
+            str(ctx.settings.get("theme") or "beamtime"),
+            ctx.root,
+            ctx.settings.get("colormap"),
+            ctx.settings.get("colormap_diverging"),
+        ),
         # a frontend rebuilt after the server started (an editable install) may call
         # methods this server doesn't know yet; the shell then asks for a restart.
         "outdated": (STATIC / "app.js").is_file() and (STATIC / "app.js").stat().st_mtime > STARTED,
@@ -207,10 +211,13 @@ def meta(ctx: Context) -> dict[str, Any]:
         "settings": {
             "theme": ctx.settings.get("theme"),
             "theme_mode": ctx.settings.get("theme_mode"),
+            "colormap": ctx.settings.get("colormap"),
+            "colormap_diverging": ctx.settings.get("colormap_diverging"),
             "figure_style": ctx.settings.get("figure_style"),
             "file": str(ctx.root / "beamtime.yaml"),
         },
-        "themes": sorted({re.sub(r"-(light|dark)$", "", n) for n in available(ctx.root)}),
+        "themes": names(ctx.root),
+        "colormaps": {kind: list(maps) for kind, maps in colormaps().items()},
         "figure_styles": figure_styles() + project_styles(ctx.root),
         "sources": sources(ctx),
     }

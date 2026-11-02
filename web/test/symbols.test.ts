@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { symbolFor } from "../src/ui/symbols.ts";
 
 test("every state has an icon, a tone and a word", () => {
-  assert.deepEqual(symbolFor("run", "failed"), { icon: "circle-x", tone: "failed", label: "failed" });
+  assert.deepEqual(symbolFor("run", "failed"), { icon: "circle-x", tone: "bad", label: "failed" });
   assert.equal(symbolFor("run", "running").pulse, true);
   assert.equal(symbolFor("result", "pass (provisional)").icon, "check");
   assert.equal(symbolFor("verdict", "refuted").tone, "bad");

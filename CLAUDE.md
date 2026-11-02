@@ -223,8 +223,12 @@ sync.
 - **Views** (`docs/design/05-views.md`) are YAML trees built by agents from declarative widgets and
   custom code blocks (ES modules in sandboxed iframes on the `bt` kit with Preact/htm). All data comes
   through declared queries. Validation is static, plus one headless render where Chromium exists.
-  Library blocks in `blocks/` are pinned by views. Themes are token files. Queries and widgets are
-  msgspec structs.
+  Library blocks in `blocks/` are pinned by views. Queries and widgets are msgspec structs.
+- **The design system** (`docs/design.md`) is the look of the UI: **read it before any UI work**.
+  `src/beamtime/views/tokens.json` is its source of truth; `web/src/styles/tokens.css` is generated
+  from it (`npm run tokens`), `bundle.css` is kept as exported. Markup follows the components there; type
+  sizes come only from type classes, never from CSS. Theme files recolor the layout (colors only);
+  colormaps are matplotlib's, chosen in the settings.
 - **Agent instructions come from `beamtime guide`**, which marks its defaults as defaults; users
   override them in their own instruction files.
 - **The web UI** (`docs/design/07-web-ui.md`) is a fixed shell that must feel seamless, light and
@@ -271,7 +275,8 @@ sync.
   CSP (`auth.py`), live updates (`live.py`), the command (`server.py`) and the committed frontend
   bundle in `static/`; tests in `tests/serve/` (`test_browser.py` runs headless Chromium, skipped
   without it)
-- `src/beamtime/views/`: themes (`theme.py`, built-in pair in `themes/`), the built-in default view
+- `src/beamtime/views/`: the design tokens (`tokens.json`), colormaps (`colormaps.json`, sampled by
+  `scripts/colormaps.py`), themes (`theme.py`), the built-in default view
   as a view built from what a page logged (`defaults.py`), the view format as msgspec structs
   (`model.py`), compiling views to block trees (`compile.py`), folding viewer settings back
   (`prefs.py`), saved versions and drafts in `.beamtime/drafts/` (`store.py`), static validation (`validate.py`) and the headless renderer
@@ -289,7 +294,7 @@ sync.
   (`custom.ts` hosts custom blocks), `src/kit/` the custom-block frame (`frame.ts`, its own entry
   `kit.js`; `window.bt`; the bridge protocol),
   `src/ui/` primitives (icons and symbols, tooltip, popovers, inline editing, Markdown),
-  `src/styles/` the stylesheets. After any change in `web/`, run
+  `src/styles/` the stylesheets and fonts (`docs/design.md`). After any change in `web/`, run
   `cd web && npm ci && npm test && npm run build` and commit the rebuilt `src/beamtime/serve/static/`
   with it (CI fails when the bundle is stale; the shell must stay under 120 KB compressed)
 - `bench/web/timing.py`: the UI's timing budgets on a scale-M log dir (first view, group to group)

@@ -78,7 +78,7 @@ export async function upgradeView(path: string): Promise<void> {
 export const fresh = new Store<string | null>(null);
 
 // a setting from the UI goes into the project's beamtime.yaml; the shell then reloads its meta.
-export async function saveSetting(key: "theme" | "theme_mode" | "figure_style", value: unknown): Promise<any> {
+export async function saveSetting(key: "theme" | "theme_mode" | "colormap" | "colormap_diverging" | "figure_style", value: unknown): Promise<any> {
   await post("set", { key, value });
   return post("meta");
 }

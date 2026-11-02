@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **The design system**: the web UI, docs site and exports follow Beamtime's design system
+  (`docs/design.md`): pages as columns of Sections with margin labels, the proposal right after the
+  header, XCharter and IBM Plex shipped with the frontend, runs drawn in a color and a line style.
+- **Themes**: a theme file now changes colors only, by the new token names (`paper`, `ink`, ...).
+  `extends`, `data`, `fonts`, `sizes` and `shape` are gone; older theme files need rewriting.
+- **Custom blocks**: CSS variables are now `--ink`, `--muted`, `--line`, ...; `--bt-*` is gone, and
+  `bt.theme.tokens` has the new shape. Added `bt.theme.runDash(id)`.
+- **Colormaps**: matplotlib's colormaps color numeric groups and heatmaps; choose them with the
+  `colormap` and `colormap_diverging` settings.
+
 ## 0.1.0
 
 The first release.

@@ -153,7 +153,7 @@ export function Custom({ node }: { node: Node }) {
   const ready = visible && code.status === "ready" && !state.error;
   return html`<div ref=${box} class="custom-block">
     <div class="chart-head">
-      <span class="chart-title">${node.props.title ?? ""}</span>
+      <b class="chart-title">${node.props.title ?? ""}</b>
       ${ready
         ? html`<span class="chart-tools">
             <${IconButton} icon="download" label="Download what it draws (SVG or PNG)"
@@ -166,9 +166,9 @@ export function Custom({ node }: { node: Node }) {
     </div>
     <${Panel} caption=${node.props.expanded ? undefined : node.props.caption} result=${code}>
       ${state.error
-        ? html`<div class="notice error custom-error">
+        ? html`<div class="notice body error custom-error">
             <b>Custom block ${node.id} failed</b> <span class="muted">(${where})</span>
-            <pre>${state.error}</pre>
+            <pre class="code">${state.error}</pre>
           </div>`
         : null}
       ${state.warnings.map((w) => html`<${Notice} kind="warning">${w}<//>`)}
@@ -187,9 +187,10 @@ export function Custom({ node }: { node: Node }) {
 function frameSource(): Record<string, string> {
   if (!EXPORTED) return { src: staticUrl("kit/frame.html") };
   const inline: { kit: string; css: string } = (globalThis as any).__BT_FRAME__ ?? { kit: "", css: "" };
-  const css = inline.css.replace(/<\/(style)/gi, "<\\/$1");
+  // no fonts: a sandboxed frame of a page opened from disk may load no files.
+  const css = inline.css.replace(/<\/(style)/gi, "<\\/$1").replace(/@font-face\s*\{[^}]*\}/g, "");
   const kit = inline.kit.replace(/<\/(script)/gi, "<\\/$1");
   const srcdoc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>${css}</style></head>`
-    + `<body class="kit-frame"><div id="root"></div><script>${kit}</script></body></html>`;
+    + `<body class="kit-frame body"><div id="root"></div><script>${kit}</script></body></html>`;
   return { srcdoc };
 }

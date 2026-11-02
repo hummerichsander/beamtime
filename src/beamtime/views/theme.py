@@ -1,38 +1,18 @@
-"""Themes: token files with light and dark variants, ``extends`` and shell fallbacks."""
+"""Themes: the design system's tokens, with theme files overriding their colors, and colormaps."""
 
+import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Literal
 
 import msgspec
 
-BUILTIN = Path(__file__).parent / "themes"
-DEFAULT = {"light": "beamtime-light", "dark": "beamtime-dark"}
-CORE = (
-    "bg", "surface", "surface-raised", "border", "grid", "fg", "muted", "subtle", "link",
-    "accent", "selection", "dim", "good", "bad", "warn", "info",
-    "running", "finished", "failed", "killed", "lost",
-)  # fmt: skip
-# shell token -> core token it falls back to; modelled on VS Code's workbench colors.
-SHELL = {
-    "sidebar.bg": "surface",
-    "sidebar.fg": "fg",
-    "topbar.bg": "bg",
-    "statusbar.bg": "surface",
-    "statusbar.fg": "muted",
-    "list.active": "selection",
-    "list.hover": "surface-raised",
-    "input.bg": "bg",
-    "input.border": "border",
-    "button.bg": "accent",
-    "button.fg": "bg",
-    "badge.bg": "surface-raised",
-    "badge.fg": "fg",
-    "focus": "accent",
-    "tooltip.bg": "surface-raised",
-    "scrollbar": "border",
-}
-SECTIONS = ("data", "fonts", "sizes", "shape")
+TOKENS = Path(__file__).parent / "tokens.json"
+COLORMAPS = Path(__file__).parent / "colormaps.json"
+DEFAULT = "beamtime"
+DEFAULT_COLORMAPS = {"sequential": "viridis", "diverging": "coolwarm"}
+HEX = re.compile(r"#[0-9a-fA-F]{6}")
 
 
 class ThemeError(Exception):
@@ -45,22 +25,32 @@ class ThemeFile(msgspec.Struct, kw_only=True, forbid_unknown_fields=True):
     schema: int
     name: str
     type: Literal["light", "dark"]
-    extends: str | None = None
-    colors: dict[str, str | float] = msgspec.field(default_factory=dict)
-    data: dict[str, Any] = msgspec.field(default_factory=dict)
-    fonts: dict[str, str] = msgspec.field(default_factory=dict)
-    sizes: dict[str, float] = msgspec.field(default_factory=dict)
-    shape: dict[str, Any] = msgspec.field(default_factory=dict)
+    colors: dict[str, str] = msgspec.field(default_factory=dict)
+
+
+def tokens() -> dict[str, Any]:
+    """Read the design tokens.
+
+    :return: The contents of ``tokens.json``."""
+    return json.loads(TOKENS.read_text())
+
+
+def colormaps() -> dict[str, dict[str, list[str]]]:
+    """Read the colormaps sampled from matplotlib.
+
+    :return: ``sequential`` and ``diverging``, each a colormap's name to its colors."""
+    data = json.loads(COLORMAPS.read_text())
+    return {kind: data[kind] for kind in DEFAULT_COLORMAPS}
 
 
 def theme_dirs(root: Path | None) -> list[Path]:
-    """List where themes come from, later ones overriding earlier ones.
+    """List where theme files come from, later ones overriding earlier ones.
 
     :param root: The project root, or ``None``.
-    :return: The built-in, user and project theme folders."""
+    :return: The user and project theme folders."""
     base = os.environ.get("XDG_CONFIG_HOME")
     user = (Path(base) if base else Path.home() / ".config") / "beamtime" / "themes"
-    return [BUILTIN, user] + ([root / "themes"] if root is not None else [])
+    return [user] + ([root / "themes"] if root is not None else [])
 
 
 def available(root: Path | None) -> dict[str, Path]:
@@ -75,6 +65,14 @@ def available(root: Path | None) -> dict[str, Path]:
     return out
 
 
+def names(root: Path | None) -> list[str]:
+    """List the themes a ``theme`` setting can name: a pair by its name without the suffix.
+
+    :param root: The project root, or ``None``.
+    :return: The sorted names, the default included."""
+    return sorted({DEFAULT} | {re.sub(r"-(light|dark)$", "", n) for n in available(root)})
+
+
 def read(path: Path) -> ThemeFile:
     """Read and validate a theme file.
 
@@ -86,79 +84,96 @@ def read(path: Path) -> ThemeFile:
         raise ThemeError(f"theme {path}: {e}") from None
 
 
+def base(kind: Literal["light", "dark"], t: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Resolve the default theme of a type: what every theme starts from.
+
+    :param kind: ``light`` or ``dark``.
+    :param t: The design tokens, when already read.
+    :return: ``name``, ``type``, ``colors``, ``dashes``, ``stroke`` and ``font``."""
+    t = t if t is not None else tokens()
+    small = next(s for g in t["type"]["groups"] for s in g["styles"] if s["name"] == "small")
+    dash = [x["value"] for x in t["dash"]["tokens"]]
+    stroke = next(x["value"] for x in t["stroke"]["tokens"] if x["name"] == "stroke-data")
+    return {
+        "name": f"Beamtime {kind.capitalize()}",
+        "type": kind,
+        "colors": {c["name"]: c["value"][kind] for c in t["color"]["tokens"]},
+        "dashes": [[] if d == "none" else [float(x) for x in d.split()] for d in dash],
+        "stroke": float(stroke.removesuffix("px")),
+        "font": f"{small['fontSize']} {t['type']['families']['sans']}",
+    }
+
+
 def resolve(name: str, root: Path | None) -> dict[str, Any]:
-    """Resolve a theme: its ``extends`` chain, the default of its type, shell fallbacks.
+    """Resolve a theme: its colors over the defaults of its type.
 
-    :param name: The theme name.
+    :param name: The theme's name, or ``beamtime-light`` and ``beamtime-dark`` for the defaults.
     :param root: The project root, or ``None``.
-    :return: ``name``, ``type``, ``colors`` (core and shell tokens), ``data``, ``fonts``,
-        ``sizes``, ``shape`` and ``problems``."""
+    :return: :func:`base`'s keys and ``problems``."""
     files = available(root)
-    chain = load_chain(name, files)
-    kind = chain[0][1].type
-    if DEFAULT[kind] not in (n for n, _ in chain):
-        chain += load_chain(DEFAULT[kind], files)
-    problems = [
-        f"theme {n!r}: unknown color {k!r}"
-        for n, t in chain
-        for k in t.colors
-        if k not in CORE and k not in SHELL
-    ]
-    colors: dict[str, Any] = {}
-    for _, t in reversed(chain):
-        colors |= {k: v for k, v in t.colors.items() if k in CORE}
-    # shell tokens come from the user's own files, else from that theme's core colors.
-    own = [t for n, t in chain if n not in DEFAULT.values()]
-    for token, core in SHELL.items():
-        given = next((t.colors[token] for t in own if token in t.colors), None)
-        colors[token] = given if given is not None else colors[core]
-    out: dict[str, Any] = {"name": chain[0][1].name, "type": kind, "colors": colors}
-    for section in SECTIONS:
-        merged: dict[str, Any] = {}
-        for _, t in reversed(chain):
-            merged |= getattr(t, section)
-        out[section] = merged
-    return out | {"problems": problems}
+    if name in (f"{DEFAULT}-light", f"{DEFAULT}-dark") and name not in files:
+        return base(name.removeprefix(f"{DEFAULT}-")) | {"problems": []}  # type: ignore[arg-type]
+    if name not in files:
+        raise ThemeError(f"no theme {name!r}; themes: {', '.join(names(root))}")
+    theme = read(files[name])
+    out = base(theme.type)
+    problems = []
+    for token, value in theme.colors.items():
+        if token not in out["colors"]:
+            problems.append(f"theme {name!r}: unknown color {token!r}")
+        elif not HEX.fullmatch(value):
+            problems.append(f"theme {name!r}: {token} must be #rrggbb, not {value!r}")
+        else:
+            out["colors"][token] = value
+    return out | {"name": theme.name, "problems": problems}
 
 
-def load_chain(name: str, files: dict[str, Path]) -> list[tuple[str, ThemeFile]]:
-    """Load a theme and the themes it extends.
+def ramps(sequential: str | None, diverging: str | None) -> tuple[dict[str, list[str]], list[str]]:
+    """Look up the colors of the chosen colormaps.
 
-    :param name: The theme name.
-    :param files: The available themes.
-    :return: ``(name, theme)`` pairs, the named theme first."""
-    chain: list[tuple[str, ThemeFile]] = []
-    current: str | None = name
-    while current is not None:
-        if current in (n for n, _ in chain):
-            raise ThemeError(f"theme {name!r}: extends forms a cycle at {current!r}")
-        if current not in files:
-            raise ThemeError(f"no theme {current!r}; themes: {', '.join(sorted(files))}")
-        chain.append((current, read(files[current])))
-        current = chain[-1][1].extends
-    return chain
+    :param sequential: The ``colormap`` setting.
+    :param diverging: The ``colormap_diverging`` setting.
+    :return: ``sequential`` and ``diverging`` colors, and problems with unknown names."""
+    maps = colormaps()
+    chosen = {"sequential": sequential, "diverging": diverging}
+    out: dict[str, list[str]] = {}
+    problems = []
+    for kind, name in chosen.items():
+        if name is not None and name not in maps[kind]:
+            problems.append(f"no {kind} colormap {name!r}; using {DEFAULT_COLORMAPS[kind]}")
+            name = None
+        out[kind] = maps[kind][name or DEFAULT_COLORMAPS[kind]]
+    return out, problems
 
 
-def pair(setting: str, root: Path | None) -> dict[str, Any]:
-    """Resolve the light and dark variant a ``theme`` setting names.
+def pair(
+    setting: str,
+    root: Path | None,
+    colormap: str | None = None,
+    colormap_diverging: str | None = None,
+) -> dict[str, Any]:
+    """Resolve the light and dark variant a ``theme`` setting names, with the chosen colormaps.
 
-    ``beamtime`` names ``beamtime-light`` and ``beamtime-dark``; the name of a single
-    theme file is used for both modes.
+    ``beamtime`` names the design system's own pair; the name of a pair of files ``x-light`` and
+    ``x-dark`` names both; the name of a single theme file is used for both modes.
 
     :param setting: The ``theme`` setting.
     :param root: The project root, or ``None``.
+    :param colormap: The sequential colormap's name.
+    :param colormap_diverging: The diverging colormap's name.
     :return: ``{light, dark, problems}``; on errors the default pair with the problem."""
     files = available(root)
-    if f"{setting}-light" in files and f"{setting}-dark" in files:
-        names = {"light": f"{setting}-light", "dark": f"{setting}-dark"}
+    if setting == DEFAULT or (f"{setting}-light" in files and f"{setting}-dark" in files):
+        chosen = {"light": f"{setting}-light", "dark": f"{setting}-dark"}
     else:
-        names = {"light": setting, "dark": setting}
+        chosen = {"light": setting, "dark": setting}
     try:
-        out = {mode: resolve(n, root) for mode, n in names.items()}
+        out = {mode: resolve(n, root) for mode, n in chosen.items()}
         problems = sorted({p for t in out.values() for p in t.pop("problems")})
     except ThemeError as e:
-        out = {mode: resolve(n, None) for mode, n in DEFAULT.items()}
+        out = {"light": base("light"), "dark": base("dark")}
         problems = [f"{e}; using the default theme"]
-        for t in out.values():
-            t.pop("problems")
-    return out | {"problems": problems}
+    scales, missing = ramps(colormap, colormap_diverging)
+    return {mode: t | {"ramps": scales} for mode, t in out.items()} | {
+        "problems": problems + missing
+    }

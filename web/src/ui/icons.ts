@@ -27,7 +27,8 @@ const ICONS: Record<string, FunctionComponent<any>> = {
 
 export function Icon(props: { name: string; size?: number; class?: string; label?: string }) {
   const Component = ICONS[props.name] ?? Circle;
-  return html`<${Component} size=${props.size ?? 16} stroke-width=${1.75} class=${`icon ${props.class ?? ""}`}
+  // stroke, caps and joins come from .icon in the stylesheet.
+  return html`<${Component} size=${props.size ?? 16} class=${`icon ${props.class ?? ""}`}
     aria-hidden=${props.label ? undefined : "true"} aria-label=${props.label} role=${props.label ? "img" : undefined} />`;
 }
 
@@ -36,6 +37,6 @@ export function Sym(props: { spec: SymbolSpec; word?: boolean; size?: number }) 
   const s = props.spec;
   return html`<span class=${`sym tone-${s.tone}${s.pulse ? " pulse" : ""}`} data-tip=${props.word ? undefined : s.label}>
     <${Icon} name=${s.icon} size=${props.size ?? 15} label=${props.word ? undefined : s.label} />
-    ${props.word ? html`<span class="sym-word">${s.label}</span>` : null}
+    ${props.word ? html`<span class="small">${s.label}</span>` : null}
   </span>`;
 }

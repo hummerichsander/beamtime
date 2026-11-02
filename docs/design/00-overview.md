@@ -55,7 +55,7 @@ means designed in outline, built when needed.
 | Index | metadata in SQLite, column files, one pure-Python read path, all query kinds | | smaller cache, precomputed levels, auto-started daemon |
 | Remotes | remote queries over ssh (listings federated, aggregates per source), port forwarding with token, pulls | | |
 | Research record | versioned proposals, plans, predictions `each` and `compare` with t-intervals, manual predictions, notes, links, group status, memory | `trend` and `best` predictions | calibration from `confidence` |
-| Views | YAML widgets (wave 1), custom blocks on the kit, library and pinning, theme files, static validation plus one render | wave 2 widgets, linked selection, packages | migrations for block upgrades, VS Code theme import, high-contrast and print themes, community gallery, params |
+| Views | YAML widgets (wave 1), custom blocks on the kit, library and pinning, theme files, static validation plus one render | wave 2 widgets, linked selection, packages | migrations for block upgrades, high-contrast and print themes, community gallery, params |
 | Web UI | the shell, URLs, SSE invalidation with refetch, W&B-like charts on uPlot, editing written texts in place, saving views from the UI, reordering and resizing panels, HTML and figure export (PNG, CSV, vector PDF) | | free-form panel grids |
 | CLI and MCP | all commands and tools for v1 features, eight prompts, stdio MCP | | MCP over HTTP |
 | Server | `author`/`user` on authored files, no network code in the SDK | | the server itself |

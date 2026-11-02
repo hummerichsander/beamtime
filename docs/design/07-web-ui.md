@@ -43,12 +43,12 @@ These qualities are made concrete as budgets and rules, and checked like correct
 ### Light
 
 - **A notebook, not a dashboard.** Pages read like a lab notebook: warm paper, ink, a serif for
-  titles and the texts people and agents write, larger type. Sections are separated by whitespace
-  and hairlines, not boxes. The top bar and status bar are thin (48 and 30 px); the sidebar collapses
+  the texts people and agents write. A page is a column of Sections separated by hairlines, each with a
+  short label in the margin, not boxes ([design.md](../design.md)). The top bar and status bar are thin (48 and 30 px); the sidebar collapses
   with one key. Most of the screen is the view.
 - **One accent color**, warm neutral surfaces, no gradients; color means data or status
   ([layer 5](05-views.md#the-default-theme)).
-- **Typography carries the structure**: serif titles and statements, italic for proposals, bold for
+- **Typography carries the structure**: a sans page name, serif statements, italic for proposals, bold for
   the numbers that matter, tabular lining figures, a base size of 15 px.
 - **Symbols instead of words**: run status, check results, verdicts, research status and note types
   each have an icon, a color and a word (or a tooltip), so color never stands alone.
@@ -212,24 +212,9 @@ Values of running runs are marked as still changing.
 
 ## Theme in the UI
 
-The theme tokens of [layer 5](05-views.md#tokens) gain a group for the shell, modelled on VS Code's
-workbench colors so imported VS Code themes map almost one to one:
-
-| Beamtime token | Used for | VS Code color it is imported from |
-|---|---|---|
-| `sidebar.bg`, `sidebar.fg` | sidebar | `sideBar.background`, `sideBar.foreground` |
-| `topbar.bg` | top bar | `titleBar.activeBackground` |
-| `statusbar.bg`, `statusbar.fg` | status bar | `statusBar.background`, `statusBar.foreground` |
-| `list.active`, `list.hover` | selected and hovered tree items | `list.activeSelectionBackground`, `list.hoverBackground` |
-| `input.bg`, `input.border` | search and form fields | `input.background`, `input.border` |
-| `button.bg`, `button.fg` | buttons | `button.background`, `button.foreground` |
-| `badge.bg`, `badge.fg` | counts and status badges | `badge.background`, `badge.foreground` |
-| `focus` | focus rings | `focusBorder` |
-| `tooltip.bg` | tooltips | `editorHoverWidget.background` |
-| `scrollbar` | scrollbars | `scrollbarSlider.background` |
-
-Missing shell tokens fall back to the surface and text tokens, so a theme that defines only the core
-colors still produces a consistent shell.
+The shell has no tokens of its own: it uses those of [layer 5](05-views.md#tokens) and the rules in
+[design.md](../design.md). A theme file recolors the shell and the blocks together. Parts the design
+system has no component for are listed there.
 
 ## Screenshots and the headless renderer
 
@@ -382,7 +367,7 @@ chart" returns to the view's defaults, and "Save as view" writes them into the v
 
 ## Accessibility
 
-Keyboard navigation everywhere, visible focus rings (`focus` token), the default theme's contrast,
+Keyboard navigation everywhere, visible focus rings (`accent`), the default theme's contrast,
 and reduced motion when the system asks for it. Theme validation and a high-contrast pair come later.
 
 ## Later
@@ -476,7 +461,7 @@ Decided while building the shell (milestone M5):
   until views can be saved from the UI (M6).
 - Texts written by agents and people are edited in place; each edit is a new file (a superseding
   note, a new memory or proposal version); frozen proposals are not edited.
-- The theme colors the whole app; shell tokens follow VS Code's workbench colors.
+- The theme colors the whole app, by the design system's tokens; a theme file changes colors only.
 - Every state has a URL, including view versions.
 - Preact with `htm` and the `bt` kit in the browser, built with esbuild at release; Starlette on
   uvicorn behind `serve`.

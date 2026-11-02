@@ -55,7 +55,7 @@ export function Sidebar() {
   };
 
   return html`<nav class="sidebar" aria-label="Groups">
-    <label class="filter"><${Icon} name="search" size=${14} />
+    <label class="filter input body"><${Icon} name="search" size=${14} />
       <input type="search" placeholder="Filter groups" value=${filter} aria-label="Filter groups"
         onInput=${(e: Event) => setFilter((e.target as HTMLInputElement).value)} />
     </label>
@@ -82,13 +82,13 @@ function Item(props: { node: TreeNode; current: boolean; open: boolean; onToggle
       ${expandable ? html`<${Icon} name=${props.open ? "chevron-down" : "chevron-right"} size=${14} />` : null}</span>
     <span class="tree-name">${n.name}</span>
     ${n.state === "unreachable"
-      ? html`<${Sym} spec=${{ icon: "cloud-off", tone: "muted", label: `Unreachable: ${n.error ?? "no answer"}` }} size=${13} />`
+      ? html`<${Sym} spec=${{ icon: "cloud-off", tone: "muted", label: `Unreachable: ${n.error ?? "no answer"}` }} size=${14} />`
       : null}
     <span class="tree-marks">
-      ${n.running ? html`<${Sym} spec=${symbolFor("run", "running")} size=${13} />` : null}
-      ${n.failed ? html`<${Sym} spec=${{ ...symbolFor("run", "failed"), label: `${n.failed} failed, killed or lost` }} size=${13} />` : null}
+      ${n.running ? html`<${Sym} spec=${symbolFor("run", "running")} size=${14} />` : null}
+      ${n.failed ? html`<${Sym} spec=${{ ...symbolFor("run", "failed"), label: `${n.failed} failed, killed or lost` }} size=${14} />` : null}
     </span>
-    <span class="count">${n.runs || ""}</span>
+    <span class="count small">${n.runs || ""}</span>
   </a>`;
 }
 

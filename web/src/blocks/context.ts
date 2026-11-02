@@ -11,7 +11,7 @@ import { groupUrl, isRunId, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { Markdown } from "../ui/markdown.ts";
 import { Editable } from "../ui/editable.ts";
-import { Disclosure, IconButton } from "../ui/primitives.ts";
+import { Button, Disclosure, IconButton, Tag } from "../ui/primitives.ts";
 import { symbolFor } from "../ui/symbols.ts";
 import { prefetchGroup } from "../shell/calls.ts";
 import { Collapsible, Notice, Panel, rows } from "./common.ts";
@@ -46,15 +46,15 @@ export function Proposal({ node }: { node: Node }) {
   const older = (p.versions ?? []).filter((v: any) => v.version !== p.version);
   // the header already states the viewed group's proposal; a block about another group repeats it.
   const own = !node.props.of || node.props.of === ".";
-  return html`<${Panel} title="Predictions" result=${proposal} class="proposal-block">
+  return html`<${Panel} title="Predictions" result=${proposal} class="proposal">
     ${own ? null : html`<p class="statement">${doc.statement}</p>`}
-    ${doc.rationale ? html`<p class="rationale">${doc.rationale}</p>` : null}
+    ${doc.rationale ? html`<p class="rationale prose">${doc.rationale}</p>` : null}
     <div class="predictions">
       ${(c?.predictions ?? []).map(
         (pr: any) => html`<div class="prediction" key=${pr.name}>
           <${Sym} spec=${symbolFor("result", pr.result)} />
           <span class="pname">${pr.name}</span>
-          <span class="pdetail num">${describe(pr)}</span>
+          <span class="pdetail num small">${describe(pr)}</span>
         </div>`,
       )}
     </div>
@@ -76,23 +76,23 @@ export function Memory({ node }: { node: Node }) {
   const above = chain.filter((m) => m.group !== group);
   const count = own?.notes_since ? "out of date" : own ? `version ${own.versions ?? 1}` : "none yet";
   return html`<${Collapsible} id=${`memory:${node.data?.main.scope ?? node.id}`} title=${node.props.title ?? "Memory"}
-      count=${result.data ? count : undefined} open=${false} result=${result} class="memory-block"
+      count=${result.data ? count : undefined} open=${false} result=${result}
       action=${html`<${Sym} spec=${{ icon: "circle-help", tone: "muted", label: MEMORY_HELP }} />`}>
-    <${Editable} value=${own?.body ?? ""} label="the memory" multiline class="markdown"
+    <${Editable} value=${own?.body ?? ""} label="the memory" multiline class="markdown prose"
       placeholder="No memory yet: write what this group has established, in a few lines."
       render=${(text: string) => html`<${Markdown} text=${text} />`} onSave=${(body: string) => editMemory(group, body)} />
     ${own && (own.body?.length > (result.data?.budget ?? Infinity) || own.notes_since >= STALE)
-      ? html`<p class="memory-meta warn-text">${own.body?.length > result.data.budget
+      ? html`<p class="memory-meta small warn-text">${own.body?.length > result.data.budget
           ? `${own.body.length} characters, beyond the budget of ${result.data.budget}`
           : `${own.notes_since} notes since this version`}: ask your agent to compact it (Beamtime's memory prompt), or run
           <code>beamtime memory update ${group}</code>.</p>`
       : null}
     ${own
-      ? html`<p class="memory-meta">${own.author} · covers notes until ${own.covers_until?.slice(0, 10)}
+      ? html`<p class="memory-meta small">${own.author} · covers notes until ${own.covers_until?.slice(0, 10)}
           ${own.notes_since ? html` · <span class="warn-text">${own.notes_since} newer note${own.notes_since > 1 ? "s" : ""}</span>` : null}</p>`
       : null}
     ${above.length
-      ? html`<p class="memory-meta">Memory above this group: ${above.map((m, i) => html`${i ? ", " : ""}<a href=${groupUrl(m.group)}>${m.group === "." ? "local" : m.group}</a>`)}</p>`
+      ? html`<p class="memory-meta small">Memory above this group: ${above.map((m, i) => html`${i ? ", " : ""}<a href=${groupUrl(m.group)}>${m.group === "." ? "local" : m.group}</a>`)}</p>`
       : null}
   <//>`;
 }
@@ -118,9 +118,9 @@ export function Groups({ node }: { node: Node }) {
         return html`<a class="group-row" key=${r.path} href=${groupUrl(r.path)}
             onPointerEnter=${() => prefetchGroup(r.path)} onFocus=${() => prefetchGroup(r.path)}>
           <${Sym} spec=${symbolFor("research", r.status)} />
-          <span class="gname">${r.path.split("/").pop()}</span>
-          <span class="gfacts">
-            ${r.status !== "concluded" ? html`<span class=${`sym-word tone-${symbolFor("research", r.status).tone}`}>${symbolFor("research", r.status).label}</span>` : null}
+          <span class="gname heading">${r.path.split("/").pop()}</span>
+          <span class="gfacts small">
+            ${r.status !== "concluded" ? html`<span class=${`tone-${symbolFor("research", r.status).tone}`}>${symbolFor("research", r.status).label}</span>` : null}
             ${r.check ? html`<${Sym} spec=${symbolFor("result", r.check)} word />` : null}
             ${r.verdict ? html`<${Sym} spec=${symbolFor("verdict", r.verdict)} />` : null}
             ${progress ? html`<span data-tip=${more}>${progress}</span>` : null}
@@ -128,7 +128,7 @@ export function Groups({ node }: { node: Node }) {
             ${r.running ? html`<${Sym} spec=${symbolFor("run", "running")} />` : null}
             ${ended ? html`<span class="tone-bad num" data-tip="failed, killed or lost"><${Icon} name="circle-x" size=${14} /> ${ended}</span>` : null}
           </span>
-          ${r.proposal ? html`<span class="gstatement">${r.proposal}</span>` : null}
+          ${r.proposal ? html`<span class="gstatement caption">${r.proposal}</span>` : null}
         </a>`;
       })}
     </div>
@@ -199,17 +199,17 @@ function NewNote(props: { group: string; onDone: () => void }) {
   };
   return html`<form class="note new-note" onSubmit=${save} onKeyDown=${keys}>
     <div class="note-line">
-      <select class="note-type" value=${type} aria-label="Note type" onChange=${(e: Event) => setType((e.target as HTMLSelectElement).value)}>
+      <span class="input body"><select class="note-type" value=${type} aria-label="Note type" onChange=${(e: Event) => setType((e.target as HTMLSelectElement).value)}>
         ${NEW_TYPES.map((t) => html`<option value=${t}>${t}</option>`)}
-      </select>
-      <input class="new-note-title" value=${title} placeholder="What did you see, decide or wonder?" aria-label="Title"
-        autofocus onInput=${(e: Event) => setTitle((e.target as HTMLInputElement).value)} />
+      </select></span>
+      <span class="input body new-note-field"><input class="new-note-title" value=${title} placeholder="What did you see, decide or wonder?" aria-label="Title"
+        autofocus onInput=${(e: Event) => setTitle((e.target as HTMLInputElement).value)} /></span>
     </div>
-    <textarea class="new-note-body" rows="4" value=${body} placeholder="Details in Markdown (optional); [[run-id]] links a run"
-      aria-label="Details" onInput=${(e: Event) => setBody((e.target as HTMLTextAreaElement).value)}></textarea>
+    <span class="input small"><textarea class="new-note-body" rows="4" value=${body} placeholder="Details in Markdown (optional); [[run-id]] links a run"
+      aria-label="Details" onInput=${(e: Event) => setBody((e.target as HTMLTextAreaElement).value)}></textarea></span>
     <div class="save-actions">
-      <button type="submit" class="button primary" disabled=${busy}>${busy ? "Adding…" : "Add note"}</button>
-      <button type="button" class="link small" onClick=${props.onDone}>cancel</button>
+      <${Button} type="submit" icon=${busy ? "hourglass" : "plus"} disabled=${busy}>${busy ? "Adding…" : "Add note"}<//>
+      <${Button} icon="x" kind="quiet" onClick=${props.onDone}>Cancel<//>
       <span class="muted small">⌘Enter adds, Esc cancels</span>
       ${error ? html`<span class="bad-text small">${error}</span>` : null}
     </div>
@@ -230,24 +230,24 @@ export function NoteItem(props: { note: any; open?: boolean; scope?: string }) {
       <button type="button" class="note-toggle" aria-expanded=${open} aria-label=${open ? "Close the note" : "Open the note"}>
         <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${14} /></button>
       <${Sym} spec=${symbolFor("note", n.type)} />
-      <${Editable} value=${n.description} label="the note's title" class="note-title" render=${inline}
+      <${Editable} value=${n.description} label="the note's title" class="note-title heading" render=${inline}
         onSave=${(description: string) => editNote(n, { description })} />
       ${n.overall ? html`<${Sym} spec=${symbolFor("verdict", n.overall)} />` : null}
-      ${n.state ? html`<span class="tag tone-warn">${n.state}</span>` : null}
-      ${from ? html`<a class="note-group" href=${groupUrl(from)} data-tip="from this group">${shortPath(from, props.scope!)}</a>` : null}
-      <span class="note-meta">${author ? `${author} · ` : ""}${ago(when)}</span>
+      ${n.state ? html`<${Tag} tone="warn">${n.state}<//>` : null}
+      ${from ? html`<a class="note-group small" href=${groupUrl(from)} data-tip="from this group">${shortPath(from, props.scope!)}</a>` : null}
+      <span class="note-meta small">${author ? `${author} · ` : ""}${ago(when)}</span>
       ${EXPORTED ? null : html`<${IconButton} icon="trash" label="Delete this note (moves it to the trash)" class="note-delete" pressed=${confirming}
         onClick=${(e: MouseEvent) => { e.stopPropagation(); setConfirming(!confirming); }} />`}
     </div>
     ${confirming
-      ? html`<div class="note-confirm" role="alertdialog" aria-label="Delete this note?">
+      ? html`<div class="note-confirm small" role="alertdialog" aria-label="Delete this note?">
           <span>Delete this note${n.meta?.supersedes ? " and its earlier versions" : ""}? It moves to the trash.</span>
-          <button type="button" class="button danger" onClick=${() => void deleteNote(n)}>Delete</button>
-          <button type="button" class="link small" onClick=${() => setConfirming(false)}>cancel</button>
+          <${Button} icon="trash" kind="danger" onClick=${() => void deleteNote(n)}>Delete<//>
+          <${Button} icon="x" kind="quiet" onClick=${() => setConfirming(false)}>Cancel<//>
         </div>`
       : null}
     ${open
-      ? html`<${Editable} value=${n.body ?? ""} label="the note" multiline class="note-body markdown"
+      ? html`<${Editable} value=${n.body ?? ""} label="the note" multiline class="note-body prose markdown"
           placeholder="Add details in Markdown" render=${(text: string) => html`<${Markdown} text=${text} />`}
           onSave=${(body: string) => editNote(n, { body })} />`
       : null}
@@ -269,7 +269,7 @@ export function Output({ node }: { node: Node }) {
     <span class="muted small">${result.data ? `${meta.total_lines ?? lines.length} lines${(meta.shown ?? 0) < (meta.total_lines ?? 0) ? `, last ${meta.shown}` : ""}` : ""}</span>`;
   return html`<${Panel} result=${result}>
     <${Disclosure} summary=${summary} open=${node.props.open}>
-      <pre class="log">${lines.join("\n")}</pre>
+      <pre class="log code">${lines.join("\n")}</pre>
     <//>
   <//>`;
 }
@@ -278,7 +278,7 @@ export function Output({ node }: { node: Node }) {
 export function MarkdownBlock({ node }: { node: Node }) {
   const view = useContext(ViewCtx);
   return html`<${Panel} title=${node.props.title} caption=${node.props.caption} class="markdown-block">
-    <${Editable} value=${node.props.text ?? ""} label="the text" multiline class="markdown"
+    <${Editable} value=${node.props.text ?? ""} label="the text" multiline class="markdown prose"
       startEditing=${fresh.value === node.id} onCancel=${() => fresh.set(null)}
       placeholder="Empty: saving removes the panel" render=${(text: string) => html`<${Markdown} text=${text} />`}
       onSave=${(text: string) => { fresh.set(null); return editText(view.path, node.id, text); }} />

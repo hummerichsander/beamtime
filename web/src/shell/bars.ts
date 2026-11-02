@@ -25,9 +25,9 @@ export function TopBar() {
   return html`<header class="topbar">
     <${IconButton} icon="panel-left" label=${side ? "Hide the sidebar (⌘B)" : "Show the sidebar (⌘B)"}
       pressed=${side} onClick=${() => sidebar.set(!side)} />
-    <a class="project" href="/f/local">${info?.project ?? "Beamtime"}</a>
-    <button type="button" class="search" onClick=${() => palette.set("")} aria-label="Search (⌘K)">
-      <${Icon} name="search" size=${15} /><span class="search-label">Search groups, runs, commands</span><kbd>⌘K</kbd>
+    <a class="project heading" href="/f/local">${info?.project ?? "Beamtime"}</a>
+    <button type="button" class="search input body" onClick=${() => palette.set("")} aria-label="Search (⌘K)">
+      <${Icon} name="search" size=${15} /><span class="search-label small">Search groups, runs, commands</span><kbd class="small">⌘K</kbd>
     </button>
     <div class="topbar-actions">
       <${Sources} />
@@ -45,10 +45,10 @@ function Sources() {
   const sources: { name: string; state: string; error?: string }[] = useCall(calls.tree()).data?.meta?.sources ?? [];
   const remotes = sources.filter((s) => s.name !== "local");
   if (!remotes.length) {
-    return html`<span class="source" data-tip="Sources: this machine. Remotes are configured under remotes: in the settings.">
+    return html`<span class="source small" data-tip="Sources: this machine. Remotes are configured under remotes: in the settings.">
       <${Icon} name="server" size=${15} /> local</span>`;
   }
-  return html`${[{ name: "local", state: "connected" }, ...remotes].map((s) => html`<a class=${`source ${s.state}`}
+  return html`${[{ name: "local", state: "connected" }, ...remotes].map((s) => html`<a class=${`source small ${s.state}`}
       href=${groupUrl(s.name === "local" ? "." : s.name)}
       data-tip=${s.state === "connected" ? `${s.name}: connected` : `${s.name}: unreachable. ${s.error ?? ""}`}>
       <${Icon} name=${s.state === "connected" ? "server" : "cloud-off"} size=${15} /> ${s.name}</a>`)}`;
@@ -90,11 +90,11 @@ export function StatusBar() {
         : conn === "connecting"
           ? ["wait", "connecting…", "Reconnecting to beamtime serve"]
           : ["off", "offline", "The server is not reachable"];
-  return html`<footer class="statusbar">
+  return html`<footer class="statusbar small">
     <span class="status-item" data-tip=${tip}><span class=${`live-dot ${dot}`}></span>${text}</span>
     ${running
       ? html`<button type="button" class="status-item" data-tip="List the running runs" onClick=${() => palette.set("running")}>
-          <${Icon} name="circle-dot" size=${14} class="tone-running" />${running} running</button>`
+          <${Icon} name="circle-dot" size=${14} class="tone-accent" />${running} running</button>`
       : null}
     ${failed
       ? html`<button type="button" class="status-item tone-bad" data-tip="Runs that failed since your last visit" onClick=${() => palette.set("failed")}>
@@ -114,6 +114,6 @@ export function StatusBar() {
       ? html`<span class="status-item warn-text" data-tip="The page was rebuilt after this server started; some actions need the new server code.">
           restart <code>beamtime serve</code> to update</span>`
       : null}
-    <span class="status-item subtle">${info?.version ? `beamtime ${info.version}` : ""}</span>
+    <span class="status-item">${info?.version ? `beamtime ${info.version}` : ""}</span>
   </footer>`;
 }

@@ -3,7 +3,8 @@
 import { html } from "htm/preact";
 import { useContext, useState } from "preact/hooks";
 
-import { hovered, useData, useRunColors, ViewCtx, type MetricInfo, type Node } from "../bt/index.ts";
+import { hovered, useData, useRunColors, useTheme, ViewCtx, type MetricInfo, type Node } from "../bt/index.ts";
+import { swatch, type Theme } from "../bt/theme.ts";
 import { toggleRun, usePrefs } from "../bt/prefs.ts";
 import { ago, compare, label, lowerIsBetter, value } from "../bt/fmt.ts";
 import { groupUrl, navigate, route, runUrl } from "../router.ts";
@@ -18,6 +19,7 @@ export function Table({ node }: { node: Node }) {
   const view = useContext(ViewCtx);
   const colors = useRunColors();
   const hover = useStore(hovered);
+  const theme = useTheme();
   const hidden = new Set(usePrefs(view.path).hidden);
   const [sort, setSort] = useState<{ field: string; desc: boolean } | null>(null);
   const answer = result.data;
@@ -32,14 +34,14 @@ export function Table({ node }: { node: Node }) {
   const toggle = (c: string) =>
     setSort(sort?.field === c && !sort.desc ? { field: c, desc: true } : { field: c, desc: false });
   return html`<${Panel} title=${node.props.title} count=${answer ? String(total) : undefined}
-      caption=${node.props.caption} result=${result}>
+      caption=${node.props.caption} numbered result=${result}>
     ${answer
       ? html`<div class="table-wrap"><table class="runs">
-          <thead><tr>
+          <thead><tr class="small">
             ${columns.map(
               (c) => html`<th class=${numeric(data, c) ? "num" : ""} data-tip=${c} onClick=${() => toggle(c)}
                   aria-sort=${sort?.field === c ? (sort.desc ? "descending" : "ascending") : undefined}>
-                ${c === "run.status" ? "" : label(c)}${sort?.field === c ? (sort.desc ? " ↓" : " ↑") : ""}</th>`,
+                ${c === "run.status" ? "status" : label(c)}${sort?.field === c ? (sort.desc ? " ↓" : " ↑") : ""}</th>`,
             )}
             ${node.props.sparkline ? html`<th data-tip=${`${node.props.sparkline} over steps`}>trend</th>` : null}
           </tr></thead>
@@ -54,27 +56,27 @@ export function Table({ node }: { node: Node }) {
               };
               return html`<tr key=${id} class=${cls} onClick=${() => open(id)}
                   onPointerEnter=${() => hovered.set(id)}>
-                ${columns.map((c) => cell(c, r[c], id, live, colors.get(id), best.get(c) === r[c], toggle, hidden.has(id)))}
+                ${columns.map((c) => cell(c, r[c], id, live, colors.get(id), theme, best.get(c) === r[c], toggle, hidden.has(id)))}
                 ${node.props.sparkline ? html`<td class="spark"><${Spark} values=${trends.get(id)} color=${colors.get(id)} /></td>` : null}
               </tr>`;
             })}
           </tbody>
         </table></div>
-        ${total > data.length ? html`<p class="more-rows">${data.length} of ${total} runs shown</p>` : null}`
+        ${total > data.length ? html`<p class="more-rows small">${data.length} of ${total} runs shown</p>` : null}`
       : html`<div class="skeleton late" style="block-size: 160px"></div>`}
   <//>`;
 }
 
-function cell(column: string, v: unknown, id: string, live: boolean, color: string | undefined, best: boolean,
+function cell(column: string, v: unknown, id: string, live: boolean, color: string | undefined, theme: Theme | null, best: boolean,
               toggle: (e: MouseEvent) => void, off: boolean) {  // prettier-ignore
   if (column === "run.name") {
-    return html`<td class="name"><button type="button" class="swatch" style=${`background:${off ? "transparent" : (color ?? "transparent")}; border-color:${color ?? "var(--bt-border)"}`}
+    const mark = swatch(color, theme);
+    return html`<td class="name"><button type="button" class="swatch-toggle"
         aria-pressed=${!off} aria-label=${off ? "Show in charts" : "Hide in charts"}
-        data-tip=${off ? "Show in charts (shift: only this)" : "Hide in charts (shift: only this)"} onClick=${toggle}></button>
+        data-tip=${off ? "Show in charts (shift: only this)" : "Hide in charts (shift: only this)"} onClick=${toggle}><span class=${mark.class} style=${mark.style}></span></button>
       <a href=${runUrl(id)} onClick=${(e: Event) => e.stopPropagation()}>${v ?? id}</a></td>`;
   }
-  // a finished run is the usual case: its check mark says enough; every other state is also named.
-  if (column === "run.status") return html`<td><${Sym} spec=${symbolFor("run", v as string)} word=${v !== "finished"} /></td>`;
+  if (column === "run.status") return html`<td><${Sym} spec=${symbolFor("run", v as string)} word /></td>`;
   if (column === "run.group") {
     return html`<td><a href=${groupUrl(String(v))} onClick=${(e: Event) => e.stopPropagation()}>${v}</a></td>`;
   }
@@ -123,7 +125,7 @@ export function Spark(props: { values: (number | null)[] | undefined; color?: st
   const hi = Math.max(...ys);
   const n = (props.values ?? []).length - 1 || 1;
   const pts = v.map(([i, y]) => [(i / n) * (W - 4) + 2, H - 3 - ((y - lo) / (hi - lo || 1)) * (H - 6)]);
-  const color = props.color ?? "var(--bt-muted)";
+  const color = props.color ?? "var(--muted)";
   const [lx, ly] = pts[pts.length - 1];
   return html`<svg width=${W} height=${H} viewBox=${`0 0 ${W} ${H}`} aria-hidden="true">
     <polyline fill="none" stroke=${color} stroke-width="1.4" stroke-linejoin="round" points=${pts.map((p) => p.join(",")).join(" ")} />

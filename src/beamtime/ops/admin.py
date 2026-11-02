@@ -6,7 +6,6 @@ import functools
 import json
 import os
 import platform
-import re
 import shutil
 import sqlite3
 import subprocess
@@ -102,15 +101,19 @@ def set_setting(ctx: Context, p: r.SetParams) -> dict[str, Any]:
     import yaml
 
     from beamtime.settings import load, write_project
-    from beamtime.views.theme import available
+    from beamtime.views.theme import colormaps, names
 
     value = yaml.safe_load(p.value) if isinstance(p.value, str) else p.value
     match p.key:
         case "theme":
             # a pair is chosen by its name without -light or -dark.
-            names = sorted({re.sub(r"-(light|dark)$", "", n) for n in available(ctx.root)})
-            if value not in names:
-                raise OpError(f"no theme {value!r}; themes: {', '.join(names)}", code=2)
+            themes = names(ctx.root)
+            if value not in themes:
+                raise OpError(f"no theme {value!r}; themes: {', '.join(themes)}", code=2)
+        case "colormap" | "colormap_diverging":
+            maps = colormaps()["sequential" if p.key == "colormap" else "diverging"]
+            if value not in maps:
+                raise OpError(f"no colormap {value!r}; colormaps: {', '.join(maps)}", code=2)
         case "theme_mode":
             if value not in ("system", "light", "dark"):
                 raise OpError("theme_mode is system, light or dark", code=2)

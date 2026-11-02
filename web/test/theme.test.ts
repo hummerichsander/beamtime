@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { assignColors, chartStyle, cssVariables, groupColors, ramp } from "../src/bt/theme.ts";
+import { readFile } from "node:fs/promises";
+
+import { labelOf } from "../src/bt/labels.ts";
+import { assignColors, chartStyle, cssVariables, dashOf, groupColors, ramp, slotOf, swatch } from "../src/bt/theme.ts";
 import { groupUrl, parse } from "../src/router.ts";
 
-const palette = ["#a", "#b", "#c", "#d"];
+const palette = ["#aaaaaa", "#bbbbbb", "#cccccc", "#dddddd"];
 const theme = {
   name: "T", type: "light" as const,
-  colors: { bg: "#ffffff", "sidebar.bg": "#eeeeee", border: "#cccccc", grid: "#dddddd", muted: "#666666" },
-  data: { categorical: palette, sequential: ["#000000", "#ffffff"], diverging: [], baseline: { color: "#999999", dash: [4, 3] } },
-  fonts: { sans: "system-ui" }, sizes: { xs: 11, sm: 12 }, shape: { radius: 4 },
+  colors: { paper: "#ffffff", line: "#dddddd", muted: "#666666", "data-1": palette[0], "data-2": palette[1], "data-3": palette[2], "data-4": palette[3] },
+  dashes: [[], [6, 3], [1.5, 3], [8, 3]],
+  stroke: 1.6,
+  font: "12.5px Plex",
+  ramps: { sequential: ["#000000", "#ffffff"], diverging: ["#000000", "#ffffff"] },
 };
 
 test("run colors are stable and distinct within a view", () => {
@@ -22,24 +27,48 @@ test("run colors are stable and distinct within a view", () => {
   assert.equal(many.size, 6);
 });
 
-test("groups: categorical in sorted order, numeric ramps when many", () => {
+test("groups: palette in sorted order, numeric ramps from the colormap when many", () => {
   const g = groupColors([0.1, 0.01, 0.001], theme);
-  assert.equal(g.get("0.001"), "#a");
-  assert.equal(g.get("0.1"), "#c");
+  assert.equal(g.get("0.001"), palette[0]);
+  assert.equal(g.get("0.1"), palette[2]);
   const many = groupColors([1, 2, 3, 4, 5], theme);
   assert.equal(many.get("1"), "#000000");
   assert.equal(many.get("5"), "#ffffff");
   assert.equal(ramp(["#000000", "#ffffff"], 0.5), "#808080");
 });
 
+test("a run's color carries its line style; a colormap's color is solid", () => {
+  assert.deepEqual(dashOf(palette[1], theme), [6, 3]);
+  assert.deepEqual(dashOf("#123456", theme), []);
+  assert.equal(slotOf(palette[2], theme), 3);
+  assert.deepEqual(swatch(palette[3], theme), { class: "swatch run-4" });
+  assert.deepEqual(swatch("#123456", theme), { class: "swatch", style: "color:#123456" });
+});
+
 test("css variables and the chart style come from the tokens", () => {
-  const vars = cssVariables(theme);
-  assert.equal(vars["--bt-sidebar-bg"], "#eeeeee");
-  assert.equal(vars["--bt-radius"], "4px");
-  assert.equal(vars["--bt-density"], "1");
+  assert.equal(cssVariables(theme)["--paper"], "#ffffff");
   const style = chartStyle(theme);
   assert.equal(style.grid, "#dddddd");
   assert.equal(style.axis, "#666666");
+  assert.equal(style.line, 1.6);
+});
+
+test("sections are labelled by what they hold", () => {
+  const node = (block: string, props = {}, children?: any[]) => ({ block, props, children });
+  assert.equal(labelOf(node("table", { title: "Recent runs" })), "runs");
+  assert.equal(labelOf(node("row", {}, [node("stat"), node("stat")])), "readings");
+  assert.equal(labelOf(node("grid", {}, [node("line"), node("scatter")])), "charts");
+  assert.equal(labelOf(node("grid", {}, [node("line"), node("table")])), "");
+  assert.equal(labelOf(node("custom", { title: "Phase map" })), "phase map");
+  assert.equal(labelOf(node("custom", { title: "A long title of a block" })), "");
+});
+
+test("no stylesheet sets a font size or uses an old variable", async () => {
+  for (const file of ["base", "shell", "blocks"]) {
+    const css = await readFile(`src/styles/${file}.css`, "utf8");
+    assert.doesNotMatch(css, /font-size:(?!\s*inherit)/, file);
+    assert.doesNotMatch(css, /--bt-/, file);
+  }
 });
 
 test("URLs round-trip", () => {

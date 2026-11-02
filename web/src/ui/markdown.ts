@@ -39,7 +39,7 @@ export function Markdown(props: { text: string; clamp?: number; class?: string }
         </div>`
       : html`<div class=${cls} ref=${el} style=${style} dangerouslySetInnerHTML=${{ __html: out }}></div>`}
     ${props.clamp && (long || open)
-      ? html`<button type="button" class="link more" onClick=${() => setOpen(!open)}>${open ? "less" : "more"}</button>`
+      ? html`<button type="button" class="link small more" onClick=${() => setOpen(!open)}>${open ? "less" : "more"}</button>`
       : null}
   </div>`;
 }

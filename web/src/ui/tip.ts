@@ -12,7 +12,7 @@ let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
 export function installTips(): void {
   el = document.createElement("div");
-  el.className = "bt-hint";
+  el.className = "bt-hint small";
   el.setAttribute("popover", "manual");
   el.id = "bt-hint";
   document.body.append(el);

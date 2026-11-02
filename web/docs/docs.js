@@ -164,7 +164,7 @@
   // the theme: system, light or dark, remembered in this browser.
   const modeButton = document.querySelector(".mode");
   const modes = ["system", "light", "dark"];
-  const current = () => document.documentElement.dataset.mode ?? "system";
+  const current = () => document.documentElement.dataset.theme ?? "system";
   const showMode = () => {
     modeButton.dataset.mode = current();
     modeButton.setAttribute("aria-label", `Theme: ${current()}`);
@@ -172,8 +172,8 @@
   };
   modeButton.addEventListener("click", () => {
     const next = modes[(modes.indexOf(current()) + 1) % modes.length];
-    if (next === "system") delete document.documentElement.dataset.mode;
-    else document.documentElement.dataset.mode = next;
+    if (next === "system") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = next;
     try {
       next === "system" ? localStorage.removeItem("beamtime-docs-mode") : localStorage.setItem("beamtime-docs-mode", next);
     } catch {}
