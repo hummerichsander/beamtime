@@ -44,7 +44,7 @@ These qualities are made concrete as budgets and rules, and checked like correct
 
 - **A notebook, not a dashboard.** Pages read like a lab notebook: warm paper, ink, a serif for
   the texts people and agents write. A page is a column of Sections separated by hairlines, each with a
-  short label in the margin, not boxes ([design.md](../design.md)). The top bar and status bar are thin (48 and 30 px); the sidebar collapses
+  short label in the margin, not boxes ([design/README.md](../../design/README.md)). The top bar and status bar are thin (48 and 30 px); the sidebar collapses
   with one key. Most of the screen is the view.
 - **One accent color**, warm neutral surfaces, no gradients; color means data or status
   ([layer 5](05-views.md#the-default-theme)).
@@ -213,7 +213,7 @@ Values of running runs are marked as still changing.
 ## Theme in the UI
 
 The shell has no tokens of its own: it uses those of [layer 5](05-views.md#tokens) and the rules in
-[design.md](../design.md). A theme file recolors the shell and the blocks together. Parts the design
+[design/README.md](../../design/README.md). A theme file recolors the shell and the blocks together. Parts the design
 system has no component for are listed there.
 
 ## Screenshots and the headless renderer

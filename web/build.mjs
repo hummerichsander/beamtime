@@ -68,10 +68,12 @@ await copyFile("src/index.html", `${out}/index.html`);
 await mkdir(`${out}/kit`, { recursive: true });
 await copyFile("src/kit/frame.html", `${out}/kit/frame.html`);
 await writeFile(`${out}/THIRD_PARTY_LICENSES.txt`, await licenses());
-// the fonts' license texts ship next to the fonts.
-for (const f of await readdir("src/styles/fonts")) {
-  if (f.endsWith(".txt")) await copyFile(`src/styles/fonts/${f}`, `${out}/fonts/${f}`);
+// the fonts' license texts ship next to the fonts, which esbuild copied from design/fonts.
+for (const f of await readdir("../design/fonts")) {
+  if (f.endsWith(".txt")) await copyFile(`../design/fonts/${f}`, `${out}/fonts/${f}`);
 }
+// serve resolves themes from the tokens, and a wheel holds only the package.
+await copyFile("../design/tokens.json", `${out}/tokens.json`);
 
 // the licenses of the packages bundled into the frontend, which ship with it (their notices are
 // stripped from the minified files).

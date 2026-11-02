@@ -34,9 +34,9 @@ const index = [];
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 // the site uses the design system's tokens and fonts as they are.
-await writeFile(join(out, "docs.css"), (await readFile("src/styles/tokens.css", "utf8")) + (await readFile("docs/docs.css", "utf8")));
+await writeFile(join(out, "docs.css"), (await readFile("../design/tokens.css", "utf8")) + (await readFile("docs/docs.css", "utf8")));
 await mkdir(join(out, "fonts"), { recursive: true });
-for (const f of await readdir("src/styles/fonts")) await copyFile(`src/styles/fonts/${f}`, join(out, "fonts", f));
+for (const f of await readdir("../design/fonts")) await copyFile(`../design/fonts/${f}`, join(out, "fonts", f));
 await copyFile("docs/docs.js", join(out, "docs.js"));
 await writeFile(join(out, ".nojekyll"), "");
 for (const [i, page] of pages.entries()) {

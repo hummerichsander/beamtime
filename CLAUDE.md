@@ -224,11 +224,11 @@ sync.
   custom code blocks (ES modules in sandboxed iframes on the `bt` kit with Preact/htm). All data comes
   through declared queries. Validation is static, plus one headless render where Chromium exists.
   Library blocks in `blocks/` are pinned by views. Queries and widgets are msgspec structs.
-- **The design system** (`docs/design.md`) is the look of the UI: **read it before any UI work**.
-  `src/beamtime/views/tokens.json` is its source of truth; `web/src/styles/tokens.css` is generated
-  from it (`npm run tokens`), `bundle.css` holds the components' styles. Markup follows the components there; type
-  sizes come only from type classes, never from CSS. Theme files recolor the layout (colors only);
-  colormaps are matplotlib's, chosen in the settings.
+- **The design system** lives in `design/`, and the app builds from it. UI work follows
+  `design/README.md` and `design/components/`; change values in `design/tokens.json` only (then
+  `scripts/build-tokens`); design changes arrive as a PR touching `design/`. Type sizes come only from
+  type classes, never from CSS. Theme files recolor the layout (colors only); colormaps are matplotlib's,
+  chosen in the settings.
 - **Agent instructions come from `beamtime guide`**, which marks its defaults as defaults; users
   override them in their own instruction files.
 - **The web UI** (`docs/design/07-web-ui.md`) is a fixed shell that must feel seamless, light and
@@ -275,8 +275,8 @@ sync.
   CSP (`auth.py`), live updates (`live.py`), the command (`server.py`) and the committed frontend
   bundle in `static/`; tests in `tests/serve/` (`test_browser.py` runs headless Chromium, skipped
   without it)
-- `src/beamtime/views/`: the design tokens (`tokens.json`), colormaps (`colormaps.json`, sampled by
-  `scripts/colormaps.py`), themes (`theme.py`), the built-in default view
+- `src/beamtime/views/`: colormaps (`colormaps.json`, sampled by `scripts/colormaps.py`), themes
+  (`theme.py`, on the tokens the build copies to `serve/static/tokens.json`), the built-in default view
   as a view built from what a page logged (`defaults.py`), the view format as msgspec structs
   (`model.py`), compiling views to block trees (`compile.py`), folding viewer settings back
   (`prefs.py`), saved versions and drafts in `.beamtime/drafts/` (`store.py`), static validation (`validate.py`) and the headless renderer
@@ -289,12 +289,15 @@ sync.
   operations (drafts in `.beamtime/drafts/blocks/`, export and import, also from git);
   `src/beamtime/guide/`: the agent guide (Markdown parts and five example views with
   `{{placeholders}}` filled from a group's keys; the custom example's code in `examples/code/`)
+- `design/`: the design system: tokens (`tokens.json`, generated `tokens.css`), `components.css`, fonts,
+  rules per component and `gallery.html`; `scripts/check-design` keeps raw values out of other CSS,
+  `tests/test_design.py` checks all of it, the gallery in a browser
 - `web/`: the frontend in TypeScript (Preact + htm, uPlot, lucide, marked + KaTeX): `src/shell/` the
   app, `src/bt/` the kit (charts, curves, preferences, writes), `src/blocks/` the built-in blocks
   (`custom.ts` hosts custom blocks), `src/kit/` the custom-block frame (`frame.ts`, its own entry
   `kit.js`; `window.bt`; the bridge protocol),
   `src/ui/` primitives (icons and symbols, tooltip, popovers, inline editing, Markdown),
-  `src/styles/` the stylesheets and fonts (`docs/design.md`). After any change in `web/`, run
+  `src/styles/` the stylesheets beyond `design/`. After any change in `web/`, run
   `cd web && npm ci && npm test && npm run build` and commit the rebuilt `src/beamtime/serve/static/`
   with it (CI fails when the bundle is stale; the shell must stay under 120 KB compressed)
 - `bench/web/timing.py`: the UI's timing budgets on a scale-M log dir (first view, group to group)

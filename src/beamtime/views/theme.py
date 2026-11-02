@@ -9,7 +9,8 @@ from typing import Any, Literal
 
 import msgspec
 
-TOKENS = Path(__file__).parent / "tokens.json"
+# design/tokens.json, which the frontend's build copies here: a wheel holds only the package.
+TOKENS = Path(__file__).parents[1] / "serve" / "static" / "tokens.json"
 COLORMAPS = Path(__file__).parent / "colormaps.json"
 DEFAULT = "beamtime"
 DEFAULT_COLORMAPS = {"sequential": "viridis", "diverging": "coolwarm"}

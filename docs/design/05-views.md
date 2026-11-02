@@ -399,7 +399,7 @@ with hundreds of runs and thousands of points per curve.
 ## Theme
 
 Beamtime owns the look of every view; views never contain colors, fonts or sizes. The design system
-([design.md](../design.md)) defines it, and `src/beamtime/views/tokens.json` is its source of truth.
+([design/README.md](../../design/README.md)) defines it, and `design/tokens.json` is its source of truth.
 
 ### Tokens
 
@@ -803,7 +803,7 @@ Decided while building views (milestone M6):
 Decided while building themes (milestone M5):
 
 - **Theme files** are JSON with `colors` only, by the design system's token names; the default pair
-  comes from `beamtime/views/tokens.json`.
+  comes from `design/tokens.json`.
 - **Pairs by name**: the `theme` setting `lab` selects `lab-light` and `lab-dark`; the name of a single
   file serves both modes. A broken setting (a missing theme, an invalid file)
   falls back to the default pair and shows the problem in the settings page.

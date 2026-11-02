@@ -3,7 +3,7 @@
 ## Unreleased
 
 - **The design system**: the web UI, docs site and exports follow Beamtime's design system
-  (`docs/design.md`): pages as columns of Sections with margin labels, the proposal right after the
+  (`design/README.md`): pages as columns of Sections with margin labels, the proposal right after the
   header, XCharter and IBM Plex shipped with the frontend, runs drawn in a color and a line style.
 - **Themes**: a theme file now changes colors only, by the new token names (`paper`, `ink`, ...).
   `extends`, `data`, `fonts`, `sizes` and `shape` are gone; older theme files need rewriting.

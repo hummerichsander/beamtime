@@ -68,7 +68,7 @@ export function MultiSelect(props: {
         ? null
         : props.value.map((v) => html`<span class="ms-chip small" key=${v}>${v}
             ${props.value.length > 1
-              ? html`<button type="button" aria-label=${`Remove ${v}`} onClick=${(e: Event) => { e.stopPropagation(); toggle(v); }}>
+              ? html`<button type="button" aria-label=${`Remove ${v}`} data-tip=${`Remove ${v}`} onClick=${(e: Event) => { e.stopPropagation(); toggle(v); }}>
                   <${Icon} name="x" size=${14} /></button>`
               : null}</span>`)}
       <input ref=${input} value=${query} placeholder=${props.placeholder ?? "Search"} aria-label=${props.label}

@@ -32,7 +32,7 @@ REQUIRED = (
     "beamtime/serve/static/fonts/XCharter-Roman.woff2",
     "beamtime/serve/static/fonts/XCharter-LICENSE.txt",
     "beamtime/serve/static/fonts/IBMPlex-LICENSE.txt",
-    "beamtime/views/tokens.json",
+    "beamtime/serve/static/tokens.json",
     "beamtime/views/colormaps.json",
     "beamtime/views/checks.js",
 )

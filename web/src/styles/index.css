@@ -1,9 +1,9 @@
-/* Beamtime's look: tokens.css is generated, bundle.css is the design system's components;
-   base, shell and blocks hold what the design system doesn't cover, on its tokens and type classes.
-   None of them sets a font size: type comes from the classes in the markup. See docs/design.md. */
+/* Beamtime's look comes from design/: its generated tokens and its components' stylesheet. Base, shell
+   and blocks hold what the design system doesn't cover, on its tokens and type classes. None of them
+   sets a font size: type comes from the classes in the markup. See design/README.md. */
 @import "uplot/dist/uPlot.min.css";
-@import "./tokens.css";
-@import "./bundle.css";
+@import "../../../design/tokens.css";
+@import "../../../design/components.css";
 @import "./base.css";
 @import "./shell.css";
 @import "./blocks.css";

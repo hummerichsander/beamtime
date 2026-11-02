@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Generate design/tokens.css from design/tokens.json.
+
+``scripts/build-tokens`` writes the file; ``--check`` fails instead when the committed one is stale."""
+
+from pathlib import Path
+import json
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / "design" / "tokens.json"
+OUT = ROOT / "design" / "tokens.css"
+HEADER = "/* Beamtime: generated from design/tokens.json by scripts/build-tokens. Do not edit by hand. */"
+
+
+def note(usage: str | None) -> str:
+    """Make a token's usage a trailing comment.
+
+    :param usage: The usage, if any.
+    :return: The comment, or nothing."""
+    return f" /* {usage} */" if usage else ""
+
+
+def css(t: dict) -> str:
+    """Write the stylesheet: colors per theme, the other tokens, type classes and font faces.
+
+    :param t: The contents of ``tokens.json``.
+    :return: The stylesheet."""
+    colors = t["color"]["tokens"]
+    styles = [s | {"family": s["family"] or g["family"]} for g in t["type"]["groups"] for s in g["styles"]]
+    lines = [HEADER, ':root, [data-theme="light"] {']
+    lines += [f"  --{c['name']}: {c['value']['light']};{note(c['usage'])}" for c in colors]
+    lines += ["}", '[data-theme="dark"] {']
+    lines += [f"  --{c['name']}: {c['value']['dark']};" for c in colors]
+    # before the page's script sets data-theme, the system's preference decides, so nothing flashes.
+    lines += ["}", "@media (prefers-color-scheme: dark) {", "  :root:not([data-theme]) {"]
+    lines += [f"    --{c['name']}: {c['value']['dark']};" for c in colors]
+    lines += ["    color-scheme: dark;", "  }", "}", ":root {"]
+    for family in ("spacing", "radius", "layout", "dash", "stroke"):
+        lines += [f"  --{x['name']}: {x['value']};{note(x['usage'])}" for x in t[family]["tokens"]]
+    lines += [f"  --font-{k}: {v};" for k, v in t["type"]["families"].items()]
+    for s in styles:
+        italic = "italic " if s["fontStyle"] == "italic" else ""
+        shorthand = f"{italic}{s['fontWeight']} {s['fontSize']}/{s['lineHeight']} var(--font-{s['family']})"
+        lines.append(f"  --text-{s['name']}: {shorthand};{note(s['usage'])}")
+    lines.append("}")
+    for s in styles:
+        lines += [
+            f".{s['name']} {{",
+            f"  font-family: var(--font-{s['family']});",
+            f"  font-size: {s['fontSize']};",
+            f"  line-height: {s['lineHeight']};",
+            f"  font-weight: {s['fontWeight']};",
+            f"  letter-spacing: {s['letterSpacing']};",
+            *(["  font-style: italic;"] if s["fontStyle"] == "italic" else []),
+            "}",
+        ]
+    for f in t["type"]["fonts"]:
+        lines += [
+            "@font-face {",
+            f'  font-family: "{f["family"]}";',
+            f'  src: url("{f["file"]}") format("woff2");',
+            f"  font-weight: {f['weight']};",
+            f"  font-style: {f['style']};",
+            "  font-display: swap;",
+            "}",
+        ]
+    return "\n".join(lines) + "\n"
+
+
+def main() -> None:
+    """Write the file, or with ``--check`` compare it."""
+    wanted = css(json.loads(SOURCE.read_text(encoding="utf-8")))
+    if "--check" not in sys.argv:
+        OUT.write_text(wanted, encoding="utf-8")
+    elif OUT.read_text(encoding="utf-8") != wanted:
+        sys.exit("design/tokens.css is stale: run scripts/build-tokens")
+
+
+if __name__ == "__main__":
+    main()

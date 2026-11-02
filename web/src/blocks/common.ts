@@ -81,7 +81,8 @@ export function Collapsible(props: {
   };
   return html`<section class=${`block collapsible ${props.class ?? ""}`}>
     <h3 class="block-title heading">
-      <button type="button" class="collapse-toggle" aria-expanded=${open} aria-label=${shown ? undefined : `${open ? "Close" : "Open"} ${props.title}`} onClick=${toggle}>
+      <button type="button" class="collapse-toggle" aria-expanded=${open} aria-label=${shown ? undefined : `${open ? "Close" : "Open"} ${props.title}`}
+          data-tip=${shown ? undefined : `${open ? "Close" : "Open"} ${props.title}`} onClick=${toggle}>
         <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${16} />${shown}
         ${props.count ? html`<span class="count small">${props.count}</span>` : null}
       </button>

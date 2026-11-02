@@ -1,4 +1,4 @@
-/* Beamtime: generated from src/beamtime/views/tokens.json by web/scripts/tokens.mjs. Do not edit by hand. */
+/* Beamtime: generated from design/tokens.json by scripts/build-tokens. Do not edit by hand. */
 :root, [data-theme="light"] {
   --paper: #faf9f6; /* Page background: warm paper, warm charcoal in dark. */
   --surface: #f2f0eb; /* Second paper: sidebar, code, logs, floating panels. */

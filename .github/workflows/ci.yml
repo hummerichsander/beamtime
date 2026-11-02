@@ -82,6 +82,26 @@ jobs:
           --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match
           pytest -q tests/sdk/test_lightning.py
 
+  # tokens.css is what tokens.json generates; app CSS takes its values from tokens; the gallery renders.
+  design:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.11"
+      - run: python3 scripts/build-tokens --check
+      - run: python3 scripts/check-design
+      - run: uv run --extra serve playwright install --with-deps chromium
+      - run: uv run --extra serve pytest -q tests/test_design.py
+        env:
+          DESIGN_SHOTS: design-shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: design-gallery
+          path: design-shots
+
   # the committed bundle must equal a fresh build; the shell is tested in a real browser.
   web:
     runs-on: ubuntu-latest

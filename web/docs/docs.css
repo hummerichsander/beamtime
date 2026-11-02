@@ -4,7 +4,7 @@
 * { box-sizing: border-box; }
 html { background: var(--paper); color: var(--ink); scroll-padding-block-start: 72px; }
 body {
-  margin: 0; font-family: var(--font-sans); font-size: 15px; line-height: 1.6;
+  margin: 0; font: var(--text-body); line-height: 1.6;
   -webkit-font-smoothing: antialiased; font-variant-numeric: lining-nums;
 }
 a { color: var(--accent); text-decoration: none; }
@@ -14,7 +14,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 ::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 kbd {
   padding: 0 5px; border: 1px solid var(--line); border-block-end-width: 2px; border-radius: 5px;
-  font-family: var(--font-sans); font-size: 12.5px; color: var(--muted); background: var(--paper);
+  font: var(--text-small); color: var(--muted); background: var(--paper);
 }
 .icon { flex: none; }
 
@@ -31,13 +31,13 @@ kbd {
   border-block-end: 1px solid var(--line);
 }
 .project {
-  font-family: var(--font-serif); font-size: 19px; font-weight: 700; color: var(--ink);
+  font: var(--text-heading); color: var(--ink);
   &:hover { text-decoration: none; }
 }
 .search {
   flex: 0 1 460px; margin-inline: auto; display: flex; align-items: center; gap: 8px; block-size: 32px; padding-inline: 10px;
   border: 1px solid var(--border); border-radius: var(--radius); background: var(--paper);
-  color: var(--muted); font-size: 12.5px; transition: border-color 120ms;
+  color: var(--muted); font: var(--text-small); transition: border-color 120ms;
   & kbd { margin-inline-start: auto; }
   &:hover { border-color: color-mix(in srgb, var(--ink) 25%, transparent); }
 }
@@ -51,7 +51,7 @@ kbd {
 .mode[data-mode="system"] .icon:nth-child(1), .mode[data-mode="light"] .icon:nth-child(2), .mode[data-mode="dark"] .icon:nth-child(3) { display: block; }
 .github {
   display: inline-flex; align-items: center; gap: 3px; padding: 4px 8px; border-radius: var(--radius);
-  color: var(--muted); font-size: 12.5px;
+  color: var(--muted); font: var(--text-small);
   &:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); text-decoration: none; }
 }
 .menu { display: none; }
@@ -60,9 +60,9 @@ kbd {
 .sidebar {
   grid-area: side; position: sticky; inset-block-start: 48px; block-size: calc(100vh - 48px); overflow-y: auto;
   padding: 14px 10px 28px; background: var(--surface); color: var(--ink);
-  border-inline-end: 1px solid var(--line); font-size: 12.5px;
+  border-inline-end: 1px solid var(--line); font: var(--text-small);
   & h2 {
-    margin: 18px 10px 6px; color: var(--muted); font-size: 12.5px; font-weight: 600;
+    margin: 18px 10px 6px; color: var(--muted); font: var(--text-small); font-weight: 600;
     letter-spacing: 0.07em; text-transform: uppercase;
   }
   & h2:first-child { margin-block-start: 4px; }
@@ -81,15 +81,15 @@ kbd {
 .docs-main { grid-area: main; display: flex; gap: 48px; padding: 44px 56px 80px; min-inline-size: 0; }
 .docs-page { flex: 1 1 auto; min-inline-size: 0; max-inline-size: 780px; }
 .docs-page h1 {
-  margin: 0 0 18px; font-family: var(--font-serif); font-size: 35px; font-weight: 700;
+  margin: 0 0 18px; font: var(--text-title);
   line-height: 1.12; letter-spacing: -0.01em; text-wrap: balance;
 }
-.docs-page h1 + p { font-family: var(--font-serif); font-size: calc(15px * 1.15); line-height: 1.55; color: var(--muted); }
+.docs-page h1 + p { font: var(--text-prose); color: var(--muted); }
 .docs-page h2 {
-  margin: 2.1em 0 0.5em; font-family: var(--font-serif); font-size: 23px; font-weight: 700;
+  margin: 2.1em 0 0.5em; font: var(--text-statement); font-style: normal; font-weight: 700;
   line-height: 1.25; text-wrap: balance;
 }
-.docs-page h3 { margin: 1.8em 0 0.4em; font-size: 15px; font-weight: 600; }
+.docs-page h3 { margin: 1.8em 0 0.4em; font: var(--text-body); font-weight: 600; }
 .docs-page :is(h2, h3) a.anchor { margin-inline-start: 6px; color: var(--muted); opacity: 0; transition: opacity 120ms; }
 .docs-page :is(h2, h3):hover a.anchor { opacity: 1; text-decoration: none; }
 .docs-page p, .docs-page ul, .docs-page ol { margin: 0.6em 0; text-wrap: pretty; }
@@ -105,8 +105,8 @@ kbd {
   margin: 1em 0; padding: 13px 16px; overflow-x: auto; background: var(--surface);
   border: 1px solid var(--line); border-radius: var(--radius); line-height: 1.5;
 }
-.docs-page pre code { background: none; padding: 0; border: none; font-size: 12.5px; }
-.docs-page table { display: block; max-inline-size: 100%; overflow-x: auto; border-collapse: collapse; margin: 1em 0; font-size: 12.5px; }
+.docs-page pre code { background: none; padding: 0; border: none; font: var(--text-code); }
+.docs-page table { display: block; max-inline-size: 100%; overflow-x: auto; border-collapse: collapse; margin: 1em 0; font: var(--text-small); }
 .docs-page th, .docs-page td { padding: 7px 16px 7px 0; border-block-end: 1px solid var(--line); text-align: start; vertical-align: top; }
 .docs-page th { color: var(--muted); font-weight: 600; }
 .docs-page blockquote {
@@ -129,8 +129,8 @@ kbd {
 
 .toc {
   flex: 0 0 200px; position: sticky; inset-block-start: 92px; align-self: flex-start;
-  max-block-size: calc(100vh - 120px); overflow-y: auto; font-size: 12.5px;
-  & h2 { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; }
+  max-block-size: calc(100vh - 120px); overflow-y: auto; font: var(--text-small);
+  & h2 { margin: 0 0 8px; color: var(--muted); font: var(--text-small); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; }
   & ul { list-style: none; margin: 0; padding: 0; border-inline-start: 1px solid var(--line); }
   & a { display: block; padding: 3px 0 3px 12px; margin-inline-start: -1px; border-inline-start: 2px solid transparent; color: var(--muted); line-height: 1.4; }
   & a:hover { color: var(--ink); text-decoration: none; }
@@ -144,7 +144,7 @@ kbd {
     color: var(--ink); font-family: var(--font-serif); font-weight: 700; transition: border-color 120ms, background 120ms;
   }
   & a:hover { text-decoration: none; border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 4%, transparent); }
-  & span { display: block; color: var(--muted); font-family: var(--font-sans); font-size: 12.5px; font-weight: 400; }
+  & span { display: block; color: var(--muted); font: var(--text-small); }
   & .next { margin-inline-start: auto; text-align: end; }
 }
 
@@ -165,25 +165,25 @@ dialog.sheet {
   display: flex; align-items: center; gap: 10px; padding: 0 16px; border-block-end: 1px solid var(--line); color: var(--muted);
   & input {
     flex: 1; block-size: 52px; border: none; background: none; outline: none; color: var(--ink);
-    font: inherit; font-size: 19px; -webkit-appearance: none; appearance: none;
+    font: var(--text-heading); font-weight: 400; -webkit-appearance: none; appearance: none;
   }
   & input::-webkit-search-cancel-button { display: none; }
 }
 .palette-list {
   list-style: none; margin: 0; padding: 6px; overflow: auto; flex: 1 1 auto;
-  & .section { padding: 10px 10px 4px; font-size: 12.5px; color: var(--muted); font-weight: 600; letter-spacing: 0.04em; }
+  & .section { padding: 10px 10px 4px; font: var(--text-small); color: var(--muted); font-weight: 600; letter-spacing: 0.04em; }
   & li.item { display: block; padding: 8px 10px; border-radius: var(--radius); cursor: pointer; }
   & li.item[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 13%, transparent); }
   & .label { display: block; font-weight: 600; }
   & .label .where { color: var(--muted); font-weight: 400; }
-  & .snippet { display: block; margin-block-start: 2px; color: var(--muted); font-size: 12.5px; line-height: 1.45;
+  & .snippet { display: block; margin-block-start: 2px; color: var(--muted); font: var(--text-small); line-height: 1.45;
     overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   & mark { background: color-mix(in srgb, var(--accent) 20%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
   & .empty { padding: 24px 10px; color: var(--muted); text-align: center; font-family: var(--font-serif); font-style: italic; }
 }
 .palette-foot {
   display: flex; gap: 16px; padding: 8px 16px; border-block-start: 1px solid var(--line);
-  color: var(--muted); font-size: 12.5px;
+  color: var(--muted); font: var(--text-small);
   & span { display: inline-flex; align-items: center; gap: 4px; }
 }
 
@@ -202,6 +202,6 @@ dialog.sheet {
   .search .search-label, .search kbd { display: none; }
   .search { flex: 0 1 auto; margin-inline: auto 0; inline-size: 32px; padding: 0; justify-content: center; }
   .docs-main { padding: 28px 16px 56px; }
-  .docs-page h1 { font-size: 23px; }
+  .docs-page h1 { font: var(--text-statement); font-style: normal; font-weight: 700; }
 }
 @media (prefers-reduced-motion: reduce) { .sidebar { transition: none; } }
