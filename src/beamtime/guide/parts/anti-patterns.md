@@ -14,5 +14,6 @@
 | comparing runs of different length without saying so | a `steps` window, or say it in the caption |
 | a finding stronger than the check | state what the check says |
 | a chart where a table or a single number would do | `table` or `stat` |
+| a custom block where a built-in block would show it as well | the built-in block; render it first and look |
 | scatter of a final value against a hyperparameter with several seeds as separate points | `seeds: config.seed` |
 | log scale over values that can be zero or negative | a linear scale |

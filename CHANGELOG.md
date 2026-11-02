@@ -23,6 +23,8 @@ What changed:
 - **Colormaps**: matplotlib's colormaps color numeric groups and heatmaps; choose them with the
   `colormap` and `colormap_diverging` settings.
 - **Sidebar**: hosts have a symbol and collapse, the local one too.
+- **Agent guide**: agents try built-in blocks first, and write a custom block only when none can show
+  the result or it would look visibly worse.
 - **Fixes**:
   - With a remote configured, the light/dark switch and the other settings on the settings page
     snapped back; they now stick.

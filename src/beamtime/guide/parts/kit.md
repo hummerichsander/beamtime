@@ -1,8 +1,14 @@
 # The bt kit (custom blocks)
 
-A custom block is an ES module on the `bt` kit, for what no built-in block shows (a heatmap over two
-configs, a linked table and chart). Prefer built-in blocks; they need no code. The block runs in a
-sandboxed frame with no network: all data comes from the queries it declares.
+**Built-in blocks come first.** Before writing a custom block, make sure that no built-in block
+(`guide blocks`) or library block (`block_list`) can show what you need, or that it would look visibly
+worse. Try it: draft the view with the built-in block, `view_render` it and look at the screenshot.
+Write code only for what remains, such as a heatmap over two configs or a linked table and chart, and
+say why in the `--message` of `view_save`. Built-in blocks need no code and follow the design system
+and every later change to it.
+
+A custom block is an ES module on the `bt` kit. It runs in a sandboxed frame with no network: all data
+comes from the queries it declares.
 
 ```yaml
 - custom:
