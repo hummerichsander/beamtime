@@ -1,20 +1,32 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
 
-- **The design system**: the web UI, docs site and exports follow Beamtime's design system
-  (`design/README.md`): pages as columns of Sections with margin labels, the proposal right after the
-  header, XCharter and IBM Plex shipped with the frontend, runs drawn in a color and a line style.
-- **Themes**: a theme file now changes colors only, by the new token names (`paper`, `ink`, ...).
-  `extends`, `data`, `fonts`, `sizes` and `shape` are gone; older theme files need rewriting.
-- **Custom blocks**: CSS variables are now `--ink`, `--muted`, `--line`, ...; `--bt-*` is gone, and
-  `bt.theme.tokens` has the new shape. Added `bt.theme.runDash(id)`.
-- **Fixes**: with a remote configured, the light/dark switch and the other settings on the settings page
-  snapped back, because a new setting never reached the next page load; `beamtime.yaml` is now replaced
-  atomically, so writes at the same moment can't corrupt it.
-- **Sidebar**: hosts have a symbol and collapse, the local one too.
+The web UI's new look, built from a design system that now lives in `design/`. Logged runs, notes,
+proposals and views keep working as they are.
+
+**Update by hand**, if you use them:
+
+- **Custom blocks**: CSS variables are now `--ink`, `--muted`, `--line`, ...; `--bt-*` is gone, so a
+  saved block that uses it draws in black until it has a new version. `bt.theme.tokens` has a new
+  shape: colors are in `colors`, by the new names. `bt.theme.scale`, `runColor` and `groupColor` work
+  as before.
+- **Theme files**: a theme now changes colors only, by the new token names (`paper`, `ink`, ...).
+  `extends`, `data`, `fonts`, `sizes` and `shape` are gone; older theme files need rewriting
+  ([Settings](docs/guides/settings.md#themes)).
+
+What changed:
+
+- **The look**: pages are columns of Sections with labels in the margin, and the proposal comes right
+  after the header. XCharter and IBM Plex ship with the frontend. Each run has a color and a line
+  style, the same in charts, legends and tables, with new `bt.theme.runDash(id)` for custom blocks.
 - **Colormaps**: matplotlib's colormaps color numeric groups and heatmaps; choose them with the
   `colormap` and `colormap_diverging` settings.
+- **Sidebar**: hosts have a symbol and collapse, the local one too.
+- **Fixes**:
+  - With a remote configured, the light/dark switch and the other settings on the settings page
+    snapped back; they now stick.
+  - `beamtime.yaml` is replaced atomically, so writes at the same moment can't corrupt it.
 
 ## 0.1.0
 
