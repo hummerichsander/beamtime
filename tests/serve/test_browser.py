@@ -218,6 +218,14 @@ def test_custom_blocks_share_hover_downloads_and_expand(project: Path, page) -> 
         # the frame is sandboxed (an opaque origin): its fonts are CORS requests.
         inner = next(f for f in page.frames if "kit/frame" in f.url)
         assert inner.evaluate("document.fonts.load('12.5px \"IBM Plex Sans\"').then((f) => f.length > 0)")
+        muted = "getComputedStyle(document.documentElement).getPropertyValue('--muted')"
+        light = inner.evaluate(muted)
+        toggle = page.locator(".topbar-actions [aria-label^='Theme']")
+        while "(switch to system)" not in toggle.get_attribute("aria-label"):
+            toggle.click()
+            page.wait_for_timeout(300)
+        page.wait_for_timeout(300)
+        assert inner.evaluate(muted) != light, "the frame's tokens follow the page's mode"
         frame.locator("rect").nth(1).hover()
         page.wait_for_selector("table.runs tr.hovered", timeout=5_000)
         with page.expect_download() as download:

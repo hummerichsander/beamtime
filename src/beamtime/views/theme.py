@@ -3,6 +3,7 @@
 import json
 import os
 import re
+from math import ceil
 from pathlib import Path
 from typing import Any, Literal
 
@@ -94,13 +95,15 @@ def base(kind: Literal["light", "dark"], t: dict[str, Any] | None = None) -> dic
     small = next(s for g in t["type"]["groups"] for s in g["styles"] if s["name"] == "small")
     dash = [x["value"] for x in t["dash"]["tokens"]]
     stroke = next(x["value"] for x in t["stroke"]["tokens"] if x["name"] == "stroke-data")
+    # whole pixels: uPlot scales fonts with /(\d+)px/, which reads 12.5px as 5px on HiDPI screens.
+    size = ceil(float(small["fontSize"].removesuffix("px")))
     return {
         "name": f"Beamtime {kind.capitalize()}",
         "type": kind,
         "colors": {c["name"]: c["value"][kind] for c in t["color"]["tokens"]},
         "dashes": [[] if d == "none" else [float(x) for x in d.split()] for d in dash],
         "stroke": float(stroke.removesuffix("px")),
-        "font": f"{small['fontSize']} {t['type']['families']['sans']}",
+        "font": f"{size}px {t['type']['families']['sans']}",
     }
 
 

@@ -42,6 +42,9 @@ test("each source has its own root, also one that can't answer", () => {
   assert.deepEqual(roots[1].children.map((c) => c.path), ["@box/scaling"]);
   assert.equal(roots[2].state, "unreachable");
   assert.deepEqual(visible(roots, new Set(), "").map((n) => n.path), [".", "scaling", "tokenizer", "@box", "@box/scaling", "@gone"]);
+  // any host closes, local too; a filter still finds what is inside.
+  assert.deepEqual(visible(roots, new Set(), "", new Set([".", "@box"])).map((n) => n.path), [".", "@box", "@gone"]);
+  assert.ok(visible(roots, new Set(), "scaling", new Set(["@box"])).some((n) => n.path === "@box/scaling"));
   assert.deepEqual(siblings(roots, "@box").map((n) => n.path), [".", "@box", "@gone"]);
   assert.deepEqual([depth("."), depth("@box"), depth("@box/scaling"), depth("scaling")], [0, 0, 1, 1]);
 });

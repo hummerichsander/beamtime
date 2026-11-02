@@ -35,7 +35,8 @@ def test_default_pair_comes_from_the_tokens(root: Path) -> None:
     assert p["dark"]["colors"]["paper"] == "#1e1e1c"
     assert p["light"]["dashes"][0] == [] and p["light"]["dashes"][1] == [6, 3]
     assert p["light"]["stroke"] == 1.6
-    assert "IBM Plex Sans" in p["light"]["font"]
+    # uPlot only scales whole pixel sizes on HiDPI screens.
+    assert p["light"]["font"].startswith("13px ") and "IBM Plex Sans" in p["light"]["font"]
 
 
 def test_a_theme_file_overrides_colors_only(root: Path) -> None:

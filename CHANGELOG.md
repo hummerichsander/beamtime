@@ -12,6 +12,7 @@
 - **Fixes**: with a remote configured, the light/dark switch and the other settings on the settings page
   snapped back, because a new setting never reached the next page load; `beamtime.yaml` is now replaced
   atomically, so writes at the same moment can't corrupt it.
+- **Sidebar**: hosts have a symbol and collapse, the local one too.
 - **Colormaps**: matplotlib's colormaps color numeric groups and heatmaps; choose them with the
   `colormap` and `colormap_diverging` settings.
 

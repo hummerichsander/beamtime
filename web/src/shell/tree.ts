@@ -47,14 +47,15 @@ export function buildTree(rows: Record<string, any>[], sources: SourceState[] = 
   return [nodes.get(".")!, ...remotes];
 }
 
-export function visible(roots: TreeNode[], open: Set<string>, filter: string): TreeNode[] {
+// hosts are open unless closed; everything below them, closed unless open. A filter opens all.
+export function visible(roots: TreeNode[], open: Set<string>, filter: string, closed: Set<string> = new Set()): TreeNode[] {
   const out: TreeNode[] = [];
   const f = filter.toLowerCase();
   const walk = (n: TreeNode) => {
     const show = !f || n.path.toLowerCase().includes(f) || hasMatch(n, f);
     if (!show) return;
     out.push(n);
-    if (f || open.has(n.path) || isRoot(n.path)) n.children.forEach(walk);
+    if (f || (isRoot(n.path) ? !closed.has(n.path) : open.has(n.path))) n.children.forEach(walk);
   };
   roots.forEach(walk);
   return out;
