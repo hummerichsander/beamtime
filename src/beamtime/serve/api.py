@@ -34,17 +34,21 @@ def dispatch(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] 
 
     from beamtime import remote
 
+    here = ctx
     if ctx.sources is not None and (ctx.caller == "view" or "everywhere" in body):
         # the web UI's page of this machine is this machine; the group tree asks for everywhere.
         body = dict(body)
-        ctx = dataclasses.replace(ctx, merge=bool(body.pop("everywhere", False)))
+        here = dataclasses.replace(ctx, merge=bool(body.pop("everywhere", False)))
     elif "everywhere" in body:
         body = {k: v for k, v in body.items() if k != "everywhere"}
     if method in ROUTED and (ctx.sources is not None or remote.targets(body)):
         from beamtime.remote.route import routed
 
-        return routed(method, body, ctx, lambda given: dispatch_here(ctx, method, given))
-    return dispatch_here(ctx, method, body)
+        return routed(method, body, here, lambda given: dispatch_here(here, method, given))
+    out = dispatch_here(here, method, body)
+    # `set` reloads the settings on the copy; the next call starts from ctx.
+    ctx.settings = here.settings
+    return out
 
 
 def dispatch_here(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] | bytes:

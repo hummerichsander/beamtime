@@ -131,6 +131,23 @@ def test_meta_has_the_theme_pair(api) -> None:
     assert meta["theme"]["dark"]["colors"]["surface"] == "#252523"
 
 
+def test_a_set_setting_reaches_the_next_meta_with_remotes(project: Path) -> None:
+    """With remotes each UI call runs on a copy of the context; a new setting must still show.
+
+    :param project: The project root."""
+    import dataclasses
+    from types import SimpleNamespace
+
+    from beamtime.serve.api import dispatch
+
+    ctx = Context.make(root=project, caller="view")
+    ctx = dataclasses.replace(ctx, sources=SimpleNamespace(clients={}))
+    dispatch(ctx, "set", {"key": "theme_mode", "value": "dark"})
+    assert dispatch(ctx, "meta", {})["settings"]["theme_mode"] == "dark"
+    dispatch(ctx, "set", {"key": "theme_mode", "value": "system"})
+    assert dispatch(ctx, "meta", {})["settings"]["theme_mode"] == "system"
+
+
 def test_serve_refuses_a_second_daemon(project: Path) -> None:
     """A second serve for the same root points at the running one."""
     from beamtime.index.daemon import Daemon

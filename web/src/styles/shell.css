@@ -12,7 +12,7 @@
 }
 .topbar { grid-area: top; }
 .sidebar { grid-area: side; }
-.main { grid-area: main; overflow: auto; scrollbar-gutter: stable; }
+.main { grid-area: main; overflow: auto; scrollbar-gutter: stable; container: main / inline-size; }
 .drawer { grid-area: drawer; }
 .statusbar { grid-area: status; }
 
@@ -42,13 +42,13 @@ a.source { border-radius: var(--radius); &:hover { color: var(--ink); text-decor
 
 /* sidebar */
 .sidebar {
-  display: flex; flex-direction: column; min-block-size: 0; padding-block-start: var(--space-2);
+  display: flex; flex-direction: column; min-block-size: 0; padding-block-start: var(--space-3);
   background: var(--surface); color: var(--ink); border-inline-end: var(--stroke-rule) solid var(--line);
 }
-.filter { margin: 0 var(--space-2) var(--space-2); }
+.filter { margin: 0 var(--space-2) var(--space-3); }
 .tree { overflow: auto; padding: 0 var(--space-2) var(--space-3); }
 .tree-item {
-  display: flex; align-items: center; gap: var(--space-1); block-size: 28px; padding-inline-end: var(--space-2);
+  display: flex; align-items: center; gap: var(--space-1); block-size: 30px; padding-inline-end: var(--space-2);
   border-radius: var(--radius); color: inherit; white-space: nowrap; transition: background 120ms;
   &:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); text-decoration: none; }
   &.current { background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
@@ -64,7 +64,7 @@ a.source { border-radius: var(--radius); &:hover { color: var(--ink); text-decor
   display: flex; align-items: center; gap: var(--space-3); padding-inline: var(--space-3); overflow: hidden;
   background: var(--surface); color: var(--muted); border-block-start: var(--stroke-rule) solid var(--line);
   & .spacer { flex: 1; }
-  & button.status-item { border-radius: var(--radius); padding-inline: var(--space-1); }
+  & button.status-item { border-radius: var(--radius); padding-inline: var(--space-2); }
   & button.status-item:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
 }
 .status-item { display: inline-flex; align-items: center; gap: var(--space-1); white-space: nowrap; }
@@ -73,8 +73,12 @@ a.source { border-radius: var(--radius); &:hover { color: var(--ink); text-decor
 .live-dot.wait { background: var(--warn); }
 .live-dot.paused { background: var(--muted); }
 
-/* the page: a column of Sections; charts and tables may use the full width */
-.page { max-inline-size: 1280px; margin-inline: auto; padding: var(--space-3) var(--space-4) var(--space-4); }
+/* the page: a column of Sections. With room, the content column is the centered one, the labels left
+   of it: an empty column on the right as wide as the label column on the left. */
+.page { max-inline-size: 1280px; margin-inline: auto; padding: var(--space-3) var(--space-3) var(--space-4); }
+@container main (width >= 860px) {
+  .page { padding-inline-end: calc(var(--space-3) + var(--margin) + var(--gutter)); }
+}
 @media (width < 640px) { .page { padding: var(--space-2) var(--space-3) var(--space-4); } }
 .section-body { min-inline-size: 0; container-type: inline-size; }
 .page-title { flex-wrap: wrap; &:focus { outline: none; } }
@@ -114,7 +118,7 @@ a.source { border-radius: var(--radius); &:hover { color: var(--ink); text-decor
   & .new-note-field { flex: 1; }
 }
 .save-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
-.event { display: grid; grid-template-columns: 92px 18px minmax(0, 1fr); gap: var(--space-1); align-items: center; padding-block: 2px; }
+.event { display: grid; grid-template-columns: 92px 18px minmax(0, 1fr); gap: var(--space-1); align-items: center; padding-block: var(--space-1); }
 @media (prefers-reduced-motion: no-preference) {
   .drawer { animation: slide 150ms ease-out; }
   @keyframes slide { from { translate: 14px 0; opacity: 0.5; } }
@@ -141,7 +145,7 @@ dialog.sheet {
 .palette-list {
   list-style: none; margin: 0; padding: var(--space-1); overflow: auto; max-block-size: calc(72vh - 52px);
   & .palette-head { padding: var(--space-2) var(--space-2) var(--space-1); color: var(--muted); font-weight: 600; }
-  & li.item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-radius: var(--radius); cursor: pointer; }
+  & li.item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border-radius: var(--radius); cursor: pointer; }
   & li.item[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
   & .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   & .detail { margin-inline-start: auto; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-inline-size: 45%; }
@@ -151,7 +155,7 @@ dialog.sheet {
 /* settings */
 .segmented {
   display: inline-flex; gap: 2px;
-  & button { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-2); border: var(--stroke-rule) solid transparent; border-radius: var(--radius); color: var(--muted); }
+  & button { display: inline-flex; align-items: center; gap: var(--space-1); padding: var(--space-1) calc(var(--space-2) + var(--space-1)); border: var(--stroke-rule) solid transparent; border-radius: var(--radius); color: var(--muted); }
   & button:hover { color: var(--ink); }
   & button[aria-checked="true"] { color: var(--accent); border-color: currentColor; }
 }
@@ -163,14 +167,14 @@ table.kv {
   & td.num, & th.num { text-align: end; font-variant-numeric: tabular-nums; }
 }
 .settings-rows {
-  display: grid; grid-template-columns: 120px minmax(0, 420px); gap: var(--space-2) var(--space-3); align-items: center; margin-block: 0 var(--space-2);
+  display: grid; grid-template-columns: 120px minmax(0, 420px); gap: var(--space-3); align-items: center; margin-block: 0 var(--space-3);
   & .segmented { justify-self: start; }
 }
 @media (width < 640px) { .settings-rows { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); } }
 
 /* where the view comes from, and saving the viewer's charts as a view */
 .view-source {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-block-start: var(--space-2); color: var(--muted);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin-block-start: var(--space-3); color: var(--muted);
   & > .icon { margin-inline-end: calc(-1 * var(--space-2)); }
   & a { display: inline-flex; align-items: center; gap: var(--space-1); }
   & .link { display: inline-flex; align-items: center; gap: var(--space-1); }
@@ -186,7 +190,7 @@ table.kv {
 .history-title { display: flex; align-items: center; gap: var(--space-2); margin-block-end: var(--space-2); }
 .versions {
   list-style: none; padding: 0; margin: 0 0 var(--space-4);
-  & li { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-1); border-block-end: var(--stroke-rule) solid var(--line); }
+  & li { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2); border-block-end: var(--stroke-rule) solid var(--line); }
   & li.picked { background: color-mix(in srgb, var(--accent) 6%, transparent); }
   & label { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); flex: 1; cursor: pointer; }
 }

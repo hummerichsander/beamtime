@@ -7,7 +7,7 @@
 @container (width < 720px) { .grid { grid-template-columns: minmax(0, 1fr) !important; } }
 
 .block { min-inline-size: 0; }
-.block-title { display: flex; align-items: baseline; gap: var(--space-2); margin-block-end: var(--space-2); }
+.block-title { display: flex; align-items: baseline; gap: var(--space-2); margin-block-end: var(--space-3); }
 .block-error { margin: var(--space-1) 0 0; color: var(--bad); }
 .notice pre { margin: var(--space-1) 0 0; }
 
@@ -43,7 +43,7 @@ figure.chart { margin: 0; }
 
 /* the legend toggles curves */
 .legend-item {
-  display: inline-flex; align-items: center; padding: 0 var(--space-1); border-radius: var(--radius); color: var(--ink); transition: background 100ms, opacity 100ms;
+  display: inline-flex; align-items: center; padding: 2px var(--space-2); border-radius: var(--radius); color: var(--ink); transition: background 100ms, opacity 100ms;
   &:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
   &.off { opacity: 0.45; text-decoration: line-through; }
   &.static:hover { background: none; }
@@ -53,8 +53,9 @@ figure.chart { margin: 0; }
 .number { min-block-size: 1.25em; }
 .number.pending { opacity: 0.5; }
 
-/* tables: what the design system's table leaves to the app */
-.table-wrap { overflow: auto; max-block-size: 560px; }
+/* tables: what the design system's table leaves to the app. Cells are inset from a row's tint, and
+   the tint overhangs the column, so the text still lines up with what is above and below. */
+.table-wrap { overflow: auto; max-block-size: 560px; margin-inline: calc(-1 * var(--space-2)); }
 table.runs {
   & th { position: sticky; inset-block-start: 0; z-index: 1; background: var(--paper); white-space: nowrap; cursor: pointer; user-select: none; &:hover { color: var(--ink); } }
   & tbody tr { cursor: pointer; }
@@ -70,7 +71,7 @@ table.runs {
 
 /* a proposal block: rationale and one line per prediction */
 .rationale { margin: 0 0 var(--space-2); max-inline-size: var(--measure); color: var(--muted); }
-.predictions { display: flex; flex-direction: column; gap: var(--space-1); }
+.predictions { display: flex; flex-direction: column; gap: var(--space-2); }
 .prediction { display: grid; grid-template-columns: 22px minmax(0, max-content) 1fr; gap: var(--space-2); align-items: baseline; & .pname { font-weight: 600; } & .pdetail { color: var(--muted); } }
 a.check:hover { text-decoration: none; }
 
@@ -78,7 +79,8 @@ a.check:hover { text-decoration: none; }
 .group-list { display: flex; flex-direction: column; }
 .group-row {
   display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: baseline;
-  padding-block: var(--space-2); color: inherit; border-block-end: var(--stroke-rule) solid var(--line);
+  padding: calc(var(--space-2) + var(--space-1)) var(--space-2); margin-inline: calc(-1 * var(--space-2));
+  color: inherit; border-block-end: var(--stroke-rule) solid var(--line);
   &:last-child { border-block-end: 0; }
   &:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); text-decoration: none; }
   & .gstatement { grid-column: 2 / -1; margin: 0; color: var(--muted); }
@@ -93,7 +95,7 @@ a.check:hover { text-decoration: none; }
 .images figcaption { color: var(--muted); margin-block-start: var(--space-1); }
 .text-entry pre { white-space: pre-wrap; margin: var(--space-1) 0 var(--space-3); }
 pre.log { margin: var(--space-2) 0 0; padding: var(--space-2); border-radius: var(--radius); overflow: auto; max-block-size: 440px; background: var(--surface); white-space: pre-wrap; word-break: break-word; }
-.memory-meta { margin: var(--space-2) 0 0; color: var(--muted); }
+.memory-meta { margin: var(--space-3) 0 0; color: var(--muted); }
 .timeline { display: flex; flex-direction: column; }
 table.data td { white-space: nowrap; }
 
@@ -131,7 +133,7 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
   position: absolute; z-index: 10; inset-inline: 0; margin: var(--space-1) 0 0; padding: var(--space-1); list-style: none; max-block-size: 220px; overflow: auto;
   border: var(--stroke-rule) solid var(--line); border-radius: var(--radius); background: var(--surface);
   box-shadow: 0 8px 22px color-mix(in srgb, var(--ink) 12%, transparent);
-  & li { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-1); border-radius: var(--radius); cursor: pointer; }
+  & li { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-2); border-radius: var(--radius); cursor: pointer; }
   & li.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
   & .ms-tick { inline-size: 14px; display: inline-flex; color: var(--accent); }
   & .ms-empty { color: var(--muted); cursor: default; }
@@ -146,7 +148,7 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
 }
 .menu-list {
   display: flex; flex-direction: column; min-inline-size: 180px;
-  & button { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); border-radius: var(--radius); text-align: start; }
+  & button { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border-radius: var(--radius); text-align: start; }
   & button:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 }
 dialog.sheet.chart-dialog { padding: var(--space-3) var(--space-4); & .legend { margin-block-start: var(--space-3); } }

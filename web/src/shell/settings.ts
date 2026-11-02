@@ -29,14 +29,19 @@ export function applyMeta(m: any): void {
   applyTheme();
 }
 
+let latest = 0;
+
 // a setting changes beamtime.yaml, then the page follows the project's new meta.
 export async function change(key: Key, value: unknown): Promise<void> {
+  const mine = ++latest;
   if (key === "theme_mode") {
     // the mode applies at once; the file follows.
     mode.set(value as Mode);
     applyTheme();
   }
-  applyMeta(await saveSetting(key, value));
+  const m = await saveSetting(key, value);
+  // an answer to an earlier click can't undo a later one.
+  if (mine === latest) applyMeta(m);
 }
 
 export function Settings() {

@@ -64,6 +64,7 @@
   --radius: 6px; /* Buttons, fields, panels, row tints. */
   --radius-pill: 999px; /* Tags. */
   --margin: 120px; /* Width of the Section margin, where labels sit. */
+  --gutter: 24px; /* Space around a Section's content: above, below and after the margin rule. */
   --measure: 68ch; /* Longest line of prose. */
   --measure-short: 48ch; /* Longest line of a statement. */
   --dash-1: none; /* Run 1: solid. */

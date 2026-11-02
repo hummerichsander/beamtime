@@ -9,6 +9,9 @@
   `extends`, `data`, `fonts`, `sizes` and `shape` are gone; older theme files need rewriting.
 - **Custom blocks**: CSS variables are now `--ink`, `--muted`, `--line`, ...; `--bt-*` is gone, and
   `bt.theme.tokens` has the new shape. Added `bt.theme.runDash(id)`.
+- **Fixes**: with a remote configured, the light/dark switch and the other settings on the settings page
+  snapped back, because a new setting never reached the next page load; `beamtime.yaml` is now replaced
+  atomically, so writes at the same moment can't corrupt it.
 - **Colormaps**: matplotlib's colormaps color numeric groups and heatmaps; choose them with the
   `colormap` and `colormap_diverging` settings.
 

@@ -171,7 +171,7 @@ function layout(page, html, prev, next) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
-<script>try { const m = localStorage.getItem("beamtime-docs-mode"); if (m === "light" || m === "dark") document.documentElement.dataset.mode = m; } catch {}</script>
+<script>try { const m = localStorage.getItem("beamtime-docs-mode"); if (m === "light" || m === "dark") document.documentElement.dataset.theme = m; } catch {}</script>
 <link rel="stylesheet" href="${root}docs.css">
 <script src="${root}docs.js" defer></script>
 </head>

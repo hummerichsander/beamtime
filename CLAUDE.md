@@ -226,7 +226,7 @@ sync.
   Library blocks in `blocks/` are pinned by views. Queries and widgets are msgspec structs.
 - **The design system** (`docs/design.md`) is the look of the UI: **read it before any UI work**.
   `src/beamtime/views/tokens.json` is its source of truth; `web/src/styles/tokens.css` is generated
-  from it (`npm run tokens`), `bundle.css` is kept as exported. Markup follows the components there; type
+  from it (`npm run tokens`), `bundle.css` holds the components' styles. Markup follows the components there; type
   sizes come only from type classes, never from CSS. Theme files recolor the layout (colors only);
   colormaps are matplotlib's, chosen in the settings.
 - **Agent instructions come from `beamtime guide`**, which marks its defaults as defaults; users

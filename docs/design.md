@@ -12,7 +12,7 @@ where it means something.
 |---|---|
 | `src/beamtime/views/tokens.json` | The source of truth: colors, type, spacing, radius, layout, dashes, strokes. Also read by `serve`. |
 | `web/src/styles/tokens.css` | Generated from it by `npm run tokens`. Never edit by hand; `npm test` fails when it is stale. |
-| `web/src/styles/bundle.css` | The components' stylesheet: the design system's own, kept as exported. |
+| `web/src/styles/bundle.css` | The components' stylesheet: the design system's own, changed here from now on. |
 | `web/src/styles/base.css`, `shell.css`, `blocks.css` | What the design system doesn't cover, on its tokens and type classes. |
 | `web/src/styles/fonts/` | The fonts and their licenses, copied to `serve/static/fonts/` by the build. No CDN. |
 | `src/beamtime/views/colormaps.json` | Colormaps sampled from matplotlib by `scripts/colormaps.py`. |
@@ -52,8 +52,11 @@ numbers.
   separated by `line` hairlines, each with a short mono label in the `margin` column behind a thin
   vertical rule. Table rows are separated by hairlines. Tables and figures get a numbered `caption`:
   the label ("**Fig. 1.**", "**Table 1.**") in the sans at 600, the caption itself in the serif italic.
-- **Space.** `space-1` to `space-4` (4, 8, 16, 32px). Prose at most `measure` wide, statements
-  `measure-short`.
+- **Space.** `space-1` to `space-4` (4, 8, 16, 32px), and `gutter` (24px) around a Section's content.
+  Prose at most `measure` wide, statements `measure-short`. A hover tint never touches its text: the
+  content is inset from the tint, and the tint overhangs the column, so text still lines up down the page.
+- **Page.** With room (a main area of 860px or more), the content column is centered in the main area,
+  with the labels left of it and an equally wide empty column on the right.
 - **Shape.** `radius` (6px) for buttons, fields and tints; `radius-pill` for tags. Flat: no shadows
   except on floating panels.
 - **Motion.** Rare and fast (120–150ms), only for changes of state, off under reduced motion.
@@ -213,3 +216,4 @@ type classes above, and get no new looks of their own. When one needs more, exte
 | Tooltips in previews | `title=` | `data-tip=` | the app's own tooltip; both would show twice |
 | `accent` usage note | "the primary button" | "the text of buttons" | buttons have no fill |
 | Scales | none | matplotlib colormaps | heatmaps and numeric groups need ramps |
+| Spacing | Sections in `space-3`, table cells flush left | `gutter`, cells inset | less cramped; hover tints clear their text |

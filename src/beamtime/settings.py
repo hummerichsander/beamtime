@@ -188,6 +188,8 @@ def write_project(root: Path, key: str, value: Any) -> Path:
 
     import yaml
 
+    from beamtime.format.io import write_bytes_replaced
+
     path = root / "beamtime.yaml"
     text = path.read_text() if path.is_file() else "schema: 1\n"
     # flow style keeps a list on one line ([science, nature]); dumping it inside a list leaves the
@@ -208,5 +210,6 @@ def write_project(root: Path, key: str, value: Any) -> Path:
         ):
             end += 1
         text = "".join([*lines[:start], entry, *lines[end:]])
-    path.write_text(text)
+    # replaced, not rewritten: writes at once can't interleave; a reader never sees half a file.
+    write_bytes_replaced(path, text.encode())
     return path
