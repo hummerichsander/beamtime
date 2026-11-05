@@ -426,7 +426,7 @@ class Generator:
                     w1 + 1.5 * decay + 0.01 * self.rng.gauss(0, 1), 6
                 )
                 row["validation/signed"] = round(
-                    0.4 - 0.8 * progress + 0.02 * self.rng.gauss(0, 1), 6
+                    0.42 - 0.8 * progress + 0.04 * self.rng.gauss(0, 1), 6
                 )
                 row["energy/B_w1"] = round(w1 + 1.2 * decay + 0.01 * self.rng.gauss(0, 1), 6)
                 row["energy/C_w1"] = round(w1 + 1.8 * decay + 0.01 * self.rng.gauss(0, 1), 6)

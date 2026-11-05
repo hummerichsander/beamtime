@@ -2,7 +2,7 @@
 
 import uPlot from "uplot";
 
-import { align, logRange, logTicks, markers, type Curve } from "./curves.ts";
+import { align, logDomain, logRange, logTicks, markers, type Curve } from "./curves.ts";
 import { alpha, type ChartStyle } from "./theme.ts";
 
 export type LineSpec = {
@@ -94,13 +94,23 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
         x: { time: false, range: (_self, min, max) => (min === max ? [min - (Math.abs(min) * 0.01 || 1), max + (Math.abs(max) * 0.01 || 1)] : [min, max]) },
         y: {
           ...(spec.scale === "log" ? { distr: 3 } : spec.scale === "symlog" ? { distr: 4, asinh: spec.asinh } : {}),
-          range: (_self, min, max) => {
+          range: (self, min, max) => {
+            // the band layers are transparent and clip at a floor: they must not stretch a log axis.
+            const domain =
+              current.scale === "log"
+                ? logDomain(
+                    [...current.curves, ...(current.raw ?? [])].filter((c) => !current.hidden.has(c.key) && !(c.run !== null && current.hidden.has(c.run))),
+                    [self.scales.x.min ?? null, self.scales.x.max ?? null],
+                  )
+                : null;
             const auto =
-              current.scale === "log" && min > 0
-                ? logRange(min, max)
-                : current.scale === "symlog"
-                  ? uPlot.rangeAsinh(min, max, 10, true)
-                  : uPlot.rangeNum(min, max, 0.06, true);
+              domain !== null
+                ? logRange(domain[0], domain[1])
+                : current.scale === "log" && min > 0
+                  ? logRange(min, max)
+                  : current.scale === "symlog"
+                    ? uPlot.rangeAsinh(min, max, 10, true)
+                    : uPlot.rangeNum(min, max, 0.06, true);
             const [lo, hi] = current.range ?? [null, null];
             return [lo ?? auto[0], hi ?? auto[1]] as uPlot.Range.MinMax;
           },

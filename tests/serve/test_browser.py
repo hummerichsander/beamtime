@@ -383,3 +383,53 @@ def test_a_single_point_is_drawn(server: str, page, project: Path) -> None:
     page.wait_for_selector("td.spark svg")
     assert page.locator("td.spark circle").count() == 1
     assert page.locator("td.spark polyline").count() == 0
+
+
+BAND_AT_BOTTOM = """() => {
+  const canvas = document.querySelector('.chart canvas');
+  const c = canvas.getBoundingClientRect();
+  const o = document.querySelector('.chart .u-over').getBoundingClientRect();
+  const k = canvas.width / c.width;
+  const [x0, y0, w, h] = [Math.floor((o.left - c.left) * k), Math.floor((o.top - c.top) * k), Math.floor(o.width * k), Math.floor(o.height * k)];
+  const rows = 6;
+  const data = canvas.getContext('2d').getImageData(x0, y0 + h - rows * k - 2, w, rows * k).data;
+  const probe = document.createElement('canvas').getContext('2d');
+  probe.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--data-1').trim();
+  probe.fillRect(0, 0, 1, 1);
+  const color = probe.getImageData(0, 0, 1, 1).data;
+  let n = 0;
+  for (let i = 0; i < data.length; i += 4)
+    if (data[i + 3] > 8 && data[i + 3] < 200 && Math.abs(color[0] - data[i]) + Math.abs(color[1] - data[i + 1]) + Math.abs(color[2] - data[i + 2]) < 60) n++;
+  return n;
+}"""
+
+
+def test_a_band_on_a_log_axis_reaches_the_bottom(server: str, page, project: Path) -> None:
+    """mean − std of a metric that crosses zero is not positive: the band is clipped at the floor, so
+    it is filled down to the bottom of the plot instead of ending in holes."""
+    import yaml
+
+    from beamtime.ops import call
+    from beamtime.ops.context import Context
+
+    group = "realistic/egnn-bench"
+    ctx = Context.make()
+    call("view new", {"group": group, "name": "band"}, ctx)
+    draft = project / ".beamtime" / "drafts" / "band"
+    line = {
+        "id": "signed",
+        "y": "validation/signed",
+        "by": "config.arm",
+        "band": "std",
+        "scale": "log",
+        "where": {"config.arm": "small"},
+    }
+    view = {"schema": 1, "title": "band", "finding": "x", "body": [{"line": line}]}
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    call("view save", {"draft": "band"}, ctx)
+
+    page.goto(f"{server.split('/f/local')[0]}/f/local/{group}?token={server.split('token=')[1]}")
+    page.wait_for_selector(".chart canvas")
+    box_of(page, ".chart .u-over")
+    page.wait_for_timeout(500)
+    assert page.evaluate(BAND_AT_BOTTOM) > 10, "the band does not reach the bottom of the plot"

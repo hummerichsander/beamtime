@@ -53,11 +53,49 @@ export function reshape(answer: { curves: any[] }, opts: { log?: boolean } = {})
       out.n = c.count ?? null;
     }
     out.y = out.y.map(positive);
-    out.lo = out.lo?.map(positive) ?? null;
-    out.hi = out.hi?.map(positive) ?? null;
     return out;
   });
-  return { curves, aggregated };
+  return { curves: opts.log ? clipBands(curves) : curves, aggregated };
+}
+
+// the lowest a band is drawn on a log axis: just under the smallest positive curve value.
+function bandFloor(curves: Curve[]): number | null {
+  let lowest = Infinity;
+  for (const c of curves) for (const v of c.y) if (v !== null && v > 0 && v < lowest) lowest = v;
+  return Number.isFinite(lowest) ? lowest / Math.sqrt(10) : null;
+}
+
+// bands on a log axis clip at the floor, as matplotlib's nonpositive="clip" does, instead of leaving
+// holes where mean − std is not positive; they exist exactly where the curve does.
+export function clipBands(curves: Curve[]): Curve[] {
+  const floor = bandFloor(curves);
+  return curves.map((c) => {
+    if (!c.lo || !c.hi) return c;
+    const lo = c.lo.map((v, i) => (c.y[i] === null || v === null || floor === null ? null : Math.max(v, floor)));
+    // mean + std is above the mean; min and max too.
+    const hi = c.hi.map((v, i) => (c.y[i] === null || v === null || floor === null ? null : Math.max(v, c.y[i]!)));
+    return { ...c, lo, hi };
+  });
+}
+
+// the extent of what a log axis has to show: the curves and the band edges above the floor, which
+// stay out of the range when clipped; only x values in the window count when there is one.
+export function logDomain(curves: Curve[], window: [number | null, number | null] = [null, null]): [number, number] | null {
+  const floor = bandFloor(curves);
+  let lo = Infinity;
+  let hi = 0;
+  for (const c of curves) {
+    c.x.forEach((x, i) => {
+      if ((window[0] !== null && x < window[0]) || (window[1] !== null && x > window[1])) return;
+      const edges = [c.lo?.[i], c.hi?.[i]].filter((v): v is number => typeof v === "number" && floor !== null && v > floor);
+      for (const v of [c.y[i], ...edges]) {
+        if (v === null || v === undefined || !(v > 0)) continue;
+        lo = Math.min(lo, v);
+        hi = Math.max(hi, v);
+      }
+    });
+  }
+  return hi > 0 ? [lo, hi] : null;
 }
 
 export type Aligned = { x: number[]; y: (number | null)[][]; lo: (number | null)[][]; hi: (number | null)[][] };

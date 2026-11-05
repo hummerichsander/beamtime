@@ -5,7 +5,7 @@ A line chart without a frame: a title with a short note, the curves, a legend, a
 - Run n is drawn in `data-n` with `dash-n` at `stroke-data`, so curves stay apart without color. Grid lines in `line`, axis labels in `small` `muted`.
 - A run keeps its color and line style everywhere: chart, legend, table swatch. Name the run beside it.
 - Beyond six runs, group them (seeds, a config value) rather than adding colors.
-- A curve with 30 finite points or fewer marks each of them with a dot of its color, so a single point or a sparse metric shows; denser curves draw the line only. Band layers never get dots. A sparkline of one value is its end dot.
+- A curve with 30 finite points or fewer marks each of them with a dot of its color, so a single point or a sparse metric shows; denser curves draw the line only. Band layers never get dots. On a log axis a band clips at a floor just under the smallest positive curve value, as matplotlib's `nonpositive="clip"` does, so mean − std ≤ 0 fills down to the bottom instead of leaving holes; the axis range follows the curves and the band edges above the floor, never the clipped part. A sparkline of one value is its end dot.
 
 ## Markup
 

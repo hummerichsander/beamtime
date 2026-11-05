@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { align, byLabels, markers, reshape } from "../src/bt/curves.ts";
+import { align, byLabels, logDomain, markers, reshape } from "../src/bt/curves.ts";
 
 test("raw and bucketed run curves", () => {
   const out = reshape({
@@ -99,4 +99,45 @@ test("sparse curves mark every finite point, dense ones none", () => {
   assert.deepEqual(markers(series(31)), []);
   // gaps in the aligned data don't count: 31 slots, 3 values.
   assert.deepEqual(markers(series(31).map((i) => (i % 15 === 0 ? i : null))), [0, 15, 30]);
+});
+
+const aggregated = (mean: (number | null)[], lo: number[], hi: number[]) => ({
+  curves: [{ metric: "m", by: { "config.arm": "a" }, runs: ["r1", "r2"], x: mean.map((_, i) => i), mean, lo, hi, n: mean.map(() => 3) }],
+});
+
+test("a band clips at the floor on a log axis instead of leaving holes", () => {
+  // mean − std is not positive at the second point; the floor is the smallest positive mean ÷ √10.
+  const { curves } = reshape(aggregated([1, 0.5, 2], [0.5, -0.1, 1.5], [1.5, 1.1, 2.5]), { log: true });
+  const floor = 0.5 / Math.sqrt(10);
+  assert.deepEqual(curves[0].y, [1, 0.5, 2]);
+  assert.deepEqual(curves[0].lo, [0.5, floor, 1.5]);
+  assert.deepEqual(curves[0].hi, [1.5, 1.1, 2.5]);
+});
+
+test("a min of zero clips too, and a band exists exactly where the curve does", () => {
+  const raw = { curves: [{ run: "r", metric: "m", x: [0, 1, 2], last: [1, 0, 4], min: [0, 0, 2], max: [2, 0, 5], count: [3, 3, 3] }] };
+  const { curves } = reshape(raw, { log: true });
+  assert.deepEqual(curves[0].y, [1, null, 4]);
+  assert.deepEqual(curves[0].lo, [1 / Math.sqrt(10), null, 2]);
+  assert.deepEqual(curves[0].hi, [2, null, 5]);
+});
+
+test("all-zero curves have no curve and no band", () => {
+  const raw = { curves: [{ run: "r", metric: "m", x: [0, 1], last: [0, 0], min: [0, 0], max: [0, 0], count: [1, 1] }] };
+  const { curves } = reshape(raw, { log: true });
+  assert.deepEqual([curves[0].y, curves[0].lo, curves[0].hi], [[null, null], [null, null], [null, null]]);
+  assert.equal(logDomain(curves), null);
+});
+
+test("symlog and linear axes keep the band as it is", () => {
+  const { curves } = reshape(aggregated([1, 0.5, 2], [0.5, -0.1, 1.5], [1.5, 1.1, 2.5]));
+  assert.deepEqual(curves[0].lo, [0.5, -0.1, 1.5]);
+});
+
+test("the log range follows the curves and the band edges above the floor, nothing clipped", () => {
+  const { curves } = reshape(aggregated([1, 0.5, 2], [0.5, -0.1, 1.5], [1.5, 1.1, 2.5]), { log: true });
+  // lo of 0.5 and 1.5 count, the clipped one does not; hi reaches 2.5.
+  assert.deepEqual(logDomain(curves), [0.5, 2.5]);
+  // a window leaves out the points outside it.
+  assert.deepEqual(logDomain(curves, [1, 1]), [0.5, 1.1]);
 });
