@@ -403,9 +403,19 @@ def merge_keys(answers: list[dict]) -> dict[str, Any]:
                             kept[i] = max(steps) if steps else None
                         case "values" if isinstance(kept[i], list) and isinstance(r[i], list):
                             kept[i] = kept[i] + [v for v in r[i] if v not in kept[i]]
+                        case "constant":
+                            kept[i] = kept[i] and r[i]
                         case _:
                             pass
         out[table] = {"columns": columns, "rows": sorted(rows.values(), key=lambda r: r[0])}
+        if table == "config":
+            varying: list[str] = []
+            aliases: dict[str, str] = {}
+            for t in tables:
+                varying += [k for k in t.get("varying") or [] if k not in varying]
+                aliases.update(t.get("aliases") or {})
+            out[table]["varying"] = sorted(varying)
+            out[table]["aliases"] = aliases
     return out
 
 

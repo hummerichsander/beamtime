@@ -255,8 +255,9 @@ where:
 - **Filters** are a mapping from field to condition, combined with AND. A plain value means
   equality. Operators: `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in`, `nin`, `has` (list contains),
   `exists`, `glob` (string pattern). `any` and `not` combine conditions.
-- **Seeds** (`seeds: config.seed`) merge runs whose configs differ only in that key, exactly as in
-  predictions. Values then come as mean, standard deviation and count.
+- **Seeds** (`seeds: config.seed`) merge runs that agree on every field that distinguishes them
+  apart from that key (`config.varying` minus the seed and its aliases), exactly as in predictions.
+  Values then come as mean, standard deviation and count.
 - **Across sources**, listings (rows, curves, data, timeline entries) are merged; aggregates (groups,
   seeds, importance, `keys` value ranges) are computed per source and labelled with it
   ([layer 4](04-remotes.md#federation)).
@@ -272,8 +273,12 @@ group.
 keys: {from: scaling/}
 ```
 
-Returns the metric keys (with how many runs logged them and their step range), config keys (with
-distinct values or ranges), data keys (tables, images, text) and tags.
+Returns the metric keys (with how many runs logged them, their step range and whether every run's
+is a flat line), config keys (with distinct values or ranges), data keys (tables, images, text) and
+tags. Config also carries `varying`: the keys that actually distinguish the selected runs, dropping
+aliases (several keys that happen to split the runs the same way; the shortest name is kept, the
+rest listed in `aliases`) and noise unique to every run (a timestamped path, not a real sweep).
+`varying_config` and the header's facts line read `varying`, not the raw per-key value lists.
 
 **`runs`**: a run table.
 
@@ -307,8 +312,8 @@ series:
 - A metric as `x` pairs each point with that metric's most recent value at or before the same step.
 - With `by: [fields]`, the runs sharing the fields' values come back as one aggregated curve per
   bucket: mean, a band (`band: minmax | std | stderr | none`) and the number of contributing runs.
-  `seeds: config.seed` is the shorthand for aggregating by every config key except the seed. (The
-  parameter is `by`, not `group`, since a group is a folder of runs.)
+  `seeds: config.seed` is the shorthand for aggregating by the varying config, apart from the seed.
+  (The parameter is `by`, not `group`, since a group is a folder of runs.)
 - Each chart has a point budget of about 30k; `points` per curve shrinks when a chart requests many
   curves.
 

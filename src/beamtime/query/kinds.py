@@ -15,6 +15,7 @@ from beamtime.index.columns import TIME_KEY, open_columns
 from beamtime.index.store import in_scope
 from beamtime.query import models as m
 from beamtime.query.aggregate import aggregate, group_by, seed_groups, sort_rows, spread
+from beamtime.query.distinguish import distinguishing, flatten
 from beamtime.query.fields import PROPOSAL as PROPOSAL_FIELDS
 from beamtime.query.fields import parse_field
 from beamtime.query.files import file_kind
@@ -112,7 +113,9 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
     db = ctx.index.store.db
     marks = ", ".join("?" * len(ids))
     metrics = db.execute(
-        "SELECT j.key, count(*), max(json_extract(j.value, '$.last_step')) "
+        "SELECT j.key, count(*), max(json_extract(j.value, '$.last_step')), "
+        "min(CASE WHEN json_extract(j.value, '$.min') IS NOT NULL "
+        "AND json_extract(j.value, '$.min') = json_extract(j.value, '$.max') THEN 1 ELSE 0 END) "
         f"FROM runs, json_each(card, '$.metrics') j WHERE runs.id IN ({marks}) "
         "GROUP BY j.key ORDER BY j.key",
         ids,
@@ -123,22 +126,26 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
         f"WHERE run_id IN ({marks}) GROUP BY key, kind ORDER BY key",
         ids,
     ).fetchall()
+    per_run = [flatten(json.loads(r["_config"] or "{}")) for r in runs]
     config: dict[str, list[Any]] = defaultdict(list)
-    for r in runs:
-        for key, value in flatten(json.loads(r["_config"] or "{}")).items():
+    for cfg in per_run:
+        for key, value in cfg.items():
             config[key].append(value)
+    distinct = distinguishing(per_run)
     tags = Counter(t for r in runs for t in r["run.tags"])
     return {
         "kind": "keys",
         "runs": len(runs),
         "status": dict(Counter(r["run.status"] for r in runs)),
         "metrics": {
-            "columns": ["key", "runs", "last_step"],
-            "rows": [list(row) for row in metrics],
+            "columns": ["key", "runs", "last_step", "constant"],
+            "rows": [[k, n, last, bool(const)] for k, n, last, const in metrics],
         },
         "config": {
             "columns": ["key", "runs", "values"],
             "rows": [[f"config.{k}", len(v), summarize(v)] for k, v in sorted(config.items())],
+            "varying": distinct.varying,
+            "aliases": distinct.aliases,
         },
         "data": {
             "columns": ["key", "kind", "runs", "entries"],
@@ -150,17 +157,17 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
 
 
 def with_live_keys(
-    ctx: Context, runs: list[dict[str, Any]], metrics: list[tuple[str, int, Any]]
-) -> list[tuple[str, int, Any]]:
+    ctx: Context, runs: list[dict[str, Any]], metrics: list[tuple[str, int, Any, Any]]
+) -> list[tuple[str, int, Any, Any]]:
     """Add the metrics running runs logged since their card was last written.
 
     A run rewrites its card every few minutes, so a new run's keys are in its columns first.
 
     :param ctx: The query context.
     :param runs: The selected runs.
-    :param metrics: ``(key, runs, last_step)`` from the cards.
+    :param metrics: ``(key, runs, last_step, constant)`` from the cards.
     :return: The rows with the running runs' column keys merged in."""
-    out = {key: [n, last] for key, n, last in metrics}
+    out = {key: [n, last, const] for key, n, last, const in metrics}
     for r in runs:
         if r["run.status"] != "running":
             continue
@@ -169,28 +176,12 @@ def with_live_keys(
         )}  # fmt: skip
         manifest, entries = open_columns(ctx.index.series / r["_id"])
         for key in entries.keys() - carded - {TIME_KEY}:
-            row = out.setdefault(key, [0, None])
+            # a column just opened has no card entry yet, so its constancy isn't known.
+            row = out.setdefault(key, [0, None, False])
             steps = [x for x in (row[1], manifest.last_step) if x is not None]
             row[0] += 1
             row[1] = max(steps) if steps else None
-    return sorted((k, n, last) for k, (n, last) in out.items())
-
-
-def flatten(config: dict[str, Any], prefix: str = "") -> dict[str, Any]:
-    """Flatten a nested config into dotted keys (keys with dots are quoted).
-
-    :param config: The config.
-    :param prefix: The path so far.
-    :return: Dotted key to leaf value."""
-    out = {}
-    for k, v in config.items():
-        name = f'["{k}"]' if "." in k else (f".{k}" if prefix else k)
-        path = f"{prefix}{name}"
-        if isinstance(v, dict) and v:
-            out |= flatten(v, path)
-        else:
-            out[path] = v
-    return out
+    return sorted((k, n, last, const) for k, (n, last, const) in out.items())
 
 
 def summarize(values: list[Any]) -> Any:

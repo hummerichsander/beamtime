@@ -359,5 +359,5 @@ def test_keys_of_running_runs_come_from_their_columns(tmp_path: Path) -> None:
     finally:
         index.close()
     metrics = {r[0]: r for r in a["metrics"]["rows"]}
-    assert metrics["live/new"] == ["live/new", 1, 5000]
+    assert metrics["live/new"] == ["live/new", 1, 5000, False]
     assert metrics["train/loss"][1] == 26

@@ -143,7 +143,7 @@ import{B as Fo,D as ea,a as Rt,b as le,c as bo,d as Po,e as ve,f as vo,g as Me,i
               <span class=${Bt.class} style=${Bt.style}></span>${v.label}</button>`})}
         </div>`:null}
     ${a.props.caption&&!e.expanded?i`<figcaption class="caption"><b></b> ${a.props.caption}</figcaption>`:null}
-  </figure>`}function hs(e){let{node:a,path:t,prefs:o}=e,[r,l]=D(!1),u=Ke(r?{method:"keys",params:{from:t},scope:t}:null).data,f=u?.metrics?.rows.map(n=>n[0])??[],c=(u?.config?.rows??[]).filter(n=>Array.isArray(n[2])&&n[2].length>1).map(n=>n[0]).filter(n=>n!=="config.seed"),d=n=>no(t,a.id,n),x=o.y?.length?o.y:Io(a),L=n=>n.trim()===""||!Number.isFinite(Number(n))?null:Number(n),s=o.steps??[null,null];return i`<${bt} icon="sliders" label="Chart settings" title="This chart" class="chart-settings"
+  </figure>`}function hs(e){let{node:a,path:t,prefs:o}=e,[r,l]=D(!1),u=Ke(r?{method:"keys",params:{from:t},scope:t}:null).data,f=u?.metrics?.rows.map(n=>n[0])??[],c=(u?.config?.varying??[]).filter(n=>n!=="config.seed"),d=n=>no(t,a.id,n),x=o.y?.length?o.y:Io(a),L=n=>n.trim()===""||!Number.isFinite(Number(n))?null:Number(n),s=o.steps??[null,null];return i`<${bt} icon="sliders" label="Chart settings" title="This chart" class="chart-settings"
       onOpen=${()=>l(!0)}>
     <div class="settings-grid small">
       <h5>Data</h5>

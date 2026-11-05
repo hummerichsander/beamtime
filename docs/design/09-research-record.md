@@ -109,9 +109,10 @@ Each prediction has a `name`, unique within the proposal, so notes and links can
 2. **Reduce** each run to one number: `reduce: {metric, stat, steps}`, with `stat` one of `first`,
    `last`, `min`, `max`, `mean`, and an optional step window, the same reduction as the query
    language's windowed statistics.
-3. **Merge seeds**: with `seeds: config.seed`, runs whose configs are identical except for that key
-   form one point, with their values as its repetitions. Without `seeds`, each run is a point without
-   repetitions.
+3. **Merge seeds**: with `seeds: config.seed`, runs that agree on every field that distinguishes them
+   apart from that key (not the full remaining config, which can differ in noise such as a
+   timestamped path) form one point, with their values as its repetitions. Without `seeds`, each run
+   is a point without repetitions.
 4. **Test** the points:
 
 | `test` | Claim | Fields | Version |

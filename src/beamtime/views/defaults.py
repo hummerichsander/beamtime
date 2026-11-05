@@ -14,7 +14,8 @@ TABLE_LIMIT = 100
 RECENT = 10
 NOTES = 3
 LOWER_IS_BETTER = ("loss", "err", "ppl", "perplexity", "nll", "mse", "mae", "wer", "cer")
-EVAL_PREFIXES = ("val", "valid", "eval", "test")
+EVAL_PREFIXES = ("val", "valid", "eval", "test", "validation")
+TRAIN_PREFIXES = ("train", "training")
 # the SDK's system metrics: their own collapsed section, never a headline chart.
 SYSTEM = "sys/"
 EMPTY = (
@@ -48,7 +49,7 @@ def group_body(ctx: Context, path: str) -> list[m.Block]:
         body.append(m.Groups(id="subgroups", title="Groups"))
     keys = call("keys", {"from": path}, ctx)
     varying = varying_config(keys)
-    main = (essential(ordered_metrics(keys)) or [None])[0]
+    main = main_metric(ctx, path, keys)
     if direct:
         # curves show only the group's own runs; runs in subgroups belong to their groups.
         own = direct < runs
@@ -116,17 +117,16 @@ def summary(ctx: Context, path: str, lead: tuple[str, bool] | None = None) -> di
     if scope == path and not counts(ctx, path)[1]:
         return None
     keys = call("keys", {"from": scope}, ctx)
-    logged = ordered_metrics(keys)
-    if lead is not None and lead[0] in logged:
+    if lead is not None and lead[0] in ordered_metrics(keys):
         main, lower = lead
     else:
-        main = (essential(logged) or [None])[0]
+        main = main_metric(ctx, path, keys)
         lower = main is not None and lower_is_better(main)
     if main is None:
         return None
     stat = "min" if lower else "max"
     field = f"metric.{main}.{stat}"
-    varying = varying_config(keys)
+    varying = [k for k in varying_config(keys) if k != "config.seed"][:3]
     query = {
         "from": scope,
         "select": ["run.name", field, *varying],
@@ -144,11 +144,7 @@ def summary(ctx: Context, path: str, lead: tuple[str, bool] | None = None) -> di
         "value": best[field],
         "run": best["run.id"],
         "name": best["run.name"],
-        "config": {
-            k.removeprefix("config."): best[k]
-            for k in varying
-            if k != "config.seed" and best.get(k) is not None
-        },
+        "config": {k.removeprefix("config."): best[k] for k in varying if best.get(k) is not None},
     }
 
 
@@ -214,7 +210,7 @@ def ordered_metrics(keys: dict[str, Any]) -> list[str]:
     :param keys: The ``keys`` answer.
     :return: The metric keys."""
     names = [r[0] for r in keys["metrics"]["rows"]]
-    rank = {"val": 0, "valid": 0, "eval": 0, "test": 1, "train": 2}
+    rank = {"val": 0, "valid": 0, "eval": 0, "validation": 0, "test": 1, "train": 2, "training": 2}
     return sorted(names, key=lambda k: (rank.get(k.split("/", 1)[0], 3) if "/" in k else 4, k))
 
 
@@ -225,19 +221,49 @@ def essential(metrics: list[str]) -> list[str]:
     :return: At most four; schedules and diagnostics (lr, grad norms) are left for "more"."""
     metrics = [k for k in metrics if not k.startswith(SYSTEM)]
     evals = [k for k in metrics if prefix(k) in EVAL_PREFIXES]
-    losses = [k for k in metrics if prefix(k) == "train" and "loss" in k]
+    losses = [k for k in metrics if prefix(k) in TRAIN_PREFIXES and "loss" in k]
     plain = [k for k in metrics if not prefix(k) and lower_is_better(k) or k in ("acc", "accuracy")]
     picked = list(dict.fromkeys([*evals, *losses, *plain]))
     return picked[:ESSENTIAL] or metrics[:ESSENTIAL]
 
 
+def main_metric(ctx: Context, path: str, keys: dict[str, Any]) -> str | None:
+    """Pick the leading metric: the group's prediction, else the best-ranked non-constant one.
+
+    :param ctx: The operation context.
+    :param path: A group or run path.
+    :param keys: The ``keys`` answer for that path.
+    :return: The metric key, or ``None`` without metrics."""
+    from beamtime.guide import proposed
+
+    metrics = ordered_metrics(keys)
+    if not metrics:
+        return None
+    run_id = path.rsplit("/", 1)[-1]
+    if is_run_id(run_id):
+        group = path.rsplit("/", 1)[0] if "/" in path else "."
+    else:
+        group = path
+    if (main := proposed(ctx, group, metrics)) is not None:
+        return main
+    live = [k for k in metrics if k not in constant_metrics(keys)]
+    return (essential(live) or live or metrics)[0]
+
+
+def constant_metrics(keys: dict[str, Any]) -> set[str]:
+    """Metrics flagged constant (a flat line) in every run that logs them.
+
+    :param keys: The ``keys`` answer.
+    :return: Their keys."""
+    return {row[0] for row in keys["metrics"]["rows"] if row[3]}
+
+
 def varying_config(keys: dict[str, Any]) -> list[str]:
-    """List the config keys whose values differ between runs.
+    """List the config keys that distinguish runs: real splits, not aliases or path noise.
 
     :param keys: The ``keys`` answer.
     :return: The fields, e.g. ``config.lr``."""
-    rows = keys["config"]["rows"]
-    return [k for k, _, values in rows if isinstance(values, list) and len(values) > 1]
+    return keys["config"]["varying"]
 
 
 def lower_is_better(metric: str) -> bool:

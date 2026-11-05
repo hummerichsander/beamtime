@@ -126,8 +126,9 @@ These qualities are made concrete as budgets and rules, and checked like correct
   - the proposal's statement, with a symbol per prediction (effect and interval on hover), the
     plan's progress and the current verdict;
   - the facts: run counts by status, notes, the best value of the main metric (the view's first
-    entry under `metrics:`, in its direction; else a guess from the names) with the run and config
-    that reached it; and the view's `finding`.
+    entry under `metrics:` in its direction; else the group's proposed metric; else the best-ranked
+    metric that isn't a flat line) with the run that reached it, its distinguishing config in a
+    tooltip; and the view's `finding`.
 
   A run's header shows its name and status, steps, duration and start, its best value, and the
   proposals it belongs to; id, host, commit and job are in a tooltip.

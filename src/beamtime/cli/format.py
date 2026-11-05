@@ -260,8 +260,12 @@ def render_keys(answer: dict[str, Any]) -> str:
     :return: The text."""
     status = ", ".join(f"{k} {v}" for k, v in answer["status"].items())
     lines = [f"{answer['runs']} runs: {status}", "", "metrics"]
-    lines += ["  " + line for line in table(**answer["metrics"])]
-    lines += ["", "config"] + ["  " + line for line in table(**answer["config"])]
+    metrics = answer["metrics"]
+    lines += ["  " + line for line in table(metrics["columns"], metrics["rows"])]
+    config = answer["config"]
+    lines += ["", "config"] + ["  " + line for line in table(config["columns"], config["rows"])]
+    if config["varying"]:
+        lines += ["", "varying  " + ", ".join(config["varying"])]
     if answer["data"]["rows"]:
         lines += ["", "data"] + ["  " + line for line in table(**answer["data"])]
     if answer["tags"]:

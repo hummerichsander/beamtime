@@ -358,7 +358,7 @@ l0,-`+(r+144)+`c-2,-159.3,-10,-310.7,-24,-454c-53.3,-528,-210,-949.7,
               <span class=${ve.class} style=${ve.style}></span>${ce.label}</button>`})}
         </div>`:null}
     ${t.props.caption&&!e.expanded?K`<figcaption class="caption"><b></b> ${t.props.caption}</figcaption>`:null}
-  </figure>`}function sW(e){let{node:t,path:r,prefs:a}=e,[n,o]=tt(!1),i=_i(n?{method:"keys",params:{from:r},scope:r}:null).data,l=i?.metrics?.rows.map(m=>m[0])??[],s=(i?.config?.rows??[]).filter(m=>Array.isArray(m[2])&&m[2].length>1).map(m=>m[0]).filter(m=>m!=="config.seed"),u=m=>ux(r,t.id,m),c=a.y?.length?a.y:t3(t),d=m=>m.trim()===""||!Number.isFinite(Number(m))?null:Number(m),f=a.steps??[null,null];return K`<${bp} icon="sliders" label="Chart settings" title="This chart" class="chart-settings"
+  </figure>`}function sW(e){let{node:t,path:r,prefs:a}=e,[n,o]=tt(!1),i=_i(n?{method:"keys",params:{from:r},scope:r}:null).data,l=i?.metrics?.rows.map(m=>m[0])??[],s=(i?.config?.varying??[]).filter(m=>m!=="config.seed"),u=m=>ux(r,t.id,m),c=a.y?.length?a.y:t3(t),d=m=>m.trim()===""||!Number.isFinite(Number(m))?null:Number(m),f=a.steps??[null,null];return K`<${bp} icon="sliders" label="Chart settings" title="This chart" class="chart-settings"
       onOpen=${()=>o(!0)}>
     <div class="settings-grid small">
       <h5>Data</h5>

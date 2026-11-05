@@ -253,10 +253,7 @@ function Settings(props: { node: Node; path: string; prefs: Effective }) {
   // what to offer comes from keys, asked only once the settings are opened.
   const keys = useCall(opened ? { method: "keys", params: { from: path }, scope: path } : null).data;
   const metrics: string[] = keys?.metrics?.rows.map((r: unknown[]) => r[0]) ?? [];
-  const varying: string[] = (keys?.config?.rows ?? [])
-    .filter((r: any[]) => Array.isArray(r[2]) && r[2].length > 1)
-    .map((r: any[]) => r[0])
-    .filter((k: string) => k !== "config.seed");
+  const varying: string[] = (keys?.config?.varying ?? []).filter((k: string) => k !== "config.seed");
   const set = (p: ChartPrefs) => setChart(path, node.id, p);
   const y = prefs.y?.length ? prefs.y : metricsOf(node);
   const num = (v: string) => (v.trim() === "" || !Number.isFinite(Number(v)) ? null : Number(v));

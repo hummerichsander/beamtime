@@ -4,6 +4,7 @@ import json
 import math
 from typing import Any
 
+from beamtime.query.distinguish import distinguishing, flatten
 from beamtime.query.fields import parse_field
 from beamtime.query.models import QueryError
 from beamtime.record.stats import mean, variance
@@ -12,20 +13,27 @@ from beamtime.record.stats import mean, variance
 def seed_groups(
     runs: list[dict[str, Any]], seeds: str
 ) -> list[tuple[dict[str, Any], list[dict[str, Any]]]]:
-    """Group runs whose configs differ only in the seed key.
+    """Group runs that agree on every field that distinguishes them, apart from the seed.
+
+    Unlike the full remaining config, this ignores aliases and incidental noise (a timestamped
+    path varies on its own and would otherwise put every run in its own group).
 
     :param runs: Selected runs with ``_config``.
     :param seeds: The seed field, e.g. ``config.seed``.
-    :return: ``(config without the seed, runs)`` per group."""
+    :return: ``(distinguishing config apart from the seed, runs)`` per group."""
     seed = parse_field(seeds)
     if seed.ns != "config" or len(seed.path) != 1:
         raise QueryError(f"seeds: {seeds!r} must be a top-level config field like config.seed")
+    per_run = [flatten(json.loads(r["_config"] or "{}")) for r in runs]
+    distinct = distinguishing(per_run)
+    canon = distinct.aliases.get(seeds, seeds)
+    exclude = {canon} | {k for k, c in distinct.aliases.items() if c == canon}
+    by = [k.removeprefix("config.") for k in distinct.varying if k not in exclude]
     groups: dict[str, tuple[dict[str, Any], list]] = {}
-    for r in runs:
-        cfg = json.loads(r["_config"] or "{}")
-        cfg.pop(seed.key, None)
-        key = json.dumps(cfg, sort_keys=True)
-        groups.setdefault(key, (cfg, []))[1].append(r)
+    for r, cfg in zip(runs, per_run, strict=True):
+        label = {k: cfg.get(k) for k in by}
+        key = json.dumps(label, sort_keys=True)
+        groups.setdefault(key, (label, []))[1].append(r)
     return list(groups.values())
 
 

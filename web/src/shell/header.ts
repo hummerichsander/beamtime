@@ -6,7 +6,7 @@ import { html } from "htm/preact";
 import { useCall } from "../api.ts";
 import { describe, progressText } from "../blocks/context.ts";
 import { rows } from "../blocks/common.ts";
-import { ago, duration, step, value, versionTime } from "../bt/fmt.ts";
+import { ago, duration, label, step, value, versionTime } from "../bt/fmt.ts";
 import { groupUrl, isRoot, isRunId, navigate, rootOf, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { Editable } from "../ui/editable.ts";
@@ -150,15 +150,17 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
       : null}`;
 }
 
-// the main metric's best value, and for a group which run reached it with what config.
+// the main metric's best value, and for a group which run reached it; its distinguishing
+// config goes in the tooltip, not inline, so a wide sweep doesn't crowd the facts line.
 function Best({ path }: { path: string }) {
   const best = useCall(calls.summary(path)).data?.summary;
   if (!best) return null;
-  const config = Object.entries(best.config ?? {}).map(([k, v]) => `${k} ${value(v)}`).join(", ");
+  const config = Object.entries(best.config ?? {}).map(([k, v]) => `${label(k)} ${value(v)}`).join(", ");
   const isRun = isRunId(path.split("/").pop() ?? "");
-  return html`<span data-tip=${`${best.stat} of ${best.metric} over ${isRun ? "the run" : "all runs"}`}>
-    best <b>${best.metric} ${value(best.value)}</b>
-    ${isRun ? null : html` · <a href=${runUrl(best.run)}>${best.name}</a>${config ? html` <em>(${config})</em>` : null}`}
+  const tip = `${best.stat} of ${best.metric} over ${isRun ? "the run" : "all runs"}${config ? ` (${config})` : ""}`;
+  return html`<span data-tip=${tip}>
+    best <b>${label(`metric.${best.metric}.${best.stat}`)} ${value(best.value)}</b>
+    ${isRun ? null : html` · <a href=${runUrl(best.run)}>${best.name}</a>`}
   </span>`;
 }
 
