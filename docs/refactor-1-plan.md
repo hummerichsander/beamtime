@@ -1,6 +1,7 @@
 # Refactor 1: plan after the first human end-to-end tests
 
-Status: **proposed, 2026-11-04.** Based on the findings in `todo`, the code at `8165346`, the real log
+Status: **in progress.** Done on branch `refactor-1`: F1 `88fc5b5`, A1 `e2a5cb6`, A2 `dada516`, A3 `6899788`, A4 `3942900`.
+Proposed 2026-11-04, based on the findings in `todo`, the code at `8165346`, the real log
 dir at `au002a:/remote/gpu04/hummerich/projects/split-flows-public/beamtime` (78 runs, 12 groups, 10
 custom code files) and 65 agent sessions on that project. Breaking changes are allowed where they make
 the code leaner; they are listed in [Breaking changes](#breaking-changes).
@@ -76,7 +77,7 @@ mistake is expensive: have a stronger model read the diff afterwards.
 ## Order
 
 ```
-F1 ─┬─ A1 A2 A3 A4 A5 A6 A7 A8 A9     bugs, independent
+F1 ─┬─ A1 A2 A3 A4 A5 A6 A7 A8 A9     bugs, independent (F1, A1 to A4 done)
     ├─ B1 ─ B2 ─ B3 ─ B4 ─ B5 ─ B6 ─ B7    charts, in this order
     │              └─ C1 ─ C2 ─ C3         agent chart parity
     ├─ D1 ─ D2 ─ D3                        sources and remote writes
@@ -85,21 +86,21 @@ F1 ─┬─ A1 A2 A3 A4 A5 A6 A7 A8 A9     bugs, independent
                               Z            docs, changelog, release
 ```
 
-If time is short: F1, A1 to A5, B1 to B3 and D1 + D2 remove most of the daily friction.
+If time is short: A5, B1 to B3 and D1 + D2 remove most of the daily friction (F1 and A1 to A4 are done).
 
 ---
 
 ## F. Foundation
 
-### F1. Fixtures shaped like real experiments (sonnet)
+### F1. Fixtures shaped like real experiments (sonnet) — **done `88fc5b5`**
 
 The synthetic data uses `val/`, `train/`, flat configs and smooth metrics, which is why none of these bugs
 showed up in tests.
 
 - `src/beamtime/synth/generate.py`: add a generated group `realistic/egnn-bench`, keeping the existing
   groups byte-stable:
-  - metrics `validation/w1_energy`, `validation/loss`, `training/loss`, `energy/A_w1`, `energy/B_w1`;
-    `energy/Aconst_w1` constant 0 and alphabetically first; `lr-AdamW`; `sys/*`;
+  - metrics `validation/w1_energy`, `validation/loss`, `training/loss`, `energy/B_w1`, `energy/C_w1`;
+    `energy/Aconst_w1` constant 0 and alphabetically first (`A_w1` would sort before it); `lr-AdamW`; `sys/*`;
   - `epoch` logged every 50 steps as a step function, 100 steps per epoch;
   - `validation/first_eval` with exactly one point; `validation/signed` crossing zero;
   - nested config: `arm`, `seed`, `hparams.egnn.vector_channels` determined by `arm`,
@@ -117,7 +118,7 @@ Done: `tests/synth` pass, and old groups are byte-identical (assert it with a ha
 
 ## A. Bugs
 
-### A1. Custom blocks follow live data (sonnet) — reproduced
+### A1. Custom blocks follow live data (sonnet) — reproduced — **done `e2a5cb6`**
 
 Files: `web/src/blocks/custom.ts`, `web/src/api.ts`, `tests/serve/test_browser.py`.
 
@@ -136,7 +137,7 @@ Done: the test passes, and a request log shows one `code` call per block per pag
 Also verify over `tests/remote/test_docker.py` when Docker is on: the user's real setup is remote, and only
 the local path was reproduced.
 
-### A2. Nested values and a config viewer (sonnet)
+### A2. Nested values and a config viewer (sonnet) — **done `dada516`**
 
 Files: `web/src/bt/fmt.ts`, new `web/src/ui/config.ts`, `web/src/shell/drawer.ts`, `web/src/blocks/table.ts`,
 new block `config` (`views/model.py`, `views/compile.py`, `web/src/blocks/index.ts`), `views/defaults.py`.
@@ -156,7 +157,7 @@ new block `config` (`views/model.py`, `views/compile.py`, `web/src/blocks/index.
 Done: the `realistic` fixture's config renders in all four places in a browser test, with no `[object`
 in the page text.
 
-### A3. Sparse data is visible (haiku) — code
+### A3. Sparse data is visible (haiku) — code — **done `6899788`**
 
 Files: `web/src/bt/uplot.ts`, `web/src/blocks/table.ts`, `web/test/`.
 
@@ -170,7 +171,7 @@ Files: `web/src/bt/uplot.ts`, `web/src/blocks/table.ts`, `web/test/`.
 Done: a browser test on `validation/first_eval` finds non-background pixels at the point. A unit test
 covers 0, 1, 2 and 31 points.
 
-### A4. Bands on log axes (sonnet) — code
+### A4. Bands on log axes (sonnet) — code — **done `3942900`**
 
 Files: `web/src/bt/curves.ts`, `web/src/bt/uplot.ts`, `web/test/curves.test.ts`.
 
@@ -199,11 +200,15 @@ no notion of *which config keys distinguish runs*.
    ```
    Given flattened configs:
    1. keep keys with more than one distinct value (any type, any count);
-   2. drop string keys unique to every run when there are more than two runs (paths, timestamps);
+   2. drop string keys unique to every run when there are more than two runs **and the values look like paths or
+      timestamps** (contain `/` or `\`, or start with a date such as `2026-10-20`). A categorical sweep with one run per
+      value (`optimizer = adam, sgd, rmsprop`) stays;
    3. group keys by the partition of runs they induce; keep the shortest per group (fewest dots, then
       alphabetical), and record the others as aliases;
    4. drop key K when another kept key A determines K (A's partition refines K's) **and** A has fewer
       distinct values than runs. Without that last condition a unique random `lr` would swallow everything.
+      **The seed key and its aliases never act as A:** with seeds disjoint per arm, the seed refines the arm, and
+      dropping the arm would leave `varying = [config.seed]` and average the arms into one curve. Test it.
 
    Returns `varying` (e.g. `["config.arm", "config.seed"]`) and `aliases`.
 2. `keys_kind`: add `config.varying` and `config.aliases`. `merge_keys`: union per source. Add a
@@ -248,8 +253,9 @@ written by the CLI still appears within 3 s, also through the `transport` test s
 2. `blocks/context.ts`: `NEW_TYPES` comes from meta minus `verdict`. `ui/symbols.ts`: theory gets a lucide
    icon (`atom`; add it to `ui/icons.ts`). A theory note is an explanation not yet measured: say so in the
    guide and in `design/components/Note.md`.
-3. `NoteItem`: the type symbol becomes a small menu of the types; choosing one calls
-   `editNote(n, { type })`, which supersedes like any edit. Add `type` to `editNote`'s change.
+3. `NoteItem`: the type symbol becomes a small menu of the types minus `verdict` (as `NEW_TYPES`); choosing one calls
+   `editNote(n, { type })`, which supersedes like any edit. On a verdict note the menu is disabled, with the tip
+   "a verdict's type can't change; write a new note". Add `type` to `editNote`'s change.
 4. `record/notes.py`: refuse to supersede across the `verdict` boundary, since verdicts carry per-prediction
    judgements: "a verdict's type can't change; write a new note".
 5. Old readers are fine: an unknown type already falls back to a neutral symbol.
@@ -297,7 +303,8 @@ unbounded and the cause is a different one: stop and report it.
    resulting dimensions, since combining the two wasn't tried on a tall page.
 3. **Say what was cut.** The guide asks for a checklist answer on every block, so a silent cap would make agents judge
    blocks they never saw. When cut, the answer gets `cut: {page_height, shown_height, blocks_below: [ids]}`, from
-   `[data-block-id]` positions, counting blocks that start above the cap and end below it. `lines` adds: "the page is 6200
+   `[data-block-id]` positions, counting **every block whose bottom is below the cap**, including those lying entirely
+   below it (on a 6200 px page with a 2520 px cap, the blocks at 3000 and 4500 px too). `lines` adds: "the page is 6200
    px; the shot shows the top 2520; below it: a, b, c; `view render <draft> --block <id>` shows one".
 4. `mcp/server.py:content()`: the `mime_type` follows the file's suffix instead of the fixed `image/png`.
 5. **Leave `render_page` as it is.** It isn't on the MCP path: its only caller is `bench/views/score.py`, whose judge answers the
@@ -340,18 +347,23 @@ Files: `query/kinds.py`, `query/read.py`, `tests/query/test_series.py`, `docs/de
    - `_t` and `_elapsed` as today (E1 later removes attempt gaps from `_elapsed`);
    - a metric: if non-decreasing, **interpolate linearly between its change points**, so `epoch` at step
      1750 of a 100-step epoch from 1700 is `17.5` rather than a stair; if it isn't monotone, the raw value
-     at or before the step.
+     at or before the step. **After the last change point**, extend with the slope of the last segment (the final
+     epoch of a stair-logged run is not a stair either); with fewer than two change points, hold the value. Before
+     the first logged point x is `None`. A constant metric is monotone (non-decreasing), with one x value;
+     the monotone check runs on the resulting x values.
 2. `run_curve`: drop points with `x is None` (today `align` gets `null` in its sorted x). Add
    `monotone: bool` to the curve.
 3. `grouped_curve`: for `x != "_step"`, get `x_values` per run, drop `None`, and raise a `QueryError` for
    non-monotone x ("aggregating needs a monotone x; show each run instead"). Take lo and hi over the runs,
-   `width = (hi - lo) / points`, bucket by `floor((x - lo) / width)`, mean per run per bucket, then the same
+   `width = (hi - lo) / points`, bucket by `min(floor((x - lo) / width), points - 1)` (so `x == hi` falls in the
+   last bucket), with `hi == lo` (single-point runs, a constant x) as one bucket and no division; mean per run per bucket, then the same
    mean and band code as now. `x` in the answer is the bucket centre. For `_step` the code path stays
    exactly as it is (power-of-two widths, no jitter).
 4. Pure Python, `math.fsum` through `spread`, as `read.py` promises.
 
 Tests: two runs with known times: `_elapsed` means equal hand-computed values and x stays in seconds; the
-`epoch` axis gives fractions; non-monotone x raises for groups and returns `monotone: false` per run.
+`epoch` axis gives fractions, also after the last change point; non-monotone x raises for groups and returns
+`monotone: false` per run; a constant x and single-point runs give one bucket; `x == hi` gives `points` buckets, not one more.
 
 ### B3. Axis labels, x-axis choices, hover (sonnet)
 
@@ -565,7 +577,9 @@ No flag needed.
 Backend:
 
 1. `Context.has_local`: the log dir exists and (no remotes are configured, or it contains a run; stop at the
-   first hit). `Context.default_source`: the only source when there is exactly one and no local.
+   first hit). `Context.default_source`: the only source when there is exactly one and no local. `has_local` is
+   **not** decided once: `serve` runs the indexing loop whenever the log dir exists and re-checks `has_local` on each
+   poll while there are remotes, so a first local run made after startup is indexed and listed without a restart.
 2. `serve/server.py`: refuse only with no source at all, with a message naming `beamtime source add` and
    `beamtime serve host:/path`. Split `Daemon` into its lock and status file (which `via_serve` needs for the
    port) and its indexing loop; without local, only the first runs.
@@ -641,8 +655,11 @@ Resolution in `init`, wrapped so it can never break the experiment (on any error
 2. `key="..."`, or env `BEAMTIME_RUN_KEY`: stored in `_run.json`. The newest run in this folder with this
    key: not finished → continue; finished → new run with a warning. For a job submitted again by hand.
 3. Requeue, automatic: `SLURM_RESTART_COUNT > 0` and **exactly one** unfinished run in this folder with the
-   same `job_key` and `name` → continue. Several candidates → new run with a warning naming `key`. Reuse
-   `find_by_job_key`'s scan.
+   same `job_key` and `name` → continue. Several candidates → new run with a warning naming `key`. **Unfinished
+   means `running` or `killed`** (not `finished` or `failed`): a run cut by its time limit is `killed`, and is
+   hours old when the job restarts. Reuse `find_by_job_key`'s folder scan, but not its filter: today it accepts only
+   `running` runs created within `RANK_RECENT_S` (`sdk/run.py`), which would never find the run on a requeue. The
+   recency window stays for the rank-sharing path it exists for.
 4. Otherwise a new run.
 
 Starting over from step 0 stays safe: the index already drops the older attempt's points from the resume step
@@ -656,8 +673,9 @@ Also:
   and cwd, the last step, the newest checkpoint (through E2's resolver once it exists, else `_artifacts.jsonl`), the
   scheduler, and what to export
   (`BEAMTIME_RESUME=<id>`), so an agent can write the `sbatch` call.
-- `_elapsed` counts active time: subtract the gaps between attempts, using `attempts[].started_at`. A resumed
-  run's curve shouldn't show a 6-hour queue wait.
+- `_elapsed` counts active time: subtract the gaps between attempts. A gap is the next attempt's `started_at` minus
+  the last `_t` of the previous attempt's metrics (the previous end is not stored; the `attempt_started` event's
+  `metrics_offset` bounds each attempt's lines). A resumed run's curve shouldn't show a 6-hour queue wait.
 - Charts mark attempt boundaries with a thin dashed line, from `attempts[].resume_step` (`LineSpec.marks`).
 - `BeamtimeLogger(key=...)`, passed on. `examples/` gets a SLURM script with
   `#SBATCH --requeue --signal=USR1@120` and Lightning's `ckpt_path="last"`.
