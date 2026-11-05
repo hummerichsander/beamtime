@@ -5,6 +5,7 @@ import { html } from "htm/preact";
 import type { Node } from "../bt/index.ts";
 import { Box, type Registry } from "./box.ts";
 import { Groups, MarkdownBlock, Memory, NoteBlock, Notes, Output, Proposal } from "./context.ts";
+import { ConfigBlock } from "./config.ts";
 import { Custom } from "./custom.ts";
 import { Images, Text } from "./logged.ts";
 import { DataTable, Timeline } from "./data.ts";
@@ -26,6 +27,7 @@ const BLOCKS: Registry = {
   proposal: Proposal,
   note: NoteBlock,
   output: Output,
+  config: ConfigBlock,
   memory: Memory,
   groups: Groups,
   notes: Notes,

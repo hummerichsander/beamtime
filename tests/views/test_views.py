@@ -93,6 +93,17 @@ body:
     assert run_tree["children"][2]["data"]["main"]["params"]["run"] == "20261024-101532-k3m9xq2a"
 
 
+def test_config_block_in_the_default_views(ctx: Context, roles: dict[str, str]) -> None:
+    """A group shows its varying config after the curves; a run shows its config, closed."""
+    blocks = [m.block_of(b) for b in default_view(ctx, SWEEP).body]
+    assert blocks.index("grid") < blocks.index("config") < blocks.index("table")
+    path = f"scaling/long-context/{roles['running']}"
+    run = compile_view(default_view(ctx, path), path=path)
+    config = next(c for c in run["children"] if c["block"] == "config")
+    assert config["props"]["mode"] == "run" and config["props"]["open"] is False
+    assert config["data"]["main"]["method"] == "card" and config["data"]["keys"]["params"] == {"from": "scaling/long-context"}
+
+
 def test_default_view_round_trips_with_prefs(ctx: Context) -> None:
     """The default view written as YAML compiles back to the same charts; prefs fold in."""
     default = default_view(ctx, SWEEP)

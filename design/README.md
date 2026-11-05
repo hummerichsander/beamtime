@@ -80,7 +80,8 @@ Use the markup on each component's page, type classes included. Component CSS se
 weight only; font sizes come only from the type classes.
 
 - Page: [Section](components/Section.md), [Header](components/Header.md), [Proposal](components/Proposal.md)
-- Data: [Table](components/Table.md), [Chart](components/Chart.md), [Note](components/Note.md), [Stat](components/Stat.md)
+- Data: [Table](components/Table.md), [Chart](components/Chart.md), [Note](components/Note.md), [Stat](components/Stat.md),
+  [Config](components/Config.md)
 - Controls: [Sym](components/Sym.md), [Tag](components/Tag.md), [Button](components/Button.md),
   [IconButton](components/IconButton.md), [Field](components/Field.md), [Notice](components/Notice.md)
 

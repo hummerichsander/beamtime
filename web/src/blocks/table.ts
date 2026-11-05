@@ -6,7 +6,7 @@ import { useContext, useState } from "preact/hooks";
 import { hovered, useData, useRunColors, useTheme, ViewCtx, type MetricInfo, type Node } from "../bt/index.ts";
 import { swatch, type Theme } from "../bt/theme.ts";
 import { toggleRun, usePrefs } from "../bt/prefs.ts";
-import { ago, compare, label, lowerIsBetter, value } from "../bt/fmt.ts";
+import { ago, compare, full, lowerIsBetter, shortLabels, value } from "../bt/fmt.ts";
 import { groupUrl, navigate, route, runUrl } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Sym } from "../ui/icons.ts";
@@ -24,6 +24,7 @@ export function Table({ node }: { node: Node }) {
   const [sort, setSort] = useState<{ field: string; desc: boolean } | null>(null);
   const answer = result.data;
   const columns: string[] = (node.props.columns ?? answer?.columns ?? []).filter((c: string) => c !== "run.id");
+  const labels = shortLabels(columns);
   let data = rows(answer);
   if (sort) data = [...data].sort((a, b) => compare(a[sort.field], b[sort.field]) * (sort.desc ? -1 : 1));
   const best = node.props.highlight_best === false ? new Map() : bestValues(data, columns, view.metrics);
@@ -41,7 +42,7 @@ export function Table({ node }: { node: Node }) {
             ${columns.map(
               (c) => html`<th class=${numeric(data, c) ? "num" : ""} data-tip=${c} onClick=${() => toggle(c)}
                   aria-sort=${sort?.field === c ? (sort.desc ? "descending" : "ascending") : undefined}>
-                ${c === "run.status" ? "status" : label(c)}${sort?.field === c ? (sort.desc ? " ↓" : " ↑") : ""}</th>`,
+                ${c === "run.status" ? "status" : labels.get(c)}${sort?.field === c ? (sort.desc ? " ↓" : " ↑") : ""}</th>`,
             )}
             ${node.props.sparkline ? html`<th data-tip=${`${node.props.sparkline} over steps`}>trend</th>` : null}
           </tr></thead>
@@ -86,7 +87,7 @@ function cell(column: string, v: unknown, id: string, live: boolean, color: stri
   const isNum = typeof v === "number";
   const changing = live && column.startsWith("metric.");
   const cls = `${isNum ? "num" : ""}${changing ? " live" : ""}${best ? " best" : ""}`;
-  return html`<td class=${cls} data-tip=${v === null || v === undefined ? undefined : String(v)}>${value(v)}</td>`;
+  return html`<td class=${cls} data-tip=${v === null || v === undefined ? undefined : full(v)}>${value(v)}</td>`;
 }
 
 // the best value of each metric column, by the metric's direction; ties and single rows don't count.

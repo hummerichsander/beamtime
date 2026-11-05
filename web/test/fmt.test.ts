@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { ago, duration, label, step, value } from "../src/bt/fmt.ts";
+import { ago, duration, full, label, segments, shortLabels, step, value } from "../src/bt/fmt.ts";
 
 test("values are compact", () => {
   assert.equal(value(3e-4), "3e-4");
@@ -40,4 +40,41 @@ test("metric direction from the name", async () => {
   assert.equal(lowerIsBetter("metric.train/loss.last"), true);
   assert.equal(lowerIsBetter("metric.val/acc.max"), false);
   assert.equal(lowerIsBetter("val/ppl"), true);
+});
+
+test("nested values are summarized, never [object Object]", () => {
+  assert.equal(value({ a: 1, b: 2, c: 3 }), "{3 keys}");
+  assert.equal(value({ a: 1 }), "{1 key}");
+  assert.equal(value({}), "{}");
+  assert.equal(value([1, 2, 3]), "[1, 2, 3]");
+  assert.equal(value(Array.from({ length: 22 }, (_, i) => i)), "[22 items]");
+  assert.equal(value([{ a: 1 }, "x", null]), "[{1 key}, x, –]");
+  for (const v of [{ a: { b: 1 } }, [[1], [2]], [{}], { x: [1, 2, 3, 4, 5, 6] }]) assert.ok(!value(v).includes("[object"));
+});
+
+test("full values keep everything", () => {
+  assert.equal(full({ a: [1, 2] }), '{\n  "a": [\n    1,\n    2\n  ]\n}');
+  assert.equal(full(3e-4), "0.0003");
+  assert.equal(full(null), "–");
+  assert.equal(full({ x: NaN }), '{\n  "x": "NaN"\n}');
+});
+
+test("config columns show their shortest unique suffix", () => {
+  const labels = shortLabels([
+    "config.lr",
+    "config.model.beads.edge_frame",
+    "config.model.egnn.edge_frame",
+    "config.hydrantic.seed",
+    "config.seed",
+    "metric.val/loss.last",
+    "run.name",
+  ]);
+  assert.equal(labels.get("config.lr"), "lr");
+  assert.equal(labels.get("config.model.beads.edge_frame"), "beads.edge_frame");
+  assert.equal(labels.get("config.model.egnn.edge_frame"), "egnn.edge_frame");
+  assert.equal(labels.get("config.hydrantic.seed"), "hydrantic.seed");
+  assert.equal(labels.get("config.seed"), "seed");
+  assert.equal(labels.get("metric.val/loss.last"), "val/loss");
+  assert.equal(labels.get("run.name"), "run");
+  assert.deepEqual(segments('a["b.c"].d'), ["a", "b.c", "d"]);
 });

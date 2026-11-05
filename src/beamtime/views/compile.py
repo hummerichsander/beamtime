@@ -201,6 +201,16 @@ class Compiler:
                     )
                 call = api("output", {"run": run, "tail": n.lines, "rank": n.rank}, self.path)
                 return node("output", n.id, data={"main": call}, open=n.open, **common)
+            case m.Config():
+                if (run := n.run or self.run) is not None:
+                    group = self.path.rsplit("/", 1)[0] if "/" in self.path else "."
+                    data = {
+                        "main": api("card", {"run": run}, self.path),
+                        "keys": api("keys", {"from": group}, group),
+                    }
+                    return node("config", n.id, data=data, mode="run", open=n.open, **common)
+                data = {"main": api("keys", {"from": scope}, scope)}
+                return node("config", n.id, data=data, mode="group", open=n.open, **common)
             case m.Custom():
                 data = {name: self.declared(q, n) for name, q in n.queries.items()}
                 code = {"view": self.path, "path": n.code} | (

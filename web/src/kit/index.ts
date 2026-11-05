@@ -14,6 +14,7 @@ import { BarBlock, HistogramBlock, Scatter } from "../blocks/plots.ts";
 import { Stat } from "../blocks/stat.ts";
 import { Table } from "../blocks/table.ts";
 import { Notice } from "../blocks/common.ts";
+import { ConfigTree } from "../ui/config.ts";
 import { hovered, runColors, theme, ViewCtx, type Node, type ViewContext } from "../bt/index.ts";
 import * as fmt from "../bt/fmt.ts";
 import { lineChart } from "../bt/plot.ts";
@@ -138,6 +139,7 @@ export function makeKit(host: Host) {
       Table: component("table"),
       Stat: component("stat"),
       DataTable: component("data_table"),
+      Config: ConfigTree,
       Note: (props: { kind?: string; children?: ComponentChildren }) => html`<${Notice} kind=${props.kind}>${props.children}<//>`,
     },
     chart: {

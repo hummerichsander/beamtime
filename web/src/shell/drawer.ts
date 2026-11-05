@@ -8,9 +8,11 @@ import { NoteItem } from "../blocks/context.ts";
 import { rows } from "../blocks/common.ts";
 import { runColors, useTheme } from "../bt/index.ts";
 import { swatch } from "../bt/theme.ts";
+import { varyingKeys } from "../bt/configtree.ts";
 import { ago, duration, step, value } from "../bt/fmt.ts";
 import { groupUrl, navigate, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
+import { ConfigTree } from "../ui/config.ts";
 import { IconButton } from "../ui/primitives.ts";
 import { eventIcon, symbolFor } from "../ui/symbols.ts";
 import * as calls from "./calls.ts";
@@ -31,6 +33,7 @@ function RunContext({ id, scope }: { id: string; scope: string }) {
   const card = useCall(calls.card(id, scope)).data;
   const output = useCall(calls.output(id, scope)).data;
   const ids = useCall(calls.runIds(scope)).data;
+  const keys = useCall({ method: "keys", params: { from: scope }, scope }).data;
   const theme = useTheme();
   const color = useMemo(() => runColors(rows(ids).map((r) => r["run.id"]), theme).get(id), [ids, theme, id]);
   if (!card) return html`<div class="drawer-body"><div class="skeleton late" style="block-size: 220px"></div></div>`;
@@ -48,7 +51,7 @@ function RunContext({ id, scope }: { id: string; scope: string }) {
     </p>
     ${r.error ? html`<pre class="log code bad-text">${r.error}</pre>` : null}
     <h4 class="small">Config</h4>
-    <table class="kv small">${Object.entries(card.config ?? {}).map(([k, v]) => html`<tr><td>${k}</td><td class="num">${value(v)}</td></tr>`)}</table>
+    <${ConfigTree} config=${card.config ?? {}} varying=${varyingKeys(keys)} />
     ${metrics.length
       ? html`<h4 class="small">Metrics</h4>
           <table class="kv small">

@@ -55,6 +55,8 @@ def group_body(ctx: Context, path: str) -> list[m.Block]:
         own_keys = call("keys", {"from": path, "depth": 1}, ctx) if own else keys
         many = "config.seed" in varying and direct > SEED_GROUPING_ABOVE
         body += curves(ordered_metrics(own_keys), "config.seed" if many else None, own)
+        if varying:
+            body.append(m.Config(id="hyperparameters", title="Hyperparameters"))
         columns = ["run.name", "run.status", *varying, *([f"metric.{main}.last"] if main else [])]
         table = m.Table(id="runs", title="Runs", columns=columns, limit=TABLE_LIMIT, sparkline=main)
         body.append(table)
@@ -93,6 +95,7 @@ def run_body(ctx: Context, path: str) -> list[m.Block]:
                 body.append(m.Text(id=f"text-{m.slug(key)}", title=key, key=key))
             case _:
                 continue
+    body.append(m.Config(id="config", title="Config", open=False))
     body += record(run=True)
     opened = status in ("failed", "killed", "lost") or not metrics
     body.append(m.Output(id="output", title="Output", open=opened))

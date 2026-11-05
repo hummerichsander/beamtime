@@ -10,7 +10,7 @@ ROOT = Path(__file__).parents[1]
 GALLERY = ROOT / "design" / "gallery.html"
 COMPONENTS = (
     "Section", "Header", "Proposal", "Table", "Chart", "Note", "Stat",
-    "Sym", "Tag", "Button", "IconButton", "Field", "Notice",
+    "Sym", "Tag", "Button", "IconButton", "Field", "Notice", "Config",
 )  # fmt: skip
 
 

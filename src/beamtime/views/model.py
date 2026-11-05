@@ -189,6 +189,13 @@ class Output(Node, tag="output"):
     open: bool = True
 
 
+class Config(Node, tag="config"):
+    """A run's config as a tree, or a group's hyperparameters: the config keys that differ."""
+
+    run: Annotated[str | None, msgspec.Meta(description="default: the page's run")] = None
+    open: bool = True
+
+
 class Custom(Node, tag="custom"):
     """Agent code on the ``bt`` kit in a sandboxed frame, fed by its declared queries."""
 
@@ -250,6 +257,7 @@ Block = (
     | Markdown
     | Notes
     | Output
+    | Config
     | Custom
     | Use
     | Section

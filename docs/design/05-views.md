@@ -209,6 +209,7 @@ wave 1.
 | `markdown` | a text panel in Markdown with math, edited in place in the UI | `text` |
 | `notes` | the newest notes, current versions only | `types`, `limit` |
 | `output` | the tail of a run's captured output | `run`, `lines`, `rank`, `open` |
+| `config` | a run's config as a tree (filter, what varies marked), or on a group the config keys that differ between its runs | `run`, `open` |
 
 **Code** (wave 1): `custom`. There is no free chart-spec block: charts beyond the widgets are custom
 blocks on `bt.chart` (uPlot) or D3 ([Charts](#charts)).
@@ -334,7 +335,7 @@ objects keyed by field; curves as a list of `{run, key, group, x, y}` or, aggreg
 `{run, key, group, x, min, max, last, mean, count}`.
 
 **Components.** `bt.ui` holds layout, tables, stats and context blocks (`Grid`, `Row`, `Tabs`,
-`Section`, `Table`, `Stat`, `Note`, `Images`, …); `bt.chart` holds charts (`Line`, `Scatter`, `Bar`,
+`Section`, `Table`, `Stat`, `Note`, `Config`, `Images`, …); `bt.chart` holds charts (`Line`, `Scatter`, `Bar`,
 `Histogram`, and in wave 2 `Heatmap`, `Parallel`, `Importance`). Each has the props of its YAML form
 and takes its data as a prop. The run hovered anywhere on the page is shared: `bt.hover(run)` sets
 it, `bt.useHovered()` follows it (row selection callbacks on components come later).

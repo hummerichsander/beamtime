@@ -275,3 +275,56 @@ def test_custom_blocks_follow_live_data(live_page) -> None:
     live_page.stop_writer()
     page.wait_for_timeout(20_000)
     assert page.locator(".custom-error").count() == 0
+
+
+def test_nested_configs_read_well_everywhere(server: str, page, project: Path) -> None:
+    """A real, nested config shows as a tree in the drawer and on the run page, as the varying keys on
+    the group page, and as short labels and summaries in tables: never as [object Object]."""
+    import yaml
+
+    from beamtime.ops import call
+    from beamtime.ops.context import Context
+
+    base = server.split("/f/local")[0]
+    token = server.split("token=")[1]
+    group = "realistic/egnn-bench"
+    ctx = Context.make()
+    call("view new", {"group": group, "name": "nested"}, ctx)
+    draft = project / ".beamtime" / "drafts" / "nested"
+    view = yaml.safe_load((draft / "view.yaml").read_text())
+    columns = ["run.name", "config.hydrantic", "config.hydrantic.trainer.max_epochs", "config.hparams.egnn.vector_channels"]
+    view["body"].append({"table": {"id": "nested", "title": "Nested", "columns": columns}})
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    call("view save", {"draft": "nested"}, ctx)
+
+    page.goto(f"{base}/f/local/{group}?token={token}")
+    page.wait_for_selector("table.kv")
+    hyper = page.locator("section.collapsible:has(h3:has-text('Hyperparameters'))")
+    assert "arm" in hyper.inner_text() and "large, medium, small" in hyper.inner_text()
+    page.wait_for_selector("table.runs th:has-text('max_epochs')")
+    headers = page.locator("table.runs").last.locator("th").all_inner_texts()
+    assert "max_epochs" in " ".join(headers) and "vector_channels" in " ".join(headers), headers
+    cells = page.locator("table.runs").last.locator("tbody tr").first.locator("td").all_inner_texts()
+    assert any(c.startswith("{") and c.endswith("keys}") for c in cells), cells
+    assert "[object" not in page.inner_text("body")
+
+    page.locator("table.runs").last.locator("tbody tr").first.click()
+    page.wait_for_selector(".drawer .config-tree .config-leaf")
+    drawer = page.locator(".drawer .config-tree")
+    all_leaves = drawer.locator(".config-leaf").count()
+    assert drawer.locator(".config-key:text-is('hparams.egnn.vector_channels')").count() == 1
+    drawer.locator("input[type=checkbox]").check()
+    assert 0 < drawer.locator(".config-leaf").count() < all_leaves
+    assert drawer.locator(".config-varies").count() > 0
+    assert "[object" not in page.inner_text(".drawer")
+
+    run = page.locator("table.runs").last.locator("tbody tr").first.locator("a").first.get_attribute("href")
+    page.goto(f"{base}{run}?token={token}")
+    section = page.locator("section.collapsible:has(.config-tree), .section:has(.section-label:text-is('config')) section.collapsible").first
+    section.wait_for()
+    assert section.locator(".config-tree").count() == 0, "the config starts closed on a run's page"
+    section.locator("button.collapse-toggle").click()
+    section.locator(".config-leaf").first.wait_for()
+    section.locator("input[type=search]").fill("max_epochs")
+    assert section.locator(".config-leaf").count() == 1
+    assert "[object" not in page.inner_text("body")

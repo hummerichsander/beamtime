@@ -130,3 +130,18 @@ table.runs td.best { font-weight: 700; }
 .swatch.run-4 { background: repeating-linear-gradient(90deg, currentColor 0 8px, transparent 8px 11px, currentColor 11px 13px, transparent 13px 16px); }
 .swatch.run-5 { background: repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 6px); }
 .swatch.run-6 { background: repeating-linear-gradient(90deg, currentColor 0 12px, transparent 12px 16px); }
+
+/* Config */
+.config-tree { display: grid; gap: var(--space-2); }
+.config-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.config-tools .input { flex: 1 1 12rem; max-inline-size: 20rem; }
+.config-only { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--muted); }
+.config-list { list-style: none; margin: 0; padding: 0; }
+.config-list .config-list { margin-inline-start: var(--space-2); padding-inline-start: var(--space-3); border-inline-start: var(--stroke-rule) solid var(--line); }
+.config-toggle { display: inline-flex; align-items: center; gap: var(--space-1); padding: 2px 0; border: 0; background: none; color: var(--ink); font: inherit; cursor: pointer; }
+.config-leaf { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); padding-block: 2px; min-inline-size: 0; }
+.config-key { color: var(--muted); overflow-wrap: anywhere; }
+.config-toggle .config-key { color: var(--ink); }
+.config-value { overflow-wrap: anywhere; min-inline-size: 0; }
+.config-varies { display: inline-block; inline-size: var(--space-1); block-size: var(--space-1); border-radius: 50%; background: var(--accent); }
+.config-copy { align-self: center; }

@@ -4,7 +4,7 @@ import { html } from "htm/preact";
 import { useContext, useState } from "preact/hooks";
 
 import { useData, ViewCtx, type Node } from "../bt/index.ts";
-import { compare, label, step, value } from "../bt/fmt.ts";
+import { compare, full, label, step, value } from "../bt/fmt.ts";
 import { tableOf } from "../bt/shapes.ts";
 import { runUrl, timelineUrl } from "../router.ts";
 import { Icon } from "../ui/icons.ts";
@@ -42,7 +42,7 @@ export function DataTable({ node }: { node: Node }) {
               onClick=${() => toggle(i)} aria-sort=${sort?.i === i ? (sort.desc ? "descending" : "ascending") : undefined}>
               ${label(c)}${sort?.i === i ? (sort.desc ? " ↓" : " ↑") : ""}</th>`)}</tr></thead>
           <tbody>${rows.slice(0, limit).map((r) => html`<tr>${r.map((v) => html`<td class=${typeof v === "number" ? "num" : ""}
-              data-tip=${v === null || v === undefined ? undefined : String(v)}>${value(v)}</td>`)}</tr>`)}</tbody>
+              data-tip=${v === null || v === undefined ? undefined : full(v)}>${value(v)}</td>`)}</tr>`)}</tbody>
         </table></div>
         ${rows.length > limit ? html`<p class="more-rows small">${limit} of ${rows.length} rows shown</p>` : null}`
       : null}

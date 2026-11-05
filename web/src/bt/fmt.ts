@@ -3,6 +3,11 @@
 export function value(v: unknown): string {
   if (v === null || v === undefined) return "–";
   if (typeof v === "boolean") return v ? "true" : "false";
+  if (Array.isArray(v)) return v.length <= 5 ? `[${v.map(value).join(", ")}]` : `[${v.length} items]`;
+  if (typeof v === "object") {
+    const n = Object.keys(v).length;
+    return n ? `{${n} ${n === 1 ? "key" : "keys"}}` : "{}";
+  }
   if (typeof v !== "number") return String(v);
   if (!Number.isFinite(v)) return Number.isNaN(v) ? "NaN" : v > 0 ? "∞" : "−∞";
   if (Number.isInteger(v) && Math.abs(v) < 1e4) return String(v);
@@ -10,6 +15,13 @@ export function value(v: unknown): string {
   if (a >= 1e4) return big(v);
   if (a !== 0 && a < 1e-3) return exp(v);
   return trim(v.toPrecision(4));
+}
+
+// the whole value for a tooltip: nested values as indented JSON, nothing cut.
+export function full(v: unknown): string {
+  if (v === null || v === undefined) return "–";
+  if (typeof v !== "object") return String(v);
+  return JSON.stringify(v, (_, x) => (typeof x === "number" && !Number.isFinite(x) ? String(x) : x), 2);
 }
 
 // sort order for table cells: numbers as numbers, the rest as text, missing values last.
@@ -69,6 +81,26 @@ export function label(field: string): string {
     if (field.startsWith(prefix)) return field.slice(prefix.length);
   }
   return field;
+}
+
+// a dotted config key as its segments; a key with a dot in it is written ["a.b"].
+export function segments(key: string): string[] {
+  return key.match(/\["[^"]*"\]|[^.[\]]+/g)?.map((x) => (x.startsWith("[") ? x.slice(2, -2) : x)) ?? [key];
+}
+
+// column labels: a config key shows its shortest suffix that no other column shares
+// (beads.edge_frame, not config.model.beads.edge_frame); other fields read as `label` says.
+export function shortLabels(fields: string[]): Map<string, string> {
+  const out = new Map<string, string>();
+  const parts = fields.filter((f) => f.startsWith("config.")).map((f) => [f, segments(f.slice(7))] as const);
+  for (const [field, own] of parts) {
+    let n = 1;
+    const shared = (k: number) => parts.some(([f, o]) => f !== field && o.slice(-k).join(".") === own.slice(-k).join("."));
+    while (n < own.length && shared(n)) n++;
+    out.set(field, own.slice(-n).join("."));
+  }
+  for (const f of fields) if (!out.has(f)) out.set(f, label(f));
+  return out;
 }
 
 function big(v: number): string {

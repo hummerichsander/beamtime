@@ -1,5 +1,7 @@
 // Reshape `series` answers into curves and align them on one x axis for uPlot.
 
+import { value } from "./fmt.ts";
+
 export type Curve = {
   key: string;
   label: string;
@@ -94,7 +96,8 @@ function runLabels(curves: any[]): string[] {
 }
 
 function format(v: unknown): string {
-  return typeof v === "number" ? String(Number(v.toPrecision(4))) : String(v);
+  if (typeof v === "number") return String(Number(v.toPrecision(4)));
+  return typeof v === "object" && v !== null ? value(v) : String(v);
 }
 
 // TensorBoard-style debiased exponential moving average; gaps stay gaps. weight 0 is no smoothing.

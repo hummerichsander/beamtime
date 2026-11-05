@@ -5,7 +5,7 @@ type LabelNode = { block: string; props: Record<string, any>; children?: LabelNo
 const KINDS: Record<string, string> = {
   stat: "readings", line: "charts", scatter: "charts", bar: "charts", histogram: "charts",
   table: "runs", data_table: "table", images: "images", text: "text", markdown: "text", note: "note",
-  notes: "notes", memory: "memory", groups: "groups", output: "output", timeline: "timeline", proposal: "predictions",
+  notes: "notes", memory: "memory", groups: "groups", output: "output", config: "config", timeline: "timeline", proposal: "predictions",
 };  // prettier-ignore
 
 export function labelOf(node: LabelNode): string {

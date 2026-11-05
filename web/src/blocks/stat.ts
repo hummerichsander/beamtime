@@ -3,7 +3,7 @@
 import { html } from "htm/preact";
 
 import { useData, type Node } from "../bt/index.ts";
-import { value } from "../bt/fmt.ts";
+import { full, value } from "../bt/fmt.ts";
 import { matches, rows } from "./common.ts";
 
 export function aggregate(values: unknown[], how: string, lower = false): unknown {
@@ -32,7 +32,7 @@ export function Stat({ node }: { node: Node }) {
   const selected = rows(result.data).filter((r) => matches(r, p.where));
   const v = result.data ? aggregate(p.field ? selected.map((r) => r[p.field]) : selected, p.aggregate ?? "count", !!p.lower) : null;
   const live = selected.some((r) => r["run.status"] === "running") && p.aggregate !== "count";
-  return html`<div class="stat" data-tip=${v === null ? undefined : String(v)}>
+  return html`<div class="stat" data-tip=${v === null ? undefined : full(v)}>
     <div class="stat-label small">${p.title ?? p.field}</div>
     <div class=${`number${live ? " live" : ""}${result.status === "loading" ? " pending" : ""}`}>
       ${result.status === "loading" ? " " : value(v)}
