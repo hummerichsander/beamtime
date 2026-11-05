@@ -186,3 +186,79 @@ def test_serve_shows_both_sources(container, project: Path) -> None:
     finally:
         server.terminate()
         server.wait(timeout=30)
+
+
+def test_custom_block_follows_live_data_over_ssh(container, project: Path) -> None:
+    """A custom block on a running remote experiment keeps up, and fetches its code once."""
+    pw = pytest.importorskip("playwright.sync_api")
+    import yaml
+
+    from beamtime.ops import call as local
+    from beamtime.views import render
+    from tests.serve.test_browser import LAST_STEP, last_step
+
+    _, logdir, env = container
+    root = logdir.parent
+    writer = root / "writer.py"
+    writer.write_text(
+        "import time\nimport beamtime\n"
+        "run = beamtime.init(dir='live', name='live', system_metrics=False)\n"
+        "for step in range(400):\n"
+        "    run.log({'live/loss': 1 / (1 + step)}, step=step)\n"
+        "    time.sleep(0.2)\nrun.finish()\n"
+    )
+    clean = {k: v for k, v in env.items() if not k.startswith(("BEAMTIME_", "SLURM_"))}
+    proc = subprocess.Popen([sys.executable, writer], cwd=root, env=clean | {"BEAMTIME_LOGDIR": str(logdir)})
+    try:
+        remote_ctx = Context.make(root=root, caller="cli")
+        deadline = time.monotonic() + 30
+        while not any((logdir / "live").glob("*/_metrics.jsonl")):
+            assert time.monotonic() < deadline and proc.poll() is None, "the writer logged nothing"
+            time.sleep(0.1)
+        local("view new", {"group": "live", "name": "last"}, remote_ctx)
+        draft = root / ".beamtime" / "drafts" / "last"
+        view = {"schema": 1, "title": "live", "finding": "x", "body": [{"custom": {
+            "id": "last", "code": "code/last.js",
+            "queries": {"loss": {"series": {"y": ["live/loss"], "points": 50}}},
+        }}]}  # fmt: skip
+        (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+        (draft / "code").mkdir()
+        (draft / "code" / "last.js").write_text(LAST_STEP)
+        local("view save", {"draft": "last"}, remote_ctx)
+
+        (project / "beamtime.yaml").write_text("remotes:\n  box: {host: box, path: /data/beamtime}\n")
+        port = free_port()
+        server = subprocess.Popen(
+            [sys.executable, "-m", "beamtime.cli", "serve", "--port", str(port)],
+            cwd=project, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )  # fmt: skip
+        try:
+            url = ""
+            while "token=" not in url:
+                url = server.stdout.readline()
+                assert url or server.poll() is None, "serve ended"
+            base, token = url.strip().split("/f/")[0], url.strip().split("token=")[1]
+            with pw.sync_playwright() as p:
+                browser = render.launch(p)
+                if browser is None:
+                    pytest.skip("no browser")
+                page = browser.new_page()
+                asked: list[str] = []
+                page.on("request", lambda r: r.url.endswith("/api/code") and asked.append(r.url))
+                page.goto(f"{base}/f/@box/live?token={token}")
+                page.wait_for_selector(".custom-frame iframe", timeout=60_000)
+                deadline = time.monotonic() + 60
+                while last_step(page) < 0:
+                    assert time.monotonic() < deadline, "the block never showed a step"
+                    page.wait_for_timeout(200)
+                first = last_step(page)
+                page.wait_for_timeout(15_000)
+                assert last_step(page) > first + 10, "the block shows the step it started with"
+                assert len(asked) == 1
+                assert page.locator(".custom-error").count() == 0
+                browser.close()
+        finally:
+            server.terminate()
+            server.wait(timeout=30)
+    finally:
+        proc.kill()

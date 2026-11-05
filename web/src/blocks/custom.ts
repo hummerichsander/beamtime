@@ -2,7 +2,7 @@
 // calls over the bridge; a block that fails is replaced by an error panel, the rest of the view stays.
 
 import { html } from "htm/preact";
-import { useContext, useEffect, useState } from "preact/hooks";
+import { useContext, useEffect, useRef, useState } from "preact/hooks";
 
 import { busy, useCall, watch, type Call } from "../api.ts";
 import { register } from "../bt/figures.ts";
@@ -22,7 +22,7 @@ export function Custom({ node }: { node: Node }) {
   const theme = useTheme();
   const [box, visible] = useVisible();
   const ref = node.props.code;
-  const code = useCall(visible && ref ? { method: "code", params: ref, scope: view.path } : null);
+  const code = useCall(visible && ref ? { method: "code", params: ref, scope: null } : null);
   // the element in state, so the bridge is set up once per frame; new code gets a new frame.
   const [frame, setFrame] = useState<HTMLIFrameElement | null>(null);
   const [height, setHeight] = useState(120);
@@ -32,23 +32,33 @@ export function Custom({ node }: { node: Node }) {
     setState((s) => ({ ...s, error: message }));
   };
 
+  // the renderer waits for each frame's first render, an error or the time limit, once per frame.
+  const firstDone = useRef<() => void>(() => {});
   useEffect(() => {
-    const win = frame?.contentWindow;
-    if (!win || code.status !== "ready") return;
-    const post = (msg: ToFrame) => win.postMessage(msg, "*");
-    const subs = new Map<string, () => void>();
-    const guard = new ResizeGuard();
-    // the renderer waits for the frame's first render, an error or the time limit.
+    if (!frame) return;
     let waiting = true;
     busy.n++;
     const done = () => {
       if (waiting) busy.n--;
       waiting = false;
     };
+    firstDone.current = done;
     const timer = setTimeout(() => {
       if (waiting) fail(`no first render within ${TIMEOUT / 1000} s`);
       done();
     }, TIMEOUT);
+    return () => {
+      clearTimeout(timer);
+      done();
+    };
+  }, [frame]);
+
+  useEffect(() => {
+    const win = frame?.contentWindow;
+    if (!win || code.status !== "ready") return;
+    const post = (msg: ToFrame) => win.postMessage(msg, "*");
+    const subs = new Map<string, () => void>();
+    const guard = new ResizeGuard();
     const onMessage = (e: MessageEvent<ToPage>) => {
       if (e.source !== win) return;
       const msg = e.data;
@@ -80,7 +90,7 @@ export function Custom({ node }: { node: Node }) {
           break;
         case "ready":
           setState((s) => ({ ...s, blank: msg.blank, overflow: msg.overflow }));
-          done();
+          firstDone.current();
           break;
         case "warn":
           warn(msg.message);
@@ -110,7 +120,7 @@ export function Custom({ node }: { node: Node }) {
         case "error":
           // stack lines name the block's file instead of the blob it was loaded from.
           fail(msg.message.replace(/blob:[^\s)]*?\/[\w-]+(?=:\d)/g, where));
-          done();
+          firstDone.current();
           break;
         default:
           break;
@@ -131,11 +141,9 @@ export function Custom({ node }: { node: Node }) {
       unhover();
       unprefs();
       removeEventListener("message", onMessage);
-      clearTimeout(timer);
       for (const unsub of subs.values()) unsub();
-      done();
     };
-  }, [code.status, code.data, frame]);
+  }, [code.status, code.data?.code, frame]);
 
   // the frame follows the page's run names, colors and metrics as they change.
   useEffect(() => {

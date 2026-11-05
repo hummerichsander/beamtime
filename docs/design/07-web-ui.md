@@ -399,7 +399,10 @@ Decided while building the shell (milestone M5):
 - **Live updates**: the page opens one `EventSource` on `/api/subscribe?client=<id>` and tells the
   server with `watch` which calls it shows, each with its scope (a group or run path). The daemon
   reports changed run and group paths after every poll; a call is stale when the changed path is its
-  scope, lies below it, or lies above it (a group's notes and proposal reach the runs below). The
+  scope, lies below it, or lies above it (a group's notes and proposal reach the runs below). A call
+  without a scope is immutable and never watched or refetched: a custom block's `code` is
+  content-addressed and library blocks are pinned by version, so a frame's code is fetched once and
+  its bridge survives every live tick. The
   stream sends `stale` events with call ids, at most one a second per page; the page refetches those
   calls, keeps the old answer on screen while it does, and updates charts through uPlot's
   `setData`. After a reconnect it refetches everything on screen.

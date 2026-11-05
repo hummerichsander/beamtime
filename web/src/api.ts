@@ -5,7 +5,9 @@ import { useEffect, useState } from "preact/hooks";
 import { EXPORTED, snapshot } from "./snapshot.ts";
 import { Store } from "./state.ts";
 
-export type Call = { method: string; params: Record<string, unknown>; scope: string };
+// scope: the folder whose changes make the answer stale; null for an answer that never changes
+// (a custom block's code is content-addressed), which is fetched once and never watched.
+export type Call = { method: string; params: Record<string, unknown>; scope: string | null };
 export type Result<T = any> = {
   status: "loading" | "ready" | "error";
   data: T | null;
@@ -238,7 +240,7 @@ function watchChanged(): void {
   watchTimer = setTimeout(() => {
     watchTimer = null;
     const watched: Record<string, string> = {};
-    for (const e of entries.values()) if (e.listeners.size) watched[e.id] = e.call.scope;
+    for (const e of entries.values()) if (e.listeners.size && e.call.scope !== null) watched[e.id] = e.call.scope;
     post("watch", { client, watched }).catch(() => {});
     evict();
   }, 50);
@@ -267,7 +269,7 @@ export function connect(onReconnect?: () => void): void {
     watchChanged();
     // after a reconnect, changes may have been missed: refetch what is on screen.
     if (connected) {
-      markStale([...entries.values()].filter((e) => e.listeners.size).map((e) => e.id));
+      markStale([...entries.values()].filter((e) => e.listeners.size && e.call.scope !== null).map((e) => e.id));
       onReconnect?.();
     }
     connected = true;
@@ -284,5 +286,5 @@ export function connect(onReconnect?: () => void): void {
 
 // after a write, the answers it changes are fetched again (the live stream confirms later).
 export function invalidate(match: (call: Call) => boolean): void {
-  markStale([...entries.values()].filter((e) => match(e.call)).map((e) => e.id));
+  markStale([...entries.values()].filter((e) => e.call.scope !== null && match(e.call)).map((e) => e.id));
 }

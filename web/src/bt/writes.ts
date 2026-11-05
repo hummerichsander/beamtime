@@ -6,7 +6,7 @@ import { Store } from "../state.ts";
 
 // a group's answers that a write below or at `group` makes stale.
 function refresh(group: string, methods: string[]): void {
-  invalidate((c: Call) => methods.includes(c.method) && (c.scope === "." || group === c.scope ||
+  invalidate((c: Call) => methods.includes(c.method) && c.scope !== null && (c.scope === "." || group === c.scope ||
     group.startsWith(`${c.scope}/`) || c.scope.startsWith(`${group}/`)));  // prettier-ignore
 }
 

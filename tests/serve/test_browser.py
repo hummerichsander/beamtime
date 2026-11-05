@@ -202,3 +202,76 @@ def test_live_page_fixture_follows_a_running_writer(live_page) -> None:
     assert len(metrics.read_text().splitlines()) > before
     live_page.stop_writer()
     assert live_page.writer.returncode == 0
+
+
+LAST_STEP = """
+const { html } = bt.preact;
+
+function Last() {
+  const d = bt.useData("loss");
+  const x = d.curves[0]?.x ?? [];
+  return html`<p id="last-step">${x.length ? x[x.length - 1] : "none"}</p>`;
+}
+
+export default function render(root) {
+  bt.preact.render(html`<${Last} />`, root);
+}
+"""
+
+
+def last_step(page) -> int:
+    """Read the step a custom block shows, or -1 before it shows one.
+
+    :param page: The Playwright page.
+    :return: The step."""
+    text = page.frame_locator(".custom-frame iframe").locator("#last-step").inner_text(timeout=5000)
+    return int(text) if text.isdigit() else -1
+
+
+def test_custom_blocks_follow_live_data(live_page) -> None:
+    """A custom block on ``bt.useData`` keeps up with a running experiment, asks for its code
+    once, and does not turn into an error after the experiment stops."""
+    import yaml
+
+    from beamtime.ops import call
+    from beamtime.ops.context import Context
+
+    project, page = live_page.project, live_page.page
+    ctx = Context.make()
+    call("view new", {"group": "live", "name": "last"}, ctx)
+    draft = project / ".beamtime" / "drafts" / "last"
+    view = {
+        "schema": 1,
+        "title": "live",
+        "finding": "x",
+        "body": [
+            {
+                "custom": {
+                    "id": "last",
+                    "code": "code/last.js",
+                    "queries": {"loss": {"series": {"y": ["live/loss"], "points": 50}}},
+                }
+            }
+        ],
+    }
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "code").mkdir()
+    (draft / "code" / "last.js").write_text(LAST_STEP)
+    call("view save", {"draft": "last"}, ctx)
+
+    asked: list[str] = []
+    page.on("request", lambda r: r.url.rsplit("/", 1)[-1] in ("code", "series") and asked.append(r.url.rsplit("/", 1)[-1]))
+    live_page.goto("/f/local/live")
+    page.wait_for_selector(".custom-frame iframe")
+    deadline = time.time() + 30
+    while last_step(page) < 0:
+        assert time.time() < deadline, "the block never showed a step"
+        page.wait_for_timeout(200)
+    first = last_step(page)
+    page.wait_for_timeout(10_000)
+    assert last_step(page) > first + 10, "the block shows the step it started with"
+    assert asked.count("code") == 1, "the code is immutable, so it is fetched once"
+
+    live_page.stop_writer()
+    page.wait_for_timeout(20_000)
+    assert page.locator(".custom-error").count() == 0
