@@ -163,6 +163,21 @@ def bind(port: int) -> socket.socket:
     raise OpError(f"ports {port} to {port + PORT_TRIES - 1} are taken; pass --port")
 
 
+def forward_remote_change(hub: Any, name: str, event: dict[str, Any]) -> None:
+    """Prefix a remote's changed paths with its source name and hand them to the hub.
+
+    :param hub: The live-update hub.
+    :param name: The source's name.
+    :param event: The remote's ``changed`` event, ``{changed: {path: [kind, ...]}}``."""
+    changed = event.get("changed") or {}
+    hub.changed(
+        {
+            (f"@{name}" if path in (".", "") else f"@{name}/{path}"): set(kinds)
+            for path, kinds in changed.items()
+        }
+    )
+
+
 def start_sources(ctx: Context, p: r.ServeParams, hub: Any) -> Any:
     """Register the remotes this serve talks to: those named, else all from the settings.
 
@@ -185,11 +200,7 @@ def start_sources(ctx: Context, p: r.ServeParams, hub: Any) -> Any:
         if p.cache and spec.cache is None:
             spec.cache = p.cache
 
-    def changed(name: str, event: dict[str, Any]) -> None:
-        paths = event.get("paths") or []
-        hub.changed({f"@{name}" if q in (".", "") else f"@{name}/{q}" for q in paths})
-
-    sources = Sources(specs, on_event=changed)
+    sources = Sources(specs, on_event=lambda name, event: forward_remote_change(hub, name, event))
     shown = [
         f"@{s.name} ({s.host or s.name}:{s.path})"
         if s.transport == "ssh"

@@ -27,7 +27,8 @@ class Freshness:
     behind: int = 0
     behind_s: float | None = None
     damaged: list[str] = field(default_factory=list)
-    changed: set[str] = field(default_factory=set)
+    # run or group path to the kinds that changed: "metrics", "status" or "authored".
+    changed: dict[str, set[str]] = field(default_factory=dict)
 
     def text(self) -> str:
         """Describe the freshness in one line for CLI and MCP answers.
@@ -62,6 +63,15 @@ class Freshness:
             "behind_s": self.behind_s,
             "damaged": self.damaged,
         }
+
+
+def touch(changed: dict[str, set[str]], path: str, kind: str) -> None:
+    """Record that a path changed, and how.
+
+    :param changed: A ``Freshness.changed`` map.
+    :param path: The run or group path.
+    :param kind: ``metrics``, ``status`` or ``authored``."""
+    changed.setdefault(path, set()).add(kind)
 
 
 def format_age(seconds: float) -> str:
@@ -101,7 +111,9 @@ class Index:
         :return: The absolute path."""
         return self.logdir if rel in (".", "") else self.logdir / rel
 
-    def walk(self, scope: str = ".", changed: set[str] | None = None) -> list[tuple[str, float]]:
+    def walk(
+        self, scope: str = ".", changed: dict[str, set[str]] | None = None
+    ) -> list[tuple[str, float]]:
         """Find the runs at or below a folder, reusing listings of unchanged folders.
 
         One ``stat`` of ``_run.json`` per run both identifies it and gives its
@@ -109,7 +121,7 @@ class Index:
 
         :param scope: The folder relative to the log dir.
         :param changed: If given, collects folders whose notes, proposals, memory or
-            views changed since the last walk of this index.
+            views changed since the last walk of this index, by what changed.
         :return: Each run's path relative to the log dir and its ``_run.json`` mtime."""
         now = time.time()
         root = str(self.logdir)
@@ -149,7 +161,7 @@ class Index:
                         self.store.drop_folder(name if rel in (".", "") else f"{rel}/{name}")
                     self.store.set_folder(rel, mtime=st.st_mtime, walked=now, children=children)
                 if gone and changed is not None:
-                    changed.add(rel)
+                    touch(changed, rel, "status")
             notes = mtime(os.path.join(d, c.NOTES))
             if row is None or row["notes_mtime"] != notes:
                 with self.store.transaction():
@@ -158,12 +170,12 @@ class Index:
                     self.store.replace_notes(rel, None, entries)
                     self.store.set_folder(rel, notes_mtime=notes)
                 if changed is not None and row is not None:
-                    changed.add(rel)
+                    touch(changed, rel, "authored")
             if changed is not None:
                 authored = tuple(mtime(os.path.join(d, name)) for name in AUTHORED)
                 if self.authored.setdefault(rel, authored) != authored:
                     self.authored[rel] = authored
-                    changed.add(rel)
+                    touch(changed, rel, "authored")
             stack.extend(name if rel in (".", "") else f"{rel}/{name}" for name in children)
         if scope in (".", ""):
             # folders a walk from the root never reached are gone, also ones lost before.
@@ -173,7 +185,7 @@ class Index:
                     for path in orphans:
                         self.store.drop_folder(path)
                 if changed is not None:
-                    changed.add(".")
+                    touch(changed, ".", "status")
         return found
 
     def forget(self, run_id: str) -> None:
@@ -214,14 +226,16 @@ class Index:
             for run_id, row in rows.items():
                 if run_id not in ids and not (self.logdir / row["path"]).is_dir():
                     self.forget(run_id)
-                    freshness.changed.add(row["path"])
+                    touch(freshness.changed, row["path"], "status")
             for rel, run_mtime in found:
                 run_id = rel.rsplit("/", 1)[-1]
                 try:
                     meta, streams = self.ingester.stale(rel, run_mtime, rows.get(run_id))
                     if meta:
                         self.ingester.ingest_meta(self.logdir / rel)
-                        freshness.changed.add(rel)
+                        # the card covers both metric summaries and status and steps.
+                        touch(freshness.changed, rel, "metrics")
+                        touch(freshness.changed, rel, "status")
                 except (OSError, ValueError) as e:
                     freshness.damaged.append(f"{run_id}: {e}")
                     continue
@@ -236,7 +250,8 @@ class Index:
                     continue
                 try:
                     self.ingester.ingest_streams(run_dir)
-                    freshness.changed.add(run_dir.relative_to(self.logdir).as_posix())
+                    rel = run_dir.relative_to(self.logdir).as_posix()
+                    touch(freshness.changed, rel, "metrics")
                 except (OSError, ValueError) as e:
                     freshness.damaged.append(f"{run_dir.name}: {e}")
             freshness.behind = len(lags)

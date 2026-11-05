@@ -93,13 +93,17 @@ def test_hello_reads_and_errors(session: Session, project: Path, tmp_path: Path)
 def test_writes_and_subscriptions(session: Session, project: Path) -> None:
     """A note written over stdio lands in the remote's files and is reported as a change."""
     session.ask("subscribe", paths=[SWEEP])
+    deadline = time.monotonic() + 15
+    # the first catch-up only builds the index; let it pass before writing the note to notice.
+    while not session.events and time.monotonic() < deadline:
+        session.read()
+    session.events.clear()
     written = session.ask("note_add", group=SWEEP, type="observation", description="From afar.")
     path = project / "beamtime" / written["result"]["path"]
     assert path.is_file() and "From afar." in path.read_text()
-    deadline = time.monotonic() + 15
-    while not any(SWEEP in e["paths"] for e in session.events) and time.monotonic() < deadline:
+    while not any(SWEEP in e["changed"] for e in session.events) and time.monotonic() < deadline:
         session.read()
-    assert any(SWEEP in e["paths"] for e in session.events)
+    assert any(e["changed"].get(SWEEP) == ["authored"] for e in session.events)
 
 
 def test_files_list_and_read_from_an_offset(session: Session, project: Path) -> None:

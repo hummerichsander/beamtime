@@ -197,8 +197,14 @@ Nothing is reloaded when data changes, neither the page nor the view:
 
 1. **The page subscribes** to the queries of its visible blocks over **server-sent events**
    (`/api/subscribe`), a one-way stream that passes proxies easily.
-2. **The server names only affected queries.** When a run's files change, `serve` determines which
-   subscribed queries depend on that run and sends their ids, at most once per second per query.
+2. **The server names only affected queries.** When a run's files change, the index tags the change
+   by kind: `metrics` (a stream grew), `status` (a run's card, started, finished or was discovered)
+   or `authored` (a note, proposal, memory or view file was written). `serve` sends the id of a
+   subscribed query only when its scope is affected *and* it reads a changed kind (a method-to-kinds
+   table in `api.ts`; an unknown method is conservatively affected by every kind), at most once per
+   second per query. `view` reads `status` too, since the default view's shape (an empty group, which
+   metrics get a chart) follows run counts, not only an authored view file. A metric tick no longer
+   refetches the view, notes or memory.
 3. **The page refetches those queries.** Answers come from previews, cards and the index and are small.
 4. **Only the affected blocks re-render.** `bt.useData` re-renders the one component that uses the
    query, and Preact patches only the DOM elements whose content changed.
@@ -398,10 +404,12 @@ Decided while building the shell (milestone M5):
   group or run, with a run id resolved to its path) and `watch`. Logged images come from
   `GET /api/file/<run-id>/<path>`, confined to the run's directory.
 - **Live updates**: the page opens one `EventSource` on `/api/subscribe?client=<id>` and tells the
-  server with `watch` which calls it shows, each with its scope (a group or run path). The daemon
-  reports changed run and group paths after every poll; a call is stale when the changed path is its
-  scope, lies below it, or lies above it (a group's notes and proposal reach the runs below). A call
-  without a scope is immutable and never watched or refetched: a custom block's `code` is
+  server with `watch` which calls it shows, each with its scope (a group or run path) and the kinds
+  of change it reads. The daemon reports changed run and group paths after every poll, each with its
+  kinds (`metrics`, `status`, `authored`); a call is stale when a changed path is its scope, lies
+  below it, or lies above it (a group's notes and proposal reach the runs below), *and* shares a
+  kind with what it reads. A call without a scope is immutable and never watched or refetched: a
+  custom block's `code` is
   content-addressed and library blocks are pinned by version, so a frame's code is fetched once and
   its bridge survives every live tick. The
   stream sends `stale` events with call ids, at most one a second per page; the page refetches those

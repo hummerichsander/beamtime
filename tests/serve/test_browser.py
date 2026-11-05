@@ -277,6 +277,23 @@ def test_custom_blocks_follow_live_data(live_page) -> None:
     assert page.locator(".custom-error").count() == 0
 
 
+def test_live_ticks_refetch_only_what_changed(live_page) -> None:
+    """A metric tick refetches series, not the authored calls view, notes and memory_show."""
+    page = live_page.page
+    asked: list[str] = []
+    page.on(
+        "request",
+        lambda r: r.url.rsplit("/", 1)[-1] in ("series", "view", "notes", "memory_show")
+        and asked.append(r.url.rsplit("/", 1)[-1]),
+    )
+    live_page.goto("/f/local/live")
+    page.wait_for_selector(".chart canvas")
+    asked.clear()
+    page.wait_for_timeout(5000)
+    assert "series" in asked
+    assert not {"view", "notes", "memory_show"} & set(asked)
+
+
 def test_nested_configs_read_well_everywhere(server: str, page, project: Path) -> None:
     """A real, nested config shows as a tree in the drawer and on the run page, as the varying keys on
     the group page, and as short labels and summaries in tables: never as [object Object]."""

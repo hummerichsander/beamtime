@@ -22,7 +22,7 @@ class Daemon:
         logdir: Path,
         cache: Path | None = None,
         port: int | None = None,
-        on_change: Callable[[set[str]], None] | None = None,
+        on_change: Callable[[dict[str, set[str]]], None] | None = None,
         poll_s: float = POLL_S,
     ):
         """Prepare the daemon; nothing runs before ``start``.
@@ -31,7 +31,7 @@ class Daemon:
         :param cache: The cache directory; by default ``cache_dir(logdir)``.
         :param port: The web UI's port, recorded in ``serve.json``.
         :param on_change: Called from the indexing thread with the run and folder
-            paths (relative to the log dir) that changed in a poll.
+            paths (relative to the log dir) that changed in a poll, and how.
         :param poll_s: Seconds between polls."""
         self.logdir = logdir.resolve()
         self.cache = cache or cache_dir(self.logdir)

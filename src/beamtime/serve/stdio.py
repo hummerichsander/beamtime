@@ -1,9 +1,10 @@
 """``beamtime serve --stdio``: the API over stdin and stdout, which a laptop starts over ssh.
 
 Each line in is a request ``{id, method, params, caller}``; each line out is its answer ``{id,
-result}`` or ``{id, error: {message, code}}``, or an event ``{event: "changed", paths}`` for the
-scopes the laptop subscribed to. Requests run in a few threads, so several can be in flight. The
-process ends when stdin closes, and with it the temporary cache it indexed into."""
+result}`` or ``{id, error: {message, code}}``, or an event ``{event: "changed", changed}`` for the
+scopes the laptop subscribed to, where ``changed`` maps each path to the kinds that changed
+(``metrics``, ``status``, ``authored``). Requests run in a few threads, so several can be in
+flight. The process ends when stdin closes, and with it the temporary cache it indexed into."""
 
 import dataclasses
 import json
@@ -96,19 +97,22 @@ class Remote:
             self.out.flush()
 
     def watch(self) -> None:
-        """Catch up the watched scopes every few seconds and report what changed."""
+        """Catch up the watched scopes every few seconds and report what changed, and how."""
         from beamtime.index.index import Index
 
         with Index(logdir=self.ctx.logdir) as index:
             while not self.stopping.wait(WATCH_S):
-                changed: set[str] = set()
+                changed: dict[str, set[str]] = {}
                 for scope in sorted(self.watched):
                     try:
-                        changed |= index.catch_up(scope, budget_s=1.0, daemon=True).changed
+                        fresh = index.catch_up(scope, budget_s=1.0, daemon=True).changed
                     except Exception:  # noqa: BLE001
                         continue
+                    for path, kinds in fresh.items():
+                        changed.setdefault(path, set()).update(kinds)
                 if changed:
-                    self.send({"event": "changed", "paths": sorted(changed)})
+                    payload = {path: sorted(kinds) for path, kinds in changed.items()}
+                    self.send({"event": "changed", "changed": payload})
 
 
 def run(*, logdir: str, cache: str | None = None) -> int:

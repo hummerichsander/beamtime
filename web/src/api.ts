@@ -234,13 +234,36 @@ export const updated = new Store<number>(Date.now());
 const client = Math.random().toString(36).slice(2, 10);
 let watchTimer: ReturnType<typeof setTimeout> | null = null;
 
+// every kind a change can be: a run's metrics, its status, or an authored file (notes, proposal,
+// memory, view). A method not listed gets all three, so a new one never goes stale silently.
+const ALL_KINDS = ["metrics", "status", "authored"];
+const KINDS_BY_METHOD: Record<string, string[]> = {
+  // the default view's shape follows run counts and which metrics exist (status), besides an
+  // authored view file; only metric values changing (an ordinary tick) leaves its shape alone.
+  view: ["status", "authored"],
+  notes: ["authored"],
+  memory_show: ["authored"],
+  proposal_show: ["authored"],
+  series: ["metrics", "status"],
+  runs: ["metrics", "status"],
+  keys: ["metrics", "status"],
+  summary: ["metrics", "status"],
+  groups: ALL_KINDS,
+  status: ALL_KINDS,
+  check: ALL_KINDS,
+};
+
 function watchChanged(): void {
   if (remote || EXPORTED) return;
   if (watchTimer) clearTimeout(watchTimer);
   watchTimer = setTimeout(() => {
     watchTimer = null;
-    const watched: Record<string, string> = {};
-    for (const e of entries.values()) if (e.listeners.size && e.call.scope !== null) watched[e.id] = e.call.scope;
+    const watched: Record<string, [string, string[]]> = {};
+    for (const e of entries.values()) {
+      if (e.listeners.size && e.call.scope !== null) {
+        watched[e.id] = [e.call.scope, KINDS_BY_METHOD[e.call.method] ?? ALL_KINDS];
+      }
+    }
     post("watch", { client, watched }).catch(() => {});
     evict();
   }, 50);

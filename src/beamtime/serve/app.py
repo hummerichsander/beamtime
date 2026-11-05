@@ -155,7 +155,7 @@ def subscribe_remotes(hub: Hub, sources: "Sources | None") -> None:
         return
     # copies: pages come and go on the event loop while this runs in a worker thread.
     watched = [list(client.watched.values()) for client in list(hub.clients.values())]
-    scopes = {scope for each in watched for scope in each}
+    scopes = {scope for each in watched for scope, _ in each}
     for name, client in sources.clients.items():
         if client.state != "connected":
             continue

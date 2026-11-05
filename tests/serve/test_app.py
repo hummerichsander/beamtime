@@ -6,7 +6,9 @@ import pytest
 from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import OPS, ServeParams
-from beamtime.serve.server import serve
+from beamtime.serve.app import subscribe_remotes
+from beamtime.serve.live import Client, Hub
+from beamtime.serve.server import forward_remote_change, serve
 from tests.serve.conftest import PORT, TOKEN
 
 
@@ -246,3 +248,34 @@ def test_project_style_files(api, project: Path) -> None:
     assert pdf.content.startswith(b"%PDF")
     missing = api("set", key="figure_style", value=["styles/none.mplstyle"])
     assert missing.status_code == 400 and "no style file" in missing.json()["error"]
+
+
+def test_forward_remote_change_prefixes_paths_and_kinds() -> None:
+    """A remote's changed event becomes @name-prefixed paths with their kinds, for the hub."""
+    seen = []
+    hub = type("FakeHub", (), {"changed": lambda self, d: seen.append(d)})()
+    forward_remote_change(hub, "box", {"changed": {".": ["authored"], "g/r": ["metrics"]}})
+    assert seen == [{"@box": {"authored"}, "@box/g/r": {"metrics"}}]
+
+
+def test_subscribe_remotes_reads_the_scope_out_of_the_scope_kinds_pair() -> None:
+    """Pages watching a remote's scope (with its kinds) tell that source to subscribe to it."""
+    hub = Hub()
+    hub.clients["p"] = Client(watched={"q": ("@box/g", {"metrics"}), "r": (".", {"authored"})})
+
+    class FakeSpec:
+        scope = "."
+
+    class FakeClient:
+        state = "connected"
+        spec = FakeSpec()
+
+        def __init__(self) -> None:
+            self.subscribed: list[str] | None = None
+
+        def subscribe(self, paths: list[str]) -> None:
+            self.subscribed = paths
+
+    sources = type("FakeSources", (), {"clients": {"box": FakeClient()}})()
+    subscribe_remotes(hub, sources)
+    assert sources.clients["box"].subscribed == [".", "g"]

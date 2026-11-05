@@ -28,7 +28,8 @@ def affects(changed: str, scope: str) -> bool:
 class Client:
     """One open page: the calls it watches and the ids waiting to be sent."""
 
-    watched: dict[str, str] = field(default_factory=dict)
+    # call id to (scope, the kinds of change it cares about).
+    watched: dict[str, tuple[str, set[str]]] = field(default_factory=dict)
     pending: set[str] = field(default_factory=set)
     wake: asyncio.Event = field(default_factory=asyncio.Event)
 
@@ -52,29 +53,31 @@ class Hub:
         for client in self.clients.values():
             client.wake.set()
 
-    def watch(self, client: str, watched: dict[str, str]) -> None:
+    def watch(self, client: str, watched: dict[str, tuple[str, list[str]]]) -> None:
         """Replace the calls a page watches.
 
         :param client: The page's id.
-        :param watched: Call id to the scope it is about."""
-        self.clients.setdefault(client, Client()).watched = dict(watched)
+        :param watched: Call id to ``[scope, kinds]``, the kinds of change it cares about."""
+        self.clients.setdefault(client, Client()).watched = {
+            qid: (scope, set(kinds)) for qid, (scope, kinds) in watched.items()
+        }
 
-    def changed(self, paths: set[str]) -> None:
-        """Hand over changed paths from the indexing thread.
+    def changed(self, changed: dict[str, set[str]]) -> None:
+        """Hand over changed paths and their kinds from the indexing thread.
 
-        :param paths: Run and group paths relative to the log dir."""
+        :param changed: Run and group paths relative to the log dir, to the kinds that changed."""
         if self.loop is not None:
-            self.loop.call_soon_threadsafe(self.dispatch, set(paths))
+            self.loop.call_soon_threadsafe(self.dispatch, dict(changed))
 
-    def dispatch(self, paths: set[str]) -> None:
+    def dispatch(self, changed: dict[str, set[str]]) -> None:
         """Queue the ids of affected calls for every page.
 
-        :param paths: Run and group paths relative to the log dir."""
+        :param changed: Run and group paths relative to the log dir, to the kinds that changed."""
         for client in self.clients.values():
             stale = {
                 qid
-                for qid, scope in client.watched.items()
-                if any(affects(p, scope) for p in paths)
+                for qid, (scope, kinds) in client.watched.items()
+                if any(affects(p, scope) and not ks.isdisjoint(kinds) for p, ks in changed.items())
             }
             if stale:
                 client.pending |= stale
