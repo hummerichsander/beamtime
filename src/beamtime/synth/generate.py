@@ -23,6 +23,9 @@ BASE_TIME = datetime(2026, 10, 20, 8, 0, 0, tzinfo=timezone.utc)
 LRS = (3e-5, 1e-4, 3e-4, 1e-3, 3e-3)
 BEST_LR = 3e-4
 TOKENIZER_PPL_GAP = 0.4
+ARMS = {"small": 8, "medium": 16, "large": 32}
+LIGHTNING_LRS = tuple(round(1e-5 * 2**i, 8) for i in range(12))
+STEPS_PER_EPOCH = 100
 
 
 @dataclass(kw_only=True, frozen=True)
@@ -78,6 +81,7 @@ class RunSpec:
     files: dict[str, bytes] = field(default_factory=dict)
     values: dict[str, Any] = field(default_factory=dict)
     heartbeat_age_s: float = 0.0
+    git: dict[str, Any] | None = None
 
 
 def iso(t: datetime) -> str:
@@ -110,6 +114,7 @@ class Generator:
         self.logdir = logdir
         self.scale = scale
         self.now = now
+        self.seed = seed
         self.rng = random.Random(seed)
         self.clock = BASE_TIME
         self.host = 0
@@ -128,6 +133,7 @@ class Generator:
             "# Project memory\n\n- lr 3e-4 is best for the resnet sweep.\n"
             "- unigram beats bpe on validation perplexity.\n",
         )
+        self.realistic()
 
     def lr_sweep(self) -> None:
         """Write ``scaling/lr-sweep``: a best lr, a diverging and a killed run."""
@@ -342,6 +348,93 @@ class Generator:
                 spec.tags = ["lm", tok]
                 spec.data = [self.text_entry(rows[-1]["_step"], tok)]
                 self.write_run(spec)
+
+    def realistic(self) -> None:
+        """Write ``realistic/egnn-bench`` and ``realistic/lr-scan``: configs, metric names and
+        logging rhythms as Lightning projects produce them."""
+        # a stream of its own keeps the groups above byte-identical.
+        self.rng = random.Random(self.seed + 1)
+        folder = self.logdir / "realistic" / "egnn-bench"
+        for arm, channels in ARMS.items():
+            for seed in range(3):
+                quality = math.log2(channels)
+                rows = self.lightning_curves(500, lr=1e-3, quality=quality)
+                killed = (arm, seed) == ("medium", 2)
+                if killed:
+                    rows = rows[: len(rows) * 2 // 5]
+                stamp = self.clock.strftime("%Y-%m-%d_%H-%M-%S")
+                config = {
+                    "arm": arm,
+                    "seed": seed,
+                    "hparams": {"egnn": {"vector_channels": channels}},
+                    "hydrantic": {
+                        "seed": seed,
+                        "model": {"egnn": {"vector_channels": channels}},
+                        "trainer": {
+                            "max_epochs": 5,
+                            "default_root_dir": f"/scratch/synth/lightning/{stamp}",
+                        },
+                    },
+                }
+                spec = self.spec(folder, config, rows, "killed" if killed else "finished")
+                if killed:
+                    spec.signal = "SIGTERM"
+                if arm == "large" and seed < 2:
+                    spec.git = {"commit": "9e41c2a", "branch": "feature/egnn", "dirty": True}
+                    diff = f"-dropout = 0.1\n+dropout = 0.{seed + 2}\n"
+                    spec.files[f"{c.ENV_DIR}/git.diff"] = (
+                        f"--- a/model.py\n+++ b/model.py\n{diff}".encode()
+                    )
+                role = self.write_run(spec)
+                if killed:
+                    self.manifest.roles["realistic_killed"] = role
+                elif spec.git is not None:
+                    self.manifest.roles.setdefault("realistic_dirty", role)
+
+        folder = self.logdir / "realistic" / "lr-scan"
+        for lr in LIGHTNING_LRS:
+            rows = self.lightning_curves(300, lr=lr, quality=4.0)
+            self.write_run(self.spec(folder, {"lr": lr, "seed": 0}, rows))
+
+    def lightning_curves(self, steps: int, *, lr: float, quality: float) -> list[dict[str, Any]]:
+        """Make records as a Lightning run logs them: every 10 steps some, every 50 others.
+
+        :param steps: Number of steps.
+        :param lr: Peak learning rate.
+        :param quality: Higher is better; lowers the losses and the energy error.
+        :return: The metric records."""
+        t = self.clock.timestamp()
+        rows = []
+        for s in range(0, steps, 10):
+            t += 2.5 + self.rng.random()
+            progress = s / steps
+            decay = math.exp(-3 * progress)
+            floor = 0.6 - 0.05 * quality
+            w1 = 0.9 - 0.08 * (quality - 3)
+            row: dict[str, Any] = {
+                "_step": s,
+                "_t": round(t, 3),
+                "training/loss": round(floor + 2.0 * decay + 0.02 * self.rng.gauss(0, 1), 6),
+                "lr-AdamW": round(lr * 0.5 * (1 + math.cos(math.pi * progress)), 9),
+                "sys/gpu_util": round(90 + 3 * self.rng.gauss(0, 1), 3),
+                "sys/gpu_mem": round(21.5 + 0.2 * self.rng.gauss(0, 1), 3),
+            }
+            if s % 50 == 0:
+                row["epoch"] = float(s // STEPS_PER_EPOCH)
+                row["validation/loss"] = round(floor + 2.2 * decay + 0.02 * self.rng.gauss(0, 1), 6)
+                row["validation/w1_energy"] = round(
+                    w1 + 1.5 * decay + 0.01 * self.rng.gauss(0, 1), 6
+                )
+                row["validation/signed"] = round(
+                    0.4 - 0.8 * progress + 0.02 * self.rng.gauss(0, 1), 6
+                )
+                row["energy/B_w1"] = round(w1 + 1.2 * decay + 0.01 * self.rng.gauss(0, 1), 6)
+                row["energy/C_w1"] = round(w1 + 1.8 * decay + 0.01 * self.rng.gauss(0, 1), 6)
+                row["energy/Aconst_w1"] = 0.0
+            if s == 50:
+                row["validation/first_eval"] = round(1.7 + 0.01 * self.rng.gauss(0, 1), 6)
+            rows.append(row)
+        return rows
 
     def curves(self, steps: int, *, lr: float, final_acc: float) -> list[dict[str, Any]]:
         """Make classifier records: train/loss and lr every step, val/acc periodically.
@@ -647,7 +740,8 @@ class Generator:
             events.append(end)
         output = [f"[{host}] starting {spec.config}\n"]
         output += [
-            f"step {r['_step']} loss {r['train/loss']}\n" for r in last[:: max(1, len(last) // 20)]
+            f"step {r['_step']} loss {next(v for k, v in r.items() if k.endswith('loss'))}\n"
+            for r in last[:: max(1, len(last) // 20)]
         ]
         output.append(last_output)
 
@@ -678,7 +772,7 @@ class Generator:
                 "partition": "gpu",
                 "nodes": host,
             },
-            "git": {"commit": "57878f1", "branch": "main", "dirty": False},
+            "git": spec.git or {"commit": "57878f1", "branch": "main", "dirty": False},
             "command": ["python", "train.py"] + [f"--{k}={v}" for k, v in spec.config.items()],
             "cwd": "/home/synth/proj",
             "beamtime_version": "synth",

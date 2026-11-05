@@ -100,7 +100,7 @@ def test_exit_codes(project: Path, args: list[str], code: int, text: str) -> Non
 def test_root_flag(project: Path, tmp_path: Path) -> None:
     """--root answers for another project from anywhere."""
     out = beamtime(tmp_path, "--root", str(project), "keys", ".")
-    assert out.returncode == 0 and out.stdout.startswith("26 runs")
+    assert out.returncode == 0 and out.stdout.startswith("47 runs")
 
 
 def test_mcp_without_extra_explains(project: Path, tmp_path: Path) -> None:

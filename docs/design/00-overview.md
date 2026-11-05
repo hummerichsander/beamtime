@@ -93,7 +93,12 @@ reader blocks, and installs no SIGTERM handler.
 
 - **Golden run folders** per schema version, checked in, as reader fixtures.
 - **A synthetic log-dir generator** with planted effects (from the [evaluation harness](05-views.md#evaluation-harness))
-  for fixtures, demos and the harness.
+  for fixtures, demos and the harness. Its `realistic/` groups are shaped like real Lightning
+  projects (nested and aliased configs, `validation/*` and `energy/*` metrics with a constant
+  one first in the alphabet, an `epoch` step function, one-point and zero-crossing metrics, a
+  12-value sweep, dirty and killed runs); they draw from a random stream of their own, so the
+  older groups stay byte-identical (`tests/synth`). Browser tests that need a running
+  experiment use the `live_page` fixture (`tests/serve/conftest.py`).
 - **Property tests** for preview buckets and downsampling against exact recomputation.
 - **Crash tests**: writers killed mid-line, mid-replace and mid-resume; readers and the index must
   recover.

@@ -244,9 +244,9 @@ def test_groups(ask) -> None:
     sweep = rows["scaling/lr-sweep"]
     assert sweep["proposal"].startswith("lr 0.0003") and sweep["runs"] == 17
     assert sweep["failed"] == 1 and sweep["killed"] == 1
-    assert rows["."]["runs"] == 26 and rows["scaling"]["direct"] == 0
+    assert rows["."]["runs"] == 47 and rows["scaling"]["direct"] == 0
     shallow = ask({"groups": {"from": ".", "depth": 1}})
-    assert {r[0] for r in shallow["rows"]} == {".", "scaling", "tokenizer"}
+    assert {r[0] for r in shallow["rows"]} == {".", "realistic", "scaling", "tokenizer"}
 
 
 def test_research_fields(ask) -> None:
@@ -306,7 +306,7 @@ def test_helpful_errors(ask, query: dict, code: str, text: str) -> None:
 
 def test_caller_defaults(ask) -> None:
     """MCP answers default to 50 rows; views get up to 1000."""
-    assert ask({"runs": {}}, caller="mcp")["meta"]["shown"] == 26
+    assert ask({"runs": {}}, caller="mcp")["meta"]["shown"] == 47
     assert ask({"runs": {"limit": 2}}, caller="view")["meta"]["shown"] == 2
 
 

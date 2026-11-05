@@ -8,35 +8,8 @@ from pathlib import Path
 import pytest
 
 from beamtime.format.io import json_line
-from beamtime.serve.app import STATIC
 
-sync_api = pytest.importorskip("playwright.sync_api")
-
-
-@pytest.fixture
-def server(project: Path):
-    """``beamtime serve`` on a free port for the generated project.
-
-    :param project: The project root.
-    :return: The URL with the token."""
-    if not (STATIC / "app.js").is_file():
-        pytest.skip("the frontend is not built")
-    script = Path(sys.executable).parent / "beamtime"
-    proc = subprocess.Popen(
-        [script, "serve", "--port", "0"], cwd=project, stderr=subprocess.PIPE, text=True
-    )
-    url = None
-    deadline = time.time() + 30
-    while time.time() < deadline and url is None:
-        line = proc.stderr.readline()
-        if m := re.search(r"(http://localhost:\d+)/f/local\?token=(\S+)", line):
-            url = m.group(0)
-    if url is None:
-        proc.kill()
-        pytest.fail("serve printed no URL")
-    yield url
-    proc.terminate()
-    proc.wait(10)
+pytest.importorskip("playwright.sync_api")
 
 
 def box_of(page, selector: str) -> dict:
@@ -53,25 +26,6 @@ def box_of(page, selector: str) -> dict:
         assert time.time() < deadline, f"{selector} never got a size"
         page.wait_for_timeout(100)
     return box
-
-
-@pytest.fixture
-def page():
-    """A headless Chromium page; skipped where no Chromium can run.
-
-    :return: The page."""
-    with sync_api.sync_playwright() as p:
-        browser = None
-        for kw in ({}, {"channel": "chrome"}):
-            try:
-                browser = p.chromium.launch(**kw)
-                break
-            except Exception:
-                continue
-        if browser is None:
-            pytest.skip("no Chromium available (playwright install chromium)")
-        yield browser.new_page(viewport={"width": 1280, "height": 900})
-        browser.close()
 
 
 def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict) -> None:
@@ -236,3 +190,15 @@ def test_custom_blocks_share_hover_downloads_and_expand(project: Path, page) -> 
     finally:
         proc.terminate()
         proc.wait(10)
+
+
+def test_live_page_fixture_follows_a_running_writer(live_page) -> None:
+    """The fixture's writer appears in the app and its metrics keep arriving."""
+    live_page.goto("/f/local/live")
+    live_page.page.wait_for_selector(".chart canvas")
+    metrics = next((live_page.project / "beamtime" / "live").glob("*/_metrics.jsonl"))
+    before = len(metrics.read_text().splitlines())
+    live_page.page.wait_for_timeout(1000)
+    assert len(metrics.read_text().splitlines()) > before
+    live_page.stop_writer()
+    assert live_page.writer.returncode == 0

@@ -1,3 +1,4 @@
+import hashlib
 import math
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,7 +42,7 @@ def test_every_file_reads_back(synth: tuple[Path, Manifest]) -> None:
     """Every generated run reads with every reader, without damaged lines."""
     logdir, manifest = synth
     runs = list(iter_runs(logdir))
-    assert len(runs) == manifest.runs == 26
+    assert len(runs) == manifest.runs == 47
     for run in runs:
         info = read_run_info(run)
         assert info.id == run.name
@@ -53,6 +54,52 @@ def test_every_file_reads_back(synth: tuple[Path, Manifest]) -> None:
         assert read_output(run)
         read_data(run), read_artifacts(run)
     assert read_json(logdir / "_synth.json")["roles"] == manifest.roles
+
+
+def test_the_original_groups_are_byte_stable(synth: tuple[Path, Manifest]) -> None:
+    """Adding groups never changes the files of the older ones."""
+    logdir, _ = synth
+    digest = hashlib.sha256()
+    for top in ("memory", "scaling", "tokenizer"):
+        for p in sorted((logdir / top).rglob("*")):
+            if p.is_file():
+                digest.update(str(p.relative_to(logdir)).encode() + p.read_bytes())
+    assert digest.hexdigest() == "b1568826298cad32233b91935cf1d59fcb3d3394887de84345be76f5ed40c0bd"
+
+
+def test_realistic_group_has_real_shapes(synth: tuple[Path, Manifest]) -> None:
+    """The realistic groups carry nested configs, prefixed metrics and a clock-like epoch."""
+    logdir, manifest = synth
+    bench = list(iter_runs(logdir / "realistic" / "egnn-bench"))
+    assert len(bench) == 9
+    for run in bench:
+        config = read_config(run)
+        assert config["hparams"]["egnn"] == config["hydrantic"]["model"]["egnn"]
+        assert config["hydrantic"]["seed"] == config["seed"]
+    roots = {read_config(r)["hydrantic"]["trainer"]["default_root_dir"] for r in bench}
+    assert len(roots) == len(bench)
+
+    run = next(r for r in bench if read_run_info(r).status == "finished")
+    rows = read_effective_metrics(run)
+    epochs = [(r["_step"], r["epoch"]) for r in rows if "epoch" in r]
+    assert [s for s, _ in epochs[:3]] == [0, 50, 100] and [e for _, e in epochs[:4]] == [0, 0, 1, 1]
+    assert [r["_step"] for r in rows if "validation/first_eval" in r] == [50]
+    signed = [r["validation/signed"] for r in rows if "validation/signed" in r]
+    assert min(signed) < 0 < max(signed)
+    card = read_card(run).metrics
+    assert card["energy/Aconst_w1"].min == card["energy/Aconst_w1"].max == 0.0
+    assert sorted(m for m in card if m.startswith("energy/"))[0] == "energy/Aconst_w1"
+    assert {"validation/w1_energy", "validation/loss", "training/loss", "lr-AdamW"} <= card.keys()
+    assert any(m.startswith("sys/") for m in card)
+
+    killed = by_role(logdir, manifest, "realistic_killed")
+    assert read_run_info(killed).status == "killed" and read_run_info(killed).scheduler
+    dirty = by_role(logdir, manifest, "realistic_dirty")
+    assert read_run_info(dirty).git["dirty"] is True
+    assert (dirty / "_env" / "git.diff").is_file()
+
+    scan = list(iter_runs(logdir / "realistic" / "lr-scan"))
+    assert len({read_config(r)["lr"] for r in scan}) == 12
 
 
 def test_authored_files_read_back(synth: tuple[Path, Manifest]) -> None:
@@ -79,9 +126,7 @@ def test_deterministic(tmp_path: Path) -> None:
     a = generate(tmp_path / "a", seed=7, now=NOW)
     b = generate(tmp_path / "b", seed=7, now=NOW)
     files = sorted(p.relative_to(tmp_path / "a") for p in (tmp_path / "a").rglob("*"))
-    assert files == sorted(
-        p.relative_to(tmp_path / "b") for p in (tmp_path / "b").rglob("*")
-    )
+    assert files == sorted(p.relative_to(tmp_path / "b") for p in (tmp_path / "b").rglob("*"))
     for rel in files:
         if (tmp_path / "a" / rel).is_file():
             assert (tmp_path / "a" / rel).read_bytes() == (tmp_path / "b" / rel).read_bytes()

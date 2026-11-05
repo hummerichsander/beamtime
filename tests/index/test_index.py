@@ -100,7 +100,7 @@ def test_full_ingest_matches_the_files(index: Index, logdir: Path) -> None:
     assert fresh.behind == 0 and not fresh.damaged
     check_all(index, logdir)
     db = index.store.db
-    assert db.execute("SELECT count(*) FROM runs").fetchone()[0] == 26
+    assert db.execute("SELECT count(*) FROM runs").fetchone()[0] == 47
     assert db.execute("SELECT count(*) FROM notes").fetchone()[0] == 6
     links = {tuple(r) for r in db.execute("SELECT kind, target FROM links")}
     assert ("prediction", "scaling/lr-sweep#converges") in links
@@ -256,7 +256,7 @@ def test_budget_reports_runs_behind(index: Index) -> None:
     """With no time to spare, streams wait and the answer says so; metadata is complete."""
     fresh = index.catch_up(".", budget_s=0.0)
     assert fresh.behind > 0 and "not yet indexed" in fresh.text()
-    assert index.store.db.execute("SELECT count(*) FROM runs").fetchone()[0] == 26
+    assert index.store.db.execute("SELECT count(*) FROM runs").fetchone()[0] == 47
 
 
 def test_deferred_streams_are_read_later(index: Index, logdir: Path) -> None:
@@ -285,7 +285,7 @@ def test_locks_and_daemon(logdir: Path, tmp_path: Path) -> None:
         client = Index(logdir=logdir, cache=cache)
         while time.time() < deadline:
             n = client.store.db.execute("SELECT count(*) FROM runs").fetchone()[0]
-            if n == 26 and client.store.db.execute("SELECT count(*) FROM events").fetchone()[0]:
+            if n == 47 and client.store.db.execute("SELECT count(*) FROM events").fetchone()[0]:
                 break
             time.sleep(0.1)
         assert client.catch_up(".") == Freshness(daemon=True)

@@ -49,20 +49,21 @@ def runs_kind(ctx: Context, q: m.Runs) -> dict[str, Any]:
     :param q: The query.
     :return: ``{columns, rows, meta}``."""
     select = q.select or default_columns(ctx)
-    sort = [s.lstrip("-") for s in q.sort]
-    runs, _ = select_runs(ctx, q, [*select, *sort])
+    sort = q.sort or ([] if q.seeds else ["-run.created_at"])
+    sorted_by = [s.lstrip("-") for s in sort]
+    runs, _ = select_runs(ctx, q, [*select, *sorted_by])
     if q.seeds:
         rows = []
         for _, group in seed_groups(runs, q.seeds):
             row = {"runs": [r["_id"] for r in group]}
-            for f in dict.fromkeys([*select, *sort]):
+            for f in dict.fromkeys([*select, *sorted_by]):
                 row[f] = aggregate([r.get(f) for r in group])
             rows.append(row)
         columns = ["runs", *select]
     else:
         rows = [{"run.id": r["_id"]} | r for r in runs]
         columns = ["run.id", *[s for s in select if s != "run.id"]]
-    sort_rows(rows, q.sort or ["-run.created_at"] if not q.seeds else q.sort)
+    sort_rows(rows, sort)
     limit = q.limit if q.limit is not None else ctx.defaults["rows"]
     cut = len(rows) > limit
     shown = rows[:limit]

@@ -131,7 +131,7 @@ def test_reading_operations_wrap_queries(ctx: Context) -> None:
     assert a["rows"] == b["rows"]
     s = call("series", {"from": "tokenizer", "y": ["val/ppl"], "by": ["config.tokenizer"]}, ctx)
     assert len(s["curves"]) == 2
-    assert call("keys", {}, ctx)["runs"] == 26
+    assert call("keys", {}, ctx)["runs"] == 47
     assert call("timeline", {"limit": 3}, ctx)["entries"]
     q = call("query", {"query": {"groups": {"from": "."}}}, ctx)
     assert q["kind"] == "groups"
@@ -230,7 +230,7 @@ def test_text_rendering(ctx: Context) -> None:
     assert spark([1, 2, 3, None, 5]) == "▁▃▅ █"
     text = render(call("series", {"from": "tokenizer", "y": ["val/ppl"]}, ctx))
     assert text.count("val/ppl") == 6 and "curves from 6 runs" in text
-    assert "3 of 26 runs" in render(call("runs", {"limit": 3}, ctx))
+    assert "3 of 47 runs" in render(call("runs", {"limit": 3}, ctx))
 
 
 def test_note_rm_moves_the_note_and_its_versions_to_the_trash(ctx: Context, project: Path) -> None:
