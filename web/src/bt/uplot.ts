@@ -2,7 +2,7 @@
 
 import uPlot from "uplot";
 
-import { align, logRange, logTicks, type Curve } from "./curves.ts";
+import { align, logRange, logTicks, markers, type Curve } from "./curves.ts";
 import { alpha, type ChartStyle } from "./theme.ts";
 
 export type LineSpec = {
@@ -62,7 +62,8 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       // uPlot takes dashes in canvas pixels.
       dash: spec.dashes[i]?.map((v) => v * devicePixelRatio),
       spanGaps: true,
-      points: { show: false },
+      // few points are marked, read from the data as it is now: a live update keeps the chart.
+      points: { show: true, size: spec.style.line * 3, fill: spec.colors[i], filter: (self: uPlot, at: number) => markers(self.data[at]) },
     })),
   ];
   if (spec.raw) {
@@ -89,7 +90,8 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       legend: { show: false },
       padding: [8, 8, 0, 0],
       scales: {
-        x: { time: false },
+        // one x value would collapse the range to nothing.
+        x: { time: false, range: (_self, min, max) => (min === max ? [min - (Math.abs(min) * 0.01 || 1), max + (Math.abs(max) * 0.01 || 1)] : [min, max]) },
         y: {
           ...(spec.scale === "log" ? { distr: 3 } : spec.scale === "symlog" ? { distr: 4, asinh: spec.asinh } : {}),
           range: (_self, min, max) => {

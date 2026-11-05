@@ -95,6 +95,16 @@ function runLabels(curves: any[]): string[] {
   return curves.map((c, i) => (counts.get(names[i])! > 1 ? `${names[i]} (${String(c.run).slice(-4)})` : names[i]));
 }
 
+// a curve with at most this many points marks each of them, so a single point or a sparse metric shows.
+export const SPARSE = 30;
+
+// the indices of the points to mark: all the finite ones when there are few, else none.
+export function markers(ys: ArrayLike<number | null | undefined>): number[] {
+  const finite: number[] = [];
+  for (let i = 0; i < ys.length; i++) if (typeof ys[i] === "number" && Number.isFinite(ys[i])) finite.push(i);
+  return finite.length <= SPARSE ? finite : [];
+}
+
 function format(v: unknown): string {
   if (typeof v === "number") return String(Number(v.toPrecision(4)));
   return typeof v === "object" && v !== null ? value(v) : String(v);

@@ -328,3 +328,58 @@ def test_nested_configs_read_well_everywhere(server: str, page, project: Path) -
     section.locator("input[type=search]").fill("max_epochs")
     assert section.locator(".config-leaf").count() == 1
     assert "[object" not in page.inner_text("body")
+
+
+DATA_PIXELS = """() => {
+  const canvas = document.querySelector('.chart canvas');
+  const c = canvas.getBoundingClientRect();
+  const o = document.querySelector('.chart .u-over').getBoundingClientRect();
+  const k = canvas.width / c.width;
+  const [x0, y0, w, h] = [Math.floor((o.left - c.left) * k), Math.floor((o.top - c.top) * k), Math.floor(o.width * k), Math.floor(o.height * k)];
+  const data = canvas.getContext('2d').getImageData(x0, y0, w, h).data;
+  const probe = document.createElement('canvas').getContext('2d');
+  const colors = [1, 2, 3, 4, 5, 6].map((i) => {
+    probe.fillStyle = getComputedStyle(document.documentElement).getPropertyValue(`--data-${i}`).trim();
+    probe.fillRect(0, 0, 1, 1);
+    return probe.getImageData(0, 0, 1, 1).data;
+  });
+  let n = 0;
+  for (let i = 0; i < data.length; i += 4)
+    if (data[i + 3] > 200 && colors.some((c) => Math.abs(c[0] - data[i]) + Math.abs(c[1] - data[i + 1]) + Math.abs(c[2] - data[i + 2]) < 24)) n++;
+  return n;
+}"""
+
+
+def test_a_single_point_is_drawn(server: str, page, project: Path) -> None:
+    """A metric with one point shows it, on a chart and in a sparkline: the plot holds pixels in a
+    run's color, which only a marker can draw."""
+    import yaml
+
+    from beamtime.ops import call
+    from beamtime.ops.context import Context
+
+    group = "realistic/egnn-bench"
+    ctx = Context.make()
+    call("view new", {"group": group, "name": "single"}, ctx)
+    draft = project / ".beamtime" / "drafts" / "single"
+    one = {"config.arm": "small", "config.seed": 0}
+    view = {
+        "schema": 1,
+        "title": "one point",
+        "finding": "x",
+        "body": [
+            {"line": {"id": "once", "y": "validation/first_eval", "where": one}},
+            {"table": {"id": "once-table", "columns": ["run.name"], "sparkline": "validation/first_eval", "where": one}},
+        ],
+    }
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    call("view save", {"draft": "single"}, ctx)
+
+    page.goto(f"{server.split('/f/local')[0]}/f/local/{group}?token={server.split('token=')[1]}")
+    page.wait_for_selector(".chart canvas")
+    box_of(page, ".chart .u-over")
+    page.wait_for_timeout(500)
+    assert page.evaluate(DATA_PIXELS) >= 6, "the single point is not drawn"
+    page.wait_for_selector("td.spark svg")
+    assert page.locator("td.spark circle").count() == 1
+    assert page.locator("td.spark polyline").count() == 0

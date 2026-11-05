@@ -120,16 +120,18 @@ export function Spark(props: { values: (number | null)[] | undefined; color?: st
   const W = 84;
   const H = 20;
   const v = (props.values ?? []).map((x, i) => [i, x] as const).filter((p): p is [number, number] => p[1] !== null && Number.isFinite(p[1]));
-  if (v.length < 2) return html`<svg width=${W} height=${H} aria-hidden="true"></svg>`;
+  if (!v.length) return html`<svg width=${W} height=${H} aria-hidden="true"></svg>`;
   const ys = v.map((p) => p[1]);
   const lo = Math.min(...ys);
   const hi = Math.max(...ys);
   const n = (props.values ?? []).length - 1 || 1;
+  // a single value is only its end dot.
   const pts = v.map(([i, y]) => [(i / n) * (W - 4) + 2, H - 3 - ((y - lo) / (hi - lo || 1)) * (H - 6)]);
+  if (v.length === 1) pts[0][0] = W - 2;
   const color = props.color ?? "var(--muted)";
   const [lx, ly] = pts[pts.length - 1];
   return html`<svg width=${W} height=${H} viewBox=${`0 0 ${W} ${H}`} aria-hidden="true">
-    <polyline fill="none" stroke=${color} stroke-width="1.4" stroke-linejoin="round" points=${pts.map((p) => p.join(",")).join(" ")} />
+    ${v.length > 1 ? html`<polyline fill="none" stroke=${color} stroke-width="1.4" stroke-linejoin="round" points=${pts.map((p) => p.join(",")).join(" ")} />` : null}
     <circle cx=${lx} cy=${ly} r="2" fill=${color} />
   </svg>`;
 }

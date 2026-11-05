@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { align, byLabels, reshape } from "../src/bt/curves.ts";
+import { align, byLabels, markers, reshape } from "../src/bt/curves.ts";
 
 test("raw and bucketed run curves", () => {
   const out = reshape({
@@ -87,4 +87,16 @@ test("log ticks fit the range", async () => {
   assert.deepEqual(logTicks(0.32, 0.75), [0.4, 0.5, 0.6, 0.7]);
   assert.deepEqual(logTicks(0.1, 1.5), [0.1, 0.2, 0.3, 0.5, 1]);
   assert.deepEqual(logTicks(0.001, 10), [0.001, 0.01, 0.1, 1, 10]);
+});
+
+test("sparse curves mark every finite point, dense ones none", () => {
+  const series = (n: number) => Array.from({ length: n }, (_, i) => i);
+  assert.deepEqual(markers([]), []);
+  assert.deepEqual(markers([null, 3, null]), [1]);
+  assert.deepEqual(markers([1, 2]), [0, 1]);
+  assert.deepEqual(markers([NaN, 1, Infinity, 2, null]), [1, 3]);
+  assert.equal(markers(series(30)).length, 30);
+  assert.deepEqual(markers(series(31)), []);
+  // gaps in the aligned data don't count: 31 slots, 3 values.
+  assert.deepEqual(markers(series(31).map((i) => (i % 15 === 0 ? i : null))), [0, 15, 30]);
 });
