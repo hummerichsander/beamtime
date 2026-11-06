@@ -343,7 +343,7 @@ def test_instructions_block(project: Path) -> None:
     call("init", {"instructions": True}, ctx)
     text = (project / "AGENTS.md").read_text()
     assert text.startswith("# My rules\n\nBe brief.\n") and text.count(START) == 1
-    assert "beamtime guide" in text and "@<remote>/<group>" in text
+    assert "beamtime guide" in text and "@<name>/<group>" in text
     stale = text.replace("Read `beamtime guide`", "Read the old guide")
     (project / "AGENTS.md").write_text(stale + "\nMine after.\n")
     lines = call("init", {"instructions": True}, ctx)["lines"]
@@ -352,3 +352,30 @@ def test_instructions_block(project: Path) -> None:
     assert again.count(START) == 1 and "Read `beamtime guide`" in again and again.endswith("Mine after.\n")
     assert again.index(END) < again.index("Mine after.")
     assert "has Beamtime's agent rules already" in call("init", {"instructions": True}, ctx)["lines"][0]
+
+
+def test_init_and_mcp_install_work_without_a_local_log_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A project that has never logged a run yet (no local log dir) can still set up its
+    instructions and register the MCP server; neither needs a source to exist."""
+    import subprocess
+
+    root = tmp_path / "proj"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    monkeypatch.chdir(root)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("BEAMTIME_CACHE", str(tmp_path / "cache"))
+    monkeypatch.delenv("BEAMTIME_LOGDIR", raising=False)
+    ctx = Context.make(caller="cli")
+    assert not ctx.logdir.is_dir()
+
+    init = call("init", {"instructions": True}, ctx)
+    assert any("AGENTS.md" in line for line in init["lines"])
+    assert "@<name>/<group>" in (root / "AGENTS.md").read_text()
+
+    installed = call("mcp install", {"client": "cursor"}, ctx)
+    config = json.loads((root / ".cursor" / "mcp.json").read_text())
+    assert config["mcpServers"]["beamtime"]["args"][:2] == ["--root", str(root.resolve())]
+    assert not any("error" in line.lower() for line in installed["lines"])

@@ -136,7 +136,9 @@ def test_at_local_is_accepted_and_stripped(ctx: Context) -> None:
     ``box`` as a remote, from ``tests/remote/conftest.py``)."""
     bare = call("runs", {"from": SWEEP, "select": ["run.name"], "limit": 3}, ctx)
     prefixed = call("runs", {"from": "@local/" + SWEEP, "select": ["run.name"], "limit": 3}, ctx)
-    assert prefixed == bare
+    # not full equality: freshness (meta.freshness.behind_s) is live catch-up timing, not identity.
+    assert prefixed["columns"] == bare["columns"] and prefixed["rows"] == bare["rows"]
+    assert prefixed["meta"]["source"] == bare["meta"]["source"] == "local"
 
 
 def test_nothing_is_created_in_the_empty_directory(one_remote: Context, empty: Path) -> None:
