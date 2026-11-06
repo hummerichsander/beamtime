@@ -138,6 +138,13 @@ These qualities are made concrete as budgets and rules, and checked like correct
 - **Status bar**: whether the page is live and when data last changed, the running runs and the runs
   that failed since the last visit (each opens the palette filtered to them), indexer lag and
   unreadable runs, remote connections, the selection, and the pause switch.
+- **The browser tab**: every page sets `document.title` to its name (a group's, a run's, "Timeline"
+  or "Settings") followed by " · Beamtime", with a `(N)` prefix while `N` runs are live in it (a run
+  page counts only itself). The favicon (`design/favicon.svg`, a beam mark that recolors itself for
+  `prefers-color-scheme: dark`) gets a small accent dot added while `N > 0`, so a live tab stands out
+  among several (`shell/favicon.ts`). An exported page keeps its own, data-URI favicon and never
+  touches it: nothing in a static snapshot is ever live, and `/static/favicon.svg` doesn't resolve
+  next to a page opened from disk.
 
 On narrow screens the sidebar and drawer collapse into overlays; phones get a read-only layout with
 the header and the view.

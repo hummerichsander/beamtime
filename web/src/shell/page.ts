@@ -9,14 +9,13 @@ import { groupUrl, isRunId, navigate, restoreScroll } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Section } from "../ui/primitives.ts";
 import * as calls from "./calls.ts";
+import { usePageTitle } from "./favicon.ts";
 import { Header, ProposalSection } from "./header.ts";
 import { History, ViewBody, ViewSource } from "./views.ts";
 import { meta, SHORTCUTS } from "./ui.ts";
 
 export function GroupPage(props: { path: string; version?: string | null; draft?: string | null; history?: boolean }) {
-  useEffect(() => {
-    document.title = `${props.path === "." ? "local" : props.path} · Beamtime`;
-  }, [props.path]);
+  usePageTitle(props.path);
   if (props.history) {
     return html`<div class="page"><div class="sections">
       <${Section} label=${labelFor(props.path)}><${Header} path=${props.path} /><//>

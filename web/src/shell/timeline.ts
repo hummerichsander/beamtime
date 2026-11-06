@@ -2,7 +2,7 @@
 // Wheel zooms around the pointer, dragging pans, the buttons pick a range; clicks open what they hit.
 
 import { html } from "htm/preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 
 import { useCall } from "../api.ts";
 import { Notice, rows } from "../blocks/common.ts";
@@ -16,6 +16,7 @@ import { groupUrl, navigate, runUrl, timelineUrl } from "../router.ts";
 import type { TipRow } from "../bt/uplot.ts";
 import { Field, Section } from "../ui/primitives.ts";
 import * as calls from "./calls.ts";
+import { useTitle } from "./favicon.ts";
 
 const STATUS: Record<string, string> = { running: "accent", finished: "good", failed: "bad", killed: "warn", lost: "muted" };
 const LANE = 20;
@@ -37,9 +38,7 @@ export function TimelinePage(props: { from: string }) {
     scope: props.from,
   });
   const notes = useCall({ method: "notes", params: { from: props.from, limit: 500, current: true }, scope: props.from });
-  useEffect(() => {
-    document.title = "Timeline · Beamtime";
-  }, []);
+  useTitle("Timeline", rows(runs.data).filter((r) => r["run.status"] === "running").length);
   const now = Date.now() / 1000;
   const bars: Bar[] = rows(runs.data)
     .filter((r) => r["run.created_at"])

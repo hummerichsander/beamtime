@@ -29,6 +29,19 @@ def test_tokens_css_is_current() -> None:
     assert script("build-tokens", "--check").returncode == 0
 
 
+def test_favicon_follows_the_system_theme_and_is_bundled() -> None:
+    """The beam mark recolors itself in dark mode, ships to static/, and an export can inline it."""
+    svg = (ROOT / "design" / "favicon.svg").read_text()
+    assert "@media (prefers-color-scheme: dark)" in svg
+    tokens = (ROOT / "design" / "tokens.css").read_text()
+    light, dark = re.findall(r"--accent: (#\w+)", tokens)[:2]
+    assert light in svg and dark in svg
+    bundled = ROOT / "src" / "beamtime" / "serve" / "static" / "favicon.svg"
+    assert bundled.is_file() and bundled.read_bytes() == (ROOT / "design" / "favicon.svg").read_bytes()
+    index = (ROOT / "src" / "beamtime" / "serve" / "static" / "index.html").read_text()
+    assert '<link rel="icon" href="/static/favicon.svg"' in index
+
+
 def test_app_css_has_no_raw_values() -> None:
     """The app's and the docs site's stylesheets take colors and type from tokens."""
     done = script("check-design")

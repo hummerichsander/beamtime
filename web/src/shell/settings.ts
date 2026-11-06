@@ -1,7 +1,7 @@
 // The settings page: the project's theme, mode, colormaps and figure styles, written to its beamtime.yaml.
 
 import { html } from "htm/preact";
-import { useEffect, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 
 import { Notice } from "../blocks/common.ts";
 import { applyTheme, mode, pair, useTheme } from "../bt/index.ts";
@@ -10,6 +10,7 @@ import { useStore } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
 import { MultiSelect } from "../ui/multiselect.ts";
 import { Section } from "../ui/primitives.ts";
+import { useTitle } from "./favicon.ts";
 import { meta, SHORTCUTS } from "./ui.ts";
 
 type Mode = "system" | "light" | "dark";
@@ -49,9 +50,7 @@ export function Settings() {
   const theme = useTheme();
   const info = useStore(meta);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    document.title = "Settings · Beamtime";
-  }, []);
+  useTitle("Settings");
   const set = (key: Key, value: unknown) => {
     setError(null);
     change(key, value).catch((e: Error) => setError(e.message));

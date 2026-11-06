@@ -224,6 +224,34 @@ def test_live_page_fixture_follows_a_running_writer(live_page) -> None:
     assert live_page.writer.returncode == 0
 
 
+def wait_until(condition, timeout: float = 15.0) -> None:
+    """Poll a condition until it holds; the page's own CSP forbids ``wait_for_function``.
+
+    :param condition: A function returning a truthy value when done.
+    :param timeout: Seconds to wait at most."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if condition():
+            return
+        time.sleep(0.1)
+    raise AssertionError("condition not met in time")
+
+
+def test_the_title_and_favicon_show_a_running_run(live_page) -> None:
+    """A group with a running run gets a (1) count in its title and a dot on its favicon."""
+    page = live_page.page
+    live_page.goto("/f/local/live")
+    page.wait_for_selector(".chart canvas")
+    wait_until(lambda: page.title().startswith("(1) live"))
+    assert page.title().endswith("· Beamtime")
+    href = page.eval_on_selector("link[rel=icon]", "el => el.href")
+    assert href.startswith("data:image/png")
+    live_page.stop_writer()
+    wait_until(lambda: page.title() == "live · Beamtime", timeout=30)
+    href = page.eval_on_selector("link[rel=icon]", "el => el.href")
+    assert href.endswith("/static/favicon.svg")
+
+
 LAST_STEP = """
 const { html } = bt.preact;
 

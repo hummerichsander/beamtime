@@ -8,6 +8,7 @@ block's downloads (``--figures``)."""
 import json
 import shutil
 import time
+from base64 import b64encode
 from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal
@@ -312,7 +313,9 @@ def write(
                 "calls": calls}  # fmt: skip
     (out / "snapshot.js").write_text(f"window.__BT_SNAPSHOT__ = {json.dumps(snapshot)};\n")
     title = "the log dir" if path == "." else path
-    (out / "index.html").write_text(INDEX.format(title=title))
+    # a file opened from disk has no server to ask for /static/favicon.svg.
+    favicon = b64encode((static / "favicon.svg").read_bytes()).decode()
+    (out / "index.html").write_text(INDEX.format(title=title, favicon=favicon))
     marker = {"schema": 1, "path": path, "taken": taken, "points": points}
     (out / MARKER).write_text(json.dumps(marker) + "\n")
 
@@ -323,7 +326,7 @@ INDEX = """<!doctype html>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title} · Beamtime snapshot</title>
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="data:image/svg+xml;base64,{favicon}" />
     <link rel="stylesheet" href="static/export/main.css" />
   </head>
   <body class="body">
