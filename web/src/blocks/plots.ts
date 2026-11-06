@@ -5,7 +5,7 @@ import { html } from "htm/preact";
 import { useContext, useRef, useState } from "preact/hooks";
 
 import { png, useChart } from "../bt/chart.ts";
-import { expanded, host } from "../bt/host.ts";
+import { host } from "../bt/host.ts";
 import { hovered, useData, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { label, step, value } from "../bt/fmt.ts";
 import { plotChart, type PlotSpec } from "../bt/plot.ts";
@@ -15,8 +15,7 @@ import { fileName, light, paper, recolor, type Background } from "../bt/export.t
 import { alpha, chartStyle, groupColors, palette, swatch, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate } from "../router.ts";
 import type { TipRow } from "../bt/uplot.ts";
-import { IconButton } from "../ui/primitives.ts";
-import { Downloads, expandedHeight } from "./chart.ts";
+import { ChartFrame, expandedHeight, Legend, type LegendItem } from "../bt/frame.ts";
 import { Notice, Panel } from "./common.ts";
 
 const HEIGHT = 260;
@@ -276,7 +275,7 @@ export function HistogramBlock({ node }: { node: Node }) {
       empty=${result.data && !hs.length ? `No run logs ${node.props.key} as a histogram (bin_start, bin_end, count).` : null} />`;
 }
 
-// the frame every drawn plot shares: title, tools, the canvas, a legend and the caption.
+// the frame every drawn plot shares: the chart frame around a canvas, or a notice.
 function PlotFrame(props: {
   node: Node;
   result: any;
@@ -315,39 +314,26 @@ function PlotFrame(props: {
       setProblem((err as Error).message);
     }
   };
-  return html`<figure class="chart chart-frame block" ref=${box}>
-    <div class="chart-head">
-      <b class="chart-title">${title}</b>
-      ${props.note ? html`<span class="muted small">${props.note}</span>` : null}
-      <span class="chart-tools">
-        <${Downloads} id=${node.id} png=${exportPng} pdf=${props.figure ? exportPdf : undefined} />
-        ${node.props.expanded
-          ? html`<${IconButton} icon="x" label="Close (Esc)" onClick=${() => expanded.set(null)} />`
-          : html`<${IconButton} icon="maximize" label="Expand" onClick=${() => host().expand(node, view)} />`}
-      </span>
-    </div>
+  return html`<${ChartFrame} id=${node.id} title=${title} notes=${props.note ? [props.note] : []} box=${box} class="block"
+      expanded=${node.props.expanded} onExpand=${() => host().expand(node, view)}
+      downloads=${{ png: exportPng, pdf: props.figure ? exportPdf : undefined }}
+      legend=${props.empty ? null : props.legend} caption=${node.props.caption}>
     ${problem ? html`<p class="block-error small">${problem}</p>` : null}
     <${Panel} result=${result}>
       ${props.empty
         ? html`<${Notice}>${props.empty}<//>`
-        : html`<div class=${`chart-plot${result.status === "ready" ? "" : " pending"}`} ref=${el} style=${`min-block-size:${height}px`}></div>
-            ${props.legend ?? null}`}
+        : html`<div class=${`chart-plot${result.status === "ready" ? "" : " pending"}`} ref=${el} style=${`min-block-size:${height}px`}></div>`}
     <//>
-    ${node.props.caption ? html`<figcaption class="caption"><b></b> ${node.props.caption}</figcaption>` : null}
-  </figure>`;
+  <//>`;
 }
 
 function ValueLegend(props: { values: unknown[]; field: string }) {
   const theme = useTheme();
   if (!theme) return null;
-  const map = groupColors(props.values, theme);
-  const entries = [...map.entries()];
-  const shown = entries.length > 10 ? [entries[0], entries[entries.length - 1]] : entries;
-  return html`<div class="legend small" aria-label=${`Colors by ${label(props.field)}`}>
-    <span class="muted">${label(props.field)}</span>
-    ${shown.map(([k, c], i) => html`${entries.length > 10 && i === 1 ? html`<span class="muted">…</span>` : null}
-      <span class="legend-item static"><span class=${swatch(c, theme).class} style=${swatch(c, theme).style}></span>${value(JSON.parse(k))}</span>`)}
-  </div>`;
+  const entries = [...groupColors(props.values, theme).entries()];
+  const mark = ([k, c]: [string, string]): LegendItem => ({ label: value(JSON.parse(k)), mark: swatch(c, theme) });
+  const items = entries.length > 10 ? [mark(entries[0]), null, mark(entries[entries.length - 1])] : entries.map(mark);
+  return html`<${Legend} items=${items} label=${`Colors by ${label(props.field)}`} name=${label(props.field)} />`;
 }
 
 function defaultTitle(node: Node): string {

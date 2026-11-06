@@ -381,6 +381,11 @@ Line charts behave like W&B's panels:
 Settings, added charts and hidden runs are kept per viewer in the browser, by group; "reset this
 chart" returns to the view's defaults, and "Save as view" writes them into the view.
 
+In the code every chart sits in one `ChartFrame` (`web/src/bt/frame.ts`): the head with title and
+notes, the tools, the download menu, the legend (the shared `Legend`) and the caption. A chart kind
+supplies only its data and spec (`blocks/line.ts`, `blocks/plots.ts`) and, for the settings panel,
+the list of fields it offers (`blocks/line-settings.ts`).
+
 ## Accessibility
 
 Keyboard navigation everywhere, visible focus rings (`accent`), the default theme's contrast,

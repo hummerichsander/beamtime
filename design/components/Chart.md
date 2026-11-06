@@ -15,7 +15,7 @@ A line chart without a frame: a title with a short note, the curves, a legend, a
 
 ## In the app
 
-`Line` in `web/src/blocks/line.ts`; `web/src/blocks/plots.ts` for scatter, bar and histogram.
+`Line` in `web/src/blocks/line.ts` (data and spec; settings in `line-settings.ts`); `web/src/blocks/plots.ts` for scatter, bar and histogram. Every chart sits in `ChartFrame` (`web/src/bt/frame.ts`): head, tools, download menu, legend and caption; the legend is the shared `Legend`.
 
 - The plot is a uPlot canvas in `.chart-plot`, not the preview's SVG; `web/src/bt/uplot.ts` draws it with the same colors and dashes.
 - Legend items are `button.legend-item`: they toggle curves.

@@ -145,3 +145,6 @@ table.runs td.best { font-weight: 700; }
 .config-value { overflow-wrap: anywhere; min-inline-size: 0; }
 .config-varies { display: inline-block; inline-size: var(--space-1); block-size: var(--space-1); border-radius: 50%; background: var(--accent); }
 .config-copy { align-self: center; }
+.menu-list { display: flex; flex-direction: column; min-inline-size: 180px; }
+.menu-list button { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border-radius: var(--radius); text-align: start; }
+.menu-list button:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }

@@ -146,11 +146,6 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
   & .add-chart-label { display: inline-flex; align-items: center; gap: var(--space-1); font-weight: 600; }
   &:focus-within { border-color: var(--accent); }
 }
-.menu-list {
-  display: flex; flex-direction: column; min-inline-size: 180px;
-  & button { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border-radius: var(--radius); text-align: start; }
-  & button:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-}
 dialog.sheet.chart-dialog { padding: var(--space-3) var(--space-4); & .legend { margin-block-start: var(--space-3); } }
 
 /* every block sits in a node; spans widen it in a grid */

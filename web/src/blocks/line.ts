@@ -9,31 +9,25 @@ import { hovered, useRunColors, useTheme, useVisible, ViewCtx, type Node } from 
 import { align, linthresh, reshape, robustRange, smooth, type Curve, type Curves } from "../bt/curves.ts";
 import { png, useChart } from "../bt/chart.ts";
 import { fileName, light, paper, recolor, type Background } from "../bt/export.ts";
-import { expanded, host } from "../bt/host.ts";
+import { ChartFrame, expandedHeight, HEIGHT, Legend, type LegendItem } from "../bt/frame.ts";
+import { host } from "../bt/host.ts";
 import { duration, label, step, value } from "../bt/fmt.ts";
 import { lineChart, type LineSpec } from "../bt/plot.ts";
-import { effective, setChart, toggleRun, update, usePrefs, type ChartPrefs, type Effective } from "../bt/prefs.ts";
+import { effective, toggleRun, update, usePrefs, type ChartPrefs, type Effective } from "../bt/prefs.ts";
 import { chartStyle, dashOf, groupColors, palette as paletteOf, swatch, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate } from "../router.ts";
-import { Icon } from "../ui/icons.ts";
-import { MultiSelect } from "../ui/multiselect.ts";
-import { IconButton, Popover } from "../ui/primitives.ts";
-import { Downloads, expandedHeight, HEIGHT } from "./chart.ts";
+import { IconButton } from "../ui/primitives.ts";
 import { Notice, Panel } from "./common.ts";
+import { LINE_FIELDS, Settings, X_AXES } from "./line-settings.ts";
 import { EXPORTED } from "../snapshot.ts";
 
 const LEGEND_MAX = 12;
-const X_AXES = [
-  ["_step", "step"],
-  ["_t", "wall time"],
-  ["_elapsed", "elapsed"],
-] as const;
 
 export function Line({ node }: { node: Node }) {
   const view = useContext(ViewCtx);
   return html`<div class="block chart-block">
     ${node.props.expanded
-      ? html`<${Chart} node=${node} path=${view.path} height=${expandedHeight()} expanded onClose=${() => expanded.set(null)} />`
+      ? html`<${Chart} node=${node} path=${view.path} height=${expandedHeight()} expanded />`
       : html`<${Chart} node=${node} path=${view.path} height=${HEIGHT} onExpand=${() => host().expand(node, view)} />`}
   </div>`;
 }
@@ -86,7 +80,6 @@ function Chart(props: {
   height: number;
   expanded?: boolean;
   onExpand?: () => void;
-  onClose?: () => void;
 }) {
   const { node, path } = props;
   const all = usePrefs(path);
@@ -204,22 +197,31 @@ function Chart(props: {
 
   // what the renderer's layout check counts; aggregated or colored charts tame many runs.
   const visibleCurves = curves?.aggregated || node.props.color ? 0 : curves?.curves.filter(isShown).length;
-  return html`<figure ref=${box} class=${`chart chart-frame${props.expanded ? " expanded" : ""}`} data-curves=${visibleCurves}>
-    <div class="chart-head">
-      <b class="chart-title">${title}</b>
-      ${notes.length ? html`<span class="muted small">${notes.join(" · ")}</span>` : null}
-      ${off ? html`<button type="button" class="link small" onClick=${() => update(path, () => ({ hidden: [] }))}>${off} hidden · show all</button>` : null}
-      <span class="chart-tools">
-        ${zoom ? html`<${IconButton} icon="reset" label="Reset zoom (double-click)" onClick=${() => setZoom(null)} />` : null}
-        <${Settings} node=${node} path=${path} prefs=${prefs} />
-        <${Downloads} id=${node.id} png=${exportPng} pdf=${exportPdf} csv=${exportCsv} />
-        ${props.onExpand ? html`<${IconButton} icon="maximize" label="Expand" onClick=${props.onExpand} />` : null}
-        ${props.onClose ? html`<${IconButton} icon="x" label="Close (Esc)" onClick=${props.onClose} />` : null}
-        ${node.props.added
-          ? html`<${IconButton} icon="x" label="Remove this chart" onClick=${() => update(path, (p) => ({ added: p.added.filter((m) => m !== node.props.y) }))} />`
-          : null}
-      </span>
-    </div>
+  const items: LegendItem[] =
+    prefs.legend && curves && curves.curves.length > 1 && curves.curves.length <= LEGEND_MAX
+      ? curves.curves.map((c, i) => {
+          const k = c.run ?? c.key;
+          const target = c.run ?? (c.group !== null ? `by:${c.group}` : null);
+          return {
+            label: c.label,
+            mark: swatch(palette[i], theme),
+            off: hidden.has(k),
+            tip: "Click to hide or show; double-click to show only this",
+            onHover: (on) => hovered.set(on ? target : null),
+            onClick: (e) => e.detail < 2 && toggleRun(path, k, keys),
+            onDblClick: () => toggleRun(path, k, keys, true),
+          };
+        })
+      : [];
+  return html`<${ChartFrame} id=${node.id} title=${title} notes=${notes} box=${box} curves=${visibleCurves}
+      expanded=${props.expanded} onExpand=${props.onExpand}
+      onRemove=${node.props.added ? () => update(path, (p) => ({ added: p.added.filter((m) => m !== node.props.y) })) : undefined}
+      downloads=${{ png: exportPng, pdf: exportPdf, csv: exportCsv }}
+      status=${off ? html`<button type="button" class="link small" onClick=${() => update(path, () => ({ hidden: [] }))}>${off} hidden · show all</button>` : null}
+      tools=${html`${zoom ? html`<${IconButton} icon="reset" label="Reset zoom (double-click)" onClick=${() => setZoom(null)} />` : null}
+        <${Settings} node=${node} path=${path} prefs=${prefs} y=${shownMetrics} fields=${LINE_FIELDS} />`}
+      legend=${items.length ? html`<${Legend} items=${items} label="Show or hide curves" role="group" />` : null}
+      caption=${props.expanded ? undefined : node.props.caption}>
     ${problem ? html`<p class="block-error small">${problem}</p>` : null}
     <${Panel} result=${result}>
       ${empty
@@ -227,100 +229,6 @@ function Chart(props: {
         : html`<div class=${`chart-plot${result.status === "ready" && !result.refreshing ? "" : " pending"}`} ref=${el}
             style=${`min-block-size:${props.height}px`}></div>`}
     <//>
-    ${prefs.legend && curves && curves.curves.length > 1 && curves.curves.length <= LEGEND_MAX
-      ? html`<div class="legend small" role="group" aria-label="Show or hide curves">
-          ${curves.curves.map((c, i) => {
-            const k = c.run ?? c.key;
-            const isOff = hidden.has(k);
-            const mark = swatch(palette[i], theme);
-            return html`<button type="button" class=${`legend-item${isOff ? " off" : ""}`} aria-pressed=${!isOff}
-                data-tip="Click to hide or show; double-click to show only this"
-                onPointerEnter=${() => hovered.set(c.run ?? (c.group !== null ? `by:${c.group}` : null))}
-                onPointerLeave=${() => hovered.set(null)}
-                onClick=${(e: MouseEvent) => e.detail < 2 && toggleRun(path, k, keys)}
-                onDblClick=${() => toggleRun(path, k, keys, true)}>
-              <span class=${mark.class} style=${mark.style}></span>${c.label}</button>`;
-          })}
-        </div>`
-      : null}
-    ${node.props.caption && !props.expanded ? html`<figcaption class="caption"><b></b> ${node.props.caption}</figcaption>` : null}
-  </figure>`;
-}
-
-function Settings(props: { node: Node; path: string; prefs: Effective }) {
-  const { node, path, prefs } = props;
-  const [opened, setOpened] = useState(false);
-  // what to offer comes from keys, asked only once the settings are opened.
-  const keys = useCall(opened ? { method: "keys", params: { from: path }, scope: path } : null).data;
-  const metrics: string[] = keys?.metrics?.rows.map((r: unknown[]) => r[0]) ?? [];
-  const varying: string[] = (keys?.config?.varying ?? []).filter((k: string) => k !== "config.seed");
-  const set = (p: ChartPrefs) => setChart(path, node.id, p);
-  const y = prefs.y?.length ? prefs.y : metricsOf(node);
-  const num = (v: string) => (v.trim() === "" || !Number.isFinite(Number(v)) ? null : Number(v));
-  const steps = prefs.steps ?? [null, null];
-  return html`<${Popover} icon="sliders" label="Chart settings" title="This chart" class="chart-settings"
-      onOpen=${() => setOpened(true)}>
-    <div class="settings-grid small">
-      <h5>Data</h5>
-      <span class="field-label">Metrics</span>
-      <${MultiSelect} options=${metrics} value=${y} label="Metrics" placeholder="Add a metric" onChange=${(v: string[]) => set({ y: v })} />
-      <span class="field-label">x axis</span>
-      <span class="input"><select value=${prefs.x} onChange=${(e: Event) => set({ x: (e.target as HTMLSelectElement).value as ChartPrefs["x"] })}>
-        ${X_AXES.map(([k, l]) => html`<option value=${k}>${l}</option>`)}
-      </select></span>
-      <span class="field-label">Steps</span>
-      <span class="pair">
-        <span class="input"><input type="number" placeholder="first" value=${steps[0] ?? ""} aria-label="First step"
-          onChange=${(e: Event) => set({ steps: [num((e.target as HTMLInputElement).value), steps[1]] })} /></span>
-        <span class="muted">to</span>
-        <span class="input"><input type="number" placeholder="last" value=${steps[1] ?? ""} aria-label="Last step"
-          onChange=${(e: Event) => set({ steps: [steps[0], num((e.target as HTMLInputElement).value)] })} /></span>
-      </span>
-
-      <h5>Aggregation</h5>
-      <span class="field-label">Runs</span>
-      <span class="input"><select value=${prefs.by ?? ""} onChange=${(e: Event) => set({ by: (e.target as HTMLSelectElement).value || null })}>
-        <option value="">each run</option>
-        <option value="seeds">mean over seeds</option>
-        ${varying.map((k) => html`<option value=${k}>mean by ${label(k)}</option>`)}
-      </select></span>
-      <span class="field-label">Band</span>
-      <span class="input"><select value=${prefs.band} disabled=${!prefs.by} onChange=${(e: Event) => set({ band: (e.target as HTMLSelectElement).value as ChartPrefs["band"] })}>
-        <option value="minmax">min to max</option><option value="std">± std</option>
-        <option value="stderr">± std error</option><option value="none">none</option>
-      </select></span>
-
-      <h5>Smoothing</h5>
-      <span class="field-label">EMA <b class="num">${prefs.smooth.toFixed(2)}</b></span>
-      <input type="range" min="0" max="0.99" step="0.01" value=${prefs.smooth}
-        onInput=${(e: Event) => set({ smooth: Number((e.target as HTMLInputElement).value) })} />
-      <span></span>
-      <label class="tick"><input type="checkbox" checked=${prefs.raw} disabled=${!prefs.smooth}
-        onChange=${(e: Event) => set({ raw: (e.target as HTMLInputElement).checked })} /> show the raw curve faintly</label>
-
-      <h5>Axes</h5>
-      <span class="field-label">y scale</span>
-      <div class="segmented small" role="radiogroup" aria-label="y scale">
-        ${(["linear", "log", "symlog"] as const).map((k) => html`<button type="button" role="radio" aria-checked=${prefs.scale === k}
-            data-tip=${k === "symlog" ? "linear near zero, logarithmic beyond: for values that cross zero" : undefined}
-            onClick=${() => set({ scale: k })}>${k}</button>`)}
-      </div>
-      <span class="field-label">y range</span>
-      <span class="pair">
-        <span class="input"><input type="number" step="any" placeholder="auto" value=${prefs.ymin ?? ""} aria-label="y minimum"
-          onChange=${(e: Event) => set({ ymin: num((e.target as HTMLInputElement).value) })} /></span>
-        <span class="muted">to</span>
-        <span class="input"><input type="number" step="any" placeholder="auto" value=${prefs.ymax ?? ""} aria-label="y maximum"
-          onChange=${(e: Event) => set({ ymax: num((e.target as HTMLInputElement).value) })} /></span>
-      </span>
-      <span></span>
-      <label class="tick"><input type="checkbox" checked=${prefs.outliers}
-        onChange=${(e: Event) => set({ outliers: (e.target as HTMLInputElement).checked })} /> ignore outliers in the auto range</label>
-      <span></span>
-      <label class="tick"><input type="checkbox" checked=${prefs.legend}
-        onChange=${(e: Event) => set({ legend: (e.target as HTMLInputElement).checked })} /> legend</label>
-    </div>
-    <button type="button" class="link small reset" onClick=${() => setChart(path, node.id, null)}>Reset this chart</button>
   <//>`;
 }
 
