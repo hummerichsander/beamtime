@@ -1,6 +1,6 @@
 # Refactor 1: plan after the first human end-to-end tests
 
-Status: **in progress.** Done on branch `refactor-1`: F1 `88fc5b5`, A1 `e2a5cb6`, A2 `dada516`, A3 `6899788`, A4 `3942900`, A5 `0297ea2`, A6 `c0aa283`, A7 `9c286ec`, A8 `bd71c5b`, A9 `4d03f19`.
+Status: **in progress.** Done on branch `refactor-1`: F1 `88fc5b5`, A1 `e2a5cb6`, A2 `dada516`, A3 `6899788`, A4 `3942900`, A5 `0297ea2`, A6 `c0aa283`, A7 `9c286ec`, A8 `bd71c5b`, A9 `4d03f19`, D1 `b7244e1`, D2 `f9f1f40`, D3 `3761001`, D4 `18adc31` (D1 to D3 reviewed in `dc72616` and `33c4fff`).
 Proposed 2026-11-04, based on the findings in `todo`, the code at `8165346`, the real log
 dir at `au002a:/remote/gpu04/hummerich/projects/split-flows-public/beamtime` (78 runs, 12 groups, 10
 custom code files) and 65 agent sessions on that project. Breaking changes are allowed where they make
@@ -596,7 +596,7 @@ Done: tests per lint; running validation on the real views' YAML flags `curves`,
 
 ## D. Sources
 
-### D1. All sources are the same (sonnet + review)
+### D1. All sources are the same (sonnet + review) — **done `b7244e1`**
 
 Rule: **a source is a named log dir. `local` is one when this machine has runs, otherwise it doesn't exist.**
 No flag needed.
@@ -632,7 +632,7 @@ from an empty directory; unprefixed paths route; `@local` works; nothing is crea
 Done when `cd /tmp && beamtime serve au002a.tphys.uni-heidelberg.de:/remote/gpu04/.../beamtime` works, and
 `beamtime-serve/beamtime/` can be deleted.
 
-### D2. Views and blocks on a remote (sonnet + review) — real data
+### D2. Views and blocks on a remote (sonnet + review) — real data — **done `f9f1f40`**
 
 Notes, proposals, memory and `name` already route. Views refuse because drafts are local.
 
@@ -660,14 +660,14 @@ Tests: `tests/remote/test_views.py` with the test transport: the whole cycle `ne
 `render`, `save` with a custom block and a data file; the file lands on the remote under its hash; findings
 come from the remote's index; a too-old remote gets the message. Same in `test_docker.py`.
 
-### D3. Guide and instructions for remotes (haiku)
+### D3. Guide and instructions for remotes (haiku) — **done `3761001`**
 
 - `parts/instructions.md`: drop the ssh hints; "a group on another source is `@name/group`; everything works
   the same".
 - Check `mcp install` and `init --instructions` in a project without a local log dir.
 - `docs/design/04-remotes.md` rewritten around D1 and D2, plus `docs/guides/` for remotes.
 
-### D4. The proposal block through a remote (haiku) — reproduced
+### D4. The proposal block through a remote (haiku) — reproduced — **done `18adc31`**
 
 On `refactor-1-sources`, after the D review. Present since 0.1.1. Reproduce with:
 
