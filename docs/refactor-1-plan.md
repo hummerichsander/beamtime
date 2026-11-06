@@ -82,7 +82,7 @@ F1 ─┬─ A1 A2 A3 A4 A5 A6 A7 A8 A9     bugs, independent (F1, A1 to A4 done
     ├─ B1 ─ B2 ─ B3 ─ B4 ─ B5 ─ B6 ─ B7    charts, in this order
     │              └─ C1 ─ C2 ─ C3         agent chart parity
     ├─ D1 ─ D2 ─ D3 ─ D4                   sources and remote writes
-    ├─ E1   E2   E3                        run lifecycle, independent
+    ├─ E1   E2   E3 ─ E4 ··· E5           run lifecycle; E4 brings the branch in, E5 (its UI) after B7
     └─ G1 ─ G2 ─ G3 ─ G4                   guides, harness, tools (G1 after C3; G3 after D2)
                               Z            docs, changelog, release
 ```
@@ -689,6 +689,9 @@ prefix({"blocks": [{"data": data}]}, "au")  # check gets @au/exp/a, proposal kee
 
 ## E. Run lifecycle
 
+E1 to E3 are on `refactor-1-lifecycle`, not merged: `d58a5d0` E1, `e528129` E2, `e5b5ae1` E3, `0be46b5` review fixes,
+`b92c8a7` decided departures and the Lightning requeue. **None of their UI parts were built**; they are E5.
+
 ### E1. Resuming after a wall-time limit (sonnet + review)
 
 Files: `sdk/run.py`, `sdk/env.py`, `sdk/lightning.py`, `query/read.py`, `ops/`, `docs/design/02-sdk.md`.
@@ -698,9 +701,13 @@ Resolution in `init`, wrapped so it can never break the experiment (on any error
 
 1. `resume=<id>`, or env `BEAMTIME_RESUME=<id>`: continue that run, as today.
 2. `key="..."`, or env `BEAMTIME_RUN_KEY`: stored in `_run.json`. The newest run in this folder with this
-   key: not finished → continue; finished → new run with a warning. For a job submitted again by hand.
-3. Requeue, automatic: `SLURM_RESTART_COUNT > 0` and **exactly one** unfinished run in this folder with the
-   same `job_key` and `name` → continue. Several candidates → new run with a warning naming `key`. **Unfinished
+   key: not finished → continue; finished → new run with a warning. For a job submitted again by hand. A run whose
+   heartbeat is still fresh is never continued by key, since a run has one writer; a requeue of that run's own job
+   may continue it.
+3. Requeue, automatic: `SLURM_RESTART_COUNT > 0` and the job made **exactly one** run in this folder (any status;
+   filtered by `name` when given), and that run is unfinished → continue. A job with several runs (models trained
+   one after another) gets a new run and a warning naming `key=` or `name=`. Matching by config was rejected:
+   timestamped `default_root_dir` values differ on a requeue (user's decision, in `02-sdk.md`). **Unfinished
    means `running` or `killed`** (not `finished` or `failed`): a run cut by its time limit is `killed`, and is
    hours old when the job restarts. Reuse `find_by_job_key`'s folder scan, but not its filter: today it accepts only
    `running` runs created within `RANK_RECENT_S` (`sdk/run.py`), which would never find the run on a requeue. The
@@ -713,7 +720,7 @@ on.
 Also:
 
 - Time limits: in `chain_signal`, `SIGTERM` within 300 s of `SLURM_JOB_END_TIME` adds `reason: "time_limit"`
-  to `exit` and to an event. Status stays `killed`. The UI shows "killed · time limit".
+  to `exit` and to an event. Status stays `killed`. The UI shows "killed · time limit" (E5).
 - New read-only op `beamtime resume <run>` (also over MCP). **It runs nothing**: it prints the recorded command
   and cwd, the last step, the newest checkpoint (through E2's resolver once it exists, else `_artifacts.jsonl`), the
   scheduler, and what to export
@@ -721,7 +728,11 @@ Also:
 - `_elapsed` counts active time: subtract the gaps between attempts. A gap is the next attempt's `started_at` minus
   the last `_t` of the previous attempt's metrics (the previous end is not stored; the `attempt_started` event's
   `metrics_offset` bounds each attempt's lines). A resumed run's curve shouldn't show a 6-hour queue wait.
-- Charts mark attempt boundaries with a thin dashed line, from `attempts[].resume_step` (`LineSpec.marks`).
+- Charts mark attempt boundaries with a thin dashed line, from `attempts[].resume_step` (`LineSpec.marks`) (E5).
+- Lightning installs its SLURM auto-requeue handler only where `SIGUSR1` has none (lightning 2.6.6,
+  `signal_connector.py:62`), and `BeamtimeLogger` installed one first, so Lightning's requeue never worked with it.
+  Fixed in `b92c8a7`: the logger leaves `SIGUSR1` to Lightning, so a Lightning requeue records no
+  `requeue_requested` event.
 - `BeamtimeLogger(key=...)`, passed on. `examples/` gets a SLURM script with
   `#SBATCH --requeue --signal=USR1@120` and Lightning's `ckpt_path="last"`.
 
@@ -732,8 +743,8 @@ the cluster**, still pending per `pending-cluster-check`: an `sbatch --time=2` j
 
 ### E2. `beamtime cp` (sonnet + review)
 
-Additive, so agents may use it; CLI path `cp`, MCP `cp`, routed like other writes. In `ops/admin.py`, or better
-a new `ops/copy.py`.
+Additive, so agents may use it; CLI path `cp`, MCP `cp`, routed like other writes (missing on the branch; E4). In
+`ops/admin.py`, or better a new `ops/copy.py`.
 
 `beamtime cp <run|group> <dest-group> [--name NAME] [--with-checkpoints] [--with-record]`
 
@@ -745,7 +756,8 @@ For a run:
    except `checkpoints/` unless asked. Rewrite `_artifacts.jsonl` as in [Checkpoint references](#checkpoint-references).
 4. Rewrite `_run.json`: new `id`; `copied_from: {id, path, at}`; `proposals`: the run's own `.` entry stays,
    old ancestors go, and the destination's ancestors get their **current** proposal version with hash, as a
-   new run would; `created_at` and `attempts` stay, because the data is from then. Append a `copied` event.
+   new run would; `created_at` and `attempts` stay, because the data is from then. Drop `key` and set `job_key` to
+   null, so resuming the source's key or job never continues the copy beside it. Append a `copied` event.
 5. Fsync, then `os.rename` into place, with `_run.json` written before the rename. A crash leaves only a
    temporary directory, which `gc` removes.
 6. Never modifies the source. Never hardlinks: a resume or a checkpoint overwrite would change both copies.
@@ -774,7 +786,7 @@ to `uri`; else `uri`. It runs on the source that holds the run, so a remote path
 Where it shows:
 
 - `card` gets `checkpoints` and `copied_from`.
-- The run page's details list them with location and a copy button, plus "copied from <run>" with a link. A missing file
+- (E5) The run page's details list them with location and a copy button, plus "copied from <run>" with a link. A missing file
   is marked, with the reason.
 - `beamtime resume <copy>` (E1) uses the resolver. **Its answer warns** when the recorded command saves to the
   directory of a referenced checkpoint: "the recorded command saves checkpoints to <dir>, where the source's are; set
@@ -808,14 +820,47 @@ The SDK records almost everything. Close the gaps.
    new `.py` file leaves `dirty: false`.
 2. `query/fields.py`: `run.branch`, `run.dirty` and `run.code`, where `run.code` is `f385eda+1a2b3c4d`: one
    comparable identity, the same for the same commit and the same changes.
-3. Group header fact when members differ: `3 code versions`; tip lists them with counts. `check` adds a note when a
-   proposal's members ran on different code. `compare` (G4) shows it.
-4. Run page: a "Code" row with commit, branch and dirty mark, a link when the remote is GitHub or GitLab (derive the
+3. (UI in E5) Group header fact when members differ: `3 code versions`; tip lists them with counts. `check` adds a
+   note when a proposal's members ran on different code. `compare` (G4) shows it.
+4. (E5) Run page: a "Code" row with commit, branch and dirty mark, a link when the remote is GitHub or GitLab (derive the
    https URL from the ssh one), and the diff in a collapsed viewer, read from `_env/git.diff`.
-5. Run tables: `run.code` is offered as a column, and in the default table only when it differs in the group.
+5. (column picker in E5) Run tables: `run.code` is offered as a column, and in the default table only when it differs in the group.
 
 Tests: untracked file on a temporary repo; same diff gives the same id; a real-format `_run.json` without the new
 fields reads as before.
+
+### E4. Bring the lifecycle branch in (sonnet)
+
+Before E5 and before the user merges `refactor-1-lifecycle`. In its worktree (`../purser-refactor-1-lifecycle`):
+
+1. Rebase on `refactor-1` (no merge). Expect conflicts in `query/kinds.py:keys_kind` and
+   `views/defaults.py:group_body` against A5 and its `constant` revision: keep both sides' columns and facts.
+   Run all checks, the 3.10 SDK tests and the Lightning tests after the rebase.
+2. Route `cp` as E2 says ("routed like other writes"); today it isn't: `remote/route.py:PATH_KEYS` doesn't
+   name `cp`'s `source`/`dest`, and `cp` refuses any `@`. Route it when both name the same source
+   (`cp @au/a @au/b`), refuse across sources with the pointer to `pull`. Add E2's missing test "a copy over the
+   test transport" (`tests/remote/conftest.py:box_spec`).
+
+One commit for 2. The user merges afterwards.
+
+### E5. The run lifecycle in the UI (sonnet)
+
+After B7, since the attempt lines go through the chart frame B1 splits. Everything E1 to E3 left out of `web/`; the
+data is already in the answers:
+
+1. **E1.** Charts mark attempt boundaries with a thin dashed line from `attempts[].resume_step` (`LineSpec.marks`).
+   The status reads "killed · time limit" when `exit.reason` or the `killed` event's reason is `time_limit`
+   (both are written).
+2. **E2.** The run page's details list the card's `checkpoints` (location, a copy button, a missing file marked with
+   the reason) and "copied from <run>" with a link (`card.run.copied_from`).
+3. **E3.** The group header fact "N code versions", with a tip listing them by count (`keys.codes`, filled only when
+   members differ). A "Code" row on the run page with commit, branch, dirty mark, a GitHub or GitLab link derived
+   from the ssh remote, and `_env/git.diff` in a collapsed viewer. `run.code` offered in the table's column picker
+   (the default table already adds it when codes differ).
+
+Design rules apply: new components get rules in `design/components/` and a place in `gallery.html`.
+`docs/design/07-web-ui.md` gets all three, since E1 to E3 didn't touch it. Done: a browser test on a fixture with a
+resumed, a time-limited, a copied and a dirty run.
 
 ---
 
@@ -945,6 +990,8 @@ Each tool gets its entry in `guide/parts/analysis.md`, a test on `synth`, and a 
 - `scripts/release.py`, then upgrade on the cluster. **Check the real data first**: all 12 groups and the 10 custom
   blocks render on 0.2.0 from a read-only `pull`.
 - Port the remote's `curves.js`, `scorecard.js` and `predictions.js` to built-ins as new view versions, after asking.
+- CHANGELOG: Lightning's SLURM auto-requeue never worked alongside `BeamtimeLogger` before 0.2.0 (E1); Lightning
+  requeues now record no `requeue_requested` event.
 - Generate the favicon's colours (from the A5–A9 review): `scripts/build-tokens` writes the two accent fills of
   `design/favicon.svg` (light and dark) from `design/tokens.json`; today they are hand-copied (`#2f5aa8`,
   `#86a8e8`) and `tests/test_design.py` only checks that they match `tokens.css`. Drop the hardcoded
@@ -958,7 +1005,7 @@ Each tool gets its entry in `guide/parts/analysis.md`, a test on `synth`, and a 
 | `series` with `by`/`seeds` and `x ≠ _step` | steps | real x values, bucket centres | none; the old answer was wrong |
 | `seeds` grouping | config minus top-level seed | distinguishing keys minus seed | curves may merge correctly |
 | Default view layout | essential grid + "More metrics" | sections by prefix | none; saved views untouched |
-| `init()` on a SLURM requeue | new run | continues the matching run | give runs that must stay separate their own `key` |
+| `init()` on a SLURM requeue | new run | continues the job's only run in that folder | give runs that must stay separate their own `key` or `name` |
 | Chart `added` pref | `added` only | plus `removed` | old prefs still read |
 | `colormap`, `colormap_diverging` settings, `beamtime set colormap` | project-wide | removed; one `colormap` per chart | old keys are ignored with one line; set it per chart or apply to the page |
 | `/` with no local | error | first source | none |
@@ -972,8 +1019,9 @@ Not breaking: everything on disk. Old runs, notes, views and proposals keep read
 
 Executors follow these unless told otherwise.
 
-1. **Resume on requeue is automatic** when exactly one unfinished run matches; ambiguous cases start a new run with a
-   warning. The alternative, opt-in only, keeps today's surprise of split runs.
+1. **Resume on requeue is automatic** when the job made exactly one run in the folder (by `name` when given) and it is
+   running or killed; a job with several runs starts a new run with a warning (your decision; E1). Config matching
+   was rejected: timestamped `default_root_dir` values differ on a requeue.
 2. **A copy joins the destination's proposal** and leaves the old group's, since reuse in another group is its purpose.
    Checkpoints stay where they are by default, because they're large, and the copy references them (your decision; E2).
 3. **No "key metrics" section**: every metric once, by prefix, with the first two sections open. If you'd rather have a
@@ -984,7 +1032,10 @@ Executors follow these unless told otherwise.
    change: charts with one curve per run keep their page-wide run colors, so a run matches its table swatch; there the
    row asks for Color by or a grouping first.
 6. **The settings key stays `remotes:`** rather than becoming `sources:`.
-7. **`view_render` gets no `shots` option** (A9). `view_validate` already renders once without an image and returns the findings
+7. **A copy drops `key` and has no `job_key`** (your decision; E2), so resuming the source never continues the copy.
+   **Resuming by key never continues a run with a fresh heartbeat** (one writer per run); a requeue of that run's own job
+   may. `init` reads `BEAMTIME_RESUME` too.
+8. **`view_render` gets no `shots` option** (A9). `view_validate` already renders once without an image and returns the findings
    plus the static checks, so the option would be a second, weaker way to do the same. If you want it anyway, it is 5 lines in
    `ops/views.py:render` and `ViewRenderParams`.
 
@@ -995,5 +1046,6 @@ Executors follow these unless told otherwise.
 - A9's height cap wasn't measured on a tall page, and the share of `view_render` is by characters of output, not model tokens.
 - `price.js` on the remote wasn't read in full. C2 may not cover it; C1's `Figure` does.
 - `claude plugin eval` and the current plugin format weren't checked (G2).
-- Real SLURM behaviour of `SLURM_RESTART_COUNT` and `SLURM_JOB_END_TIME` on your cluster's version (E1 ends with a real
-  job).
+- Real SLURM behaviour of `SLURM_RESTART_COUNT`, and whether `SLURM_JOB_END_TIME` is set at all, on your cluster: the
+  `sbatch` check with `examples/slurm_toy.sh` and `examples/slurm_lightning.sh` (steps in `examples/README.md`) is still
+  yours to run.
