@@ -89,18 +89,33 @@ def show(ctx: Context, p: r.BlockShowParams) -> dict[str, Any]:
 
 
 def promote(ctx: Context, p: r.BlockPromoteParams) -> dict[str, Any]:
-    """Start a block draft from a custom block of a group's saved view.
+    """Start a block draft from a custom block of a group's saved view, local or on another
+    source. The draft itself always stays here.
 
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The draft's files and what to do next."""
-    with target_of(ctx, p.group) as target:
-        path = target.rel
-    if not (files := store.saved(ctx, path)):
-        raise OpError(
-            f"{path} has no saved view; save the view with the custom block first", code=4
-        )
-    view = store.read(files[-1], source=files[-1].name)
+    if p.group.startswith("@"):
+        import yaml as _yaml
+
+        from beamtime.ops.views import fetch_view_file
+        from beamtime.remote import answer as remote_answer
+
+        shown = remote_answer("view show", {"group": p.group}, ctx)
+        path = shown["group"]
+        if shown.get("yaml") is None:
+            raise OpError(
+                f"{path} has no saved view; save the view with the custom block first", code=4
+            )
+        view = m.parse(_yaml.safe_load(shown["yaml"]), source=shown["version"])
+    else:
+        with target_of(ctx, p.group) as target:
+            path = target.rel
+        if not (files := store.saved(ctx, path)):
+            raise OpError(
+                f"{path} has no saved view; save the view with the custom block first", code=4
+            )
+        view = store.read(files[-1], source=files[-1].name)
     node = next((n for n in m.walk(view.body) if n.id == p.block_id), None)
     if not isinstance(node, m.Custom):
         customs = [n.id for n in m.walk(view.body) if isinstance(n, m.Custom)]
@@ -117,7 +132,12 @@ def promote(ctx: Context, p: r.BlockPromoteParams) -> dict[str, Any]:
         kit=node.kit,
         libs=node.libs,
     )
-    source = (store.view_dir(ctx, path) / node.code).read_bytes()
+    if path.startswith("@"):
+        source = fetch_view_file(ctx, path, node.code)
+        if source is None:
+            raise OpError(f"no code file {node.code!r} for block {p.block_id!r} in {path}", code=4)
+    else:
+        source = (store.view_dir(ctx, path) / node.code).read_bytes()
     folder = new_draft(ctx, p.name, path, block, source, origin=f"{path}#{p.block_id}")
     return drafted(
         "block promote",

@@ -61,12 +61,9 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
     if source is None and not ctx.has_local and ctx.default_source is not None:
         source = ctx.default_source
     if source is not None:
+        # the draft stays with the agent; the op itself fetches from, or pushes to, the source.
         if method in DRAFTS:
-            raise OpError(
-                f"{method.replace('_', ' ')} works on drafts in this project; for a group on "
-                f"@{source}, run it there (ssh)",
-                code=2,
-            )
+            return local(params)
         stripped = with_author(method, strip(params, source), ctx)
         try:
             answer = client_for(ctx, source).request(method, stripped, caller=ctx.caller)
@@ -478,3 +475,32 @@ def remote_file(ctx: Context, run: str, rel: str, source: str | None = None) -> 
         except (OpError, KeyError, TypeError):
             continue
     return None
+
+
+def on_source(method: str, target: str, ctx: Context, body: dict[str, Any]) -> Any:
+    """Send a bundle method (``view_check``, ``view_put`` or ``view_compile``) to the source a
+    group names, and give the answer's paths that source's prefix back.
+
+    :param method: The API-only method.
+    :param target: The group the bundle is for, ``@source/bare``.
+    :param ctx: The operation context.
+    :param body: The rest of the body (``yaml``, ``files``, ``blocks``, and for ``view_put``
+        ``author`` and ``message``).
+    :return: The remote's answer.
+    :raises OpError: If the remote can't be reached, or is too old for the method."""
+    from beamtime.remote.client import RemoteError
+    from beamtime.remote.sources import client_for
+
+    source, _, group = target[1:].partition("/")
+    client = client_for(ctx, source)
+    try:
+        answer = client.request(method, {"group": group or ".", **body}, caller=ctx.caller)
+    except RemoteError as e:
+        if e.code == 4 and "no API method" in e.reason:
+            raise OpError(
+                f"@{source} runs beamtime {client.info.get('version', '?')}; this needs a newer "
+                f"version for {method.replace('_', ' ')}: `uv pip install -U beamtime` there",
+                code=2,
+            ) from None
+        raise
+    return prefix(answer, source)

@@ -41,7 +41,9 @@ def dispatch(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] 
         here = dataclasses.replace(ctx, merge=bool(body.pop("everywhere", False)))
     elif "everywhere" in body:
         body = {k: v for k, v in body.items() if k != "everywhere"}
-    if method in ROUTED and (ctx.sources is not None or remote.targets(body)):
+    # a draft is always local; its own view/code/file dispatch fetches from another source itself.
+    draft_local = method in ("view", "code", "file") and body.get("draft") is not None
+    if method in ROUTED and not draft_local and (ctx.sources is not None or remote.targets(body)):
         from beamtime.remote.route import routed
 
         return routed(method, body, here, lambda given: dispatch_here(here, method, given))
@@ -92,6 +94,10 @@ def dispatch_here(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, 
             from beamtime.views.store import code_text
 
             return code_text(ctx, body)
+        case "view_check" | "view_put" | "view_compile" | "view_files":
+            from beamtime.ops import views
+
+            return getattr(views, method)(ctx, body)
         case "summary":
             return summary_of(ctx, body.get("path", "."))
         case _ if (op := BY_TOOL.get(method)) is not None:
@@ -241,6 +247,10 @@ def view(
     :return: ``{kind, path, run, view, source, version, ...}`` with the run's path resolved."""
     from beamtime.views.store import shown
 
+    if draft is not None and path.startswith("@"):
+        from beamtime.ops.views import draft_view
+
+        return {"kind": "view", "path": path, "run": None} | draft_view(ctx, path, draft)
     path, run = page_of(ctx, path)
     return {"kind": "view", "path": path, "run": run} | shown(
         ctx, path, version=version, draft_name=draft

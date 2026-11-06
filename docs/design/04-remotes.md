@@ -209,8 +209,28 @@ Three methods exist only in the API:
 | `hello` | version handshake; refuses incompatible major versions with both versions and the upgrade command |
 | `subscribe` | notifications when runs or groups change, for live views ([layer 7](07-web-ui.md#live-updates)) |
 | `files` | list files, and read a file from a byte offset, for `pull` |
+| `view_check`, `view_put`, `view_compile` | validate, save or compile a bundled draft (`{group, yaml, files, blocks}`) against this machine's own group; views on a remote ([layer 5](05-views.md#agent-loop)) |
+| `view_files` | read one of a page's view data or code files, for starting a draft from it |
 
-Compatibility: the same protocol major version on both sides; minor versions only add.
+Compatibility: the same protocol major version on both sides; minor versions only add. `hello`
+carries the version, so a call to a method an older remote doesn't have (one of the four above, on
+a remote built before they existed) answers with that version and the upgrade command, e.g. "`@au002a`
+runs beamtime 0.1.1; this needs a newer version for view check: `uv pip install -U beamtime` there".
+
+### Drafts on a remote {#drafts-on-a-remote}
+
+A view or block draft always lives on the agent's own machine, never on the remote, even when it is
+for a remote group: **the draft stays with the agent; the check and the write happen on the
+source.** `view_new`/`block_promote` fetch the group's current view and files through the normal,
+routed `view_show` and `view_files`; `view_validate`/`view_save` (and the promote the same way) pack
+the draft's YAML and referenced files into one bundle, sent over the existing connection to
+`view_check`/`view_put`, which materialize it in a temporary directory on the remote and run the
+same static validation and `write_version` used for a local draft — so the check, the library and
+the write path are identical, only the files travel. Rendering stays local and needs no change to
+the remote: the renderer's own ephemeral `serve` answers the browser's `view` and `code` calls for
+the draft itself (the files are already here), calling `view_compile` on the remote only to get the
+compiled tree, so pins and library blocks resolve against the remote's own files; every other query
+in that tree routes to the remote as usual.
 
 ## Testing
 
@@ -239,8 +259,10 @@ the host.
   deleted on exit unless a `cache` on a local disk is configured.
 - Paths carry their source (`@cluster/...`); operations route by their target, listings on `.`
   merge across sources.
-- The API's methods are the operations of layer 8, plus `hello`, `subscribe` and `files`.
+- The API's methods are the operations of layer 8, plus `hello`, `subscribe`, `files` and the view
+  bundle methods `view_check`, `view_put`, `view_compile` and `view_files`.
 - Remotes are configured in user and project settings, with placeholders; no credentials are stored;
   `source add`/`list`/`rm` write and read that configuration.
 - A source is a named log dir; `local` is one only when this machine has runs or no remotes are
-  configured, checked fresh each time.
+  configured, checked fresh each time. View and block drafts always stay on the agent's machine;
+  validating and saving one for a remote group send a bundle and run there.

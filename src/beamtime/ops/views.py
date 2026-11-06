@@ -5,6 +5,8 @@ Drafts live in ``.beamtime/drafts/<name>/``; saving writes a new version into th
 
 import hashlib
 import re
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -18,15 +20,71 @@ from beamtime.ops.context import Context, OpError
 from beamtime.views import model as m
 from beamtime.views import store
 
+BUNDLE_LIMIT = 16 << 20
+
 
 def new(ctx: Context, p: r.ViewNewParams) -> dict[str, Any]:
-    """Start a draft: from an example, else from the page's current view.
+    """Start a draft: from an example, else from the page's current view, local or on another
+    source. The draft itself always stays here.
 
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The draft's name and file."""
-    with target_of(ctx, p.group) as target:
-        path = target.rel
+    remote = p.group.startswith("@")
+    if p.from_ is not None:
+        from beamtime.guide import example, example_file
+
+        if remote:
+            path = p.group
+        else:
+            with target_of(ctx, p.group) as target:
+                path = target.rel
+        text, origin = example(p.from_, ctx, path), f"the {p.from_!r} example"
+        return write_draft_files(ctx, p, path, text, origin, example_file)
+    if remote:
+        from beamtime.remote import answer as remote_answer
+
+        shown = remote_answer("view show", {"group": p.group}, ctx)
+        path = shown["group"]
+        if shown.get("yaml") is not None:
+            text, origin = shown["yaml"], f"version {shown['version']} of {path}"
+        else:
+            text = m.dump({"schema": 1, "title": None, "finding": None, "body": []})
+            origin = f"a blank view ({path} has no saved view yet; --from starts from an example)"
+
+        def fetch(ref: str) -> bytes | None:
+            return fetch_view_file(ctx, path, ref)
+    else:
+        with target_of(ctx, p.group) as target:
+            path = target.rel
+        text, origin = current_yaml(ctx, path)
+        view_folder = store.view_dir(ctx, path)
+
+        def fetch(ref: str) -> bytes | None:
+            source = view_folder / ref
+            return source.read_bytes() if source.is_file() else None
+
+    return write_draft_files(ctx, p, path, text, origin, fetch)
+
+
+def write_draft_files(
+    ctx: Context,
+    p: r.ViewNewParams,
+    path: str,
+    text: str,
+    origin: str,
+    fetch: Callable[[str], bytes | None],
+) -> dict[str, Any]:
+    """Write a new draft's folder: its ``view.yaml``, the files it references, and
+    ``_draft.json``.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :param path: The group or run path, ``@source/...`` for another source.
+    :param text: The view's YAML.
+    :param origin: Where it came from, for the answer.
+    :param fetch: Reads one referenced data or code file; ``None`` where there is none.
+    :return: The draft's name and file."""
     name = store.check_name(p.name or default_name(path), new=True)
     folder = store.drafts(ctx) / name
     if folder.exists():
@@ -34,22 +92,11 @@ def new(ctx: Context, p: r.ViewNewParams) -> dict[str, Any]:
             f"draft {name!r} exists at {folder}; edit its view.yaml, or start another with --name",
             code=1,
         )
-    if p.from_ is not None:
-        from beamtime.guide import example
-
-        text, origin = example(p.from_, ctx, path), f"the {p.from_!r} example"
-    else:
-        text, origin = current_yaml(ctx, path)
     (folder / "data").mkdir(parents=True)
     (folder / store.VIEW_FILE).write_text(text)
     for ref in data_refs(text):
-        if p.from_ is not None:
-            from beamtime.guide import example_file
-
-            if (content := example_file(ref)) is not None:
-                write_created(folder / ref, content)
-        elif (source := store.view_dir(ctx, path) / ref).is_file():
-            write_created(folder / ref, source.read_bytes())
+        if (content := fetch(ref)) is not None:
+            write_created(folder / ref, content)
     store.write_draft_meta(folder, group=path, origin=p.from_ or "current")
     file = folder / store.VIEW_FILE
     return {
@@ -141,15 +188,22 @@ def current_yaml(ctx: Context, path: str) -> tuple[str, str]:
 
 
 def validate(ctx: Context, p: r.ViewValidateParams) -> dict[str, Any]:
-    """Validate a draft: statically, then with one render where a browser exists.
+    """Validate a draft: statically (on the source its group is on), then with one render where
+    a browser exists.
 
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The findings and whether it rendered."""
     d = store.draft(ctx, p.draft)
-    view, findings = check(ctx, d)
+    if d.group.startswith("@"):
+        from beamtime.remote.route import on_source
+
+        ok, findings = True, on_source("view_check", d.group, ctx, bundle(d))["findings"]
+    else:
+        view, findings = check(ctx, d)
+        ok = view is not None
     answer: dict[str, Any] = {"kind": "view validate", "draft": d.name, "group": d.group}
-    if view is not None and p.render and not any(f["level"] == "error" for f in findings):
+    if ok and p.render and not any(f["level"] == "error" for f in findings):
         from beamtime.views.render import render_draft
 
         result = render_draft(ctx, d, shots=False)
@@ -166,7 +220,7 @@ def validate(ctx: Context, p: r.ViewValidateParams) -> dict[str, Any]:
 
 
 def check(ctx: Context, d: store.Draft) -> tuple[m.View | None, list[dict[str, Any]]]:
-    """Validate a draft statically.
+    """Validate a draft statically, against its own (local) group.
 
     :param ctx: The operation context.
     :param d: The draft.
@@ -183,6 +237,219 @@ def check(ctx: Context, d: store.Draft) -> tuple[m.View | None, list[dict[str, A
         ctx, d.group, data, source=f"draft {d.name}", draft=d.name, data_dir=d.dir, blocks=d.blocks
     )
     return view, [f.to_dict() for f in findings]
+
+
+def bundle(d: store.Draft) -> dict[str, Any]:
+    """Pack a draft's view and the files it references, to send to another source.
+
+    :param d: The draft.
+    :return: ``{yaml, files, blocks}``; ``files`` are base64 by their ref."""
+    import base64
+
+    text = d.file.read_text()
+    files = {}
+    for ref in data_refs(text):
+        source = d.dir / ref
+        if source.is_file():
+            files[ref] = base64.b64encode(source.read_bytes()).decode()
+    return {"yaml": text, "files": files, "blocks": d.blocks}
+
+
+@contextmanager
+def bundled(
+    ctx: Context, group: str, yaml_text: str, files: dict[str, str]
+) -> Iterator[tuple[Path, str]]:
+    """Materialize a bundle's YAML and files as a short-lived draft, so its file and code
+    queries resolve exactly as a real draft's would during validation.
+
+    :param ctx: The operation context.
+    :param group: The group it is for, recorded in the temporary draft's meta.
+    :param yaml_text: The ``view.yaml`` text.
+    :param files: File references to their base64 content.
+    :return: The draft's folder and its (temporary) name.
+    :raises OpError: Above the 16 MB total a remote save accepts."""
+    import base64
+    import secrets
+    import shutil
+
+    size = len(yaml_text.encode()) + sum(len(v) for v in files.values()) * 3 // 4
+    if size > BUNDLE_LIMIT:
+        raise OpError(
+            f"the draft is {size / (1 << 20):.1f} MB, over the 16 MB a remote save accepts; "
+            "put large data in the group's own data files instead of the draft's",
+            code=2,
+        )
+    name = f"bundle-{secrets.token_hex(8)}"
+    folder = (store.drafts(ctx) / name).resolve()
+    folder.mkdir(parents=True)
+    try:
+        (folder / "data").mkdir()
+        (folder / store.VIEW_FILE).write_text(yaml_text)
+        for ref, content in files.items():
+            dest = (folder / ref).resolve()
+            if folder not in dest.parents:
+                raise OpError(f"{ref!r} leaves the bundle", code=2)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(base64.b64decode(content))
+        store.write_draft_meta(folder, group=group, origin="a bundle from another source")
+        yield folder, name
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def view_check(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
+    """Validate a bundled draft against this machine's own group (API-only: what a remote call
+    to ``view validate`` turns into).
+
+    :param ctx: The operation context.
+    :param body: ``{group, yaml, files, blocks}``.
+    :return: The findings."""
+    import yaml as _yaml
+
+    from beamtime.views.validate import static
+
+    group = str(body["group"])
+    with bundled(ctx, group, str(body["yaml"]), dict(body.get("files") or {})) as (folder, name):
+        data = _yaml.safe_load((folder / store.VIEW_FILE).read_text())
+        _, findings = static(
+            ctx,
+            group,
+            data,
+            source="a draft",
+            draft=name,
+            data_dir=folder,
+            blocks=dict(body.get("blocks") or {}),
+        )
+    return {"kind": "view check", "findings": [f.to_dict() for f in findings], "meta": {}}
+
+
+def view_put(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
+    """Validate a bundled draft and, without errors, save it as a new version (API-only: what a
+    remote call to ``view save`` turns into).
+
+    :param ctx: The operation context.
+    :param body: ``{group, yaml, files, blocks, author, message}``.
+    :return: What ``view save`` returns."""
+    import yaml as _yaml
+
+    from beamtime.views.validate import static
+
+    group = str(body["group"])
+    with bundled(ctx, group, str(body["yaml"]), dict(body.get("files") or {})) as (folder, name):
+        data = _yaml.safe_load((folder / store.VIEW_FILE).read_text())
+        view, findings = static(
+            ctx,
+            group,
+            data,
+            source="a draft",
+            draft=name,
+            data_dir=folder,
+            blocks=dict(body.get("blocks") or {}),
+        )
+        errors = [f.to_dict() for f in findings if f.level == "error"]
+        if view is None or errors:
+            raise OpError(
+                "the draft has errors; fix them and save again:\n"
+                + "\n".join(summary(errors, None)),
+                code=3,
+            )
+        path = write_version(
+            ctx, group, view, body.get("author"), body.get("message"), data_dir=folder
+        )
+    return written(ctx, "view save", path, [])
+
+
+def view_compile(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
+    """Compile a bundled draft's YAML on this machine, for rendering a draft whose group is here
+    but whose files are on another (API-only: what the renderer calls when a draft targets
+    another source). No files are touched: the compiled tree's own code and file references keep
+    the agent's draft name, so the agent's own machine answers them from its draft folder.
+
+    :param ctx: The operation context.
+    :param body: ``{group, yaml, blocks, draft_name}``.
+    :return: What ``store.shown`` returns for a saved view."""
+    import yaml as _yaml
+    from msgspec import to_builtins
+
+    from beamtime.views.compile import compile_view
+    from beamtime.views.library import Library
+
+    group = str(body["group"])
+    draft_name = body.get("draft_name")
+    blocks = dict(body.get("blocks") or {})
+    library = Library(ctx=ctx, path=group, drafts=blocks)
+    try:
+        data = _yaml.safe_load(str(body["yaml"]))
+        view = m.parse(data, source="a draft")
+        tree = compile_view(view, path=group, draft=draft_name, library=library)
+    except (_yaml.YAMLError, SchemaError) as e:
+        from beamtime.views.defaults import default_view
+
+        view = default_view(ctx, group)
+        text = f"{e} Showing the default view."
+        view.body.insert(0, m.Note(id="invalid-view", kind="warning", text=text))
+        tree = compile_view(view, path=group)
+    return {
+        "source": "draft",
+        "version": None,
+        "versions": 0,
+        "view": tree,
+        "author": view.author,
+        "user": view.user,
+        "title": view.title,
+        "finding": view.finding,
+        "metrics": to_builtins(view.metrics),
+        "outdated": [],
+    }
+
+
+def view_files(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
+    """Read one of a page's view data or code files (API-only: for starting a draft from
+    another source's current view).
+
+    :param ctx: The operation context.
+    :param body: ``{group, ref}``, ``ref`` being ``data/<hash>-<name>`` or ``code/<hash>-<name>``.
+    :return: ``{content}``, base64, or ``None`` if there is no such file."""
+    import base64
+
+    group, ref = str(body["group"]), str(body["ref"])
+    folder = store.view_dir(ctx, group).resolve()
+    file = (folder / ref).resolve()
+    if folder not in file.parents or ref.split("/", 1)[0] not in ("data", "code"):
+        raise OpError(f"no view file {ref!r}", code=2)
+    content = base64.b64encode(file.read_bytes()).decode() if file.is_file() else None
+    return {"kind": "view files", "content": content}
+
+
+def fetch_view_file(ctx: Context, path: str, ref: str) -> bytes | None:
+    """Read one of a view's data or code files on another source.
+
+    :param ctx: The operation context.
+    :param path: The group, ``@source/bare``.
+    :param ref: ``data/<hash>-<name>`` or ``code/<hash>-<name>``.
+    :return: Its content, or ``None`` if there is no such file."""
+    import base64
+
+    from beamtime.remote.sources import client_for
+
+    source, _, bare = path[1:].partition("/")
+    answer = client_for(ctx, source).request("view_files", {"group": bare or ".", "ref": ref})
+    content = answer.get("content")
+    return base64.b64decode(content) if content is not None else None
+
+
+def draft_view(ctx: Context, path: str, draft_name: str) -> dict[str, Any]:
+    """Compile a draft whose group is on another source, on that source, for the page it is
+    being rendered on.
+
+    :param ctx: The operation context.
+    :param path: The group, ``@source/bare``.
+    :param draft_name: The local draft's name.
+    :return: What ``store.shown`` returns."""
+    from beamtime.remote.route import on_source
+
+    d = store.draft(ctx, draft_name)
+    return on_source("view_compile", path, ctx, bundle(d) | {"draft_name": draft_name})
 
 
 def summary(findings: list[dict[str, Any]], render: dict[str, Any] | None) -> list[str]:
@@ -235,12 +502,20 @@ def render(ctx: Context, p: r.ViewRenderParams) -> dict[str, Any]:
 
 
 def save_draft(ctx: Context, p: r.ViewSaveParams) -> dict[str, Any]:
-    """Save a draft as a new view version, refusing one with errors.
+    """Save a draft as a new view version, refusing one with errors. On another source, the
+    check and the write happen there.
 
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The new version."""
     d = store.draft(ctx, p.draft)
+    if d.group.startswith("@"):
+        from beamtime.remote.route import on_source
+
+        author = p.author or author_of(ctx, None)[0]
+        return on_source(
+            "view_put", d.group, ctx, bundle(d) | {"author": author, "message": p.message}
+        )
     view, findings = check(ctx, d)
     errors = [f for f in findings if f["level"] == "error"]
     if view is None or errors:
