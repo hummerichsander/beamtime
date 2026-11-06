@@ -134,7 +134,7 @@ stops capture and the heartbeat. Calling it twice is a no-op.
 | `finish()`, or the context manager exits cleanly | direct call | `finished` |
 | the script ends without `finish()` | `atexit` | `finished` |
 | an unhandled exception | `sys.excepthook` chain, or the context manager | `failed`, traceback in `_events.jsonl`, last line in the card's `error` |
-| `SIGTERM` (scheduler timeout, preemption, cancellation) | signal handler (POSIX) | `killed`, reason `time_limit` within 300 s of `SLURM_JOB_END_TIME` |
+| `SIGTERM` (scheduler timeout, preemption, cancellation) | signal handler (POSIX) | `killed`, reason `time_limit` from 300 s before `SLURM_JOB_END_TIME` on |
 | `Ctrl-C` | `KeyboardInterrupt` | `killed`, reason `interrupted` |
 | `SIGKILL`, out of memory, node crash | nothing; the process is gone | `lost`, derived from the stale heartbeat |
 
@@ -190,21 +190,26 @@ everything on the calling thread.
 `init` resolves which run to continue, in order, before anything else runs; every mode past the
 first can never raise, since starting the experiment must never be at the mercy of a lookup:
 
-1. **Explicit** (`resume=<run id>`): continue that run, wherever it is below the log dir. An unknown
-   id raises in `init`, as misuse (unchanged).
+1. **Explicit** (`resume=<run id>`, or `BEAMTIME_RESUME`): continue that run, wherever it is below
+   the log dir. An unknown id raises in `init`, as misuse (unchanged).
 2. **By key** (`key=...`, or `BEAMTIME_RUN_KEY`): the key is stored in `_run.json`. The newest run in
    this folder recorded under it: `running` or `killed` → continue; `finished` or `failed` → a new
    run, with a warning. For a job submitted again by hand, or several models in one job
-   (`beamtime.init(dir=..., key=f"{job}-{model}")`).
+   (`beamtime.init(dir=..., key=f"{job}-{model}")`). A run whose heartbeat is still fresh (not yet
+   `lost`) is another process writing it, so it gets a new run with a warning instead: one writer per
+   run. The exception is a requeue of that run's own job, which may find its killed attempt still
+   marked `running`.
 3. **Requeue** (automatic): `SLURM_RESTART_COUNT > 0` and **exactly one** `running` or `killed` run
    in this folder shares the launch's `job_key` and this call's `name` (name only filters when
    given). Several candidates → a new run, with a warning naming `key` as the way to tell them
-   apart. This is also why `find_by_job_key` (used to find rank 0's run) keeps its own recency
-   window: resume looks at every unfinished run, not only recent ones.
+   apart. `find_by_job_key` (how other ranks find rank 0's run) keeps its own recency window, on
+   the heartbeat rather than `created_at`, since a requeued rank 0 continues a run created hours
+   before.
 4. **New** (nothing above matched): a fresh id.
 
-A broken `_run.json` elsewhere in the folder, or any other error while looking, is swallowed with a
-warning and falls back to a new run.
+A broken `_run.json` elsewhere in the folder, a run found by key or requeue that can't be reopened
+(say, a newer schema), or any other error while looking, is swallowed with a warning and falls back
+to a new run.
 
 Continuing a run:
 
@@ -231,16 +236,18 @@ to hours on a busy cluster) would otherwise show up as a jump in the elapsed-tim
 when an attempt boundary is applied, the gap between the new attempt's start and the previous
 attempt's last logged time is computed once (from `attempt_started`'s own timestamp, since nothing
 else records where the previous attempt's writing ended) and cached next to the resume step in the
-index; `_elapsed` subtracts the cumulative gap up to each point's step
-(`beamtime.query.read.elapsed_values`). `_t` (wall clock) and `_step` are unaffected.
+index. A point belongs to the latest attempt whose resume step is at or below it, and `_elapsed`
+subtracts the gaps of that attempt and every earlier one (`beamtime.query.read.elapsed_values`), so
+an attempt that resumed from an older checkpoint still counts right. `_t` (wall clock) and `_step` are unaffected.
 
 **`beamtime resume <run>`** (also over MCP) answers what's needed to continue a killed or failed run
 by hand: the recorded command and working directory, the last step, the newest checkpoint (from
 `_artifacts.jsonl`), the scheduler, and the environment variable (`BEAMTIME_RESUME=<id>`) that
 continues it. It is read-only and runs nothing itself, so an agent can write the `sbatch` call.
 
-**Time limits.** When a scheduler sends `SIGTERM` within 300 seconds of `SLURM_JOB_END_TIME`, the
-`killed` event carries `reason: "time_limit"`, shown as "killed · time limit" wherever event
+**Time limits.** When a scheduler sends `SIGTERM` after `SLURM_JOB_END_TIME` or within 300 seconds
+before it (SLURM signals at the limit or tens of seconds later; Lightning's requeue on `SIGUSR1`
+ends it about 2 minutes early), the `killed` event and `exit` carry `reason: "time_limit"`, shown as "killed · time limit" wherever event
 descriptions are rendered. Ctrl-C's `reason: "interrupted"` is shown the same way.
 
 ## Environment capture
@@ -248,10 +255,11 @@ descriptions are rendered. Ctrl-C's `reason: "interrupted"` is shown the same wa
 Written once at `init`:
 
 - `_run.json`: host, user, Python, command line, working directory, git commit, branch, dirty flag,
-  untracked paths (up to 50), `diff_sha` (the first 8 hex of the sha256 of the diff plus the
-  untracked list, so the same changes compare equal; `None` on a clean checkout), remote, and the
-  job scheduler if one is detected. An untracked file counts as dirty too, since `git diff` never
-  shows it.
+  untracked paths (up to 50, as `git status` lists them: an untracked folder is one entry; the log
+  dir is left out, since every run adds files there), `diff_sha` (the first 8 hex of the sha256 of
+  the diff plus the untracked list, so the same changes compare equal; `None` on a clean checkout),
+  remote, and the job scheduler if one is detected. An untracked file counts as dirty too, since
+  `git diff` never shows it.
 - `_env/git.diff`: uncommitted changes to tracked files (capped at 1 MB).
 - `_env/packages.txt`: installed distributions from `importlib.metadata`, without a subprocess.
 - The hardware in `host`: CPU model and logical cores, total memory, GPUs (name, memory, driver)

@@ -18,7 +18,7 @@ from beamtime.format import constants as c
 from beamtime.format.io import read_json
 from beamtime.format.run import derived_status
 from beamtime.format.times import stamp
-from beamtime.format.tree import is_reserved, iter_runs, to_trash
+from beamtime.format.tree import is_reserved, is_run, iter_runs, to_trash
 from beamtime.index.cache import cache_dir, daemon_status
 from beamtime.index.index import Index
 from beamtime.ops import registry as r
@@ -565,7 +565,7 @@ def stray_copies(logdir: Path) -> list[Path]:
         for name in dirs:
             if name.startswith(TEMP_PREFIX):
                 out.append(Path(d) / name)
-            elif not is_reserved(name):
+            elif not is_reserved(name) and not is_run(Path(d) / name):
                 keep.append(name)
         dirs[:] = keep
     return out

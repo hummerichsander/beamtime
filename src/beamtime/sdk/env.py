@@ -59,30 +59,38 @@ def git(args: list[str], cwd: Path) -> str | None:
     return out.stdout.decode(errors="replace") if out.returncode == 0 else None
 
 
-def untracked_files(cwd: Path) -> list[str]:
+def untracked_files(cwd: Path, logdir: Path | None = None) -> list[str]:
     """List untracked paths, so a new file counts as a change too.
 
+    An untracked folder is one entry, as ``git status`` shows it. The log dir is left out:
+    every run adds files there, which would make each run's code look different.
+
     :param cwd: A directory inside the checkout.
-    :return: Up to :data:`UNTRACKED_CAP` paths, sorted."""
-    status = git(["status", "--porcelain", "--untracked-files=all"], cwd) or ""
-    paths = sorted(line[3:] for line in status.splitlines() if line[:2] == "??")
+    :param logdir: The log dir, which may lie inside the checkout.
+    :return: Up to :data:`UNTRACKED_CAP` paths relative to the checkout's top, sorted."""
+    status = git(["status", "--porcelain", "-z"], cwd) or ""
+    paths = sorted(entry[3:] for entry in status.split("\0") if entry[:3] == "?? ")
+    if logdir is not None and paths and (top := git(["rev-parse", "--show-toplevel"], cwd)):
+        root, skip = Path(top.strip()), logdir.resolve()
+        paths = [p for p in paths if skip != (q := (root / p).resolve()) and skip not in q.parents]
     return paths[:UNTRACKED_CAP]
 
 
-def git_info(cwd: Path) -> tuple[dict[str, Any] | None, str | None]:
+def git_info(cwd: Path, logdir: Path | None = None) -> tuple[dict[str, Any] | None, str | None]:
     """Describe the git checkout and its uncommitted changes.
 
     A new untracked file leaves no trace in ``git diff``, so it is listed and counted
     into ``dirty`` and ``diff_sha`` on its own.
 
     :param cwd: A directory inside the checkout.
+    :param logdir: The log dir, whose files are never counted as changes.
     :return: ``commit``, ``branch``, ``dirty``, ``untracked``, ``diff_sha`` and ``remote``,
         and the diff of tracked files (capped at 1 MB), or ``(None, None)`` outside a
         checkout."""
     if (commit := git(["rev-parse", "HEAD"], cwd)) is None:
         return None, None
     diff = git(["diff", "HEAD"], cwd) or ""
-    untracked = untracked_files(cwd)
+    untracked = untracked_files(cwd, logdir)
     dirty = bool(diff) or bool(untracked)
     diff_sha = None
     if dirty:
@@ -160,16 +168,17 @@ def requeued(env: Mapping[str, str]) -> bool:
 
 
 def near_time_limit(env: Mapping[str, str], now: float) -> bool:
-    """Tell whether the job's wall-time limit is about to end this process.
+    """Tell whether the job's wall-time limit has ended this process, or is about to.
 
     :param env: The environment variables.
     :param now: The current time, unix seconds.
-    :return: Whether ``SLURM_JOB_END_TIME`` is within ``TIME_LIMIT_WINDOW_S`` of ``now``."""
+    :return: Whether ``now`` is past ``SLURM_JOB_END_TIME`` minus ``TIME_LIMIT_WINDOW_S``."""
     try:
         end = float(env["SLURM_JOB_END_TIME"])
     except (KeyError, ValueError):
         return False
-    return 0 <= end - now <= TIME_LIMIT_WINDOW_S
+    # the limit itself signals at or after the end time; a requeue on the warning, minutes before.
+    return end - now <= TIME_LIMIT_WINDOW_S
 
 
 def job_key(env: Mapping[str, str]) -> str | None:

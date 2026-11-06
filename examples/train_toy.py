@@ -20,7 +20,7 @@ def main() -> None:
     parser.add_argument("--crash-at", type=int, default=None)
     parser.add_argument("--resume", default=os.environ.get("BEAMTIME_RESUME"))
     parser.add_argument("--key", default=None, help="resume by key instead of an id")
-    parser.add_argument("--start-step", type=int, default=0, help="checkpoint step")
+    parser.add_argument("--start-step", type=int, default=None, help="checkpoint step")
     args = parser.parse_args()
 
     run = beamtime.init(
@@ -31,8 +31,11 @@ def main() -> None:
         key=args.key,
     )
     print(f"run {run.id} in {run.dir}", flush=True)
+    # stands in for a checkpoint: a continued run picks up after its last logged step.
+    last = getattr(run, "resume_last_step", None)
+    start = args.start_step if args.start_step is not None else (0 if last is None else last + 1)
     rng = random.Random(0)
-    for step in range(args.start_step, args.steps):
+    for step in range(start, args.steps):
         loss = 2.3 * math.exp(-step * args.lr * 10) + 0.05 * rng.random()
         run.log({"train/loss": loss, "lr": args.lr}, step=step)
         if step % 100 == 0:

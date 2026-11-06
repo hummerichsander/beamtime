@@ -151,3 +151,15 @@ def test_elapsed_values_skips_queue_gaps() -> None:
     assert elapsed_values(steps, times, [0, 1, 2, 3], [(2, 1899.0)]) == [0.0, 1.0, 1.0, 2.0]
     assert elapsed_values(steps, times, [-1], [(2, 1899.0)]) == [None]
     assert elapsed_values([], [], [0], [(2, 1.0)]) == [None]
+
+
+def test_elapsed_values_follow_attempt_order_not_step_order() -> None:
+    """An attempt resuming from an older checkpoint still loses every earlier attempt's gap."""
+    # attempt 2 resumed at step 4 after 100 s; attempt 3 went back to step 2 after 50 s.
+    steps, times = [0, 1, 2, 3], [0.0, 1.0, 152.0, 153.0]
+    assert elapsed_values(steps, times, [0, 1, 2, 3], [(4, 100.0), (2, 50.0)]) == [
+        0.0,
+        1.0,
+        2.0,
+        3.0,
+    ]

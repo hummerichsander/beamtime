@@ -338,13 +338,15 @@ def resume(ctx: Context, p: r.ResumeParams) -> dict[str, Any]:
     :param p: The parameters.
     :return: The recorded command, cwd, last step, newest checkpoint and scheduler, and
         the environment variable that continues it."""
-    from beamtime.ops.copy import checkpoints, shared_dirpath_warning
+    from beamtime.ops.copy import checkpoints, dirpaths_of, shared_dirpath_warning
 
     run_dir = find_run(ctx, p.run)
     info = read_run_info(run_dir)
     card = read_card(run_dir) if (run_dir / c.CARD).exists() else None
     checkpoints_ = checkpoints(ctx, run_dir)
     checkpoint = checkpoints_[-1] if checkpoints_ else None
+    config = read_config(run_dir) if (run_dir / c.CONFIG).exists() else {}
+    dirpaths = dirpaths_of(info.command, config, info.cwd)
     return {
         "kind": "resume",
         "run": info.id,
@@ -357,7 +359,7 @@ def resume(ctx: Context, p: r.ResumeParams) -> dict[str, Any]:
         "checkpoint": (
             {"name": checkpoint["name"], "location": checkpoint["location"]} if checkpoint else None
         ),
-        "warning": shared_dirpath_warning(info.command, checkpoints_),
+        "warning": shared_dirpath_warning(dirpaths, checkpoints_),
         "export": f"BEAMTIME_RESUME={info.id}",
         "meta": {},
     }

@@ -259,7 +259,8 @@ How views look and behave is [layer 5](05-views.md). For storage:
 - **`copied_from`** is set by `beamtime cp` ([layer 8](08-cli-mcp.md)): the source run's id, its path
   at copy time, and when the copy was made. `created_at` and `attempts` are not touched, since that
   data is from the original run; `proposals` and `proposal_hashes` keep only the run's own entry
-  (`.`) and gain the destination's ancestors, as a new run would.
+  (`.`) and gain the destination's ancestors, as a new run would. `key` goes and `job_key` becomes
+  `null`: the copy is no launch's run, and resuming the source's key must never continue the copy.
 
 ### `_config.json`
 

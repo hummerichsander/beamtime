@@ -354,3 +354,70 @@ def test_group_copy_reports_a_name_for_the_destination(ctx: Context) -> None:
         "cp", {"source": "proj/sweep", "dest": "proj/archive", "name": "renamed"}, ctx
     )
     assert answer["path"] == "proj/archive/renamed"
+
+
+def test_copy_is_no_launch_s_run(ctx: Context) -> None:
+    """A copy drops ``key`` and ``job_key``, so resuming its source's key never continues it."""
+    source = make_run(ctx.logdir, "proj/a", status="killed")
+    info = json.loads((source / c.RUN).read_text())
+    write_replaced(source / c.RUN, info | {"key": "k", "job_key": "slurm:1"})
+    answer = call("cp", {"source": source.name, "dest": "proj/a"}, ctx)
+    copied = json.loads((ctx.logdir / answer["path"] / c.RUN).read_text())
+    assert "key" not in copied and copied["job_key"] is None
+
+
+def test_group_copy_refuses_a_running_run_before_copying_anything(ctx: Context) -> None:
+    """One running run stops a group copy before any run is copied."""
+    make_run(ctx.logdir, "proj/sweep/a")
+    make_run(ctx.logdir, "proj/sweep/b", status="running")
+    with pytest.raises(OpError, match="running"):
+        call("cp", {"source": "proj/sweep", "dest": "proj/archive"}, ctx)
+    assert not (ctx.logdir / "proj" / "archive" / "sweep").exists()
+
+
+def test_cp_answer_names_the_referenced_checkpoints(ctx: Context) -> None:
+    """The answer says how many checkpoints the copy references, where, and their size."""
+    source = make_run(ctx.logdir, "proj/a", checkpoint_files={"last.ckpt": b"w" * 2_000_000})
+    answer = call("cp", {"source": source.name, "dest": "proj/b"}, ctx)
+    line = f"references 1 checkpoint(s) in {(source / 'checkpoints').resolve()} (2.0 MB)"
+    assert line in answer["lines"]
+
+
+def test_an_unrecorded_checkpoint_sharing_a_recorded_name_still_gets_a_record(
+    ctx: Context,
+) -> None:
+    """A file in ``checkpoints/`` is unrecorded unless a record names that very file."""
+    external = ctx.logdir / "elsewhere" / "last.ckpt"
+    external.parent.mkdir()
+    external.write_bytes(b"outside")
+    source = make_run(
+        ctx.logdir,
+        "proj/a",
+        checkpoint_files={"last.ckpt": b"inside"},
+        artifacts=[{"name": "last.ckpt", "uri": str(external), "kind": "checkpoint"}],
+    )
+    answer = call("cp", {"source": source.name, "dest": "proj/b"}, ctx)
+    rows = checkpoints(ctx, ctx.logdir / answer["path"])
+    assert sorted(row["via"] for row in rows) == ["origin", "uri"]
+
+
+def test_resume_warns_about_a_relative_dirpath_in_the_config(ctx: Context) -> None:
+    """A ``dirpath`` in the config, relative to the recorded cwd, is found as well."""
+    work = ctx.logdir / "work"
+    (work / "ckpt").mkdir(parents=True)
+    (work / "ckpt" / "last.ckpt").write_bytes(b"weights")
+    source = make_run(
+        ctx.logdir,
+        "proj/a",
+        artifacts=[
+            {"name": "last.ckpt", "uri": str(work / "ckpt" / "last.ckpt"), "kind": "checkpoint"}
+        ],
+    )
+    info = json.loads((source / c.RUN).read_text())
+    write_replaced(source / c.RUN, info | {"cwd": str(work)})
+    write_replaced(
+        source / c.CONFIG, {"schema": 1, "callbacks": {"checkpoint": {"dirpath": "ckpt"}}}
+    )
+    answer = call("cp", {"source": source.name, "dest": "proj/b"}, ctx)
+    resumed = call("resume", {"run": answer["id"]}, ctx)
+    assert "where the source's are" in resumed["warning"]

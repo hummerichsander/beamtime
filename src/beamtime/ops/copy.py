@@ -45,9 +45,18 @@ def cp(ctx: Context, p: r.CpParams) -> dict[str, Any]:
         return copy_group(ctx, source, dest_group, p)
     run_dir = find_run(ctx, p.source)
     info = copy_run_core(ctx, run_dir, dest_group, name=p.name, with_checkpoints=p.with_checkpoints)
-    lines = [f"copied {run_dir.relative_to(ctx.logdir)} to {info['path']}"]
+    lines = [f"copied {run_dir.relative_to(ctx.logdir)} to {info['path']} ({mb(info['size'])})"]
+    lines += checkpoint_lines(info["checkpoints"], copied=p.with_checkpoints)
     lines += skip_lines(info["skipped"])
     return answer("cp", lines, path=info["path"], id=info["id"], checkpoints=info["checkpoints"])
+
+
+def mb(size: int) -> str:
+    """Format a byte count for an answer.
+
+    :param size: Bytes.
+    :return: E.g. ``12.3 MB``."""
+    return f"{size / 1e6:.1f} MB"
 
 
 def skip_lines(skipped: list[str]) -> list[str]:
@@ -56,6 +65,21 @@ def skip_lines(skipped: list[str]) -> list[str]:
     :param skipped: Their names.
     :return: One line per missing checkpoint."""
     return [f"skipped {name}: the checkpoint file is missing" for name in skipped]
+
+
+def checkpoint_lines(rows: list[dict[str, Any]], *, copied: bool) -> list[str]:
+    """Say how many checkpoints a copy holds or references, where, and their size.
+
+    :param rows: The copy's checkpoint rows, from :func:`copy_checkpoint`.
+    :param copied: Whether the files were copied in rather than referenced.
+    :return: One line, or none without checkpoints."""
+    if not (found := [row for row in rows if row["exists"]]):
+        return []
+    size = sum(row["size"] or 0 for row in found)
+    if copied:
+        return [f"copied {len(found)} checkpoint(s) in ({mb(size)})"]
+    where = sorted({str(Path(row["location"]).parent) for row in found})
+    return [f"references {len(found)} checkpoint(s) in {', '.join(where)} ({mb(size)})"]
 
 
 def copy_run_core(
@@ -76,7 +100,11 @@ def copy_run_core(
     temp = dest_group / f"{TEMP_PREFIX}{new_id}"
     if temp.exists():
         raise OpError(f"{temp} already exists; try again", code=1)
-    ignore = None if with_checkpoints else shutil.ignore_patterns("checkpoints")
+
+    def ignore(folder: str, names: list[str]) -> list[str]:
+        top = Path(folder) == run_dir and not with_checkpoints
+        return ["checkpoints"] if top and "checkpoints" in names else []
+
     shutil.copytree(run_dir, temp, ignore=ignore)
     source_id = read_json(run_dir / c.RUN)["id"]
     checkpoints_, skipped = rewrite_artifacts(
@@ -84,6 +112,7 @@ def copy_run_core(
     )
     rewrite_run_info(ctx, run_dir, temp, dest_group, new_id, name)
     append_lines(temp / c.EVENTS, [{"_t": time.time(), "kind": "copied", "from": source_id}])
+    sync_tree(temp)
     final = dest_group / new_id
     os.replace(temp, final)
     size = sum(f.stat().st_size for f in final.rglob("*") if f.is_file())
@@ -96,6 +125,16 @@ def copy_run_core(
     }
 
 
+def sync_tree(folder: Path) -> None:
+    """Flush every file below a folder to disk, so the rename never exposes a partial copy.
+
+    :param folder: The folder."""
+    for d, _, files in os.walk(folder):
+        for name in files:
+            with open(Path(d) / name, "rb") as f:
+                os.fsync(f.fileno())
+
+
 def rewrite_run_info(
     ctx: Context, run_dir: Path, temp: Path, dest_group: Path, new_id: str, name: str | None
 ) -> None:
@@ -103,6 +142,8 @@ def rewrite_run_info(
 
     ``created_at`` and ``attempts`` stay, since that is when the data was made; the run's own
     proposal entry (``.``) stays too, naming the version file copytree already carried over.
+    ``key`` and ``job_key`` go: the copy is no launch's run, and a key or requeue that finds it
+    next to its source would continue the copy instead.
 
     :param ctx: The operation context.
     :param run_dir: The source run directory.
@@ -126,6 +167,8 @@ def rewrite_run_info(
     d["proposals"] = proposals
     d["proposal_hashes"] = hashes
     d["copied_from"] = {"id": source_id, "path": source_path, "at": iso(time.time(), ms=True)}
+    d.pop("key", None)
+    d["job_key"] = None
     if name:
         d["name"] = name
         shutil.rmtree(temp / c.NAME, ignore_errors=True)
@@ -166,12 +209,12 @@ def rewrite_artifacts(
     :return: The resolved checkpoint rows for the answer, and the names of any that were
         missing when ``with_checkpoints`` asked to copy them in."""
     artifacts = read_artifacts(run_dir)
-    named = {Path(a.path).name for a in artifacts if a.path}
-    named |= {Path(a.uri).name for a in artifacts if a.uri}
+    recorded = {(run_dir / a.path).resolve() for a in artifacts if a.path}
+    recorded |= {Path(a.uri).resolve() for a in artifacts if a.uri}
     checkpoints_dir = run_dir / "checkpoints"
     if checkpoints_dir.is_dir():
         for f in sorted(checkpoints_dir.iterdir()):
-            if f.is_file() and f.name not in named:
+            if f.is_file() and f.resolve() not in recorded:
                 artifacts.append(
                     Artifact(name=f.name, size=f.stat().st_size, kind="checkpoint", uri=str(f))
                 )
@@ -211,15 +254,17 @@ def copy_checkpoint(
     :param used: Names already used in the copy's ``checkpoints/``, extended in place.
     :return: The new record, a summary row, and whether the file was missing."""
     location, exists = locate_checkpoint(ctx, run_dir, a)
+    # the SDK records uris resolved, so compare against the resolved run directory.
+    held = run_dir.resolve()
     if a.path is not None:
         # already travels with the run, inside artifacts/; nothing to do in either mode.
-        return artifact_dict(a), summary_row(a, exists=exists), False
+        return artifact_dict(a), summary_row(a, location, exists=exists), False
     if with_checkpoints:
         if location is None or not exists:
-            return artifact_dict(a), summary_row(a, exists=False), True
-        if run_dir in (location.parent, *location.parents):
+            return artifact_dict(a), summary_row(a, location, exists=False), True
+        if held in location.resolve().parents:
             # copytree already carried this file into the copy, at the same relative path.
-            dest = temp / location.relative_to(run_dir)
+            dest = temp / location.resolve().relative_to(held)
         else:
             name = unique_name(temp / "checkpoints", location.name, used)
             (temp / "checkpoints").mkdir(exist_ok=True)
@@ -235,27 +280,34 @@ def copy_checkpoint(
             record["score"] = a.score
         if a.monitor is not None:
             record["monitor"] = a.monitor
-        return record, summary_row(a, exists=True), False
+        final = temp.parent / temp.name.removeprefix(TEMP_PREFIX) / dest.relative_to(temp)
+        return record, summary_row(a, dest, exists=True) | {"location": str(final)}, False
     if a.origin is not None:
-        return artifact_dict(a), summary_row(a, exists=exists), False
-    if (
-        a.uri is not None
-        and location is not None
-        and run_dir in (location.parent, *location.parents)
-    ):
+        return artifact_dict(a), summary_row(a, location, exists=exists), False
+    if a.uri is not None and location is not None and held in location.resolve().parents:
         record = artifact_dict(a)
-        record["origin"] = {"run": source_id, "path": location.relative_to(run_dir).as_posix()}
-        return record, summary_row(a, exists=exists), False
-    return artifact_dict(a), summary_row(a, exists=exists), False
+        record["origin"] = {
+            "run": source_id,
+            "path": location.resolve().relative_to(held).as_posix(),
+        }
+        return record, summary_row(a, location, exists=exists), False
+    return artifact_dict(a), summary_row(a, location, exists=exists), False
 
 
-def summary_row(a: Artifact, *, exists: bool) -> dict[str, Any]:
+def summary_row(a: Artifact, location: Path | None, *, exists: bool) -> dict[str, Any]:
     """Describe one checkpoint for a ``cp`` answer.
 
     :param a: The artifact.
+    :param location: Where its file is, if known.
     :param exists: Whether its file was found.
-    :return: Name, score and whether it exists."""
-    return {"name": a.name, "score": a.score, "exists": exists}
+    :return: Name, score, location, size and whether it exists."""
+    return {
+        "name": a.name,
+        "score": a.score,
+        "location": str(location) if location is not None else None,
+        "size": location.stat().st_size if exists and location is not None else None,
+        "exists": exists,
+    }
 
 
 def unique_name(folder: Path, name: str, used: set[str]) -> str:
@@ -289,7 +341,8 @@ def locate_checkpoint(ctx: Context, run_dir: Path, a: Artifact) -> tuple[Path | 
     if a.origin is not None:
         if (source := locate_run(ctx, a.origin["run"])) is not None:
             location = source / a.origin["path"]
-            return location, location.is_file()
+            if location.is_file() or a.uri is None:
+                return location, location.is_file()
         if a.uri is not None:
             location = Path(a.uri)
             return location, location.is_file()
@@ -339,31 +392,43 @@ def checkpoints(ctx: Context, run_dir: Path) -> list[dict[str, Any]]:
     return out
 
 
-def dirpath_of(command: list[str]) -> str | None:
-    """Pull a Lightning ``--dirpath`` value out of a recorded command, if any.
+def dirpaths_of(command: list[str], config: dict[str, Any], cwd: str | None) -> set[Path]:
+    """Find where a recorded run saves checkpoints: ``--dirpath`` or a ``...dirpath=`` override
+    in its command, or a config key ending in ``dirpath``.
 
     :param command: The run's recorded command.
-    :return: The directory, or ``None``."""
-    for i, arg in enumerate(command):
-        if arg == "--dirpath" and i + 1 < len(command):
-            return command[i + 1]
-        if arg.startswith("--dirpath="):
-            return arg.split("=", 1)[1]
-    return None
+    :param config: The run's config, nested as logged.
+    :param cwd: The recorded working directory, for relative paths.
+    :return: The directories, resolved."""
+    found = [arg for prev, arg in zip(command, command[1:], strict=False) if prev == "--dirpath"]
+    found += [
+        value
+        for name, sep, value in (arg.partition("=") for arg in command)
+        if sep and name.endswith("dirpath")
+    ]
+    stack = [config]
+    while stack:
+        for k, v in stack.pop().items():
+            if isinstance(v, dict):
+                stack.append(v)
+            elif isinstance(v, str) and v and str(k).endswith("dirpath"):
+                found.append(v)
+    base = Path(cwd or ".")
+    return {(base / d).resolve() for d in found}
 
 
-def shared_dirpath_warning(command: list[str], checkpoints_: list[dict[str, Any]]) -> str | None:
+def shared_dirpath_warning(dirpaths: set[Path], checkpoints_: list[dict[str, Any]]) -> str | None:
     """Warn when a resumed run would save checkpoints where a referenced one already lives.
 
-    :param command: The run's recorded command.
+    :param dirpaths: Where the recorded command saves checkpoints, from :func:`dirpaths_of`.
     :param checkpoints_: Its resolved checkpoints, from :func:`checkpoints`.
     :return: The warning, or ``None``."""
-    if (dirpath := dirpath_of(command)) is None:
-        return None
     for row in checkpoints_:
-        if row["exists"] and row["via"] != "path" and str(Path(row["location"]).parent) == dirpath:
+        if not row["exists"] or row["via"] == "path":
+            continue
+        if (folder := Path(row["location"]).resolve().parent) in dirpaths:
             return (
-                f"the recorded command saves checkpoints to {dirpath}, where the source's "
+                f"the recorded command saves checkpoints to {folder}, where the source's "
                 "are; set another dirpath"
             )
     return None
@@ -384,7 +449,9 @@ def copy_group(ctx: Context, source: Path, dest_group: Path, p: "r.CpParams") ->
     runs = list(iter_runs(source))
     if not runs:
         raise OpError(f"no runs below {source.relative_to(ctx.logdir)}", code=4)
-    ids, size, skipped = [], 0, []
+    for run_dir in runs:
+        refuse_running(run_dir, "copy")
+    ids, size, skipped, rows = [], 0, [], []
     for run_dir in runs:
         rel = run_dir.parent.relative_to(source)
         dest_subgroup = dest_root if rel == Path(".") else dest_root / rel
@@ -394,10 +461,13 @@ def copy_group(ctx: Context, source: Path, dest_group: Path, p: "r.CpParams") ->
         ids.append(info["id"])
         size += info["size"]
         skipped += info["skipped"]
+        rows += info["checkpoints"]
+    files = sum(1 for f in dest_root.rglob("*") if f.is_file())
     lines = [
         f"copied {len(ids)} run(s) from {source.relative_to(ctx.logdir)} to "
-        f"{dest_root.relative_to(ctx.logdir)} ({size} bytes)",
+        f"{dest_root.relative_to(ctx.logdir)}: {files} files, {mb(size)}",
     ]
+    lines += checkpoint_lines(rows, copied=p.with_checkpoints)
     lines += skip_lines(skipped)
     if p.with_record:
         copied_dirs = copy_authored_dirs(source, runs, dest_root)

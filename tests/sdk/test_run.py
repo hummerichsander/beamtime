@@ -20,6 +20,7 @@ from beamtime.format.run import (
     read_run_info,
 )
 from beamtime.format.tree import iter_runs
+from beamtime.sdk.run import find_by_job_key
 from beamtime.synth.summary import card_and_preview
 from tests.sdk.conftest import Script, only_run
 
@@ -402,6 +403,102 @@ def test_sigterm_near_time_limit_records_the_reason(script: Script, logdir: Path
     killed = next(e for e in read_events(run) if e.kind == "killed")
     assert killed.data.get("reason") == "time_limit"
     assert proc.returncode != 0
+
+
+def test_resume_from_the_environment(script: Script, logdir: Path) -> None:
+    """``BEAMTIME_RESUME``, as ``beamtime resume`` tells to export, continues the run."""
+    first = script(
+        'import beamtime\nr = beamtime.init()\nr.log({"x": 1})\n'
+        'r.end("killed", exit={"signal": "SIGTERM"})\nprint(r.id)\n'
+    )
+    run_id = first.stdout.decode().strip()
+    proc = script(
+        'import beamtime\nr = beamtime.init()\nr.log({"x": 2})\nr.finish()\n',
+        env={"BEAMTIME_RESUME": run_id},
+    )
+    assert proc.returncode == 0, proc.stderr.decode()
+    run = only_run(logdir)
+    assert [a.resume_step for a in read_run_info(run).attempts] == [None, 1]
+
+
+def test_key_of_a_live_run_starts_a_new_run(script: Script, logdir: Path) -> None:
+    """A key never puts two attempts into one run: a run still beating gets a sibling."""
+    script(
+        'import os, beamtime\nr = beamtime.init(key="k")\nr.log({"x": 1})\nr.flush()\n'
+        "os._exit(0)\n"
+    )
+    first_id = only_run(logdir).name
+    proc = script('import beamtime\nr = beamtime.init(key="k")\nr.finish()\nprint(r.id)\n')
+    assert proc.returncode == 0, proc.stderr.decode()
+    second_id = proc.stdout.decode().strip()
+    assert second_id != first_id
+    runs = {d.name: d for d in iter_runs(logdir)}
+    warning = next(e for e in read_events(runs[second_id]) if e.kind == "warning")
+    assert "still running" in warning.message
+
+
+def test_key_of_a_live_run_continues_on_a_requeue_of_its_job(script: Script, logdir: Path) -> None:
+    """A requeued job may find its own killed attempt still marked running; it continues it."""
+    env = {"SLURM_JOB_ID": "77"}
+    script(
+        'import os, beamtime\nr = beamtime.init(key="k")\nr.log({"x": 1})\nr.flush()\n'
+        "os._exit(0)\n",
+        env=env,
+    )
+    proc = script(
+        'import beamtime\nr = beamtime.init(key="k")\nr.log({"x": 2})\nr.finish()\n',
+        env=env | {"SLURM_RESTART_COUNT": "1"},
+    )
+    assert proc.returncode == 0, proc.stderr.decode()
+    run = only_run(logdir)
+    assert [a.resume_step for a in read_run_info(run).attempts] == [None, 1]
+
+
+def test_a_found_run_that_cannot_continue_starts_a_new_run(script: Script, logdir: Path) -> None:
+    """A run found by key that can't be reopened gives a new run and a warning, not an error."""
+    first = script(
+        'import beamtime\nr = beamtime.init(key="k")\nr.log({"x": 1})\n'
+        'r.end("killed", exit={"signal": "SIGTERM"})\nprint(r.id)\n'
+    )
+    old = only_run(logdir)
+    info = json.loads((old / "_run.json").read_text())
+    (old / "_run.json").write_text(json.dumps(info | {"schema": 99}))
+    proc = script('import beamtime\nr = beamtime.init(key="k")\nr.finish()\nprint(r.id)\n')
+    assert proc.returncode == 0, proc.stderr.decode()
+    new_id = proc.stdout.decode().strip()
+    assert new_id != first.stdout.decode().strip()
+    runs = {d.name: d for d in iter_runs(logdir)}
+    warning = next(e for e in read_events(runs[new_id]) if e.kind == "warning")
+    assert "could not continue" in warning.message
+
+
+@POSIX
+def test_sigterm_after_the_end_time_records_the_reason(script: Script, logdir: Path) -> None:
+    """SLURM signals at or after the end time, so a SIGTERM past it is a time limit too."""
+    script(
+        """
+        import os, signal, time
+        os.environ["SLURM_JOB_END_TIME"] = str(int(time.time()) - 30)
+        import beamtime
+        run = beamtime.init()
+        run.log({"x": 1})
+        os.kill(os.getpid(), signal.SIGTERM)
+        time.sleep(2)
+        """
+    )
+    run = only_run(logdir)
+    killed = next(e for e in read_events(run) if e.kind == "killed")
+    assert killed.data.get("reason") == "time_limit"
+    assert read_run_info(run).exit == {"signal": "SIGTERM", "reason": "time_limit"}
+
+
+def test_rank_finds_a_continued_run_by_its_heartbeat(tmp_path: Path) -> None:
+    """On a requeue rank 0 continues a run created hours ago; other ranks still find it."""
+    run_dir = tmp_path / "20260101-000000-aaaaaaaa"
+    run_dir.mkdir()
+    info = {"id": run_dir.name, "job_key": "slurm:9", "status": "running"}
+    (run_dir / "_run.json").write_text(json.dumps(info | {"created_at": "2026-01-01T00:00:00Z"}))
+    assert find_by_job_key(tmp_path, "slurm:9") == run_dir
 
 
 def test_null_run_on_other_ranks(script: Script, logdir: Path) -> None:

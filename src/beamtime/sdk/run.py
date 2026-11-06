@@ -22,7 +22,7 @@ from beamtime.format.authored import file_hash, newest
 from beamtime.format.ids import new_run_id, new_version_id
 from beamtime.format.io import json_line, read_json, write_created, write_replaced
 from beamtime.format.names import random_name
-from beamtime.format.run import read_card, read_config, read_effective_metrics
+from beamtime.format.run import derived_status, read_card, read_config, read_effective_metrics
 from beamtime.format.schema import schema_of
 from beamtime.format.times import iso, parse_iso
 from beamtime.sdk import env
@@ -812,7 +812,9 @@ def chain_signal(sig: signal.Signals) -> None:
             })  # fmt: skip
         if run is not None and (signum == signal.SIGTERM or previous == signal.SIG_DFL):
             near_end = signum == signal.SIGTERM and env.near_time_limit(os.environ, time.time())
-            run.end("killed", exit={"signal": name}, reason="time_limit" if near_end else None)
+            reason = "time_limit" if near_end else None
+            exit = {"signal": name} | ({"reason": reason} if reason else {})
+            run.end("killed", exit=exit, reason=reason)
         try:
             if callable(previous):
                 previous(signum, frame)
@@ -864,34 +866,37 @@ def rank_capture(rank: int, folder: Path, job_key: str | None) -> Capture:
     return capture
 
 
-def scan_runs(folder: Path) -> list[tuple[Path, dict[str, Any]]]:
-    """List a folder's run directories with their parsed ``_run.json``.
+def scan_runs(folder: Path) -> list[tuple[Path, dict[str, Any], float]]:
+    """List a folder's run directories with their parsed ``_run.json`` and heartbeat.
 
     :param folder: The folder rank 0 creates its runs in.
-    :return: Directory and info pairs; unreadable or missing files are skipped."""
+    :return: Directory, info and heartbeat triples; unreadable or missing files are skipped."""
     if not folder.is_dir():
         return []
     out = []
     for d in folder.iterdir():
         try:
-            out.append((d, read_json(d / c.RUN)))
+            out.append((d, read_json(d / c.RUN), (d / c.RUN).stat().st_mtime))
         except (OSError, ValueError):
             continue
     return out
 
 
 def find_by_job_key(folder: Path, job_key: str) -> Path | None:
-    """Find a recently created running run of the same launch in a folder.
+    """Find a running run of the same launch in a folder, with a recent heartbeat.
+
+    The heartbeat rather than ``created_at``: on a requeue, rank 0 continues a run created
+    hours before.
 
     :param folder: The folder rank 0 creates its run in.
     :param job_key: The launch's job key.
     :return: The newest matching run directory, or ``None``."""
     found = [
         d
-        for d, info in scan_runs(folder)
+        for d, info, beat in scan_runs(folder)
         if info.get("job_key") == job_key
         and info.get("status") == "running"
-        and time.time() - parse_iso(info["created_at"]) < RANK_RECENT_S
+        and time.time() - beat < RANK_RECENT_S
     ]
     return max(found, default=None, key=lambda d: d.name)
 
@@ -899,17 +904,17 @@ def find_by_job_key(folder: Path, job_key: str) -> Path | None:
 UNFINISHED = ("running", "killed")
 
 
-def resume_by_key(folder: Path, key: str) -> tuple[str, str] | None:
+def resume_by_key(folder: Path, key: str) -> tuple[str, dict[str, Any], float] | None:
     """Find the newest run in a folder recorded under a given key.
 
     :param folder: The folder rank 0 creates its runs in.
     :param key: The key.
-    :return: Its id and status, or ``None`` if no run carries this key."""
-    matches = [(d, info) for d, info in scan_runs(folder) if info.get("key") == key]
+    :return: Its id, info and heartbeat, or ``None`` if no run carries this key."""
+    matches = [m for m in scan_runs(folder) if m[1].get("key") == key]
     if not matches:
         return None
-    d, info = max(matches, key=lambda m: m[0].name)
-    return info.get("id", d.name), info.get("status", "finished")
+    d, info, beat = max(matches, key=lambda m: m[0].name)
+    return info.get("id", d.name), info, beat
 
 
 def resume_candidates(folder: Path, job_key: str | None, name: str | None) -> list[str]:
@@ -923,7 +928,7 @@ def resume_candidates(folder: Path, job_key: str | None, name: str | None) -> li
         return []
     return [
         info.get("id", d.name)
-        for d, info in scan_runs(folder)
+        for d, info, _ in scan_runs(folder)
         if info.get("job_key") == job_key
         and info.get("status") in UNFINISHED
         and (name is None or info.get("name") == name)
@@ -945,7 +950,7 @@ def resolve_resume(
 
     :param location: Where the run goes.
     :param environ: The process environment.
-    :param explicit: The ``resume`` argument.
+    :param explicit: The ``resume`` argument or ``BEAMTIME_RESUME``.
     :param key: The ``key`` argument or ``BEAMTIME_RUN_KEY``.
     :param name: The ``name`` argument, to tell several models of one job apart.
     :return: A run id to continue (or ``None`` for a new run), and a warning, if any."""
@@ -956,8 +961,13 @@ def resolve_resume(
             found = resume_by_key(location.folder, key)
             if found is None:
                 return None, None
-            run_id, status = found
-            if status in UNFINISHED:
+            run_id, info, beat = found
+            alive = derived_status(info.get("status"), beat, time.time()) == "running"
+            # a requeue of the same job may find its own attempt not yet marked as ended.
+            same_job = env.requeued(environ) and info.get("job_key") == env.job_key(environ)
+            if alive and not same_job:
+                return None, f"the run for key {key!r} is still running; starting a new run"
+            if info.get("status") in UNFINISHED:
                 return run_id, None
             return None, f"the run for key {key!r} already finished; starting a new run"
         if env.requeued(environ):
@@ -1011,8 +1021,9 @@ def init(
         OmegaConf config.
     :param proposal: The run's own proposal: a statement, a dict, a path to a YAML
         file, or ``None`` (``BEAMTIME_PROPOSAL`` if set, else blank).
-    :param resume: A run id to continue; ``None`` starts a new run, unless ``key`` or a
-        SLURM requeue resolves one ([Resume](../docs/design/02-sdk.md#resume)).
+    :param resume: A run id to continue (default ``BEAMTIME_RESUME``); ``None`` starts a
+        new run, unless ``key`` or a SLURM requeue resolves one
+        ([Resume](../docs/design/02-sdk.md#resume)).
     :param key: A name for this launch, stored in ``_run.json``; resuming it without an id
         continues the newest unfinished run recorded under it. Defaults to
         ``BEAMTIME_RUN_KEY``.
@@ -1027,15 +1038,22 @@ def init(
     if tags is not None and not all(isinstance(t, str) for t in tags):
         raise ValueError("tags must be a list of strings")
     cfg = to_config(config)
+    resume = resume or environ.get("BEAMTIME_RESUME") or None
     key = key or environ.get("BEAMTIME_RUN_KEY")
     resolved, warning = resolve_resume(location, environ, resume, key, name)
     if (previous := _current) is not None:
         previous.warn("init-again", "init() called again; finishing the previous run")
         previous.finish()
     install_hooks()
+    run = None
     if resolved is not None:
-        run = continue_run(location.logdir, resolved, cfg)
-    else:
+        try:
+            run = continue_run(location.logdir, resolved, cfg)
+        except Exception as e:
+            if resume is not None:
+                raise
+            warning = f"could not continue {resolved}: {e}; starting a new run"
+    if run is None:
         run = new_run(location, name, tags or [], cfg, to_proposal(proposal), key)
     notebook = in_notebook()
     run.capture = Capture(files=LogFiles(run_dir=run.dir), mode="stream" if notebook else "fd")
@@ -1097,7 +1115,7 @@ def new_run(
     except Exception:
         # describing the hardware must never keep a run from starting.
         host = env.host_info()
-    git, diff = env.git_info(Path.cwd())
+    git, diff = env.git_info(Path.cwd(), location.logdir)
     environ = dict(os.environ)
     info: dict[str, Any] = {
         "schema": 1,
