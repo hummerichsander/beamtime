@@ -689,10 +689,11 @@ prefix({"blocks": [{"data": data}]}, "au")  # check gets @au/exp/a, proposal kee
 
 ## E. Run lifecycle
 
-E1 to E3 are on `refactor-1-lifecycle`, not merged: `d58a5d0` E1, `e528129` E2, `e5b5ae1` E3, `0be46b5` review fixes,
-`b92c8a7` decided departures and the Lightning requeue. **None of their UI parts were built**; they are E5.
+E1 to E4 are on `refactor-1-lifecycle`, rebased on `refactor-1`, not merged: `d9130b0` E1, `6583a26` E2, `2ae9cf5` E3,
+`a513e2b` review fixes, `5d7a83a` decided departures and the Lightning requeue, `c46417e` E4. **None of their UI
+parts were built**; they are E5.
 
-### E1. Resuming after a wall-time limit (sonnet + review)
+### E1. Resuming after a wall-time limit (sonnet + review) — **done `d9130b0`**
 
 Files: `sdk/run.py`, `sdk/env.py`, `sdk/lightning.py`, `query/read.py`, `ops/`, `docs/design/02-sdk.md`.
 
@@ -741,9 +742,9 @@ new run and a warning; key across job ids; finished key; a broken `_run.json` in
 SIGTERM near the end time records the reason. Lightning tests pass in the throwaway env. **Then a real check on
 the cluster**, still pending per `pending-cluster-check`: an `sbatch --time=2` job with requeue.
 
-### E2. `beamtime cp` (sonnet + review)
+### E2. `beamtime cp` (sonnet + review) — **done `6583a26`**
 
-Additive, so agents may use it; CLI path `cp`, MCP `cp`, routed like other writes (missing on the branch; E4). In
+Additive, so agents may use it; CLI path `cp`, MCP `cp`, routed like other writes (E4). In
 `ops/admin.py`, or better a new `ops/copy.py`.
 
 `beamtime cp <run|group> <dest-group> [--name NAME] [--with-checkpoints] [--with-record]`
@@ -811,7 +812,7 @@ source's group; a copy of a copy resolves to the file's holder; a deleted source
 the copy; `--with-checkpoints` leaves no reference to the source; `resume` warns about a shared `dirpath`.
 `docs/design/01-storage.md` gets `copied_from` and `origin`.
 
-### E3. Code versions made visible (sonnet)
+### E3. Code versions made visible (sonnet) — **done `2ae9cf5`**
 
 The SDK records almost everything. Close the gaps.
 
@@ -829,7 +830,7 @@ The SDK records almost everything. Close the gaps.
 Tests: untracked file on a temporary repo; same diff gives the same id; a real-format `_run.json` without the new
 fields reads as before.
 
-### E4. Bring the lifecycle branch in (sonnet)
+### E4. Bring the lifecycle branch in (sonnet) — **done `c46417e`**
 
 Before E5 and before the user merges `refactor-1-lifecycle`. In its worktree (`../purser-refactor-1-lifecycle`):
 
