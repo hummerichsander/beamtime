@@ -317,7 +317,7 @@ function PlotFrame(props: {
   return html`<${ChartFrame} id=${node.id} title=${title} notes=${props.note ? [props.note] : []} box=${box} class="block"
       expanded=${node.props.expanded} onExpand=${() => host().expand(node, view)}
       downloads=${{ png: exportPng, pdf: props.figure ? exportPdf : undefined }}
-      legend=${props.empty ? null : props.legend} caption=${node.props.caption}>
+      legend=${props.empty || result.status === "error" ? null : props.legend} caption=${node.props.caption}>
     ${problem ? html`<p class="block-error small">${problem}</p>` : null}
     <${Panel} result=${result}>
       ${props.empty

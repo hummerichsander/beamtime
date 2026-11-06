@@ -214,7 +214,7 @@ import{B as qo,D as ea,a as Ht,b as oe,c as Mo,d as _o,e as ze,f as Ao,g as ve,i
       empty=${a.data&&!l.length?`No run logs ${e.props.key} as a histogram (bin_start, bin_end, count).`:null} />`}function yo(e){let{node:a,result:t}=e,o=me(),r=H(X),[l,u]=St(),d=G(null),i=a.props.expanded?Dt():Ts,n=u&&o&&e.make?e.make(o,i):null;_t(d,So,n,[u,i,...e.deps],o);let[g,L]=D(null),s=a.props.title??Fs(a),m=async y=>{let h=Je(),I=h&&e.make?e.make(h,Le.size?.height??i):null;!I||!d.current||J().download(await At(d.current.clientWidth,So,I,y),He(s,"png"))},c=async()=>{let y=Je(),h=y&&e.figure?e.figure(y):null;if(h){L(null);try{await J().figure({title:s,...h},He(s,"pdf"))}catch(I){L(I.message)}}};return f`<${Tt} id=${a.id} title=${s} notes=${e.note?[e.note]:[]} box=${l} class="block"
       expanded=${a.props.expanded} onExpand=${()=>J().expand(a,r)}
       downloads=${{png:m,pdf:e.figure?c:void 0}}
-      legend=${e.empty?null:e.legend} caption=${a.props.caption}>
+      legend=${e.empty||t.status==="error"?null:e.legend} caption=${a.props.caption}>
     ${g?f`<p class="block-error small">${g}</p>`:null}
     <${ne} result=${t}>
       ${e.empty?f`<${Y}>${e.empty}<//>`:f`<div class=${`chart-plot${t.status==="ready"?"":" pending"}`} ref=${d} style=${`min-block-size:${i}px`}></div>`}

@@ -88,7 +88,7 @@ weight only; font sizes come only from the type classes.
 ## Not in the design system
 
 These parts have no component in the design system: top bar, sidebar and tree, status bar, drawer,
-palette and dialogs, popover, tooltip, segmented control, tabs, multi-select, menu list, key-value
+palette and dialogs, popover, tooltip, segmented control, tabs, multi-select, key-value
 tables, disclosure, skeleton, Markdown, inline editing, log output, images, group list, add-chart,
 cell tools, timeline, history and diff, chart settings. They follow the rules above with the tokens and
 type classes above, and get no new looks of their own. When one needs more, extend this document first.
