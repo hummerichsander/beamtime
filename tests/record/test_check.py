@@ -4,7 +4,7 @@ import pytest
 
 from beamtime.format.authored import newest
 from beamtime.index.index import Index
-from beamtime.record.check import evaluate
+from beamtime.record.check import code_note, evaluate
 from beamtime.record.proposals import Target, current, parse
 from beamtime.synth import Manifest, generate
 
@@ -46,6 +46,16 @@ def test_planted_effects_pass(target: Target) -> None:
     converges, mid = result["predictions"]
     assert converges["ci"][0] > 0 and converges["points"] == 1
     assert mid["n"] == {"a": 3, "b": 3} and mid["effect"] > 0.01
+    # the generator's sweep runs the same code, so the check adds no note about it.
+    assert result["note"] is None
+
+
+def test_code_note_flags_differing_members() -> None:
+    """A note names how many code versions a proposal's members ran on; a missing code
+    doesn't count, and agreement adds no note."""
+    assert code_note([{"code": "abc1234"}, {"code": "abc1234"}, {"code": None}]) is None
+    different = [{"code": "abc1234"}, {"code": "abc1234+9f8e7d6c"}]
+    assert code_note(different) == "its members ran on 2 different code versions"
 
 
 def test_each_outcomes(target: Target) -> None:

@@ -7,7 +7,7 @@ operation context (``Context.sources``)."""
 from typing import Any
 
 # parameters that name a place: a group, a run, a page.
-TARGETS = ("group", "from", "run", "path", "view", "source", "to", "target")
+TARGETS = ("group", "from", "run", "path", "view", "source", "to", "target", "dest")
 
 
 def targets(params: dict[str, Any]) -> bool:

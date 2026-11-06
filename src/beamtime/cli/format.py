@@ -196,6 +196,8 @@ def render(answer: dict[str, Any]) -> str:
             return render_keys(answer)
         case "card":
             return render_card(answer)
+        case "resume":
+            return render_resume(answer)
         case "data":
             lines = [render_entry(e) for e in answer["entries"]]
             answer["meta"]["matched"] = answer["meta"].get("entries")
@@ -273,6 +275,13 @@ def render_keys(answer: dict[str, Any]) -> str:
             "",
             "tags  " + ", ".join(f"{t} ({n})" for t, n in answer["tags"].items()),
         ]
+    if answer.get("codes"):
+        codes = answer["codes"]
+        lines += [
+            "",
+            f"{len(codes)} code versions  "
+            + ", ".join(f"{code} ({n})" for code, n in codes.items()),
+        ]
     lines.append(meta_line(answer, "runs", answer["runs"]))
     return "\n".join(lines)
 
@@ -302,6 +311,8 @@ def render_card(answer: dict[str, Any]) -> str:
         lines.append(f"tags        {', '.join(run['tags'])}")
     if run.get("warnings"):
         lines.append(f"warnings    {run['warnings']} (see `beamtime output` and the events)")
+    if run.get("copied_from"):
+        lines.append(f"copied from {run['copied_from']['id']}")
     if answer["config"]:
         lines += ["", "config"] + [f"  {k} = {num(v)}" for k, v in flat(answer["config"])]
     if answer["metrics"]:
@@ -319,7 +330,14 @@ def render_card(answer: dict[str, Any]) -> str:
                 line += f"  verdict {prop['verdict']}"
             if prop.get("current") is False:
                 line += "  (superseded)"
+            if prop.get("note"):
+                line += f"  note: {prop['note']}"
             lines.append(line)
+    if answer.get("checkpoints"):
+        lines += ["", "checkpoints"] + [
+            f"  {ck['name']}  {ck['location']}" + ("" if ck["exists"] else "  (missing)")
+            for ck in answer["checkpoints"]
+        ]
     if answer.get("cited_by"):
         lines += ["", "cited by"] + [
             f"  {n['id']}  {n['type']}  {n['description']}" for n in answer["cited_by"]
@@ -328,6 +346,28 @@ def render_card(answer: dict[str, Any]) -> str:
         lines += ["", "recent events"] + [
             f"  {e['t'][:16].replace('T', ' ')}  {e['description']}" for e in answer["events"]
         ]
+    return "\n".join(lines)
+
+
+def render_resume(answer: dict[str, Any]) -> str:
+    """Render a ``resume`` answer: what's needed to resume a run by hand.
+
+    :param answer: The answer.
+    :return: The text."""
+    lines = [
+        f"{answer['name']}  {answer['run']}  {answer['status']}",
+        f"command     {' '.join(answer['command'])}",
+        f"cwd         {answer['cwd']}",
+        f"last step   {num(answer['last_step'])}",
+    ]
+    if answer.get("scheduler"):
+        lines.append(f"scheduler   {answer['scheduler']}")
+    if answer.get("checkpoint"):
+        ckpt = answer["checkpoint"]
+        lines.append(f"checkpoint  {ckpt['name']}  {ckpt['location']}")
+    lines.append(f"export      {answer['export']}")
+    if answer.get("warning"):
+        lines.append(f"warning     {answer['warning']}")
     return "\n".join(lines)
 
 
@@ -423,6 +463,8 @@ def render_check(answer: dict[str, Any]) -> str:
         lines.append(f"plan        {plan['text']}")
     if answer.get("level") is not None:
         lines.append(f"level       {answer['level']:.0%} t-intervals")
+    if answer.get("note"):
+        lines.append(f"note        {answer['note']}")
     for p in answer.get("predictions", []):
         line = f"  {p['name']:<20} {p['result']:<13}"
         if p.get("effect") is not None:

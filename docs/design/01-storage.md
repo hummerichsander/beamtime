@@ -231,7 +231,8 @@ How views look and behave is [layer 5](05-views.md). For storage:
   "git": {"commit": "57878f1", "branch": "master", "dirty": true, "remote": "…"},
   "command": ["python", "train.py", "--lr", "3e-4"],
   "cwd": "/home/ada/proj",
-  "beamtime_version": "0.1.0"
+  "beamtime_version": "0.1.0",
+  "copied_from": {"id": "20261020-090000-z1a2b3c4", "path": "scaling/lr-sweep", "at": "2026-10-24T10:20:00Z"}
 }
 ```
 
@@ -255,6 +256,11 @@ How views look and behave is [layer 5](05-views.md). For storage:
   the time of the snapshot.
 - **Attempts** support continuing a run ([layer 2](02-sdk.md#resume)): a resumed run keeps its id and
   adds an attempt with the step it resumed from.
+- **`copied_from`** is set by `beamtime cp` ([layer 8](08-cli-mcp.md)): the source run's id, its path
+  at copy time, and when the copy was made. `created_at` and `attempts` are not touched, since that
+  data is from the original run; `proposals` and `proposal_hashes` keep only the run's own entry
+  (`.`) and gain the destination's ancestors, as a new run would. `key` goes and `job_key` becomes
+  `null`: the copy is no launch's run, and resuming the source's key must never continue the copy.
 
 ### `_config.json`
 
@@ -321,6 +327,7 @@ Lifecycle and diagnostic events, which feed the timeline. Each line has the time
 | `requeue_requested` | a scheduler asked to requeue (e.g. Lightning's `SIGUSR1`) |
 | `config_conflict` | a resumed run brought a different config; the diff is recorded, not applied |
 | `warning` | an SDK problem that was absorbed (a dropped step, a failed write, a root fallback) |
+| `copied` (with `from`, the source run's id) | written into the copy by `beamtime cp` |
 | `user` (with `message` and the event's data) | `run.event("lr decayed", factor=0.5)` |
 
 ### `_output.log`
@@ -417,6 +424,12 @@ Small files are copied into `artifacts/`; large ones are recorded by reference (
 copied or pulled. Lightning's `checkpoints/` are listed by reference as well, with `monitor` and
 `score`; any extra fields passed to `run.artifact` are kept.
 
+**`origin`** is set by `beamtime cp`: a checkpoint left in place (no `--with-checkpoints`) that
+lived inside the source run's `checkpoints/` keeps its `uri` and gains
+`{"run": "<source id>", "path": "checkpoints/x.ckpt"}`, so the file is found by the source's id
+through the index (it follows `mv`) rather than by a fixed path. A copy of a copy keeps its
+`origin` as it is: it already names the true holder.
+
 ## Write protocol
 
 | Kind | How | Durability |
@@ -435,8 +448,11 @@ Files are immutable while they matter, but a project must stay manageable, and a
 log or a note must be removable.
 
 - **`beamtime rm <run or group>`** moves it into `_trash/<timestamp>/` in the log dir; `beamtime gc`
-  empties the trash and removes crashed runs that never logged a metric. Both are user commands;
-  agents never run them ([layer 8](08-cli-mcp.md#policy)).
+  empties the trash, removes crashed runs that never logged a metric, and clears any `cp` working
+  directory a crash left behind (reserved name `_cp-<id>`, never renamed into place). Both are user
+  commands; agents never run them ([layer 8](08-cli-mcp.md#policy)). Removing a run doesn't block
+  `beamtime cp` copies of it, but `rm` and `gc --yes` list the copies that reference its checkpoints,
+  since those stay readable with `exists: false` once it is gone.
 - **`beamtime note rm <id>`** moves a note, with the versions it superseded, into the trash the
   same way.
 - **`beamtime mv <group> <new path>`** moves or renames a group and appends the move to

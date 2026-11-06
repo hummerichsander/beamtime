@@ -1,5 +1,7 @@
 import argparse
 import dataclasses
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -7,6 +9,65 @@ import pytest
 from beamtime.sdk import env
 from beamtime.sdk.paths import check_folder, find_run, locate, logdir_of
 from beamtime.sdk.run import scalar, to_config, to_proposal
+
+
+def git_repo(path: Path) -> Path:
+    """Make a tiny git repo with one commit.
+
+    :param path: Where to create it.
+    :return: The repo's directory."""
+    path.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=path, check=True)
+    (path / "a.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "a.py"], cwd=path, check=True)
+    # a fixed date, so two repos made in different seconds get the same commit.
+    date = {"GIT_AUTHOR_DATE": "2026-01-01T00:00:00", "GIT_COMMITTER_DATE": "2026-01-01T00:00:00"}
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "init"], cwd=path, check=True, env=os.environ | date
+    )
+    return path
+
+
+def test_git_info_untracked_file_counts_as_dirty(tmp_path: Path) -> None:
+    """A new, never-added file makes the checkout dirty and is listed, unlike a bare diff."""
+    repo = git_repo(tmp_path / "repo")
+    clean, clean_diff = env.git_info(repo)
+    assert clean["dirty"] is False and clean["untracked"] == [] and clean["diff_sha"] is None
+    assert clean_diff is None
+    (repo / "b.py").write_text("y = 2\n")
+    info, diff = env.git_info(repo)
+    assert info["dirty"] is True
+    assert info["untracked"] == ["b.py"]
+    assert info["diff_sha"] is not None
+    assert diff is None  # an untracked file never shows up in `git diff`.
+
+
+def test_git_info_leaves_out_the_log_dir(tmp_path: Path) -> None:
+    """Runs written into an untracked log dir inside the checkout don't make it dirty."""
+    repo = git_repo(tmp_path / "repo")
+    (repo / "beamtime" / "exp" / "run-1").mkdir(parents=True)
+    (repo / "beamtime" / "exp" / "run-1" / "_run.json").write_text("{}")
+    info, _ = env.git_info(repo, repo / "beamtime")
+    assert info["dirty"] is False and info["untracked"] == [] and info["diff_sha"] is None
+    (repo / "new.py").write_text("y = 2\n")
+    info, _ = env.git_info(repo, repo / "beamtime")
+    assert info["untracked"] == ["new.py"]
+
+
+def test_git_info_diff_sha_matches_across_checkouts_with_the_same_change(tmp_path: Path) -> None:
+    """Two checkouts of the same commit with the same uncommitted change compare equal."""
+    a, b = git_repo(tmp_path / "a"), git_repo(tmp_path / "b")
+    for repo in (a, b):
+        (repo / "a.py").write_text("x = 2\n")
+    info_a, _ = env.git_info(a)
+    info_b, _ = env.git_info(b)
+    assert info_a["commit"] == info_b["commit"]
+    assert info_a["diff_sha"] == info_b["diff_sha"]
+    (b / "a.py").write_text("x = 3\n")
+    info_c, _ = env.git_info(b)
+    assert info_c["diff_sha"] != info_b["diff_sha"]
 
 
 def test_beamtime_yaml_sets_the_root_and_logdir(tmp_path: Path, monkeypatch) -> None:

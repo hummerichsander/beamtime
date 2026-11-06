@@ -166,6 +166,10 @@ result is marked provisional**, and the check shows the plan's progress.
 The check is a proposal of its own. The verdict of record is written by a person or agent, who can
 disagree with the check and say why.
 
+The check also names it when a version's members didn't all run on the same code
+([layer 3](03-index.md#fields)`run.code`): a note next to the result, not a verdict of its own,
+since code differing doesn't decide pass or fail by itself.
+
 ## Notes
 
 Notes are the running record of a group: what was seen, decided, wondered and concluded. Each note is

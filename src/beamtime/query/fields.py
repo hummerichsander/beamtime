@@ -44,7 +44,19 @@ RUN_INFO = {
     "host": "$.host.hostname",
     "job_key": "$.job_key",
     "commit": "$.git.commit",
+    "branch": "$.git.branch",
+    "dirty": "$.git.dirty",
 }
+# computed from several RUN_INFO fields, so it has no single JSON path of its own.
+RUN_COMPUTED = ("code",)
+# one comparable identity for a run's code: the short commit, plus the diff's short hash
+# when the checkout was dirty, so the same commit and the same changes compare equal.
+CODE_SQL = (
+    "CASE WHEN json_extract(info, '$.git.dirty') THEN "
+    "substr(json_extract(info, '$.git.commit'), 1, 7) || '+' || "
+    "json_extract(info, '$.git.diff_sha') "
+    "ELSE substr(json_extract(info, '$.git.commit'), 1, 7) END"
+)
 PROPOSAL = ("status", "check", "progress", "verdict")
 
 _WINDOW = re.compile(r"\[(-?\d*):(-?\d*)\]$")
@@ -92,7 +104,7 @@ def parse_field(text: str) -> Field:
     match ns:
         case "run":
             name = rest[1:]
-            known = [*RUN_COLUMNS, *RUN_CARD, *RUN_INFO]
+            known = [*RUN_COLUMNS, *RUN_CARD, *RUN_INFO, *RUN_COMPUTED]
             if name not in known:
                 raise QueryError(
                     f"unknown run field {text!r}. Run fields: "
@@ -151,6 +163,8 @@ def sql(field: Field) -> str | None:
                 return RUN_COLUMNS[name]
             if name in RUN_CARD:
                 return f"json_extract(card, '{RUN_CARD[name]}')"
+            if name == "code":
+                return CODE_SQL
             return f"json_extract(info, '{RUN_INFO[name]}')"
         case "config":
             return f"json_extract(config, '{json_path(field.path)}')"
@@ -174,6 +188,8 @@ def decode_cell(field: Field, value: Any) -> Any:
     :return: The value."""
     if field.ns == "run" and field.key == "tags":
         return json.loads(value) if value else []
+    if field.ns == "run" and field.key == "dirty":
+        return bool(value) if value is not None else None
     if isinstance(value, str) and value[:1] in "[{" and field.ns in ("config", "value"):
         try:
             return json.loads(value)

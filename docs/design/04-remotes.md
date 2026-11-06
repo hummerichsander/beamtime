@@ -128,6 +128,9 @@ beamtime pull cluster:scaling/lr-sweep
   concatenated in source order; timeline entries are merged by time and notes by id; `keys` unions
   names and adds run counts. Aggregated curves (`by`, `seeds`) are computed per source and labelled
   with it. The size cut for agents applies after merging.
+- **`cp` stays within one source**: `cp @au/a @au/b` is routed to `au`, which copies inside its own log dir
+  (`source` and `dest` are targets like any other); a source and a destination on different machines are
+  refused with a pointer to `pull`, and nothing is written.
 - **Writes carry the laptop's author**: the laptop resolves `author` and passes it on; `user` is
   the account the remote process runs as.
 - **One-shot CLI and MCP calls** that name a remote go through the local `serve` when it runs

@@ -17,6 +17,7 @@ OUT = Path(__file__).parents[1] / "reference" / "cli.md"
 AREAS = {
     "beamtime.ops.reading": "Looking at runs",
     "beamtime.ops.record": "Proposals, notes and memory",
+    "beamtime.ops.copy": "Copying runs",
     "beamtime.ops.views": "Pages and views",
     "beamtime.ops.blocks": "Library blocks",
     "beamtime.ops.admin": "Setup and housekeeping",

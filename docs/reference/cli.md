@@ -129,6 +129,14 @@ beamtime output <run>
 | `--grep` |  |  |
 | `--rank` | `0` | a number |
 
+### `beamtime resume`
+
+What's needed to resume a killed run by hand: command, cwd, step, checkpoint.
+
+```sh
+beamtime resume <run>
+```
+
 ### `beamtime timeline`
 
 Notes and run events in time order.
@@ -274,6 +282,22 @@ Move a note, with the earlier versions it replaced, into the trash.
 ```sh
 beamtime note rm <note>
 ```
+
+## Copying runs
+
+### `beamtime cp`
+
+Copy a run or group into another group, under new run ids; never the source.
+
+```sh
+beamtime cp <source> <dest>
+```
+
+| Option | Default | |
+|---|---|---|
+| `--name` |  | a run: its new display name; a group: the destination's name |
+| `--with-checkpoints` | `False` | copy checkpoint files in, leaving no reference to the source |
+| `--with-record` | `False` | a group only: also copy proposal, notes, view, memory and blocks |
 
 ## Pages and views
 

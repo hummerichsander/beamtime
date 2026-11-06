@@ -197,6 +197,7 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
     :param p: The parameters.
     :return: The answer."""
     from beamtime.index.ingest import given_name
+    from beamtime.ops.copy import checkpoints
     from beamtime.record.check import cited_by
     from beamtime.record.proposals import Target
 
@@ -231,6 +232,7 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
             "steps": run_card.steps if run_card else None,
             "error": run_card.error if run_card else None,
             "warnings": run_card.warnings if run_card else 0,
+            "copied_from": info.copied_from,
         },
         "config": read_config(run_dir) if (run_dir / c.CONFIG).exists() else {},
         "metrics": {
@@ -239,6 +241,7 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
         },
         "values": run_card.values if run_card else {},
         "proposals": proposals,
+        "checkpoints": checkpoints(ctx, run_dir),
         "cited_by": cited,
         "events": [
             {
@@ -286,6 +289,7 @@ def run_proposals(index: Index, run_dir: Path, recorded: dict[str, str]) -> list
                 "check": check["result"],
                 "provisional": check.get("provisional"),
                 "verdict": verdict.get("overall") if verdict else None,
+                "note": check.get("note"),
             }
         )
     return out
@@ -324,6 +328,40 @@ def output(ctx: Context, p: r.OutputParams) -> dict[str, Any]:
         "rank": p.rank,
         "lines": shown,
         "meta": meta,
+    }
+
+
+def resume(ctx: Context, p: r.ResumeParams) -> dict[str, Any]:
+    """Show what's needed to resume a killed or failed run by hand; it runs nothing.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The recorded command, cwd, last step, newest checkpoint and scheduler, and
+        the environment variable that continues it."""
+    from beamtime.ops.copy import checkpoints, dirpaths_of, shared_dirpath_warning
+
+    run_dir = find_run(ctx, p.run)
+    info = read_run_info(run_dir)
+    card = read_card(run_dir) if (run_dir / c.CARD).exists() else None
+    checkpoints_ = checkpoints(ctx, run_dir)
+    checkpoint = checkpoints_[-1] if checkpoints_ else None
+    config = read_config(run_dir) if (run_dir / c.CONFIG).exists() else {}
+    dirpaths = dirpaths_of(info.command, config, info.cwd)
+    return {
+        "kind": "resume",
+        "run": info.id,
+        "name": info.name,
+        "status": info.status,
+        "command": info.command,
+        "cwd": info.cwd,
+        "last_step": card.steps if card else None,
+        "scheduler": info.scheduler,
+        "checkpoint": (
+            {"name": checkpoint["name"], "location": checkpoint["location"]} if checkpoint else None
+        ),
+        "warning": shared_dirpath_warning(dirpaths, checkpoints_),
+        "export": f"BEAMTIME_RESUME={info.id}",
+        "meta": {},
     }
 
 

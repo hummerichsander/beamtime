@@ -8,6 +8,7 @@ from beamtime.format.run import MetricPreview
 from beamtime.query.read import (
     bucket_means,
     downsample,
+    elapsed_values,
     ema,
     from_preview,
     value_at,
@@ -57,7 +58,11 @@ def test_downsample_matches_brute_force(seed: int) -> None:
     curve = downsample(steps, values, window=window, points=points)
     lo, hi = window
     if curve["raw"]:
-        inside = [(s, v) for s, v in zip(steps, values) if (lo is None or s >= lo) and (hi is None or s <= hi)]
+        inside = [
+            (s, v)
+            for s, v in zip(steps, values)
+            if (lo is None or s >= lo) and (hi is None or s <= hi)
+        ]
         assert curve["x"] == [s for s, _ in inside]
         assert all(
             (y is None and not math.isfinite(v)) or y == v
@@ -136,3 +141,25 @@ def test_ema_value_at_and_bucket_means() -> None:
     assert value_at([5], [1.0], 4) is None
     means = bucket_means([0, 1, 2, 5], [1.0, 3.0, math.nan, 4.0], window=(None, None), width=4)
     assert means == {0: 2.0, 4: 4.0}
+
+
+def test_elapsed_values_skips_queue_gaps() -> None:
+    """Elapsed time subtracts the cumulative gap of every attempt up to a step."""
+    steps = [0, 1, 2, 3]
+    times = [100.0, 101.0, 2000.0, 2001.0]  # a 1800 s queue wait before step 2
+    assert elapsed_values(steps, times, [0, 1, 2, 3], []) == [0.0, 1.0, 1900.0, 1901.0]
+    assert elapsed_values(steps, times, [0, 1, 2, 3], [(2, 1899.0)]) == [0.0, 1.0, 1.0, 2.0]
+    assert elapsed_values(steps, times, [-1], [(2, 1899.0)]) == [None]
+    assert elapsed_values([], [], [0], [(2, 1.0)]) == [None]
+
+
+def test_elapsed_values_follow_attempt_order_not_step_order() -> None:
+    """An attempt resuming from an older checkpoint still loses every earlier attempt's gap."""
+    # attempt 2 resumed at step 4 after 100 s; attempt 3 went back to step 2 after 50 s.
+    steps, times = [0, 1, 2, 3], [0.0, 1.0, 152.0, 153.0]
+    assert elapsed_values(steps, times, [0, 1, 2, 3], [(4, 100.0), (2, 50.0)]) == [
+        0.0,
+        1.0,
+        2.0,
+        3.0,
+    ]

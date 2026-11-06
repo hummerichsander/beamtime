@@ -23,6 +23,7 @@ from beamtime.query.models import QueryError, closest
 from beamtime.query.read import (
     bucket_means,
     downsample,
+    elapsed_values,
     ema,
     finite_range,
     from_preview,
@@ -107,8 +108,8 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
 
     :param ctx: The query context.
     :param q: The query.
-    :return: Metrics, config keys, data keys, tags and run counts."""
-    runs, _ = select_runs(ctx, q, ["run.status", "run.tags"], config=True)
+    :return: Metrics, config keys, data keys, tags, code versions and run counts."""
+    runs, _ = select_runs(ctx, q, ["run.status", "run.tags", "run.code"], config=True)
     ids = [r["_id"] for r in runs]
     db = ctx.index.store.db
     marks = ", ".join("?" * len(ids))
@@ -134,6 +135,7 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
             config[key].append(value)
     distinct = distinguishing(per_run)
     tags = Counter(t for r in runs for t in r["run.tags"])
+    codes = Counter(r["run.code"] for r in runs if r["run.code"])
     return {
         "kind": "keys",
         "runs": len(runs),
@@ -157,6 +159,8 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
             "rows": [list(row) for row in data],
         },
         "tags": dict(tags.most_common()),
+        # a fact only when members differ; a single code version isn't worth a line.
+        "codes": dict(codes.most_common()) if len(codes) > 1 else {},
         "meta": meta(ctx, matched=len(runs)),
     }
 
@@ -319,11 +323,10 @@ def map_x(cols: Columns, x: str, steps: list[int]) -> list[Any]:
     col = cols.get(TIME_KEY if x in (TIME_KEY, "_elapsed") else x)
     if col is None:
         return [None] * len(steps)
-    out = [value_at(col.steps, col.values, s) for s in steps]
-    if x == "_elapsed" and len(col.values):
-        t0 = col.values[0]
-        out = [None if v is None else v - t0 for v in out]
-    return out
+    if x == "_elapsed":
+        gaps = [(a[1], a[2]) for a in cols.manifest.attempts if len(a) > 2]
+        return elapsed_values(col.steps, col.values, steps, gaps)
+    return [value_at(col.steps, col.values, s) for s in steps]
 
 
 def grouped_curve(
@@ -559,7 +562,9 @@ def describe_event(kind: str, data: dict[str, Any]) -> str:
             tb = (data.get("traceback") or "").strip().splitlines()
             return f"failed: {tb[-1]}" if tb else "failed"
         case "killed":
-            return f"killed by {data.get('signal') or data.get('reason') or 'a signal'}"
+            if (reason := data.get("reason")) is not None:
+                return f"killed · {reason.replace('_', ' ')}"
+            return f"killed by {data.get('signal') or 'a signal'}"
         case "attempt_started":
             step = data.get("resume_step")
             return "started" if step is None else f"resumed from step {step}"
