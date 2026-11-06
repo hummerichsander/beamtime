@@ -426,7 +426,6 @@ l0,-`+(a+144)+`c-2,-159.3,-10,-310.7,-24,-454c-53.3,-528,-210,-949.7,
       <table class="kv">
         <tr><td class="muted">version</td><td>${a?.version}</td></tr>
         <tr><td class="muted">root</td><td><code class="code">${a?.root}</code></td></tr>
-        <tr><td class="muted">log dir</td><td><code class="code">${a?.logdir}</code></td></tr>
         ${(a?.sources??[]).map(i=>v`
           <tr><td class="muted">${i.name}</td><td><code class="code">${i.logdir}</code> (${i.kind}, ${i.state})</td></tr>`)}
       </table>

@@ -565,12 +565,14 @@ tools. `.beamtime/` carries its own `.gitignore`, so drafts stay out of git. `vi
 through remote queries and `save` sends the version to the remote. **The draft stays with the
 agent; the check and the write happen on the source** ([layer 4](04-remotes.md#drafts-on-a-remote)):
 `view_new` reads the group's current view through `view_show` and a `view_files` read; `validate`
-and `save` pack the draft's YAML and files into one bundle and call the API-only `view_check` or
-`view_put` there, which materialize it in a temporary directory and run the same static validation
-and `write_version`. Rendering stays local: the renderer's own ephemeral `serve` answers `view` and
-`code` for the draft itself, and calls the API-only `view_compile` on the source to get the
-compiled tree (so pins and library blocks resolve there), while every other query routes to the
-source as usual. `block_promote` follows the same bundle for a custom block's code.
+and `save` pack the draft's YAML, files and block drafts into one bundle and call the API-only
+`view_check` or `view_put` there, which unpack it as drafts in a folder of their own and run the same
+static validation and `write_version`. Rendering stays local: the renderer's own ephemeral `serve`
+answers `view` and `code` for the draft itself, and calls the API-only `view_compile` on the source to
+get the compiled tree (so pins and library blocks resolve there), while every other query routes to
+the source as usual. Block drafts work the same way: `block_promote` and `block_fork` fetch the code,
+and `block_validate`/`block_save` send the draft to the API-only `block_check`/`block_put`, so a
+library block is checked and saved on the source whose group it is checked against.
 
 ### Validation
 

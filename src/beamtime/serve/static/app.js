@@ -43,7 +43,6 @@ import{$ as oe,$a as bn,A as zt,Aa as Jt,B as Bt,Ba as gt,C as Se,Ca as Ze,D as 
       <table class="kv">
         <tr><td class="muted">version</td><td>${n?.version}</td></tr>
         <tr><td class="muted">root</td><td><code class="code">${n?.root}</code></td></tr>
-        <tr><td class="muted">log dir</td><td><code class="code">${n?.logdir}</code></td></tr>
         ${(n?.sources??[]).map(l=>s`
           <tr><td class="muted">${l.name}</td><td><code class="code">${l.logdir}</code> (${l.kind}, ${l.state})</td></tr>`)}
       </table>

@@ -319,6 +319,10 @@ def federate(method: str, params: dict[str, Any], ctx: Context, local: Local) ->
             states.append(state)
             if answer is not None:
                 answers.append((name, answer))
+    if not answers and method == "groups":
+        # the tree still has a root per source, each saying why it can't answer.
+        meta = {"source": ".", "matched": 0, "sources": states}
+        return {"kind": "groups", "columns": ["path"], "rows": [], "meta": meta}
     if not answers:
         reasons = "; ".join(f"{s['name']}: {s.get('error') or s['state']}" for s in states)
         raise OpError(f"no source could answer {method}: {reasons}", code=1)
@@ -493,19 +497,21 @@ def remote_file(ctx: Context, run: str, rel: str, source: str | None = None) -> 
 
 
 def on_source(method: str, target: str, ctx: Context, body: dict[str, Any]) -> Any:
-    """Send a bundle method (``view_check``, ``view_put``, ``view_compile`` or ``view_files``) to
-    the source a group names, and give the answer's paths that source's prefix back.
+    """Send an API-only bundle method (``view_check``, ``view_put``, ``view_compile``,
+    ``view_files``, ``block_check`` or ``block_put``) to the source a group names, and give the
+    answer's paths that source's prefix back.
 
     :param method: The API-only method.
     :param target: The group the bundle is for, ``@source/bare``.
     :param ctx: The operation context.
-    :param body: The rest of the body (``yaml``, ``files``, ``blocks``, and for ``view_put``
-        ``author`` and ``message``).
+    :param body: The rest of the body: the bundle, and for a save ``author`` and ``message``.
     :return: The remote's answer.
     :raises OpError: If the remote can't be reached, or is too old for the method."""
+    from beamtime.ops.views import check_size
     from beamtime.remote.client import RemoteError
     from beamtime.remote.sources import client_for
 
+    check_size(body)
     source, _, group = target[1:].partition("/")
     client = client_for(ctx, source)
     try:

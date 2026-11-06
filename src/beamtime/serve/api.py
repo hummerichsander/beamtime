@@ -42,7 +42,9 @@ def dispatch(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] 
     elif "everywhere" in body:
         body = {k: v for k, v in body.items() if k != "everywhere"}
     # a draft is always local; its own view/code/file dispatch fetches from another source itself.
-    draft_local = method in ("view", "code", "file") and body.get("draft") is not None
+    draft_local = method in ("view", "code", "file") and (
+        body.get("draft") is not None or body.get("block_draft") is not None
+    )
     if method in ROUTED and not draft_local and (ctx.sources is not None or remote.targets(body)):
         from beamtime.remote.route import routed
 
@@ -98,6 +100,10 @@ def dispatch_here(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, 
             from beamtime.ops import views
 
             return getattr(views, method)(ctx, body)
+        case "block_check" | "block_put":
+            from beamtime.ops import blocks
+
+            return getattr(blocks, method)(ctx, body)
         case "summary":
             return summary_of(ctx, body.get("path", "."))
         case _ if (op := BY_TOOL.get(method)) is not None:

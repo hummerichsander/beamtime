@@ -244,3 +244,73 @@ def test_the_daemon_waits_for_a_log_dir_created_later(empty: Path) -> None:
         assert changed.wait(30)
     finally:
         daemon.stop()
+
+
+def test_serve_and_its_ui_with_only_a_remote(empty: Path, remote_logdir: Path) -> None:
+    """``beamtime serve`` from an empty directory with one remote: ``/`` and ``/f/local`` lead to
+    the remote, the tree names only it, a CLI call goes through this serve, and the directory
+    stays empty."""
+    import http.client
+    import socket
+
+    write_remotes(empty, {"box": remote_logdir})
+    before = set(empty.iterdir())
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    server = subprocess.Popen(
+        [sys.executable, "-m", "beamtime.cli", "serve", "--port", str(port)],
+        cwd=empty, env=dict(os.environ), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )  # fmt: skip
+    try:
+        line = ""
+        while "token=" not in line:
+            line = server.stdout.readline()
+            assert line or server.poll() is None, "serve ended"
+        token = line.strip().rsplit("token=", 1)[1]
+        auth = {"authorization": f"Bearer {token}", "content-type": "application/json"}
+
+        def request(method: str, path: str, body: dict | None = None) -> http.client.HTTPResponse:
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=60)
+            conn.request(method, path, json.dumps(body) if body is not None else None, auth)
+            return conn.getresponse()
+
+        for path in ("/", "/f/local/scaling"):
+            response = request("GET", path)
+            assert response.status == 307
+            assert response.getheader("location").startswith("/f/@box")
+        tree = json.loads(request("POST", "/api/groups", {"from": ".", "everywhere": True}).read())
+        assert [s["name"] for s in tree["meta"]["sources"]] == ["@box"]
+        meta = json.loads(request("POST", "/api/meta", {}).read())
+        assert [s["name"] for s in meta["sources"]] == ["@box"]
+        out = subprocess.run(
+            [sys.executable, "-m", "beamtime.cli", "runs", "--json", "--limit", "2"],
+            cwd=empty, capture_output=True, text=True, env=dict(os.environ), timeout=60,
+        )  # fmt: skip
+        assert out.returncode == 0, out.stderr
+        # answered by the serve: only a federated listing names its sources.
+        assert json.loads(out.stdout)["meta"]["sources"][0]["name"] == "@box"
+    finally:
+        server.terminate()
+        server.wait(timeout=30)
+    assert set(empty.iterdir()) == before
+
+
+def test_the_tree_names_a_remote_that_is_down(empty: Path, tmp_path: Path) -> None:
+    """With no local runs and the only remote down, the tree is empty but still names the remote
+    and why, so the sidebar can mark it unreachable."""
+    import dataclasses
+
+    from beamtime.remote.client import Spec
+    from beamtime.remote.sources import Sources
+    from beamtime.serve.api import dispatch
+
+    gone = Spec(name="gone", path=str(tmp_path), command="false", transport="command")
+    sources = Sources([gone])
+    try:
+        ctx = dataclasses.replace(Context.make(caller="view"), sources=sources)
+        answer = dispatch(ctx, "groups", {"from": ".", "everywhere": True})
+    finally:
+        sources.close()
+    assert answer["rows"] == []
+    assert [(s["name"], s["state"]) for s in answer["meta"]["sources"]] == [("@gone", "unreachable")]

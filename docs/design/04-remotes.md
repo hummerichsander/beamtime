@@ -156,7 +156,7 @@ that always writes `@name/group` doesn't need a special case. A path without a p
 when it exists; with no local and exactly one remote, it means that remote (`Context.default_source`);
 with several and no local, it is ambiguous and needs the prefix. Remotes here are the running
 serve's (as named on its command line), else the configured ones. Listings of `.` still ask every
-source, so the UI's tree names each root and its state. `/` and a bookmarked `/f/local`
+source, so the UI's tree names each root and its state, also when none of them answers. `/` and a bookmarked `/f/local`
 redirect to the first source when there is no local one.
 
 ## Configuration
@@ -189,7 +189,8 @@ remotes:
 - Beamtime stores no credentials; authentication is the user's ssh configuration.
 - `beamtime source add <name> <host:/path> [--command] [--cache] [--project]` writes the user
   settings by default (`--project` writes `beamtime.yaml` instead), probing ssh for the command
-  (`command -v beamtime`, then the venv next to the path) unless `--command` is given.
+  (`command -v beamtime`, then the venv next to the path, whose `~`, `${VAR}` and `{user}` the
+  remote shell expands) unless `--command` is given.
   `source list` and `source rm <name>` read and edit the same settings; all three are user-only.
 
 ## Protocol
@@ -204,19 +205,20 @@ The API's methods are **the operations of [layer 8](08-cli-mcp.md#operations)**,
 operation: every read (`keys`, `runs`, `series`, `card`, `notes`, `memory_show`, `check`, …), every
 write (`note_add`, `proposal_set`, `memory_update`, `view_save`, `block_save`, …) and every view tool
 (`view_validate`, `view_render`, …). CLI, MCP and the web UI are frontends of this one operation set.
-Three methods exist only in the API:
+These methods exist only in the API:
 
 | Method | Purpose |
 |---|---|
 | `hello` | version handshake; refuses incompatible major versions with both versions and the upgrade command |
 | `subscribe` | notifications when runs or groups change, for live views ([layer 7](07-web-ui.md#live-updates)) |
 | `files` | list files, and read a file from a byte offset, for `pull` |
-| `view_check`, `view_put`, `view_compile` | validate, save or compile a bundled draft (`{group, yaml, files, blocks}`) against this machine's own group; views on a remote ([layer 5](05-views.md#agent-loop)) |
+| `view_check`, `view_put`, `view_compile` | validate, save or compile a bundled view draft (`{group, draft, yaml, files, blocks}`) against this machine's own group; views on a remote ([layer 5](05-views.md#agent-loop)) |
+| `block_check`, `block_put` | validate or save a bundled block draft (`{group, block, blocks}`, and `against` for a save) against this machine's own group; library blocks on a remote |
 | `view_files` | read one of a page's view data or code files, for starting a draft from it |
 
 Compatibility: the same protocol major version on both sides; minor versions only add. `hello`
-carries the version, so a call to a method an older remote doesn't have (one of the four above, on
-a remote built before they existed) answers with that version and the upgrade command, e.g. "`@au002a`
+carries the version, so a call to a method an older remote doesn't have (one of the bundle methods above,
+on a remote built before they existed) answers with that version and the upgrade command, e.g. "`@au002a`
 runs beamtime 0.1.1; this needs a newer version for view check: `uv pip install -U beamtime` there".
 
 ### Drafts on a remote {#drafts-on-a-remote}
@@ -224,17 +226,22 @@ runs beamtime 0.1.1; this needs a newer version for view check: `uv pip install 
 A view or block draft always lives on the agent's own machine, never on the remote, even when it is
 for a remote group: **the draft stays with the agent; the check and the write happen on the
 source.** `view_new`/`block_promote` fetch the group's current view and files through the normal,
-routed `view_show` and `view_files`; `view_validate`/`view_save` (and the promote the same way) pack
-the draft's YAML and referenced files into one bundle, sent over the existing connection to
-`view_check`/`view_put`, which materialize it in a temporary directory on the remote and run the
-same static validation and `write_version` used for a local draft — so the check, the library and
-the write path are identical, only the files travel. The source resolves the bundle's group in its own
-index (a group or run below its log dir, nothing else), refuses `file` and `code` references that
-leave the bundle, and refuses bundles over 16 MB; the sender checks the size before sending too. Rendering stays local and needs no change to
+routed `view_show` and `view_files`. `view_validate`/`view_save` pack the draft's YAML, its referenced
+files and the block drafts it uses into one bundle, sent over the existing connection to
+`view_check`/`view_put`; `block_validate`/`block_save` pack the block draft for `block_check`/
+`block_put`. A block draft saves on the source it is checked against, at `--group` relative to that
+source. The remote unpacks a bundle as real drafts, under the sender's draft names, in a folder of
+its own (`.beamtime/bundles/<id>/` of the remote project, deleted after the call), and runs the same
+static validation, examples check and `write_version` or block save used for a local draft — so the
+check, the library and the write path are identical, only the files travel. The source resolves the
+bundle's group in its own index (a group or run below its log dir, nothing else), refuses files that
+leave their draft and `file` and `code` references that leave the bundle, and refuses bundles over
+16 MB; the sender checks the size before sending too. Rendering stays local and needs no change to
 the remote: the renderer's own ephemeral `serve` answers the browser's `view` and `code` calls for
 the draft itself (the files are already here), calling `view_compile` on the remote only to get the
-compiled tree, so pins and library blocks resolve against the remote's own files; every other query
-in that tree routes to the remote as usual.
+compiled tree, so pins and library blocks resolve against the remote's own files; the tree names the
+agent's drafts, so the draft's and a block draft's code come from here, and every other query in
+that tree routes to the remote as usual. A block's examples render the same way.
 
 ## Testing
 
@@ -263,8 +270,9 @@ the host.
   deleted on exit unless a `cache` on a local disk is configured.
 - Paths carry their source (`@cluster/...`); operations route by their target, listings on `.`
   merge across sources.
-- The API's methods are the operations of layer 8, plus `hello`, `subscribe`, `files` and the view
-  bundle methods `view_check`, `view_put`, `view_compile` and `view_files`.
+- The API's methods are the operations of layer 8, plus `hello`, `subscribe`, `files` and the
+  bundle methods `view_check`, `view_put`, `view_compile`, `view_files`, `block_check` and
+  `block_put`.
 - Remotes are configured in user and project settings, with placeholders; no credentials are stored;
   `source add`/`list`/`rm` write and read that configuration.
 - A source is a named log dir; `local` is one only when this machine has runs or no remotes are

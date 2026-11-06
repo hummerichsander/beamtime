@@ -319,7 +319,7 @@ def probe_command(host: str, path: str) -> str | None:
     :param host: The ssh host.
     :param path: The remote log dir.
     :return: The command to run there; ``None`` if neither probe succeeds."""
-    import shlex
+    import re
     import subprocess
 
     def ssh(line: str) -> subprocess.CompletedProcess:
@@ -332,8 +332,11 @@ def probe_command(host: str, path: str) -> str | None:
 
     if ssh("command -v beamtime").returncode == 0:
         return "beamtime"
-    venv = f"{path.rstrip('/')}/../.venv/bin/beamtime"
-    if ssh(f"test -x {shlex.quote(venv)}").returncode == 0:
+    # the remote shell expands the path's ~, ${VAR} and {user}, as the remote end does for it.
+    venv = f"{path.rstrip('/')}/../.venv/bin/beamtime".replace("{user}", "${USER}")
+    expanded = "${HOME}" + venv[1:] if venv.startswith("~") else venv
+    quoted = '"' + re.sub(r'(["\\`])', r"\\\1", expanded) + '"'
+    if ssh(f"test -x {quoted}").returncode == 0:
         return venv
     return None
 

@@ -49,7 +49,7 @@ beamtime runs @cluster     # from the command line
 ```
 
 Remote groups are named `@cluster/...` everywhere, reads and writes alike: notes, proposals,
-memory, and views and their custom blocks. A view draft still lives on your own machine; only
+memory, views and library blocks. A view draft still lives on your own machine; only
 validating and saving it reach the cluster. Lists of runs, groups and notes merge both machines.
 A laptop with no runs of its own works the same way: `beamtime serve mycluster:/scratch/beamtime`
 from an empty directory needs no local project at all.

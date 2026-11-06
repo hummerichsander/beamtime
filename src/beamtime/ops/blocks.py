@@ -153,28 +153,40 @@ def promote(ctx: Context, p: r.BlockPromoteParams) -> dict[str, Any]:
 
 
 def fork(ctx: Context, p: r.BlockForkParams) -> dict[str, Any]:
-    """Start a block draft as a copy of a library block.
+    """Start a block draft as a copy of a library block, local or on another source. The draft
+    itself always stays here.
 
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The draft's files and what to do next."""
-    with target_of(ctx, p.group) as target:
-        path = target.rel
-    try:
-        found = Library(ctx=ctx, path=path).get(p.name)
-    except SchemaError as e:
-        raise OpError(str(e), code=4) from None
+    if p.group.startswith("@"):
+        import yaml as _yaml
+
+        from beamtime.remote import answer as remote_answer
+
+        shown = remote_answer("block show", {"name": p.name, "group": p.group}, ctx)
+        path, version = p.group, shown["version"]
+        original = msgspec.convert(_yaml.safe_load(shown["yaml"]), BlockDef)
+        source = shown["code"].encode()
+    else:
+        with target_of(ctx, p.group) as target:
+            path = target.rel
+        try:
+            found = Library(ctx=ctx, path=path).get(p.name)
+        except SchemaError as e:
+            raise OpError(str(e), code=4) from None
+        version, original = found.version, found.block
+        source = (found.folder / found.block.code).read_bytes()
     block = msgspec.structs.replace(
-        found.block,
+        original,
         name=p.new_name,
         code=f"code/{p.new_name}.js",
-        derived_from=f"{p.name}@{found.version}",
+        derived_from=f"{p.name}@{version}",
         author=None,
         user=None,
         message=None,
     )
-    source = (found.folder / found.block.code).read_bytes()
-    folder = new_draft(ctx, p.new_name, path, block, source, origin=f"{p.name}@{found.version}")
+    folder = new_draft(ctx, p.new_name, path, block, source, origin=f"{p.name}@{version}")
     return drafted("block fork", folder, p.new_name, ["change it, then validate and save"])
 
 
@@ -230,7 +242,16 @@ def validate(ctx: Context, p: r.BlockValidateParams) -> dict[str, Any]:
     from beamtime.ops.views import summary
 
     folder, group = open_draft(ctx, p.draft)
-    block, findings = check(ctx, p.draft, folder, group)
+    if group.startswith("@"):
+        from beamtime.ops.views import bundle_blocks
+        from beamtime.remote.route import on_source
+
+        body = {"block": p.draft, "blocks": bundle_blocks(ctx, {p.draft: p.draft})}
+        findings = [Finding(**f) for f in on_source("block_check", group, ctx, body)["findings"]]
+        failed = any(f.level == "error" for f in findings)
+        block = None if failed else read_def(folder / BLOCK_FILE, source=f"block draft {p.draft}")
+    else:
+        block, findings = check(ctx, p.draft, folder, group)
     answer: dict[str, Any] = {"kind": "block validate", "draft": p.draft, "group": group}
     if block is not None and p.render and not any(f.level == "error" for f in findings):
         from beamtime.views.render import render_draft
@@ -247,15 +268,76 @@ def validate(ctx: Context, p: r.BlockValidateParams) -> dict[str, Any]:
 
 
 def save_draft(ctx: Context, p: r.BlockSaveParams) -> dict[str, Any]:
-    """Save a block draft as a new version, refusing one with errors.
+    """Save a block draft as a new version, refusing one with errors. For a draft checked against
+    another source, the check and the write happen there.
 
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The new version."""
+    folder, group = open_draft(ctx, p.draft)
+    target = save_target(group, p.group)
+    if target.startswith("@"):
+        from beamtime.ops.views import bundle_blocks
+        from beamtime.remote.route import on_source
+
+        body = {
+            "block": p.draft,
+            "against": group.partition("/")[2] or ".",
+            "blocks": bundle_blocks(ctx, {p.draft: p.draft}),
+            "author": p.author or author_of(ctx, None)[0],
+            "message": p.message,
+        }
+        return on_source("block_put", target, ctx, body)
+    return save_checked(ctx, p.draft, folder, group, target, p.author, p.message)
+
+
+def save_target(group: str, given: str) -> str:
+    """Decide where a block draft is saved: on the source it is checked against, at the given
+    group, which is relative to that source unless it names it.
+
+    :param group: The group the draft is checked against, ``@source/...`` for another source.
+    :param given: The ``--group`` to save to.
+    :return: The group to save to, prefixed for another source.
+    :raises OpError: If the given group is on another source than the draft's."""
+    source = group[1:].split("/", 1)[0] if group.startswith("@") else None
+    if given.startswith("@"):
+        if given[1:].split("/", 1)[0] != source:
+            on = f"@{source}" if source else "this machine"
+            raise OpError(
+                f"the block draft is checked against {group}, so it saves on {on}; "
+                "start a draft from a group of the other source to save it there",
+                code=2,
+            )
+        return given
+    if source is None:
+        return given
+    bare = given.strip("/")
+    return f"@{source}/{bare}" if bare not in ("", ".") else f"@{source}"
+
+
+def save_checked(
+    ctx: Context,
+    draft: str,
+    folder: Path,
+    against: str,
+    group: str,
+    author: str | None,
+    message: str | None,
+) -> dict[str, Any]:
+    """Check a block draft against a group here and save it as a new version, refusing one with
+    errors.
+
+    :param ctx: The operation context.
+    :param draft: The draft's name.
+    :param folder: Its folder.
+    :param against: The group it is checked against.
+    :param group: Where it is saved.
+    :param author: Who saves it.
+    :param message: What this version changes.
+    :return: The new version."""
     from beamtime.ops.views import copy_data, summary
 
-    folder, group = open_draft(ctx, p.draft)
-    block, findings = check(ctx, p.draft, folder, group)
+    block, findings = check(ctx, draft, folder, against)
     found = [f.to_dict() for f in findings]
     if block is None or any(f.level == "error" for f in findings):
         raise OpError(
@@ -263,11 +345,11 @@ def save_draft(ctx: Context, p: r.BlockSaveParams) -> dict[str, Any]:
             + "\n".join(summary(found, None)),
             code=3,
         )
-    with target_of(ctx, p.group) as target:
+    with target_of(ctx, group) as target:
         home = ctx.logdir / target.rel / c.BLOCKS / block.name
     block.code = copy_data(folder / block.code, home, "code")
-    block.author, block.user = author_of(ctx, p.author)
-    block.message = p.message
+    block.author, block.user = author_of(ctx, author)
+    block.message = message
     path = save(home, ".yaml", block_yaml(block))
     return written(
         ctx,
@@ -275,6 +357,39 @@ def save_draft(ctx: Context, p: r.BlockSaveParams) -> dict[str, Any]:
         path,
         [*summary(found, None)[:-1], f"views use it as `- {block.name}: {{params}}`"],
     )
+
+
+def block_check(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
+    """Check a bundled block draft against this machine's own group (API-only: what a remote
+    call to ``block validate`` turns into).
+
+    :param ctx: The operation context.
+    :param body: ``{group, block, blocks}``.
+    :return: The findings."""
+    from beamtime.ops.views import bundle_group, bundled
+
+    group, name = bundle_group(ctx, str(body["group"])), str(body["block"])
+    with bundled(ctx, group, body) as here:
+        folder, _ = open_draft(here, name)
+        _, findings = check(here, name, folder, group)
+    return {"kind": "block check", "findings": [f.to_dict() for f in findings], "meta": {}}
+
+
+def block_put(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
+    """Check a bundled block draft and, without errors, save it as a new version (API-only: what
+    a remote call to ``block save`` turns into).
+
+    :param ctx: The operation context.
+    :param body: ``{group, against, block, blocks, author, message}``.
+    :return: What ``block save`` returns."""
+    from beamtime.ops.views import bundle_group, bundled
+
+    group = bundle_group(ctx, str(body["group"]))
+    against, name = bundle_group(ctx, str(body["against"])), str(body["block"])
+    with bundled(ctx, against, body) as here:
+        folder, _ = open_draft(here, name)
+        author, message = body.get("author"), body.get("message")
+        return save_checked(here, name, folder, against, group, author, message)
 
 
 def open_draft(ctx: Context, name: str) -> tuple[Path, str]:
@@ -339,7 +454,7 @@ def check(
         out += hard_coded(ctx, group, file.read_text(), block, at)
     out += duplicates(ctx, group, block, at)
     if not any(f.level == "error" for f in out):
-        out += examples_check(ctx, draft, group, block)
+        out += examples_check(ctx, folder.name, group, block)
     return block, out
 
 

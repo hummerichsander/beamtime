@@ -257,6 +257,34 @@ def test_source_add_keeps_the_file_and_checks_the_path(ctx: Context, project: Pa
         call("source add", {"name": "x", "remote": "h:relative", "command": "bt"}, ctx)
 
 
+def test_source_probe_expands_the_path_on_the_remote(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The venv probe lets the remote shell expand ``~`` and ``${VAR}`` in the log dir's path."""
+    import subprocess
+
+    from beamtime.ops.admin import probe_command
+
+    home = tmp_path / "home"
+    venv = home / "proj" / ".venv" / "bin" / "beamtime"
+    venv.parent.mkdir(parents=True)
+    (home / "proj" / "beamtime").mkdir()
+    venv.write_text("#!/bin/sh\n")
+    venv.chmod(0o755)
+    real = subprocess.run
+
+    def remote(argv: list[str], **kw) -> subprocess.CompletedProcess:
+        # the last argument is the line ssh hands the remote shell; no beamtime on its PATH.
+        line = argv[-1].replace("command -v beamtime", "false")
+        env = {"HOME": str(home), "PROJ": str(home / "proj"), "PATH": "/usr/bin:/bin"}
+        return real(["sh", "-c", line], env=env, **kw)
+
+    monkeypatch.setattr(subprocess, "run", remote)
+    assert probe_command("h", "~/proj/beamtime") == "~/proj/beamtime/../.venv/bin/beamtime"
+    assert probe_command("h", "${PROJ}/beamtime") == "${PROJ}/beamtime/../.venv/bin/beamtime"
+    assert probe_command("h", "/nowhere/beamtime") is None
+
+
 def test_mcp_install_for_cursor(ctx: Context, project: Path) -> None:
     """Cursor's project config gets an entry that names the project root."""
     call("mcp install", {"client": "cursor"}, ctx)
