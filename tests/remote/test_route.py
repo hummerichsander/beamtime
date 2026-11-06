@@ -38,3 +38,14 @@ def test_only_targets_name_a_remote() -> None:
 
     assert targets({"group": "@box/g"}) and targets({"query": {"runs": {"from": "@box"}}})
     assert not targets({"group": "g", "description": "@alice found it"})
+
+
+def test_a_blocks_proposal_call_gets_the_source() -> None:
+    """The proposal block's call is a place under a key of user content; its answer is not."""
+    call = {"method": "proposal_show", "params": {"group": "exp/a"}, "scope": "exp/a"}
+    data = {"proposal": call, "check": call | {"method": "check"}}
+    out = prefix({"blocks": [{"data": data}]}, "au")["blocks"][0]["data"]
+    for found in out.values():
+        assert found["params"]["group"] == "@au/exp/a" and found["scope"] == "@au/exp/a"
+    shown = {"group": "exp/a", "proposal": {"yaml": "group: x\n", "group": "x"}}
+    assert prefix(shown, "au")["proposal"] == {"yaml": "group: x\n", "group": "x"}

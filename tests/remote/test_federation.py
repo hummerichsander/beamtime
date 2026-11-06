@@ -203,3 +203,19 @@ def test_closing_fails_waiting_requests(tmp_path: Path) -> None:
     with pytest.raises(Unreachable):
         client.request("runs", {}, timeout=30)
     assert time.monotonic() - started < 10
+
+
+def test_the_proposal_block_answers_through_a_remote(box: Path, ctx: Context) -> None:
+    """Both calls of a remote group's proposal block point at the remote and find the group."""
+    from beamtime.ops.views import write_version
+    from beamtime.views import model as m
+
+    shown = m.parse({"body": [{"proposal": {}}]}, source="t")
+    write_version(Context.make(root=box.parent, caller="cli"), SWEEP, shown, None, None)
+    view = dataclasses.replace(ctx, caller="view")
+    page = dispatch(view, "view", {"path": f"@box/{SWEEP}"})
+    blocks = [n for n in walk(page["view"]) if n["block"] == "proposal"]
+    assert blocks
+    for call in blocks[0]["data"].values():
+        assert call["params"]["group"] == f"@box/{SWEEP}" and call["scope"] == f"@box/{SWEEP}"
+        assert dispatch(view, call["method"], call["params"])

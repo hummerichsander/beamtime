@@ -225,7 +225,8 @@ def prefix(answer: Any, source: str) -> Any:
         ref = isinstance(x.get("view"), str) or "block" in x or "block_draft" in x or entry
         out = {}
         for k, v in x.items():
-            if k in USER_CONTENT:
+            # a block's call sits under a user-content key like ``proposal``, but it is a place.
+            if k in USER_CONTENT and not is_call(v):
                 out[k] = v
             elif k in PATH_KEYS or (k == "path" and not ref) or (k == "view" and ref):
                 out[k] = p(v)
@@ -245,6 +246,14 @@ def prefix(answer: Any, source: str) -> Any:
             line.replace(f"wrote {path}", f"wrote {p(path)}") for line in out.get("lines", [])
         ]
     return out
+
+
+def is_call(v: Any) -> bool:
+    """Tell whether a value is a call a block makes, as ``views/compile.py:api`` builds it.
+
+    :param v: Any value.
+    :return: Whether it has a ``method`` and ``params``."""
+    return isinstance(v, dict) and isinstance(v.get("method"), str) and "params" in v
 
 
 def fans_out(params: dict[str, Any]) -> bool:

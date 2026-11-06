@@ -117,6 +117,8 @@ beamtime pull cluster:scaling/lr-sweep
   parameters, answers, links and the web UI; local paths have no prefix.
 - **Every operation whose target names a source** (`group`, `from`, `run`, a view or a query's
   `from`) runs on that source with the prefix stripped; paths in its answer get the prefix back.
+  What users wrote or logged (configs, a proposal's text, conditions) keeps its values, but a
+  block's call (`method`, `params`, `scope`) is always a place, also under a key like `proposal`.
   Operations on `.` that list (`groups`, `runs`, `series`, `data`, `timeline`, `notes`, `keys`) ask
   every source at once and merge; everything else stays local. Which operations list, write or
   work on drafts is a flag on each operation in the registry. A source that doesn't answer a listing
