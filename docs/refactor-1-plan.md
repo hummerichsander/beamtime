@@ -23,7 +23,7 @@ Evidence tags: **reproduced** (run in a browser or on real data), **real data** 
 | 5 | A single point draws nothing | `points: { show: false }` on every series; a one-point path is empty. `Spark` also returns blank below 2 points. | code | A3 |
 | 6 | Bands broken in log mode | `reshape` nulls non-positive `lo`/`hi` (mean − std is often ≤ 0), which leaves holes in the band polygon; the transparent band series also stretch the auto range. | code | A4 |
 | 7 | No axis labels | The chart has none. An agent wrote a whole d3 block for it: `curves.js` opens with "axis titles the built-in line chart cannot draw". Captions carry the rest ("x: training step (1407 per epoch). y: …"). | real data | B3 |
-| 8 | Agents can't get built-in chart features | All 7 custom code files on the remote that read data (block versions included) hand-roll d3; 0 use `bt.chart.Line`. They lose hover, settings, downloads. `predictions.js` says the kit exposes "neither the app's status pill nor the check, so … the rows are typed in". | real data | C1, C2 |
+| 8 | Agents can't get built-in chart features | All 7 custom code files on the remote that read data (block versions included) hand-roll d3; 0 use `bt.chart.Line`. They lose hover, settings, downloads. `predictions.js` says the kit exposes "neither the app's status pill nor the check, so … the rows are typed in". | real data | C1, C2, C3, G1 |
 | 9 | Epoch chart is tedious | Lightning logs `epoch` 8502 times as a step function. It is a clock, not a measurement. `curves.js` converts x by hand (`x / 1407`). | real data | B6 |
 | 10 | Unclear which charts are default | Two kinds of chart (essential grid, addable extras) with different controls, plus a "More metrics" section. | code | B7 |
 | 11 | Local agent can't do remote views | First call failed on the real setup: "view new works on drafts in this project; for a group on @au002a, run it there (ssh)". Notes, proposals and memory already route. | real data | D2 |
@@ -33,6 +33,7 @@ Evidence tags: **reproduced** (run in a browser or on real data), **real data** 
 | 15 | Code versioning | Mostly **already there**: `_run.json.git`, `_env/git.diff`, `run.commit`. Gaps: not visible in tables or groups, untracked files are missed, and two dirty runs can't be compared. A real run carries a 376 KB diff with only `dirty: true` to identify it. | real data | E3 |
 | 16 | Tools for agents | 85 raw `python`/`grep` calls over `beamtime/`, 90 `tail`, 8 sleep loops. `runs` was tried with `by`, which it lacks. | real data | G4 |
 | 17 | `view_render` dominates MCP output | `screenshots()` is full-page PNG with no height limit, and `mcp/server.py:content()` embeds every shot. In the sandbox project, 3 calls were 90.7 % of Beamtime's MCP output by characters, about 255 KB per image. In the 65 cluster sessions it was never called, for a reason not checked. | real data | A9 |
+| 18 | The proposal block fails on a remote page: "no group '…' below the log dir" | `remote/route.py:prefix()` skips every key in `USER_CONTENT`, which includes `proposal` (a proposal's text). The proposal block keeps its `proposal_show` call under `data.proposal` (`views/compile.py`), so that call keeps a bare group and the serving machine looks it up in its own log dir. The block's `check` call gets its prefix. | reproduced | D4 |
 
 Also found, not in the findings:
 
@@ -80,7 +81,7 @@ mistake is expensive: have a stronger model read the diff afterwards.
 F1 ─┬─ A1 A2 A3 A4 A5 A6 A7 A8 A9     bugs, independent (F1, A1 to A4 done)
     ├─ B1 ─ B2 ─ B3 ─ B4 ─ B5 ─ B6 ─ B7    charts, in this order
     │              └─ C1 ─ C2 ─ C3         agent chart parity
-    ├─ D1 ─ D2 ─ D3                        sources and remote writes
+    ├─ D1 ─ D2 ─ D3 ─ D4                   sources and remote writes
     ├─ E1   E2   E3                        run lifecycle, independent
     └─ G1 ─ G2 ─ G3 ─ G4                   guides, harness, tools (G1 after C3; G3 after D2)
                               Z            docs, changelog, release
@@ -189,7 +190,7 @@ Done: unit tests for `std` with mean − std < 0, for `minmax` with a zero minim
 curves. A browser test with `band: std`, `scale: log` on `validation/signed` shows a filled band to the
 bottom of the plot.
 
-### A5. Which config matters, which metric leads (sonnet + review) — real data — **done `0297ea2`**
+### A5. Which config matters, which metric leads (sonnet + review) — real data — **done `0297ea2`**, `constant` revised in `474c488`
 
 The header bug, the 22-column run tables, broken seed means and sweeps above 10 values share one cause:
 no notion of *which config keys distinguish runs*.
@@ -211,14 +212,19 @@ no notion of *which config keys distinguish runs*.
       dropping the arm would leave `varying = [config.seed]` and average the arms into one curve. Test it.
 
    Returns `varying` (e.g. `["config.arm", "config.seed"]`) and `aliases`.
-2. `keys_kind`: add `config.varying` and `config.aliases`. `merge_keys`: union per source. Add a
-   `constant` column to the metrics table, from the cards' min and max (`and` across sources in the merge).
+2. `keys_kind`: add `config.varying` and `config.aliases`. `merge_keys`: union per source. The metrics
+   table gets `constant` and `points` columns (`key, runs, last_step, constant, points`). `constant` means one
+   value in every run (`and` across sources in the merge), except a single point in a single run, which is a
+   result. "min = max in each run" was the first rule; it flagged one-shot metrics such as a final
+   `test/acc` and kept them from ever leading. `points` is the most points one run has (max in the merge).
 3. `views/defaults.py`:
    - `varying_config` reads `config.varying`;
    - new `main_metric(ctx, path, keys)`: the first metric in the group's proposal predictions (reuse
      `guide.proposed`), then eval prefixes, then training losses, then the first non-constant metric;
    - `EVAL_PREFIXES` gains `validation`; a training prefix tuple `("train", "training")`; constant
-     metrics never lead. The ranks in `ordered_metrics` follow.
+     metrics never lead, and single-point metrics (`points == 1`) come after those with a curve within
+     their rank: a final eval still beats a training loss, but on `realistic/egnn-bench`
+     `validation/loss` leads over `validation/first_eval`. The ranks in `ordered_metrics` follow.
 4. `seed_groups`: group by `varying` minus the seed key and its aliases, instead of "config minus
    top-level seed". The answer's `by` shows those keys.
 5. Header (`shell/header.ts:Best`, `defaults.summary`): remove the parenthesis.
@@ -336,7 +342,10 @@ Split into:
 - `web/src/blocks/line.ts`: only the data and the spec.
 - `web/src/blocks/plots.ts`: scatter, bar and histogram move onto `ChartFrame`.
 
-Done: all existing tests and the design gallery unchanged; `bench/web/timing.py` within budget; the shell
+Also, left over from A7 (review of A5–A9): give the note-type menu (`NoteType` in `blocks/context.ts`) a
+place in `design/gallery.html`, per rule 6: the menu open, and a verdict's fixed symbol.
+
+Done: all existing tests pass, and the design gallery is unchanged apart from that entry; `bench/web/timing.py` within budget; the shell
 still under 120 KB.
 
 ### B2. A truthful x axis on the server (sonnet + review) — code
@@ -532,8 +541,17 @@ The tiers, documented in this order in the guide:
 Files: `web/src/kit/index.ts`, `web/src/kit/protocol.ts`, `web/src/blocks/custom.ts`. When a frame uses
 `Figure`, it sends `{ type: "chrome", own: true }`, and `Custom` hides its own head so there aren't two.
 
-Also export `bt.ui.Sym`, `bt.ui.Icon` and `bt.ui.Predictions` (the built-in `proposal` block) so that nobody
-retypes status pills. Bump `bt.version` to 2, additions only.
+Also export Beamtime's visual vocabulary, so that custom blocks reuse it instead of retyping it:
+
+- `bt.ui.Sym({ kind, value, word? })`: the app's symbol for a value, through `ui/symbols.ts:symbolFor`, for every
+  `Kind` there (run status, prediction result, verdict, note type, research status). Not a raw `SymbolSpec`, so
+  a custom block can't pick its own icon and tone for a known value.
+- `bt.ui.Icon` (lucide by name) and `bt.ui.Tag` (a pill with a tone).
+- `bt.ui.Predictions`: the built-in `proposal` block's prediction rows with the live check.
+- `bt.theme.tone(name)`: the colour of `good`, `bad`, `warn`, `muted` or `accent` in the current theme, so
+  that a d3 drawing colours a pass or fail like the app does.
+
+Bump `bt.version` to 2, additions only.
 
 Done: browser test: a `Figure` with a d3 line gets settings, hover to a table row and back, a download, and
 follows the theme and live data. Port `curves.js` from the remote as the test's content.
@@ -561,7 +579,16 @@ Done: reproduces the remote's `scorecard.js` from a 10-line YAML; the guide's `s
   keep hover, settings and downloads";
 - custom code without `useData` or `subscribe` → "this block won't follow live data";
 - a `custom` block with a typed-in result: no declared query, and the caption says "snapshot" → "use a
-  query, or a `predictions` block".
+  query, or a `predictions` block";
+- custom code with a colour literal (`#abc`, `#aabbcc`, `rgb(`, `hsl(`) → "use `bt.theme` (`tone`, `runColor`,
+  `scale`) so colours follow the theme and mean what they mean elsewhere";
+- custom code with status glyphs (`✓ ✔ ✗ ✘ ❌ ✅ ⚠`) or hand-written status words in a pill-like element →
+  "use `bt.ui.Sym` with the matching kind";
+- a top-level `section` or custom block whose title has more than two words → "titles of one or two words
+  go in the left column; this one stays in the content, so shorten it and move the rest to a caption";
+- a `text` block starting with a Markdown heading, or custom code with a titled `bt.ui.Section` or an
+  `<h1>`–`<h3>` as its first element, at the top level → "make it a top-level `section` so the title goes in
+  the left column".
 
 Done: tests per lint; running validation on the real views' YAML flags `curves`, `predictions` and `price`.
 
@@ -639,6 +666,24 @@ come from the remote's index; a too-old remote gets the message. Same in `test_d
   the same".
 - Check `mcp install` and `init --instructions` in a project without a local log dir.
 - `docs/design/04-remotes.md` rewritten around D1 and D2, plus `docs/guides/` for remotes.
+
+### D4. The proposal block through a remote (haiku) — reproduced
+
+On `refactor-1-sources`, after the D review. Present since 0.1.1. Reproduce with:
+
+```python
+data = {"proposal": api("proposal_show", {"group": "exp/a"}, "exp/a"),
+        "check": api("check", {"group": "exp/a"}, "exp/a")}
+prefix({"blocks": [{"data": data}]}, "au")  # check gets @au/exp/a, proposal keeps exp/a
+```
+
+1. `prefix()` in `remote/route.py`: a block's call (a dict with `method` and `params`, as `views/compile.py:api`
+   builds it) is always walked, also under a key in `USER_CONTENT`. `USER_CONTENT` stays as it is, so a
+   proposal's text (`proposal_show`'s answer, a note's `proposal`) is still left alone. Don't rename the block's
+   data key instead: saved pages and the frontend read `data.proposal`.
+2. Tests in `tests/remote/test_route.py`: the case above gives `@au/exp/a` in both calls' `group` and `scope`; a
+   `proposal_show` answer whose YAML holds `group: x` comes back unchanged. If `test_federation.py` can serve
+   a page from a fake remote, add a page with a proposal block and assert both calls answer.
 
 ---
 
@@ -805,13 +850,29 @@ Runs after C3, so that it describes what exists.
   training curves; shared y limits in small multiples.
 - `kit.md`, rewritten around the three tiers (C1), with `Figure` as a full example and a rule for when each tier
   applies; `useData` for anything live.
+- **Reuse Beamtime's vocabulary**, a section in `kit.md` and one line in `checklist.md`: a symbol, colour or pill
+  the app already has for a thing is used as is, so the same mark means the same thing on every page. A table
+  from thing to kit name: run status, prediction result, verdict and note type → `bt.ui.Sym` with that kind;
+  predictions with their check → the `predictions` block or `bt.ui.Predictions`; pass, fail, warning →
+  `bt.theme.tone`; runs and groups → `bt.theme.runColor`, `groupColor`, `scale`. Never hex colours, emoji or
+  glyphs for status, nor a typed-in result. The C3 lints point here.
+- **Section titles go in the left column**, in `overview.md` (where views are introduced), `kit.md` and
+  `checklist.md`. How it works (`shell/views.ts`, `bt/labels.ts:labelOf`): every top-level block of a view gets
+  its own page Section, and a top-level `section` (or custom block) titled with **one or two words** shows that
+  title in the margin. A longer title, a nested section, a Markdown `##` in a `text` block and `bt.ui.Section`
+  inside custom code (an `<h3>` in the iframe) all stay in the content column. So the guide says: structure a
+  view as top-level `section`s with one- or two-word titles (`validation`, `energy`, `phase space`) and put
+  the blocks, custom ones included, inside them; split one big custom block into several, one per section;
+  `bt.ui.Section` only for subheadings within one block; longer explanations go in the caption. All five
+  example views in `guide/examples/` follow it, and B7's prefix sections show the pattern.
 - `proposals.md`, `predictions.md` (`each`, `compare`, `reduce`, windows, thresholds; worked examples from real
   proposals, anonymised: "2.7x cost per step" style reasoning), `notes.md` (all types with when to use each,
   including `theory`), `verdicts.md` (per-prediction verdicts, stating what the check says and no more), `memory.md`,
   `remote.md`, `analysis.md` (which tool for which question; G4).
 - `anti-patterns.md` grows with the ledger from G3.
 
-Tests: `tests/guide` checks that every field, block and op the guide names exists, and that example views validate.
+Tests: `tests/guide` checks that every field, block and op the guide names exists, that example views validate,
+and that every example view's top-level blocks get a margin label (C3's section lints give no warning).
 
 ### G2. Delivery (haiku)
 
@@ -884,6 +945,11 @@ Each tool gets its entry in `guide/parts/analysis.md`, a test on `synth`, and a 
 - `scripts/release.py`, then upgrade on the cluster. **Check the real data first**: all 12 groups and the 10 custom
   blocks render on 0.2.0 from a read-only `pull`.
 - Port the remote's `curves.js`, `scorecard.js` and `predictions.js` to built-ins as new view versions, after asking.
+- Generate the favicon's colours (from the A5–A9 review): `scripts/build-tokens` writes the two accent fills of
+  `design/favicon.svg` (light and dark) from `design/tokens.json`; today they are hand-copied (`#2f5aa8`,
+  `#86a8e8`) and `tests/test_design.py` only checks that they match `tokens.css`. Drop the hardcoded
+  `"#2f5aa8"` fallback for the live dot in `web/src/shell/favicon.ts`. A design change, so it lands through
+  `design/`.
 
 ## Breaking changes
 
