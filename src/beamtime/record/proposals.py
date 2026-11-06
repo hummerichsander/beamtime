@@ -11,7 +11,7 @@ from beamtime.format.authored import file_hash, load_yaml, newest, versions
 from beamtime.format.run import derived_status
 from beamtime.index.index import Index
 from beamtime.query import models as m
-from beamtime.query.fields import json_path, parse_field
+from beamtime.query.fields import CODE_SQL, json_path, parse_field
 from beamtime.query.models import QueryError, closest
 from beamtime.query.select import Context, select_runs
 from beamtime.query.where import fields_of
@@ -350,7 +350,7 @@ class Target:
         """List the runs that recorded a version.
 
         :param version: The version id.
-        :return: Per run: id, path, status (``lost`` derived) and recorded hash."""
+        :return: Per run: id, path, status (``lost`` derived), recorded hash and code."""
 
         cond, params = self.membership(version)
         now = self.now or time.time()
@@ -358,12 +358,18 @@ class Target:
             f"json_extract(info, '{json_path(('proposal_hashes', k))}')" for k in self.keys
         )
         rows = self.index.store.db.execute(
-            f"SELECT id, path, status, heartbeat, COALESCE({recorded}, NULL) "
+            f"SELECT id, path, status, heartbeat, COALESCE({recorded}, NULL), {CODE_SQL} "
             f"FROM runs WHERE {cond}",
             params,
         )
         return [
-            {"id": r[0], "path": r[1], "status": derived_status(r[2], r[3], now), "hash": r[4]}
+            {
+                "id": r[0],
+                "path": r[1],
+                "status": derived_status(r[2], r[3], now),
+                "hash": r[4],
+                "code": r[5],
+            }
             for r in rows
         ]
 

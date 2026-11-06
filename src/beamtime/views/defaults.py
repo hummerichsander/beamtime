@@ -58,7 +58,14 @@ def group_body(ctx: Context, path: str) -> list[m.Block]:
         body += curves(ordered_metrics(own_keys), "config.seed" if many else None, own)
         if varying:
             body.append(m.Config(id="hyperparameters", title="Hyperparameters"))
-        columns = ["run.name", "run.status", *varying, *([f"metric.{main}.last"] if main else [])]
+        code = ["run.code"] if keys.get("codes") else []
+        columns = [
+            "run.name",
+            "run.status",
+            *varying,
+            *code,
+            *([f"metric.{main}.last"] if main else []),
+        ]
         table = m.Table(id="runs", title="Runs", columns=columns, limit=TABLE_LIMIT, sparkline=main)
         body.append(table)
     else:

@@ -1,6 +1,7 @@
 """What a run records about its environment: host, git, packages, scheduler, rank."""
 
 import getpass
+import hashlib
 import os
 import platform
 import socket
@@ -12,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 GIT_DIFF_CAP = 1024 * 1024
+UNTRACKED_CAP = 50
 RANK_VARS = ("RANK", "SLURM_PROCID", "LOCAL_RANK", "NODE_RANK")
 TIME_LIMIT_WINDOW_S = 300
 
@@ -57,21 +59,43 @@ def git(args: list[str], cwd: Path) -> str | None:
     return out.stdout.decode(errors="replace") if out.returncode == 0 else None
 
 
+def untracked_files(cwd: Path) -> list[str]:
+    """List untracked paths, so a new file counts as a change too.
+
+    :param cwd: A directory inside the checkout.
+    :return: Up to :data:`UNTRACKED_CAP` paths, sorted."""
+    status = git(["status", "--porcelain", "--untracked-files=all"], cwd) or ""
+    paths = sorted(line[3:] for line in status.splitlines() if line[:2] == "??")
+    return paths[:UNTRACKED_CAP]
+
+
 def git_info(cwd: Path) -> tuple[dict[str, Any] | None, str | None]:
     """Describe the git checkout and its uncommitted changes.
 
+    A new untracked file leaves no trace in ``git diff``, so it is listed and counted
+    into ``dirty`` and ``diff_sha`` on its own.
+
     :param cwd: A directory inside the checkout.
-    :return: ``commit``, ``branch``, ``dirty`` and ``remote``, and the diff of tracked
-        files (capped at 1 MB), or ``(None, None)`` outside a checkout."""
+    :return: ``commit``, ``branch``, ``dirty``, ``untracked``, ``diff_sha`` and ``remote``,
+        and the diff of tracked files (capped at 1 MB), or ``(None, None)`` outside a
+        checkout."""
     if (commit := git(["rev-parse", "HEAD"], cwd)) is None:
         return None, None
     diff = git(["diff", "HEAD"], cwd) or ""
+    untracked = untracked_files(cwd)
+    dirty = bool(diff) or bool(untracked)
+    diff_sha = None
+    if dirty:
+        payload = diff + "\x00" + "\x00".join(untracked)
+        diff_sha = hashlib.sha256(payload.encode()).hexdigest()[:8]
     if len(diff) > GIT_DIFF_CAP:
         diff = diff[:GIT_DIFF_CAP] + "\n[beamtime: diff cut at 1 MB]\n"
     info = {
         "commit": commit.strip(),
         "branch": (git(["rev-parse", "--abbrev-ref", "HEAD"], cwd) or "").strip() or None,
-        "dirty": bool(diff),
+        "dirty": dirty,
+        "untracked": untracked,
+        "diff_sha": diff_sha,
         "remote": (git(["remote", "get-url", "origin"], cwd) or "").strip() or None,
     }
     return info, diff or None

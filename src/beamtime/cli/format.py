@@ -275,6 +275,13 @@ def render_keys(answer: dict[str, Any]) -> str:
             "",
             "tags  " + ", ".join(f"{t} ({n})" for t, n in answer["tags"].items()),
         ]
+    if answer.get("codes"):
+        codes = answer["codes"]
+        lines += [
+            "",
+            f"{len(codes)} code versions  "
+            + ", ".join(f"{code} ({n})" for code, n in codes.items()),
+        ]
     lines.append(meta_line(answer, "runs", answer["runs"]))
     return "\n".join(lines)
 
@@ -323,6 +330,8 @@ def render_card(answer: dict[str, Any]) -> str:
                 line += f"  verdict {prop['verdict']}"
             if prop.get("current") is False:
                 line += "  (superseded)"
+            if prop.get("note"):
+                line += f"  note: {prop['note']}"
             lines.append(line)
     if answer.get("checkpoints"):
         lines += ["", "checkpoints"] + [
@@ -454,6 +463,8 @@ def render_check(answer: dict[str, Any]) -> str:
         lines.append(f"plan        {plan['text']}")
     if answer.get("level") is not None:
         lines.append(f"level       {answer['level']:.0%} t-intervals")
+    if answer.get("note"):
+        lines.append(f"note        {answer['note']}")
     for p in answer.get("predictions", []):
         line = f"  {p['name']:<20} {p['result']:<13}"
         if p.get("effect") is not None:

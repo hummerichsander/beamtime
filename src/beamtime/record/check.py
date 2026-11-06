@@ -117,7 +117,19 @@ def checked(target: Target, version: str, proposal: Proposal | None) -> dict[str
         "level": proposal.level,
         "progress": plan,
         "predictions": predictions,
+        "note": code_note(members),
     }
+
+
+def code_note(members: list[dict[str, Any]]) -> str | None:
+    """Note it when a proposal's members didn't all run on the same code.
+
+    :param members: The version's members, from ``Target.members``.
+    :return: A short note, or ``None`` when they agree (or none has a known code)."""
+    codes = {m["code"] for m in members if m.get("code")}
+    if len(codes) <= 1:
+        return None
+    return f"its members ran on {len(codes)} different code versions"
 
 
 def manual(pr: Prediction, verdict: str | None) -> dict[str, Any]:

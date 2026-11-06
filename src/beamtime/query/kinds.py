@@ -108,8 +108,8 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
 
     :param ctx: The query context.
     :param q: The query.
-    :return: Metrics, config keys, data keys, tags and run counts."""
-    runs, _ = select_runs(ctx, q, ["run.status", "run.tags"], config=True)
+    :return: Metrics, config keys, data keys, tags, code versions and run counts."""
+    runs, _ = select_runs(ctx, q, ["run.status", "run.tags", "run.code"], config=True)
     ids = [r["_id"] for r in runs]
     db = ctx.index.store.db
     marks = ", ".join("?" * len(ids))
@@ -135,6 +135,7 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
             config[key].append(value)
     distinct = distinguishing(per_run)
     tags = Counter(t for r in runs for t in r["run.tags"])
+    codes = Counter(r["run.code"] for r in runs if r["run.code"])
     return {
         "kind": "keys",
         "runs": len(runs),
@@ -158,6 +159,8 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
             "rows": [list(row) for row in data],
         },
         "tags": dict(tags.most_common()),
+        # a fact only when members differ; a single code version isn't worth a line.
+        "codes": dict(codes.most_common()) if len(codes) > 1 else {},
         "meta": meta(ctx, matched=len(runs)),
     }
 

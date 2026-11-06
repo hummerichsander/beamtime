@@ -136,6 +136,7 @@ def test_proposal_sweep_check_verdict_memory(tmp_path: Path, monkeypatch: pytest
             "check": "pass",
             "provisional": False,
             "verdict": "confirmed",
+            "note": None,
         }
     ]
 

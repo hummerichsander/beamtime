@@ -122,6 +122,54 @@ def test_where_operators_and_numeric_strings(ask) -> None:
     assert {r["config.seed"] for r in rows} == {1, 2}
 
 
+def test_code_identity_fields(ask) -> None:
+    """``run.code`` is the short commit, plus the diff's hash when the checkout was dirty."""
+    clean = table(
+        ask(
+            {
+                "runs": {
+                    "from": "scaling/lr-sweep",
+                    "where": {"run.dirty": False},
+                    "select": ["run.branch", "run.dirty", "run.commit", "run.code"],
+                    "limit": 1,
+                }
+            }
+        )
+    )
+    (row,) = clean
+    assert row["run.branch"] == "main" and row["run.dirty"] is False
+    assert row["run.code"] == row["run.commit"][:7]
+    dirty = ask(
+        {
+            "runs": {
+                "from": "realistic/egnn-bench",
+                "where": {"run.dirty": True},
+                "select": ["run.branch", "run.code"],
+                "limit": 10,
+            }
+        }
+    )
+    rows = table(dirty)
+    assert rows and all(r["run.branch"] == "feature/egnn" for r in rows)
+    # the generator's synth runs predate diff_sha, so an old dirty run's code is unknown.
+    assert all(r["run.code"] is None for r in rows)
+
+
+def test_code_fields_read_a_real_run_without_them(golden: Path) -> None:
+    """A real-format ``_run.json`` written before ``diff_sha`` and ``untracked`` still reads."""
+    a = run(
+        {
+            "runs": {
+                "from": "scaling/lr-sweep/20261024-101532-k3m9xq2a",
+                "select": ["run.branch", "run.dirty", "run.code"],
+            }
+        },
+        logdir=golden,
+    )
+    (row,) = table(a)
+    assert row["run.branch"] == "master" and row["run.dirty"] is True and row["run.code"] is None
+
+
 def test_derived_lost_status_and_globs(ask, roles) -> None:
     """A running run with a stale heartbeat is lost; glob matches names."""
     lost = ask({"runs": {"from": ".", "where": {"run.status": "lost"}, "select": ["run.id"]}})

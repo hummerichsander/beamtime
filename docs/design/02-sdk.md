@@ -248,7 +248,10 @@ descriptions are rendered. Ctrl-C's `reason: "interrupted"` is shown the same wa
 Written once at `init`:
 
 - `_run.json`: host, user, Python, command line, working directory, git commit, branch, dirty flag,
-  remote, and the job scheduler if one is detected.
+  untracked paths (up to 50), `diff_sha` (the first 8 hex of the sha256 of the diff plus the
+  untracked list, so the same changes compare equal; `None` on a clean checkout), remote, and the
+  job scheduler if one is detected. An untracked file counts as dirty too, since `git diff` never
+  shows it.
 - `_env/git.diff`: uncommitted changes to tracked files (capped at 1 MB).
 - `_env/packages.txt`: installed distributions from `importlib.metadata`, without a subprocess.
 - The hardware in `host`: CPU model and logical cores, total memory, GPUs (name, memory, driver)
@@ -372,6 +375,8 @@ libraries are imported inside the functions that need them.
 - PyTorch Lightning is supported natively through `BeamtimeLogger`.
 - The SDK logs data, never charts.
 - Notes are written with the CLI or MCP ([layer 8](08-cli-mcp.md)), not the SDK.
+- An untracked file counts as dirty too; `diff_sha` hashes the diff and the untracked list, so
+  `run.code` ([layer 3](03-index.md#fields)) is one comparable identity across runs and checkouts.
 
 ## Later
 

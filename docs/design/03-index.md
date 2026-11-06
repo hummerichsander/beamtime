@@ -214,7 +214,7 @@ Every value a query can filter, sort or show is a **field**, a dotted path with 
 
 | Namespace | Example | Source |
 |---|---|---|
-| `run.` | `run.id`, `run.name`, `run.status`, `run.created_at`, `run.duration_s`, `run.steps`, `run.tags`, `run.path` | `_run.json`, run card |
+| `run.` | `run.id`, `run.name`, `run.status`, `run.created_at`, `run.duration_s`, `run.steps`, `run.tags`, `run.path`, `run.commit`, `run.branch`, `run.dirty`, `run.code` | `_run.json`, run card |
 | `config.` | `config.optimizer.lr` | `_config.json` |
 | `metric.` | `metric.val/acc.max`, `metric.train/loss.ema_last` | run card statistics |
 | `value.` | `value.test/acc` | explicit run card values |
@@ -225,6 +225,13 @@ so keys containing dots (`metric.layer.0.grad.max`) stay unambiguous. The statis
 card's: `first`, `last`, `ema_last`, `min`, `min_step`, `max`, `max_step`, `mean`, `count`,
 `last_step`, `nonfinite`, `slope_last10pct`. A config key that itself contains a dot is quoted:
 `config["a.b"]`.
+
+**`run.code`** is one comparable identity for the code a run ran on: the short commit, plus the
+short diff hash (`run.dirty`'s `diff_sha`) when the checkout was dirty (`f385eda+1a2b3c4d`), so the
+same commit and the same uncommitted changes compare equal across runs and checkouts. It is `null`
+without a git checkout, or on a dirty run recorded before `diff_sha` existed. `keys` lists a
+group's distinct codes by count (only when they differ: a single version isn't a fact worth
+showing), and `check` adds a note to a proposal when its members didn't all run on the same code.
 
 **Windowed statistics** are computed exactly from the column files, with a step window appended:
 `metric.val/acc.mean[1000:2000]`. They support `first`, `last`, `min`, `max`, `mean` and `count`.

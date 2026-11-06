@@ -289,6 +289,7 @@ def run_proposals(index: Index, run_dir: Path, recorded: dict[str, str]) -> list
                 "check": check["result"],
                 "provisional": check.get("provisional"),
                 "verdict": verdict.get("overall") if verdict else None,
+                "note": check.get("note"),
             }
         )
     return out
