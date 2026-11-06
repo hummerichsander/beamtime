@@ -1,4 +1,7 @@
 import json
+import os
+import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -421,3 +424,38 @@ def test_resume_warns_about_a_relative_dirpath_in_the_config(ctx: Context) -> No
     answer = call("cp", {"source": source.name, "dest": "proj/b"}, ctx)
     resumed = call("resume", {"run": answer["id"]}, ctx)
     assert "where the source's are" in resumed["warning"]
+
+
+def test_a_copy_has_the_same_curves(ctx: Context) -> None:
+    """Curves read from a copy are the source's."""
+    make_run(ctx.logdir, "proj/a")
+    call("cp", {"source": "proj/a", "dest": "proj/b", "name": "a"}, ctx)
+    source = call("series", {"from": "proj/a", "y": ["x"]}, ctx)["curves"]
+    copy = call("series", {"from": "proj/b/a", "y": ["x"]}, ctx)["curves"]
+    assert [(c["x"], c["y"]) for c in copy] == [(c["x"], c["y"]) for c in source]
+
+
+def test_a_copy_counts_for_the_destination_s_check_only(ctx: Context) -> None:
+    """The copy is a member of the destination's proposal, and not of its old group's."""
+    call("proposal set", {"group": "proj/source", "proposal": {"statement": "Old claim."}}, ctx)
+    call("proposal set", {"group": "proj/dest", "proposal": {"statement": "New claim."}}, ctx)
+    old = call("proposal show", {"group": "proj/source"}, ctx)["version"]
+    source = make_run(ctx.logdir, "proj/source", proposals={"proj/source": old})
+    call("cp", {"source": source.name, "dest": "proj/dest"}, ctx)
+    assert call("check", {"group": "proj/dest"}, ctx)["progress"]["done"] == 1
+    assert call("check", {"group": "proj/source"}, ctx)["progress"]["done"] == 1
+
+
+def test_resuming_a_copy_continues_the_copy(ctx: Context) -> None:
+    """``BEAMTIME_RESUME`` with a copy's id adds an attempt to the copy, not to its source."""
+    source = make_run(ctx.logdir, "proj/a", status="killed")
+    copy = ctx.logdir / call("cp", {"source": source.name, "dest": "proj/b"}, ctx)["path"]
+    code = "import beamtime\nr = beamtime.init()\nr.log({'x': 3.0}, step=2)\nr.finish()\n"
+    environ = {k: v for k, v in os.environ.items() if not k.startswith(("BEAMTIME_", "SLURM_"))}
+    environ |= {"BEAMTIME_LOGDIR": str(ctx.logdir), "BEAMTIME_RESUME": copy.name}
+    proc = subprocess.run(
+        [sys.executable, "-c", code], env=environ, cwd=ctx.logdir, capture_output=True, timeout=60
+    )
+    assert proc.returncode == 0, proc.stderr.decode()
+    assert [a.resume_step for a in read_run_info(copy).attempts] == [None, 2]
+    assert len(read_run_info(source).attempts) == 1 and read_run_info(source).status == "killed"

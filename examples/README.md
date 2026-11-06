@@ -1,7 +1,7 @@
 # Examples
 
 `train_toy.py` logs like a training script without training anything; `slurm_toy.sh` runs it as a
-SLURM array job.
+SLURM array job. `train_lightning.py` and `slurm_lightning.sh` do the same with Lightning.
 
 ## Local checks
 
@@ -32,5 +32,9 @@ unfinished run from it. `beamtime resume <run>` prints the recorded command, cwd
 run that didn't auto-resume (e.g. one killed by `SIGKILL` or an out-of-memory node), for an `sbatch`
 call by hand.
 
-A Lightning job resumes the same way: `BeamtimeLogger(key=...)` is passed on to `init`, and
-`Trainer.fit(ckpt_path="last")` picks the checkpoint back up once the requeued task reuses the run.
+A Lightning job resumes the same way, with Lightning doing the requeue: `slurm_lightning.sh` runs
+`train_lightning.py` (needs `lightning` and `torch`) with `--signal=USR1@120`. Lightning's handler
+saves a checkpoint and calls `scontrol requeue`; the requeued job's `BeamtimeLogger` continues the
+same run, and `fit(ckpt_path="last")` restores `<run>/checkpoints/last.ckpt`. Expect one run in
+`slurm-lightning/` with several `attempt_started` events, a `killed` (`reason: time_limit`) before
+each requeue, `Restoring states from the checkpoint` in the job's output, and status `finished`.

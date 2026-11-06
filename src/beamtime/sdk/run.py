@@ -40,6 +40,8 @@ PENDING_CAP = 64 * 1024 * 1024
 COPY_BELOW = 100 * 1024 * 1024
 RANK_WAIT_S = 120.0
 RANK_RECENT_S = 600.0
+# per chained signal: Beamtime's handler and the one it replaced, so it can be given back.
+CHAINED: dict[int, tuple[Any, Any]] = {}
 
 _current: "Run | None" = None
 
@@ -825,6 +827,20 @@ def chain_signal(sig: signal.Signals) -> None:
             handling = False
 
     signal.signal(sig, handler)
+    CHAINED[sig] = (handler, previous)
+
+
+def release_signal(sig: signal.Signals) -> None:
+    """Give a signal back to the handler it had before Beamtime's, if Beamtime's is still set.
+
+    For a framework that installs its handler only where none exists, as Lightning does for
+    its SLURM auto-requeue on ``SIGUSR1``.
+
+    :param sig: The signal."""
+    if (pair := CHAINED.get(sig)) is not None and signal.getsignal(sig) is pair[0]:
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(sig, pair[1])
+            del CHAINED[sig]
 
 
 def in_notebook() -> bool:
@@ -917,21 +933,19 @@ def resume_by_key(folder: Path, key: str) -> tuple[str, dict[str, Any], float] |
     return info.get("id", d.name), info, beat
 
 
-def resume_candidates(folder: Path, job_key: str | None, name: str | None) -> list[str]:
-    """Find a folder's unfinished runs from the same job launch.
+def job_runs(folder: Path, job_key: str | None, name: str | None) -> list[tuple[str, str]]:
+    """Find a folder's runs from the same job launch, whatever their status.
 
     :param folder: The folder rank 0 creates its runs in.
     :param job_key: The current launch's job key.
     :param name: The run name this call asked for, or ``None`` to not filter by it.
-    :return: Their ids."""
+    :return: Their ids and statuses."""
     if job_key is None:
         return []
     return [
-        info.get("id", d.name)
+        (info.get("id", d.name), info.get("status"))
         for d, info, _ in scan_runs(folder)
-        if info.get("job_key") == job_key
-        and info.get("status") in UNFINISHED
-        and (name is None or info.get("name") == name)
+        if info.get("job_key") == job_key and (name is None or info.get("name") == name)
     ]
 
 
@@ -971,15 +985,16 @@ def resolve_resume(
                 return run_id, None
             return None, f"the run for key {key!r} already finished; starting a new run"
         if env.requeued(environ):
-            candidates = resume_candidates(location.folder, env.job_key(environ), name)
-            if not candidates:
-                return None, None
-            if len(candidates) > 1:
+            # a job that made several runs here (models one after another) can't say which one
+            # this is, even when only the last is unfinished; only a key or a name can.
+            runs = job_runs(location.folder, env.job_key(environ), name)
+            if len(runs) > 1:
                 return None, (
-                    f"{len(candidates)} unfinished runs match this job; pass key= to tell them "
-                    "apart; starting a new run"
+                    f"{len(runs)} runs of this job are in this folder; pass key= or name= to tell "
+                    "them apart; starting a new run"
                 )
-            return candidates[0], None
+            if runs and runs[0][1] in UNFINISHED:
+                return runs[0][0], None
     except Exception:
         return None, "could not resolve resume; starting a new run"
     return None, None

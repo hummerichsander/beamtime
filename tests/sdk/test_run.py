@@ -370,8 +370,50 @@ def test_requeue_ambiguous_candidates_start_a_new_run(script: Script, logdir: Pa
     # not the lexicographically greatest: two runs can share a second's timestamp.
     (new,) = (d for d in runs if d.name not in before)
     warning = next(e for e in read_events(new) if e.kind == "warning")
-    assert "unfinished runs match this job" in warning.message
+    assert "runs of this job are in this folder" in warning.message
     assert read_run_info(new).attempts[0].resume_step is None
+
+
+def test_requeue_after_a_finished_model_does_not_take_the_next_one(
+    script: Script, logdir: Path
+) -> None:
+    """A job that trained a model to the end and was killed in the next doesn't know which one
+    a requeue's first ``init`` is; it starts a new run instead of continuing the wrong one."""
+    env = {"SLURM_JOB_ID": "502"}
+    script('import beamtime\nr = beamtime.init()\nr.log({"x": 1})\nr.finish()\n', env=env)
+    script(
+        'import beamtime\nr = beamtime.init()\nr.log({"x": 1})\n'
+        'r.end("killed", exit={"signal": "SIGTERM"})\n',
+        env=env,
+    )
+    before = {d.name for d in iter_runs(logdir)}
+    proc = script(
+        'import beamtime\nr = beamtime.init()\nr.log({"x": 2})\nr.finish()\n',
+        env=env | {"SLURM_RESTART_COUNT": "1"},
+    )
+    assert proc.returncode == 0, proc.stderr.decode()
+    (new,) = (d for d in iter_runs(logdir) if d.name not in before)
+    warning = next(e for e in read_events(new) if e.kind == "warning")
+    assert "key=" in warning.message
+
+
+def test_requeue_with_names_continues_the_named_model(script: Script, logdir: Path) -> None:
+    """With a name per model, a requeue finds its own model's run among the job's runs."""
+    env = {"SLURM_JOB_ID": "503"}
+    script('import beamtime\nr = beamtime.init(name="a")\nr.log({"x": 1})\nr.finish()\n', env=env)
+    script(
+        'import beamtime\nr = beamtime.init(name="b")\nr.log({"x": 1})\n'
+        'r.end("killed", exit={"signal": "SIGTERM"})\nprint(r.id)\n',
+        env=env,
+    )
+    killed = next(d for d in iter_runs(logdir) if read_run_info(d).name == "b")
+    proc = script(
+        'import beamtime\nr = beamtime.init(name="b")\nr.log({"x": 2})\nr.finish()\n',
+        env=env | {"SLURM_RESTART_COUNT": "1"},
+    )
+    assert proc.returncode == 0, proc.stderr.decode()
+    assert len(list(iter_runs(logdir))) == 2
+    assert [a.resume_step for a in read_run_info(killed).attempts] == [None, 1]
 
 
 def test_broken_run_json_does_not_stop_resolution(script: Script, logdir: Path) -> None:

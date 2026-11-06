@@ -199,12 +199,14 @@ first can never raise, since starting the experiment must never be at the mercy 
    `lost`) is another process writing it, so it gets a new run with a warning instead: one writer per
    run. The exception is a requeue of that run's own job, which may find its killed attempt still
    marked `running`.
-3. **Requeue** (automatic): `SLURM_RESTART_COUNT > 0` and **exactly one** `running` or `killed` run
-   in this folder shares the launch's `job_key` and this call's `name` (name only filters when
-   given). Several candidates → a new run, with a warning naming `key` as the way to tell them
-   apart. `find_by_job_key` (how other ranks find rank 0's run) keeps its own recency window, on
-   the heartbeat rather than `created_at`, since a requeued rank 0 continues a run created hours
-   before.
+3. **Requeue** (automatic): `SLURM_RESTART_COUNT > 0` and **exactly one** run in this folder, of
+   any status, shares the launch's `job_key` and this call's `name` (name only filters when given),
+   and it is `running` or `killed` → continue. Counting finished runs too matters: a job that
+   trained model A to the end and was killed in model B would otherwise hand B's run to the
+   requeue's first `init`, which is A's. Several runs → a new run, with a warning naming `key` or
+   `name` as the way to tell them apart. `find_by_job_key` (how other ranks find rank 0's run)
+   keeps its own recency window, on the heartbeat rather than `created_at`, since a requeued rank 0
+   continues a run created hours before.
 4. **New** (nothing above matched): a fresh id.
 
 A broken `_run.json` elsewhere in the folder, a run found by key or requeue that can't be reopened
@@ -339,12 +341,15 @@ rank; the rank rule makes that safe, and output before `fit` is captured too.
 - **Validation and training share steps**: equal steps are allowed.
 - **Checkpointing follows Lightning's rules**: without a `dirpath`, checkpoints go to
   `<run>/checkpoints/`; an explicit `dirpath` wins.
-- **SLURM requeue**: Lightning's `SLURMEnvironment(auto_requeue=True)` handles `SIGUSR1`; Beamtime
-  records `requeue_requested`, and the following `SIGTERM` sets `killed` (reason `time_limit` when it
-  arrives near the job's end time). The requeued job continues the same run automatically
+- **SLURM requeue**: Lightning's `SLURMEnvironment(auto_requeue=True)` handles `SIGUSR1`: it saves
+  an HPC checkpoint and calls `scontrol requeue`. Lightning installs that handler only where
+  `SIGUSR1` has none, so `BeamtimeLogger` gives `SIGUSR1` back to its earlier handler right after
+  `init`; Lightning's requeue therefore records no `requeue_requested`. The `SIGTERM` the requeue
+  sends sets `killed` (reason `time_limit` when it arrives near the job's end time). The requeued job continues the same run automatically
   ([Resume](#resume)); pass `key=` to tell several models of one job apart. Lightning resumes
   training itself from `ckpt_path="last"`; Beamtime only needs to find the same run, not the
-  checkpoint. The handler composition is covered by the Lightning version matrix in the tests.
+  checkpoint. The handler composition is covered by the Lightning tests (`SIGUSR1` under a faked
+  SLURM environment).
 
 ## Module layout
 

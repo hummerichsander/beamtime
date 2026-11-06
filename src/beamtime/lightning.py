@@ -1,6 +1,7 @@
 """PyTorch Lightning integration: ``BeamtimeLogger``."""
 
 import argparse
+import signal
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,7 @@ except ImportError:
     from pytorch_lightning.loggers.logger import Logger, rank_zero_experiment
     from pytorch_lightning.utilities import rank_zero_only
 
-from beamtime.sdk.run import NullRun, Run, init
+from beamtime.sdk.run import NullRun, Run, init, release_signal
 
 
 class BeamtimeLogger(Logger):
@@ -24,6 +25,9 @@ class BeamtimeLogger(Logger):
         super().__init__()
         self.run: Run | NullRun = init(**kwargs)
         self.checkpoints: set[str] = set()
+        # Lightning sets its SLURM auto-requeue handler only if SIGUSR1 has none yet.
+        if hasattr(signal, "SIGUSR1"):
+            release_signal(signal.SIGUSR1)
 
     @property
     @rank_zero_experiment
