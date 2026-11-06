@@ -17,9 +17,13 @@ Tools are named as over MCP (`view_new`); on the command line the same operation
    current view, or `--from sweep|ablation|run|direction|custom` (filled with the group's keys).
    Edit the file with your own tools.
 4. `view_validate <draft>` until no errors remain. It runs every block's queries, so field and key
-   names are checked against the real data, with suggestions.
-5. `view_render <draft>`, answer the checklist (`guide checklist`) for every block, fix, render
-   again: at most two rounds.
+   names are checked against the real data, with suggestions; where a browser is installed it
+   already renders once and returns the same layout findings as `view_render`, just without an
+   image, so checking stays this cheap however many rounds it takes.
+5. `view_render <draft>` to look at the page: answer the checklist (`guide checklist`) for every
+   block, fix, render again: at most two rounds. A page taller than 2,520 px comes back clipped
+   there; `cut` names the blocks below it, and `view_render <draft> --block <id>` shows one of
+   them.
 6. `view_save <draft> --message "..."`. The page shows it at once; older versions stay.
 
 ## Library blocks

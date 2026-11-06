@@ -63,7 +63,7 @@ def test_every_widget_renders_cleanly(browser_ok, ctx: Context, project: Path) -
     shot = Path(answer["shots"][0]["file"])
     assert shot.is_file() and shot.stat().st_size > 20_000
     one = call("view render", {"draft": "all", "block": "bar-metric-val-acc-max"}, ctx)
-    assert Path(one["shots"][0]["file"]).name == "bar-metric-val-acc-max-light.png"
+    assert Path(one["shots"][0]["file"]).name == "bar-metric-val-acc-max-light.jpg"
     assert call("view validate", {"draft": "all"}, ctx)["render"]["rendered"]
 
 
@@ -121,3 +121,57 @@ def test_block_examples_render(browser_ok, ctx: Context, project: Path) -> None:
     (project / ".beamtime" / "drafts" / "blocks" / "phase-map" / "block.yaml").write_text(GENERAL)
     answer = call("block validate", {"draft": "phase-map"}, ctx)
     assert answer["render"]["rendered"] and answer["ok"], answer["findings"]
+
+
+def jpeg_size(path: Path) -> tuple[int, int]:
+    """Read a JPEG's pixel size from its SOF marker, without an imaging library.
+
+    :param path: The JPEG file.
+    :return: ``(width, height)``."""
+    data = path.read_bytes()
+    i = 2
+    while i < len(data):
+        marker = data[i + 1]
+        if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+            height = int.from_bytes(data[i + 5 : i + 7], "big")
+            width = int.from_bytes(data[i + 7 : i + 9], "big")
+            return width, height
+        i += 2 + int.from_bytes(data[i + 2 : i + 4], "big")
+    raise ValueError(f"{path}: no JPEG SOF marker found")
+
+
+def test_a_tall_page_is_capped_and_names_what_fell_below(browser_ok, ctx: Context, project: Path) -> None:
+    """A page taller than the cap is clipped to exactly 1280 x SHOT_HEIGHT; cut names the rest."""
+    body = "\n".join(f"  - line: {{id: c{i}, y: val/acc}}" for i in range(40))
+    draft(ctx, project, "long", f"schema: 1\nfinding: x\nbody:\n{body}\n")
+    answer = call("view render", {"draft": "long"}, ctx)
+    assert answer["rendered"], answer
+    file = Path(answer["shots"][0]["file"])
+    assert file.suffix == ".jpg"
+    assert jpeg_size(file) == (1280, render.SHOT_HEIGHT)
+    cut = answer["cut"]
+    assert cut["shown_height"] == render.SHOT_HEIGHT and cut["page_height"] > render.SHOT_HEIGHT
+    assert cut["blocks_below"], cut
+    assert any("the page is" in line and "below it" in line for line in answer["lines"])
+
+    one = cut["blocks_below"][0]
+    below = call("view render", {"draft": "long", "block": one}, ctx)
+    assert below["shots"][0]["block"] == one and Path(below["shots"][0]["file"]).is_file()
+    assert "cut" not in below
+
+
+def test_a_short_page_has_no_cut(browser_ok, ctx: Context, project: Path) -> None:
+    """A page within the cap gets its full height, with no cut key at all."""
+    draft(ctx, project, "short", "schema: 1\nfinding: x\nbody:\n  - line: {y: val/acc}\n")
+    answer = call("view render", {"draft": "short"}, ctx)
+    assert answer["rendered"] and "cut" not in answer
+    width, height = jpeg_size(Path(answer["shots"][0]["file"]))
+    assert width == 1280 and height < render.SHOT_HEIGHT
+
+
+def test_render_page_stays_full_height_and_uncapped(browser_ok, ctx: Context, tmp_path: Path) -> None:
+    """The view-task harness's judge keeps a full-page PNG: it must see every block to score it."""
+    shot = tmp_path / "page.png"
+    answer = render.render_page(ctx, SWEEP, shot)
+    assert answer["rendered"] and "cut" not in answer
+    assert shot.is_file() and shot.read_bytes().startswith(b"\x89PNG")

@@ -1,6 +1,7 @@
 """The MCP server: the operations as tools over stdio, plus prompts."""
 
 import json
+import mimetypes
 from pathlib import Path
 from typing import Any
 
@@ -258,7 +259,8 @@ def content(answer: dict[str, Any]) -> list[Any]:
     for shot in answer.get("shots") or []:
         if shot.get("file") and Path(shot["file"]).is_file():
             data = base64.b64encode(Path(shot["file"]).read_bytes()).decode()
-            images.append(types.ImageContent(data=data, mime_type="image/png"))
+            mime = mimetypes.guess_type(shot["file"])[0] or "image/png"
+            images.append(types.ImageContent(data=data, mime_type=mime))
     text = json.dumps(answer, separators=(",", ":"), default=str)
     return [types.TextContent(text=text), *images]
 

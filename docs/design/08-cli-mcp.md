@@ -64,7 +64,7 @@ wherever a group does.
 |---|---|---|
 | `beamtime view new <group> [--from <example>] [--name <draft>]` | `view_new` | starts a draft in `.beamtime/drafts/<name>/` |
 | `beamtime view validate <draft>` | `view_validate` | validation ([layer 5](05-views.md#validation)) |
-| `beamtime view render <draft> [--block <id>] [--theme light\|dark] [--width <px>]` | `view_render` | screenshots (PNG files in the CLI, images in MCP) |
+| `beamtime view render <draft> [--block <id>] [--theme light\|dark] [--width <px>]` | `view_render` | screenshots (JPEG files in the CLI, images in MCP); a page shot is capped to 2,520 px tall, with `cut` naming what fell below it |
 | `beamtime view save <draft> [--message <text>]` | `view_save` | saves a new view version; refuses a draft with errors |
 | `beamtime view show <group> [--version <v>]` | `view_show` | the current view's YAML, pins and version |
 | `beamtime view history <group>` | `view_history` | the version list |
@@ -151,7 +151,10 @@ The tools are the operations above, without the user-only commands: about 35 sma
   lives in `guide`, loaded on demand. All tool definitions together stay under about 6k tokens.
 - **Writes take `author`**, the model id.
 - **`view_render` returns images** scaled to about 1280 px wide, one for the page and one per block
-  on request.
+  on request. A page taller than `SHOT_HEIGHT` is clipped there, not shrunk: height, not width, is
+  what costs visual tokens. `cut` ({page_height, shown_height, blocks_below}) names what fell
+  below, so an agent calling `view_render --block <id>` for one of them knows it is looking at a
+  block it hadn't already seen.
 - **`data` returns images as references** and loads them only when asked, as thumbnails first.
 
 ### Prompts

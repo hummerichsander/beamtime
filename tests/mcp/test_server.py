@@ -16,7 +16,19 @@ pytest.importorskip("mcp")
 from mcp.client.session import ClientSession  # noqa: E402
 from mcp.client.stdio import StdioServerParameters, stdio_client  # noqa: E402
 
+from beamtime.mcp.server import content  # noqa: E402
+
 BEAMTIME = Path(sys.executable).parent / ("beamtime.exe" if sys.platform == "win32" else "beamtime")
+
+
+def test_content_names_each_shots_mime_type_from_its_file(tmp_path: Path) -> None:
+    """A render's images get the mime type their own file names, not a fixed image/png."""
+    jpg, png = tmp_path / "page-light.jpg", tmp_path / "block-light.png"
+    jpg.write_bytes(b"\xff\xd8\xff")
+    png.write_bytes(b"\x89PNG\r\n\x1a\n")
+    answer = {"shots": [{"file": str(jpg), "block": None}, {"file": str(png), "block": "b"}]}
+    _, *images = content(answer)
+    assert [i.mime_type for i in images] == ["image/jpeg", "image/png"]
 
 
 @pytest.fixture(scope="module")

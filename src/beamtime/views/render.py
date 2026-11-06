@@ -22,6 +22,9 @@ TIME_LIMIT_S = 15
 INSTALL = "uv run playwright install chromium"
 SETTLED = """() => typeof window.__btBusy === "function" && window.__btBusy() === 0
   && !document.querySelector(".skeleton") && !!document.querySelector(".view .node")"""
+# 46 x 90 px patches at the default width: 4,140 visual tokens, inside Claude's newer limits.
+SHOT_HEIGHT = 2520
+JPEG_QUALITY = 75
 
 
 def render_draft(
@@ -51,7 +54,10 @@ def render_draft(
 def render_page(
     ctx: Context, path: str, file: Path, *, theme: str = "light", width: int = 1280
 ) -> dict[str, Any]:
-    """Render a page's saved view once and screenshot it.
+    """Render a page's saved view once and screenshot it, full height, uncapped.
+
+    Unlike ``render_draft``, this never cuts the shot: its only caller is the view-task
+    harness's judge, which must see every block to score the page fairly.
 
     :param ctx: The operation context.
     :param path: The group or run path.
@@ -61,10 +67,10 @@ def render_page(
     :return: ``{rendered, findings, shots}``, or ``{rendered: False, reason, command}``."""
     rel = "/".join(quote(part) for part in path.split("/")) if path != "." else ""
 
-    def shoot(page: Any) -> list[dict[str, Any]]:
+    def shoot(page: Any) -> tuple[list[dict[str, Any]], None]:
         file.parent.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(file), full_page=True)
-        return [{"file": str(file), "block": None}]
+        return [{"file": str(file), "block": None}], None
 
     url = f"/f/local/{rel}?render=1&theme={theme}"
     return rendered(ctx, url, theme=theme, width=width, shoot=shoot)
@@ -76,7 +82,7 @@ def rendered(
     *,
     theme: str,
     width: int,
-    shoot: Callable[[Any], list[dict[str, Any]]] | None,
+    shoot: Callable[[Any], tuple[list[dict[str, Any]], dict[str, Any] | None]] | None,
 ) -> dict[str, Any]:
     """Open a page in an installed browser: its findings, and its screenshots if asked.
 
@@ -84,8 +90,9 @@ def rendered(
     :param url: The page's URL path with its query.
     :param theme: ``light`` or ``dark``.
     :param width: The page width in CSS pixels.
-    :param shoot: Takes the screenshots of the settled page, if any.
-    :return: ``{rendered, findings, shots}``, or ``{rendered: False, reason, command}``."""
+    :param shoot: Takes the settled page to its screenshots and what a page shot cut, if any.
+    :return: ``{rendered, findings, shots}``, plus ``cut`` if a page shot was capped, or
+        ``{rendered: False, reason, command}``."""
     try:
         from playwright.sync_api import Error, sync_playwright
     except ImportError:
@@ -113,7 +120,9 @@ def rendered(
             out["rendered"] = True
             findings += page.evaluate(files(__package__).joinpath("checks.js").read_text())
             if shoot is not None:
-                out["shots"] = shoot(page)
+                out["shots"], cut = shoot(page)
+                if cut is not None:
+                    out["cut"] = cut
         except Error as e:
             findings.append(error(f"the render failed: {e}"))
         finally:
@@ -139,27 +148,53 @@ def settle(page: Any) -> bool:
     return True
 
 
-def screenshots(ctx: Context, page: Any, d: Draft, block: str | None, theme: str) -> list[dict]:
+def screenshots(
+    ctx: Context, page: Any, d: Draft, block: str | None, theme: str
+) -> tuple[list[dict], dict[str, Any] | None]:
     """Write the page's (or one block's) screenshot into ``.beamtime/renders/<draft>/``.
+
+    A page shot is capped at ``SHOT_HEIGHT``: height is what costs visual tokens, and a tall page
+    makes an agent judge blocks it never saw. A block shot is never cut; it is already one block.
 
     :param ctx: The operation context.
     :param page: The settled page.
     :param d: The draft.
     :param block: One block's id, or ``None`` for the page.
     :param theme: The theme, part of the file name.
-    :return: ``{file, block}`` per screenshot."""
+    :return: ``{file, block}`` per screenshot, and what the page shot cut, if anything."""
     folder = d.dir.parent.parent / "renders" / d.name
     folder.mkdir(parents=True, exist_ok=True)
     if block is not None:
         target = page.locator(f'[data-block-id="{block}"]')
         if not target.count():
-            return [{"file": None, "block": block, "error": f"no block {block!r} in the draft"}]
-        file = folder / f"{block}-{theme}.png"
-        target.first.screenshot(path=str(file))
-        return [{"file": str(file), "block": block}]
-    file = folder / f"page-{theme}.png"
-    page.screenshot(path=str(file), full_page=True)
-    return [{"file": str(file), "block": None}]
+            shot = {"file": None, "block": block, "error": f"no block {block!r} in the draft"}
+            return [shot], None
+        file = folder / f"{block}-{theme}.jpg"
+        target.first.screenshot(path=str(file), type="jpeg", quality=JPEG_QUALITY)
+        return [{"file": str(file), "block": block}], None
+    file = folder / f"page-{theme}.jpg"
+    full = page.evaluate("document.documentElement.scrollHeight")
+    shown = min(full, SHOT_HEIGHT)
+    cut = None
+    if shown < full:
+        cut = {"page_height": full, "shown_height": shown, "blocks_below": below(page, shown)}
+    clip = {"x": 0, "y": 0, "width": page.viewport_size["width"], "height": shown}
+    page.screenshot(path=str(file), full_page=True, clip=clip, type="jpeg", quality=JPEG_QUALITY)
+    return [{"file": str(file), "block": None}], cut
+
+
+def below(page: Any, shown: int) -> list[str]:
+    """List the ids of blocks lying, even partly, below a screenshot's cut height.
+
+    :param page: The settled page.
+    :param shown: How many pixels of the page the screenshot shows.
+    :return: Block ids, in the page's top-to-bottom order."""
+    return page.evaluate(
+        """(shown) => [...document.querySelectorAll("[data-block-id]")]
+          .filter((el) => el.getBoundingClientRect().bottom + window.scrollY > shown)
+          .map((el) => el.dataset.blockId)""",
+        shown,
+    )
 
 
 def launch(p: Any) -> Any:

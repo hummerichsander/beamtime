@@ -218,6 +218,12 @@ def render(ctx: Context, p: r.ViewRenderParams) -> dict[str, Any]:
         lines.append(f"not rendered: {result.get('reason')}")
     if result.get("rendered"):
         lines += summary(result.get("findings", []), None)
+    if cut := result.get("cut"):
+        below = ", ".join(cut["blocks_below"])
+        lines.append(
+            f"the page is {cut['page_height']} px; the shot shows the top {cut['shown_height']}; "
+            f"below it: {below}; `view render {d.name} --block <id>` shows one"
+        )
     return {
         "kind": "view render",
         "draft": d.name,

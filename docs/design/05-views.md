@@ -548,7 +548,7 @@ The loop is available as MCP tools and CLI commands ([layer 8](08-cli-mcp.md)):
 | `keys`, `guide` | `beamtime keys`, `beamtime guide` | what exists in the group; the design guide |
 | `view_new` | `beamtime view new <group> [--from <example>] [--name <draft>]` | starts a draft: from an example, else from the group's current view (its own, or the built-in default written out as YAML) |
 | `view_validate` | `beamtime view validate <draft>` | structured findings: error or warning, block id, location, suggested fix |
-| `view_render` | `beamtime view render <draft>` | screenshots of the page and of each block; MCP returns images, the CLI writes PNGs |
+| `view_render` | `beamtime view render <draft>` | screenshots of the page and of each block as JPEG, the page capped to 2,520 px tall and the rest named in `cut`; the CLI writes the files, MCP returns images |
 | `view_save` | `beamtime view save <draft>` | writes the draft as a new version into `view/` |
 
 1. Read `keys` and `guide`; check the library.
@@ -797,7 +797,12 @@ Decided while building views (milestone M6):
 - **The renderer** is a client of `serve`: it serves the project on a free local port with a fresh
   token for the call and opens the draft with `?render=1` (the view without the shell, no live
   updates). It waits until no API call or chart build is pending, then measures the layout in the
-  page. Screenshots go to `.beamtime/renders/<draft>/`; over MCP they return as images.
+  page. Screenshots go to `.beamtime/renders/<draft>/`; over MCP they return as images. They are
+  JPEG (quality 75: readable at a fraction of PNG's bytes on a real page); a page shot is clipped
+  to at most `SHOT_HEIGHT` (2,520 px) tall, since height is what costs an agent's visual tokens, and
+  the answer's `cut` names the blocks that fall below it, so an agent never judges what it never
+  saw. A block shot is never cut. `beamtime view render <draft> --block <id>` shows one block that
+  was cut off. `render_page` (the view-task harness's judge) stays full height and uncapped.
 - **Drawn charts**: `scatter`, `bar` and `histogram` draw their marks on uPlot's axes and grid
   (a draw hook), with the same tooltips, hover highlight and PNG export as `line`.
 
