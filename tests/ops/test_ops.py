@@ -244,6 +244,19 @@ def test_source_add_to_the_project(ctx: Context, project: Path) -> None:
     assert load(project).get("remotes")["box"]["host"] == "h"
 
 
+def test_source_add_keeps_the_file_and_checks_the_path(ctx: Context, project: Path) -> None:
+    """Adding a remote to ``beamtime.yaml`` keeps its comments; a path that isn't absolute is
+    refused."""
+    (project / "beamtime.yaml").write_text("schema: 1\n# our cluster setup\nlogdir: beamtime\n")
+    call("source add", {"name": "box", "remote": "h:/p", "command": "bt", "project": True}, ctx)
+    text = (project / "beamtime.yaml").read_text()
+    assert "# our cluster setup" in text and "logdir: beamtime" in text
+    call("source rm", {"name": "box"}, ctx)
+    assert "# our cluster setup" in (project / "beamtime.yaml").read_text()
+    with pytest.raises(OpError, match="absolute"):
+        call("source add", {"name": "x", "remote": "h:relative", "command": "bt"}, ctx)
+
+
 def test_mcp_install_for_cursor(ctx: Context, project: Path) -> None:
     """Cursor's project config gets an entry that names the project root."""
     call("mcp install", {"client": "cursor"}, ctx)

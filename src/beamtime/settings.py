@@ -184,13 +184,23 @@ def write_project(root: Path, key: str, value: Any) -> Path:
     :param key: The setting, one of ``SETTABLE``.
     :param value: Its value.
     :return: The file."""
+    return write_key(root / "beamtime.yaml", key, value)
+
+
+def write_key(path: Path, key: str, value: Any) -> Path:
+    """Set one top-level setting in a settings file, keeping the rest as written.
+
+    :param path: The settings file (user or project), created if missing.
+    :param key: The setting.
+    :param value: Its value.
+    :return: The file."""
     import re
 
     import yaml
 
     from beamtime.format.io import write_bytes_replaced
 
-    path = root / "beamtime.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
     text = path.read_text() if path.is_file() else "schema: 1\n"
     # flow style keeps a list on one line ([science, nature]); dumping it inside a list leaves the
     # value without YAML's document end marker.
@@ -216,7 +226,7 @@ def write_project(root: Path, key: str, value: Any) -> Path:
 
 
 def write_remote(path: Path, name: str, conf: dict[str, Any]) -> Path:
-    """Add or update one remote in a settings file, keeping the rest of it as is.
+    """Add or update one remote in a settings file, keeping the rest of it as written.
 
     :param path: The settings file (user or project), created if missing.
     :param name: The remote's name.
@@ -225,34 +235,24 @@ def write_remote(path: Path, name: str, conf: dict[str, Any]) -> Path:
     :return: The file."""
     import yaml
 
-    from beamtime.format.io import write_bytes_replaced
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    data: dict[str, Any] = (yaml.safe_load(path.read_text()) or {}) if path.is_file() else {}
-    data.setdefault("schema", 1)
-    remotes = data.setdefault("remotes", {})
+    data = (yaml.safe_load(path.read_text()) or {}) if path.is_file() else {}
+    remotes = dict(data.get("remotes") or {})
     remotes[name] = {k: v for k, v in conf.items() if v is not None}
-    write_bytes_replaced(path, yaml.safe_dump(data, sort_keys=False, allow_unicode=True).encode())
-    return path
+    return write_key(path, "remotes", remotes)
 
 
 def remove_remote(path: Path, name: str) -> bool:
-    """Remove one remote from a settings file.
+    """Remove one remote from a settings file, keeping the rest of it as written.
 
     :param path: The settings file.
     :param name: The remote's name.
     :return: Whether it was there."""
     import yaml
 
-    from beamtime.format.io import write_bytes_replaced
-
     if not path.is_file():
         return False
-    data = yaml.safe_load(path.read_text()) or {}
-    remotes = data.get("remotes") or {}
-    if name not in remotes:
+    remotes = dict((yaml.safe_load(path.read_text()) or {}).get("remotes") or {})
+    if remotes.pop(name, None) is None:
         return False
-    del remotes[name]
-    data["remotes"] = remotes
-    write_bytes_replaced(path, yaml.safe_dump(data, sort_keys=False, allow_unicode=True).encode())
+    write_key(path, "remotes", remotes)
     return True

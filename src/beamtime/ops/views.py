@@ -252,7 +252,33 @@ def bundle(d: store.Draft) -> dict[str, Any]:
         source = d.dir / ref
         if source.is_file():
             files[ref] = base64.b64encode(source.read_bytes()).decode()
+    check_size(text, files)
     return {"yaml": text, "files": files, "blocks": d.blocks}
+
+
+def check_size(yaml_text: str, files: dict[str, str]) -> None:
+    """Refuse a bundle above the 16 MB a remote save accepts, before or after it travels.
+
+    :param yaml_text: The ``view.yaml`` text.
+    :param files: File references to their base64 content.
+    :raises OpError: If it is too large."""
+    size = len(yaml_text.encode()) + sum(len(v) for v in files.values()) * 3 // 4
+    if size > BUNDLE_LIMIT:
+        raise OpError(
+            f"the draft is {size / (1 << 20):.1f} MB, over the 16 MB a remote save accepts; "
+            "put large data in the group's own data files instead of the draft's",
+            code=2,
+        )
+
+
+def bundle_group(ctx: Context, group: str) -> str:
+    """Resolve the group a bundle names on this machine, so it can't leave the log dir.
+
+    :param ctx: The operation context.
+    :param group: The group or run, as the other source sent it.
+    :return: Its path relative to the log dir."""
+    with target_of(ctx, group) as target:
+        return target.rel
 
 
 @contextmanager
@@ -272,13 +298,7 @@ def bundled(
     import secrets
     import shutil
 
-    size = len(yaml_text.encode()) + sum(len(v) for v in files.values()) * 3 // 4
-    if size > BUNDLE_LIMIT:
-        raise OpError(
-            f"the draft is {size / (1 << 20):.1f} MB, over the 16 MB a remote save accepts; "
-            "put large data in the group's own data files instead of the draft's",
-            code=2,
-        )
+    check_size(yaml_text, files)
     name = f"bundle-{secrets.token_hex(8)}"
     folder = (store.drafts(ctx) / name).resolve()
     folder.mkdir(parents=True)
@@ -308,7 +328,7 @@ def view_check(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
 
     from beamtime.views.validate import static
 
-    group = str(body["group"])
+    group = bundle_group(ctx, str(body["group"]))
     with bundled(ctx, group, str(body["yaml"]), dict(body.get("files") or {})) as (folder, name):
         data = _yaml.safe_load((folder / store.VIEW_FILE).read_text())
         _, findings = static(
@@ -334,7 +354,7 @@ def view_put(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
 
     from beamtime.views.validate import static
 
-    group = str(body["group"])
+    group = bundle_group(ctx, str(body["group"]))
     with bundled(ctx, group, str(body["yaml"]), dict(body.get("files") or {})) as (folder, name):
         data = _yaml.safe_load((folder / store.VIEW_FILE).read_text())
         view, findings = static(
@@ -374,7 +394,7 @@ def view_compile(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
     from beamtime.views.compile import compile_view
     from beamtime.views.library import Library
 
-    group = str(body["group"])
+    group = bundle_group(ctx, str(body["group"]))
     draft_name = body.get("draft_name")
     blocks = dict(body.get("blocks") or {})
     library = Library(ctx=ctx, path=group, drafts=blocks)
@@ -412,7 +432,7 @@ def view_files(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
     :return: ``{content}``, base64, or ``None`` if there is no such file."""
     import base64
 
-    group, ref = str(body["group"]), str(body["ref"])
+    group, ref = bundle_group(ctx, str(body["group"])), str(body["ref"])
     folder = store.view_dir(ctx, group).resolve()
     file = (folder / ref).resolve()
     if folder not in file.parents or ref.split("/", 1)[0] not in ("data", "code"):
@@ -430,11 +450,9 @@ def fetch_view_file(ctx: Context, path: str, ref: str) -> bytes | None:
     :return: Its content, or ``None`` if there is no such file."""
     import base64
 
-    from beamtime.remote.sources import client_for
+    from beamtime.remote.route import on_source
 
-    source, _, bare = path[1:].partition("/")
-    answer = client_for(ctx, source).request("view_files", {"group": bare or ".", "ref": ref})
-    content = answer.get("content")
+    content = on_source("view_files", path, ctx, {"ref": ref}).get("content")
     return base64.b64decode(content) if content is not None else None
 
 

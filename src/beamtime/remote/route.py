@@ -58,8 +58,11 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
 
     params = strip_local(params)
     source = source_of(params)
-    if source is None and not ctx.has_local and ctx.default_source is not None:
-        source = ctx.default_source
+    fans = method in LISTINGS and ctx.sources is not None and ctx.merge and fans_out(params)
+    if source is None and fans:
+        return federate(method, params, ctx, local)
+    if source is None and (source := ctx.default_source) is not None:
+        params = with_default(method, params, source)
     if source is not None:
         # the draft stays with the agent; the op itself fetches from, or pushes to, the source.
         if method in DRAFTS:
@@ -70,14 +73,26 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
         except Unreachable as e:
             return from_snapshot(method, strip(params, source), ctx, source, e)
         return prefix(answer, source)
-    if method in LISTINGS and ctx.sources is not None and ctx.merge and fans_out(params):
-        return federate(method, params, ctx, local)
     try:
         return local(params)
     except OpError as e:
         if e.code != 4 or ctx.sources is None or (run := run_target(params)) is None:
             raise
         return elsewhere(method, params, ctx, run, e)
+
+
+def with_default(method: str, params: dict[str, Any], source: str) -> dict[str, Any]:
+    """Name the default source in a draft op's group, since the op runs here and decides by the
+    ``@`` prefix where its check and write go.
+
+    :param method: The API method.
+    :param params: Its parameters, without a source.
+    :param source: The default source.
+    :return: The parameters."""
+    if method not in DRAFTS or not isinstance(group := params.get("group"), str):
+        return params
+    bare = group.strip("/")
+    return params | {"group": f"@{source}/{bare}" if bare not in ("", ".") else f"@{source}"}
 
 
 def with_author(method: str, params: dict[str, Any], ctx: Context) -> dict[str, Any]:
@@ -478,8 +493,8 @@ def remote_file(ctx: Context, run: str, rel: str, source: str | None = None) -> 
 
 
 def on_source(method: str, target: str, ctx: Context, body: dict[str, Any]) -> Any:
-    """Send a bundle method (``view_check``, ``view_put`` or ``view_compile``) to the source a
-    group names, and give the answer's paths that source's prefix back.
+    """Send a bundle method (``view_check``, ``view_put``, ``view_compile`` or ``view_files``) to
+    the source a group names, and give the answer's paths that source's prefix back.
 
     :param method: The API-only method.
     :param target: The group the bundle is for, ``@source/bare``.

@@ -374,7 +374,8 @@ def sources(ctx: Context) -> list[dict[str, Any]]:
     connections to.
 
     :param ctx: The operation context.
-    :return: One entry per source: its name, kind (``local`` or ``remote``), state and log dir."""
+    :return: One entry per source: its name, kind (``local`` or ``remote``), state and log dir;
+        for a remote also since when, its last error and its version."""
     out: list[dict[str, Any]] = []
     if ctx.has_local:
         out.append(
@@ -382,12 +383,7 @@ def sources(ctx: Context) -> list[dict[str, Any]]:
         )
     if ctx.sources is not None:
         out += [
-            {
-                "name": f"@{client.name}",
-                "kind": "remote",
-                "state": client.state,
-                "logdir": client.spec.path,
-            }
+            client.describe() | {"kind": "remote", "logdir": client.spec.path}
             for client in ctx.sources.clients.values()
         ]
     return out

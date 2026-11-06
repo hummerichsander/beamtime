@@ -75,6 +75,15 @@ def static(
     return view, findings
 
 
+def inside(folder: Path, ref: str) -> bool:
+    """Tell whether a file reference stays in its folder.
+
+    :param folder: A draft's folder.
+    :param ref: A ``file`` or ``code`` reference.
+    :return: Whether it resolves below the folder."""
+    return folder.resolve() in (folder / ref).resolve().parents
+
+
 def structure(view: m.View, data_dir: Path | None) -> list[Finding]:
     """Check what the schema can't: unique ids, captions, data files, custom blocks.
 
@@ -116,7 +125,9 @@ def structure(view: m.View, data_dir: Path | None) -> list[Finding]:
             case m.DataTable() if (n.key is None) == (n.file is None):
                 out.append(Finding(level="error", **at, message="give either key or file"))
             case m.DataTable() if n.file is not None and data_dir is not None:
-                if not (data_dir / n.file).is_file():
+                if not inside(data_dir, n.file):
+                    out.append(Finding(level="error", **at, message=f"{n.file!r} leaves the draft"))
+                elif not (data_dir / n.file).is_file():
                     out.append(
                         Finding(
                             level="error",
@@ -189,6 +200,8 @@ def custom_checks(n: m.Custom, at: dict[str, Any], data_dir: Path | None) -> lis
             )
     if data_dir is None:
         return out
+    if not inside(data_dir, n.code):
+        return [*out, Finding(level="error", **at, message=f"{n.code!r} leaves the draft")]
     if not (file := data_dir / n.code).is_file():
         missing = Finding(
             level="error", **at, message=f"no code file {n.code!r}", fix=f"put it in {data_dir}"

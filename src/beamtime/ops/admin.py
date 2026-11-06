@@ -312,13 +312,13 @@ def remote_checks(name: str, conf: dict[str, Any]) -> list[tuple[str, bool | Non
     return rows
 
 
-def probe_command(host: str, path: str) -> str:
+def probe_command(host: str, path: str) -> str | None:
     """Find how to start Beamtime on a remote host: on its ``PATH``, else the venv next to the
     project the log dir sits in.
 
     :param host: The ssh host.
     :param path: The remote log dir.
-    :return: The command to run there; ``beamtime`` if neither probe succeeds."""
+    :return: The command to run there; ``None`` if neither probe succeeds."""
     import shlex
     import subprocess
 
@@ -335,7 +335,7 @@ def probe_command(host: str, path: str) -> str:
     venv = f"{path.rstrip('/')}/../.venv/bin/beamtime"
     if ssh(f"test -x {shlex.quote(venv)}").returncode == 0:
         return venv
-    return "beamtime"
+    return None
 
 
 def source_add(ctx: Context, p: r.SourceAddParams) -> dict[str, Any]:
@@ -348,21 +348,18 @@ def source_add(ctx: Context, p: r.SourceAddParams) -> dict[str, Any]:
     from beamtime.settings import load, user_settings_path, write_remote
 
     host, _, path = p.remote.partition(":")
-    if not path:
+    if not host or not path.startswith(("/", "~", "$")):
         raise OpError(f"{p.remote!r}: give host:/absolute/path/to/beamtime", code=2)
     command = p.command or probe_command(host, path)
-    conf = {"host": host, "path": path, "command": command, "cache": p.cache}
+    conf = {"host": host, "path": path, "command": command or "beamtime", "cache": p.cache}
     target = (ctx.root / "beamtime.yaml") if p.project else user_settings_path()
     write_remote(target, p.name, conf)
     ctx.settings = load(ctx.root)
-    return answer(
-        "source add",
-        [
-            f"added @{p.name}: {host}:{path} ({command}) to {target}",
-            "`beamtime serve` picks it up; or `beamtime doctor` checks it first",
-        ],
-        name=p.name,
-    )
+    lines = [f"added @{p.name}: {host}:{path} ({conf['command']}) to {target}"]
+    if command is None:
+        lines.append(f"no beamtime found on {host}; give --command if `beamtime` isn't on its PATH")
+    lines.append("`beamtime serve` picks it up; or `beamtime doctor` checks it first")
+    return answer("source add", lines, name=p.name)
 
 
 def source_list(ctx: Context, p: r.NoParams) -> dict[str, Any]:

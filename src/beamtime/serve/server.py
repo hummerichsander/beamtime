@@ -52,9 +52,7 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
             code=4,
         )
     cache = cache_dir(ctx.logdir)
-    daemon = Daemon(
-        logdir=ctx.logdir, cache=cache, on_change=hub.changed, index=ctx.logdir.is_dir()
-    )
+    daemon = Daemon(logdir=ctx.logdir, cache=cache, on_change=hub.changed)
     sock = None if p.no_ui else bind(p.port)
     daemon.port = None if sock is None else sock.getsockname()[1]
     if not daemon.start():
@@ -68,14 +66,9 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
         )
     try:
         if sock is None:
-            if daemon.index:
-                say(f"Beamtime indexes {ctx.logdir} (no UI); Ctrl-C stops.")
-                while daemon.thread.is_alive():
-                    daemon.thread.join(1.0)
-            else:
-                say("Beamtime connects to its sources (no local log dir; no UI); Ctrl-C stops.")
-                while not daemon.stopping.is_set():
-                    daemon.stopping.wait(1.0)
+            say(f"Beamtime indexes {ctx.logdir} (no UI); Ctrl-C stops.")
+            while daemon.thread.is_alive():
+                daemon.thread.join(1.0)
             return {"kind": "serve", "lines": ["stopped"]}
         token = load_token(cache)
         url = f"http://localhost:{daemon.port}/f/local?token={token}"

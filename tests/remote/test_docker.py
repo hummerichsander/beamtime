@@ -127,6 +127,23 @@ def test_over_ssh_reads_merge_and_a_verdict_lands_there(box: Path, ctx: Context)
     assert notes[0]["type"] == "verdict"
 
 
+def test_a_view_drafted_here_is_checked_and_saved_there(box: Path, ctx: Context) -> None:
+    """Over real ssh: a draft for a remote group stays here; validating and saving it run there,
+    and its data file lands on the remote under its hash."""
+    import yaml
+
+    new = call("view new", {"group": f"@box/{SWEEP}", "name": "over-ssh"}, ctx)
+    draft = Path(new["file"]).parent
+    view = {"schema": 1, "title": "over ssh", "finding": "x",
+            "body": [{"data_table": {"id": "fit", "file": "data/fit.csv"}}]}  # fmt: skip
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "data" / "fit.csv").write_text("x,y\n1,2\n")
+    assert call("view validate", {"draft": "over-ssh", "render": False}, ctx)["ok"]
+    saved = call("view save", {"draft": "over-ssh"}, ctx)
+    assert (box / saved["path"].removeprefix("@box/")).is_file()
+    assert list((box / SWEEP / "view" / "data").glob("*-fit.csv"))
+
+
 def test_pull_survives_the_remote_going_away(container, box: Path, ctx: Context) -> None:
     """A pulled snapshot answers while the container is stopped; the connection comes back."""
     name = container[0]
@@ -175,12 +192,12 @@ def test_serve_shows_both_sources(container, project: Path) -> None:
                 pytest.skip("no browser")
             page = browser.new_page()
             page.goto(url)
-            page.wait_for_selector(".tree-item.source-root", timeout=60_000)
+            # every source is a root row, local included (D1); the remote's answers come later.
+            page.locator(".tree-item.source-root").nth(1).wait_for(timeout=60_000)
             roots = page.locator(".tree-item.source-root .tree-name").all_inner_texts()
-            assert roots == ["@box"]
+            assert roots == ["local", "@box"]
             page.goto(f"{base}/f/@box/{SWEEP}")
-            page.wait_for_selector(".page h1", timeout=60_000)
-            page.wait_for_function("document.querySelector('.page h1').innerText.includes('lr-sweep')")
+            page.locator(".page h1", has_text="lr-sweep").wait_for(timeout=60_000)
             assert page.locator(".crumbs").inner_text().startswith("@box")
             browser.close()
     finally:

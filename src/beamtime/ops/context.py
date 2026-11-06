@@ -43,8 +43,8 @@ class Context:
 
     @property
     def has_local(self) -> bool:
-        """Tell whether this machine is a source: the log dir exists, and either no remotes
-        are configured or it already holds a run.
+        """Tell whether this machine is a source: the log dir exists, and either there are no
+        remotes or it already holds a run.
 
         Checked fresh every time (never cached), since a first local run can appear while a
         ``serve`` with remotes is already running.
@@ -52,7 +52,7 @@ class Context:
         :return: Whether local runs are a source here."""
         if not self.logdir.is_dir():
             return False
-        if not self.settings.get("remotes"):
+        if not self.remotes:
             return True
         from beamtime.format.tree import iter_runs
 
@@ -62,12 +62,21 @@ class Context:
     def default_source(self) -> str | None:
         """The source an unprefixed path means, when this machine isn't one.
 
-        :return: The sole remote's name, if there is no local source and exactly one remote
-            is configured; else ``None`` (local means it, or it would be ambiguous)."""
+        :return: The sole remote's name, if there is no local source and exactly one remote;
+            else ``None`` (local means it, or it would be ambiguous)."""
         if self.has_local:
             return None
-        remotes = self.settings.get("remotes") or {}
-        return next(iter(remotes)) if len(remotes) == 1 else None
+        return self.remotes[0] if len(self.remotes) == 1 else None
+
+    @property
+    def remotes(self) -> list[str]:
+        """Name the remotes: a running serve's (as named on its command line), else the
+        configured ones.
+
+        :return: Their names, without ``@``."""
+        if self.sources is not None:
+            return list(self.sources.clients)
+        return list(self.settings.get("remotes") or {})
 
     @classmethod
     def make(cls, *, root: str | Path | None = None, caller: Caller = "cli") -> "Context":

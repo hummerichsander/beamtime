@@ -24,39 +24,33 @@ class Daemon:
         port: int | None = None,
         on_change: Callable[[dict[str, set[str]]], None] | None = None,
         poll_s: float = POLL_S,
-        index: bool = True,
     ):
         """Prepare the daemon; nothing runs before ``start``.
 
-        :param logdir: The log dir.
+        :param logdir: The log dir; it may not exist yet.
         :param cache: The cache directory; by default ``cache_dir(logdir)``.
         :param port: The web UI's port, recorded in ``serve.json``.
         :param on_change: Called from the indexing thread with the run and folder
             paths (relative to the log dir) that changed in a poll, and how.
-        :param poll_s: Seconds between polls.
-        :param index: Whether to index at all; ``False`` when there is no local log dir, so
-            only the lock and status file run (``via_serve`` still needs the port)."""
+        :param poll_s: Seconds between polls."""
         self.logdir = logdir.resolve()
         self.cache = cache or cache_dir(self.logdir)
         self.port = port
         self.on_change = on_change
         self.poll_s = poll_s
-        self.index = index
         self.lock = FileLock(path=self.cache / SERVE_LOCK)
         self.stopping = threading.Event()
         self.thread = threading.Thread(target=self.loop, name="beamtime-index", daemon=True)
         self.started = time.time()
 
     def start(self) -> bool:
-        """Take ``serve.lock``, write the status file, and start indexing unless there is no
-        local log dir.
+        """Take ``serve.lock``, write the status file, and start indexing once the log dir exists.
 
         :return: ``False`` if another daemon already serves this root."""
         if not self.lock.acquire():
             return False
         self.write_status()
-        if self.index:
-            self.thread.start()
+        self.thread.start()
         return True
 
     def write_status(self) -> None:
@@ -74,7 +68,11 @@ class Daemon:
         (self.cache / SERVE_JSON).write_text(json.dumps(status))
 
     def loop(self) -> None:
-        """Index everything once, then poll for changes until stopped."""
+        """Wait for the log dir, index everything once, then poll for changes until stopped."""
+        # serving only remotes, a first local run may still create the log dir.
+        while not self.logdir.is_dir():
+            if self.stopping.wait(self.poll_s):
+                return
         with Index(logdir=self.logdir, cache=self.cache) as index:
             while not self.stopping.is_set():
                 fresh = index.catch_up(".", budget_s=float("inf"), daemon=True)

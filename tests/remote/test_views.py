@@ -133,3 +133,26 @@ def test_an_old_remote_gets_an_upgrade_message(
     monkeypatch.setattr(remote_sources, "client_for", lambda ctx, name: FakeClient())
     with pytest.raises(OpError, match=r"@box runs beamtime 0\.1\.0.*needs a newer version"):
         on_source("view_check", f"@box/{SWEEP}", ctx, {"yaml": "schema: 1\n", "files": {}})
+
+
+def test_a_bundle_cannot_leave_the_sources_log_dir(box: Path, ctx: Context, tmp_path: Path) -> None:
+    """The source resolves a bundle's group in its own index and refuses file references outside
+    the bundle, so nothing is written or read beyond its log dir."""
+    import dataclasses
+
+    from beamtime.serve.api import dispatch
+
+    here = dataclasses.replace(ctx, logdir=box, sources=None)
+    outside = tmp_path / "outside.js"
+    outside.write_text(CUSTOM_CODE)
+    empty_view = "schema: 1\ntitle: t\nfinding: f\nbody: []\n"
+    with pytest.raises(OpError, match="leaves the log dir"):
+        dispatch(here, "view_put", {"group": "../../evil", "yaml": empty_view, "files": {}})
+    assert not (box.parent.parent / "evil").exists()
+    custom = {"id": "c", "code": str(outside), "queries": {"main": {"runs": {"from": "."}}}}
+    text = yaml.safe_dump({"schema": 1, "title": "t", "finding": "f", "body": [{"custom": custom}]})
+    with pytest.raises(OpError, match="leaves the draft"):
+        dispatch(here, "view_put", {"group": SWEEP, "yaml": text, "files": {}})
+    assert not (box / SWEEP / "view").exists() or not list((box / SWEEP / "view").rglob("*outside*"))
+    with pytest.raises(OpError, match="leaves the log dir"):
+        dispatch(here, "view_files", {"group": "../..", "ref": "data/x"})

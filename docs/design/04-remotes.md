@@ -151,10 +151,12 @@ exist** (`Context.has_local`): the log dir must exist, and either no remotes are
 already holds a run — re-checked on every poll while remotes are configured, so a first local run
 made after `serve` started is picked up without a restart. `serve` refuses only with no source at
 all; without a local log dir it still writes `serve.lock`/`serve.json` (so `via_serve` finds the
-port) but skips the indexing loop. `@local/...` is accepted and stripped to a bare path, so an agent
+port), and its indexing loop waits until a first local run creates the log dir. `@local/...` is accepted and stripped to a bare path, so an agent
 that always writes `@name/group` doesn't need a special case. A path without a prefix means local
 when it exists; with no local and exactly one remote, it means that remote (`Context.default_source`);
-with several and no local, it is ambiguous and needs the prefix. `/` and a bookmarked `/f/local`
+with several and no local, it is ambiguous and needs the prefix. Remotes here are the running
+serve's (as named on its command line), else the configured ones. Listings of `.` still ask every
+source, so the UI's tree names each root and its state. `/` and a bookmarked `/f/local`
 redirect to the first source when there is no local one.
 
 ## Configuration
@@ -226,7 +228,9 @@ routed `view_show` and `view_files`; `view_validate`/`view_save` (and the promot
 the draft's YAML and referenced files into one bundle, sent over the existing connection to
 `view_check`/`view_put`, which materialize it in a temporary directory on the remote and run the
 same static validation and `write_version` used for a local draft — so the check, the library and
-the write path are identical, only the files travel. Rendering stays local and needs no change to
+the write path are identical, only the files travel. The source resolves the bundle's group in its own
+index (a group or run below its log dir, nothing else), refuses `file` and `code` references that
+leave the bundle, and refuses bundles over 16 MB; the sender checks the size before sending too. Rendering stays local and needs no change to
 the remote: the renderer's own ephemeral `serve` answers the browser's `view` and `code` calls for
 the draft itself (the files are already here), calling `view_compile` on the remote only to get the
 compiled tree, so pins and library blocks resolve against the remote's own files; every other query

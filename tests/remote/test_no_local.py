@@ -200,3 +200,47 @@ def test_mcp_answers_with_only_a_remote(empty: Path, remote_logdir: Path) -> Non
     assert not result.is_error, result.content[0].text
     answer = json.loads(result.content[0].text)
     assert answer["rows"] and answer["meta"]["source"] == "@box"
+
+
+def test_a_served_tree_names_only_the_remote(one_remote: Context) -> None:
+    """In a serve with one remote and no local runs, the UI's tree listing still fans out, so
+    ``meta.sources`` names the remote and no empty local root appears."""
+    import dataclasses
+
+    from beamtime.remote.sources import Sources, spec_of
+    from beamtime.serve.api import dispatch
+
+    sources = Sources([spec_of("box", one_remote.settings.get("remotes")["box"])])
+    try:
+        ctx = dataclasses.replace(one_remote, caller="view", sources=sources)
+        answer = dispatch(ctx, "groups", {"from": ".", "everywhere": True})
+    finally:
+        sources.close()
+    assert [s["name"] for s in answer["meta"]["sources"]] == ["@box"]
+    assert all(r[0].startswith("@box") for r in answer["rows"])
+
+
+def test_a_view_draft_for_an_unprefixed_group_goes_to_the_default_source(
+    one_remote: Context,
+) -> None:
+    """``view new scaling/lr-sweep`` with only one remote drafts for ``@box/scaling/lr-sweep``."""
+    new = call("view new", {"group": SWEEP, "name": "plain"}, one_remote)
+    assert new["group"] == f"@box/{SWEEP}"
+    assert call("view validate", {"draft": "plain", "render": False}, one_remote)["ok"]
+
+
+def test_the_daemon_waits_for_a_log_dir_created_later(empty: Path) -> None:
+    """A serve started without a local log dir indexes it once a first run creates it."""
+    import threading
+
+    from beamtime.index.daemon import Daemon
+
+    changed = threading.Event()
+    logdir = empty / "beamtime"
+    daemon = Daemon(logdir=logdir, on_change=lambda _: changed.set(), poll_s=0.05)
+    assert daemon.start()
+    try:
+        generate(logdir, seed=1, now=datetime.now(timezone.utc))
+        assert changed.wait(30)
+    finally:
+        daemon.stop()
