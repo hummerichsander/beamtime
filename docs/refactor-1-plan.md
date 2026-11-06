@@ -1,6 +1,6 @@
 # Refactor 1: plan after the first human end-to-end tests
 
-Status: **in progress.** Done on branch `refactor-1`: F1 `88fc5b5`, A1 `e2a5cb6`, A2 `dada516`, A3 `6899788`, A4 `3942900`.
+Status: **in progress.** Done on branch `refactor-1`: F1 `88fc5b5`, A1 `e2a5cb6`, A2 `dada516`, A3 `6899788`, A4 `3942900`, A5 `0297ea2`, A6 `c0aa283`, A7 `9c286ec`, A8 `bd71c5b`, A9 `4d03f19`.
 Proposed 2026-11-04, based on the findings in `todo`, the code at `8165346`, the real log
 dir at `au002a:/remote/gpu04/hummerich/projects/split-flows-public/beamtime` (78 runs, 12 groups, 10
 custom code files) and 65 agent sessions on that project. Breaking changes are allowed where they make
@@ -189,7 +189,7 @@ Done: unit tests for `std` with mean − std < 0, for `minmax` with a zero minim
 curves. A browser test with `band: std`, `scale: log` on `validation/signed` shows a filled band to the
 bottom of the plot.
 
-### A5. Which config matters, which metric leads (sonnet + review) — real data
+### A5. Which config matters, which metric leads (sonnet + review) — real data — **done `0297ea2`**
 
 The header bug, the 22-column run tables, broken seed means and sweeps above 10 values share one cause:
 no notion of *which config keys distinguish runs*.
@@ -230,7 +230,7 @@ Tests in `tests/query/test_distinguish.py` with the `realistic` fixture must giv
 `[config.arm, config.seed]`; plus: a grid of lr and depth keeps both; a random search with unique lr keeps
 all; 12 lr values count as varying; seed means over `realistic` give one curve per arm.
 
-### A6. Refetch only what changed (sonnet + review) — reproduced
+### A6. Refetch only what changed (sonnet + review) — reproduced — **done `c0aa283`**
 
 Authored answers don't change when a metric line arrives.
 
@@ -246,7 +246,7 @@ Authored answers don't change when a metric line arrives.
 Done: with `live_page`, a metric tick refetches `series` and not `view`, `notes` or `memory_show`. A note
 written by the CLI still appears within 3 s, also through the `transport` test source.
 
-### A7. Notes: a `theory` label, editable in the UI (haiku)
+### A7. Notes: a `theory` label, editable in the UI (haiku) — **done `9c286ec`**
 
 1. Move `TYPES` to `format/authored.py` as `NOTE_TYPES`, adding `"theory"`. `record/notes.py` imports it;
    `ops/registry.py` uses `Literal[NOTE_TYPES]`; `/meta` returns `note_types`.
@@ -263,7 +263,7 @@ written by the CLI still appears within 3 s, also through the `transport` test s
 Done: tests for the new type over CLI, MCP and API; the browser test edits a label and sees a new version
 with the same body and evidence.
 
-### A8. Favicon and small visual touches (haiku)
+### A8. Favicon and small visual touches (haiku) — **done `bd71c5b`**
 
 Design change, so it lands through `design/`.
 
@@ -278,7 +278,7 @@ Design change, so it lands through `design/`.
 Done: `tests/test_design.py` covers the icon; a browser test asserts the link and the title with a running
 run. Don't add further decoration without asking.
 
-### A9. Bound what `view_render` returns (sonnet)
+### A9. Bound what `view_render` returns (sonnet) — **done `4d03f19`**
 
 Added after the first sessions started. Files: `views/render.py`, `mcp/server.py`, `tests/serve/test_render.py`,
 `docs/design/05-views.md`, `docs/design/08-cli-mcp.md`, `guide/parts/overview.md`. No web change, so no bundle.
