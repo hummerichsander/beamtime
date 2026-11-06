@@ -273,8 +273,9 @@ group.
 keys: {from: scaling/}
 ```
 
-Returns the metric keys (with how many runs logged them, their step range and whether every run's
-is a flat line), config keys (with distinct values or ranges), data keys (tables, images, text) and
+Returns the metric keys (with how many runs logged them, their step range, the most points one run
+has, and whether they are `constant`: one value in every run, a single point in a single run
+excepted), config keys (with distinct values or ranges), data keys (tables, images, text) and
 tags. Config also carries `varying`: the keys that actually distinguish the selected runs, dropping
 aliases (several keys that happen to split the runs the same way; the shortest name is kept, the
 rest listed in `aliases`) and noise unique to every run (a timestamped path, not a real sweep).

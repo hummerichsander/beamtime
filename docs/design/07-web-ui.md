@@ -127,7 +127,7 @@ These qualities are made concrete as budgets and rules, and checked like correct
     plan's progress and the current verdict;
   - the facts: run counts by status, notes, the best value of the main metric (the view's first
     entry under `metrics:` in its direction; else the group's proposed metric; else the best-ranked
-    metric that isn't a flat line), named by its `label` in the view, with the run that reached it,
+    metric that isn't constant, one logged as a single point only after those with a curve), named by its `label` in the view, with the run that reached it,
     its distinguishing config in a tooltip; and the view's `finding`.
 
   A run's header shows its name and status, steps, duration and start, its best value, and the

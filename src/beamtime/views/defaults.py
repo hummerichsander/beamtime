@@ -250,16 +250,26 @@ def main_metric(ctx: Context, path: str, keys: dict[str, Any]) -> str | None:
         group = path
     if (main := proposed(ctx, group, metrics)) is not None:
         return main
-    live = [k for k in metrics if k not in constant_metrics(keys)]
+    constant = metric_column(keys, "constant")
+    points = metric_column(keys, "points")
+    # a metric logged once (a final evaluation) leads only where no curve of its kind does.
+    live = sorted(
+        (k for k in metrics if not constant.get(k)), key=lambda k: (points.get(k) or 2) <= 1
+    )
     return (essential(live) or live or metrics)[0]
 
 
-def constant_metrics(keys: dict[str, Any]) -> set[str]:
-    """Metrics flagged constant (a flat line) in every run that logs them.
+def metric_column(keys: dict[str, Any], column: str) -> dict[str, Any]:
+    """Read one column of the ``keys`` answer's metrics table by metric.
 
     :param keys: The ``keys`` answer.
-    :return: Their keys."""
-    return {row[0] for row in keys["metrics"]["rows"] if row[3]}
+    :param column: The column, e.g. ``constant``.
+    :return: Metric key to value; empty when the column is missing (an older remote)."""
+    table = keys["metrics"]
+    if column not in table["columns"]:
+        return {}
+    i = table["columns"].index(column)
+    return {row[0]: row[i] for row in table["rows"] if i < len(row)}
 
 
 def varying_config(keys: dict[str, Any]) -> list[str]:

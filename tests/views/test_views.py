@@ -373,3 +373,23 @@ def test_the_default_view_is_a_view(ctx: Context) -> None:
     text, origin = current_yaml(ctx, SWEEP)
     assert origin == "the built-in default view"
     assert m.parse(yaml.safe_load(text), source="t").body == view.body
+
+
+def test_a_final_evaluation_can_lead_but_a_curve_of_its_kind_goes_first(ctx: Context) -> None:
+    """A metric logged once per run isn't constant; among evals, a curve still leads it."""
+    from beamtime.views.defaults import main_metric
+
+    columns = ["key", "runs", "last_step", "constant", "points"]
+    rows = [["eval/zero", 4, 100, True, 50], ["test/acc", 4, 100, False, 1],
+            ["train/loss", 4, 100, False, 50]]  # fmt: skip
+    keys = {"metrics": {"columns": columns, "rows": rows}}
+    assert main_metric(ctx, "nowhere", keys) == "test/acc"
+    rows.append(["test/loss", 4, 100, False, 50])
+    assert main_metric(ctx, "nowhere", keys) == "test/loss"
+
+
+def test_constant_means_one_value_everywhere(ctx: Context) -> None:
+    """A flat zero is constant; a one-point metric that differs between runs is not."""
+    keys = call("keys", {"from": "realistic/egnn-bench"}, ctx)
+    constant = {r[0]: r[3] for r in keys["metrics"]["rows"]}
+    assert constant["energy/Aconst_w1"] and not constant["validation/first_eval"]

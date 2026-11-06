@@ -398,7 +398,7 @@ def merge_keys(answers: list[dict]) -> dict[str, Any]:
                     match c:
                         case "runs" | "entries":
                             kept[i] = (kept[i] or 0) + (r[i] or 0)
-                        case "last_step":
+                        case "last_step" | "points":
                             steps = [x for x in (kept[i], r[i]) if x is not None]
                             kept[i] = max(steps) if steps else None
                         case "values" if isinstance(kept[i], list) and isinstance(r[i], list):

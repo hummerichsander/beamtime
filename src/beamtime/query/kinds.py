@@ -114,8 +114,9 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
     marks = ", ".join("?" * len(ids))
     metrics = db.execute(
         "SELECT j.key, count(*), max(json_extract(j.value, '$.last_step')), "
-        "min(CASE WHEN json_extract(j.value, '$.min') IS NOT NULL "
-        "AND json_extract(j.value, '$.min') = json_extract(j.value, '$.max') THEN 1 ELSE 0 END) "
+        "min(json_extract(j.value, '$.min')) = max(json_extract(j.value, '$.max')) "
+        "AND count(json_extract(j.value, '$.min')) = count(*), "
+        "max(json_extract(j.value, '$.count')) "
         f"FROM runs, json_each(card, '$.metrics') j WHERE runs.id IN ({marks}) "
         "GROUP BY j.key ORDER BY j.key",
         ids,
@@ -138,8 +139,12 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
         "runs": len(runs),
         "status": dict(Counter(r["run.status"] for r in runs)),
         "metrics": {
-            "columns": ["key", "runs", "last_step", "constant"],
-            "rows": [[k, n, last, bool(const)] for k, n, last, const in metrics],
+            "columns": ["key", "runs", "last_step", "constant", "points"],
+            # one value everywhere; a single point in a single run is a result, not a flat line.
+            "rows": [
+                [k, n, last, bool(same) and (n > 1 or (points or 0) > 1), points]
+                for k, n, last, same, points in metrics
+            ],
         },
         "config": {
             "columns": ["key", "runs", "values"],
@@ -157,17 +162,17 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
 
 
 def with_live_keys(
-    ctx: Context, runs: list[dict[str, Any]], metrics: list[tuple[str, int, Any, Any]]
-) -> list[tuple[str, int, Any, Any]]:
+    ctx: Context, runs: list[dict[str, Any]], metrics: list[tuple[str, int, Any, Any, Any]]
+) -> list[tuple[str, int, Any, Any, Any]]:
     """Add the metrics running runs logged since their card was last written.
 
     A run rewrites its card every few minutes, so a new run's keys are in its columns first.
 
     :param ctx: The query context.
     :param runs: The selected runs.
-    :param metrics: ``(key, runs, last_step, constant)`` from the cards.
+    :param metrics: ``(key, runs, last_step, one value, points)`` from the cards.
     :return: The rows with the running runs' column keys merged in."""
-    out = {key: [n, last, const] for key, n, last, const in metrics}
+    out = {key: [n, last, same, points] for key, n, last, same, points in metrics}
     for r in runs:
         if r["run.status"] != "running":
             continue
@@ -177,11 +182,12 @@ def with_live_keys(
         manifest, entries = open_columns(ctx.index.series / r["_id"])
         for key in entries.keys() - carded - {TIME_KEY}:
             # a column just opened has no card entry yet, so its constancy isn't known.
-            row = out.setdefault(key, [0, None, False])
+            row = out.setdefault(key, [0, None, False, None])
             steps = [x for x in (row[1], manifest.last_step) if x is not None]
             row[0] += 1
             row[1] = max(steps) if steps else None
-    return sorted((k, n, last, const) for k, (n, last, const) in out.items())
+            row[3] = max(row[3] or 0, entries[key].length)
+    return sorted((k, *row) for k, row in out.items())
 
 
 def summarize(values: list[Any]) -> Any:
