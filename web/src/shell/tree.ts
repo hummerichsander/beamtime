@@ -30,11 +30,13 @@ export function buildTree(rows: Record<string, any>[], sources: SourceState[] = 
     children: [],
   });
   for (const r of rows) nodes.set(r.path, node(r.path, r));
-  if (!nodes.has(".")) nodes.set(".", node("."));
+  // an empty list means no remotes are configured: local is implicitly the only source.
+  const local = sources.length === 0 || sources.some((s) => s.name === "local");
+  if (local && !nodes.has(".")) nodes.set(".", node("."));
   for (const s of sources) {
-    if (s.name === "local") continue;
-    if (!nodes.has(s.name)) nodes.set(s.name, node(s.name));
-    Object.assign(nodes.get(s.name)!, { state: s.state, error: s.error });
+    const path = s.name === "local" ? "." : s.name;
+    if (!nodes.has(path)) nodes.set(path, node(path));
+    Object.assign(nodes.get(path)!, { state: s.state, error: s.error });
   }
   for (const n of nodes.values()) {
     if (isRoot(n.path)) continue;
@@ -44,7 +46,8 @@ export function buildTree(rows: Record<string, any>[], sources: SourceState[] = 
   }
   for (const n of nodes.values()) n.children.sort((a, b) => a.name.localeCompare(b.name));
   const remotes = [...nodes.values()].filter((n) => n.path !== "." && isRoot(n.path)).sort((a, b) => a.name.localeCompare(b.name));
-  return [nodes.get(".")!, ...remotes];
+  const root = nodes.get(".");
+  return root ? [root, ...remotes] : remotes;
 }
 
 // hosts are open unless closed; everything below them, closed unless open. A filter opens all.

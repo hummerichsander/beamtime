@@ -92,6 +92,7 @@ the user the command ([Policy](#policy)).
 | `beamtime settings` | the effective settings and the level each value comes from |
 | `beamtime serve [sources…]` | the web UI, indexer and remote connections (`cluster`, `cluster:group`, `host:/abs/path`); `--no-ui`, `--port` (default 8080, else the next free port), `--open`, `--watch` (restart on the same port when Beamtime's own code changes, for working on Beamtime), `--cache` (for the remotes); `--stdio` is what a laptop starts on a remote over ssh |
 | `beamtime pull <source>:<group>` | a read-only offline snapshot; `--drop` removes it |
+| `beamtime source add <name> <host:/path>`, `beamtime source list`, `beamtime source rm <name>` | configure remotes in the user settings (`--project`: `beamtime.yaml`); `add` probes ssh for the command unless given `--command` ([layer 4](04-remotes.md#configuration)) |
 | `beamtime mv <run> <group>`, `beamtime mv <group> <new path>` | moves a run, or moves or renames a group (recorded in `_moves.jsonl`); refuses running runs |
 | `beamtime rm <run or group>` | moves it into `_trash/` ([layer 1](01-storage.md#deleting-and-cleaning-up)) |
 | `beamtime gc` | empties the trash and removes crashed runs without metrics |

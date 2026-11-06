@@ -41,11 +41,48 @@ class Context:
     # the time run status is judged at: now, or a snapshot's time.
     now: float | None = None
 
+    @property
+    def has_local(self) -> bool:
+        """Tell whether this machine is a source: the log dir exists, and either there are no
+        remotes or it already holds a run.
+
+        Checked fresh every time (never cached), since a first local run can appear while a
+        ``serve`` with remotes is already running.
+
+        :return: Whether local runs are a source here."""
+        if not self.logdir.is_dir():
+            return False
+        if not self.remotes:
+            return True
+        from beamtime.format.tree import iter_runs
+
+        return next(iter_runs(self.logdir), None) is not None
+
+    @property
+    def default_source(self) -> str | None:
+        """The source an unprefixed path means, when this machine isn't one.
+
+        :return: The sole remote's name, if there is no local source and exactly one remote;
+            else ``None`` (local means it, or it would be ambiguous)."""
+        if self.has_local:
+            return None
+        return self.remotes[0] if len(self.remotes) == 1 else None
+
+    @property
+    def remotes(self) -> list[str]:
+        """Name the remotes: a running serve's (as named on its command line), else the
+        configured ones.
+
+        :return: Their names, without ``@``."""
+        if self.sources is not None:
+            return list(self.sources.clients)
+        return list(self.settings.get("remotes") or {})
+
     @classmethod
     def make(cls, *, root: str | Path | None = None, caller: Caller = "cli") -> "Context":
         """Resolve the project from ``--root`` or the working directory.
 
-        :param root: An explicit root, or ``None`` to search like the SDK does.
+        :param root: An explicit root, or ``None`` to search from the working directory.
         :param caller: ``cli``, ``mcp`` or ``view`` (the web UI); sets answer defaults.
         :return: The context."""
         from beamtime.sdk.paths import find_root
@@ -53,7 +90,9 @@ class Context:
         if root is not None:
             resolved, reason = Path(root).expanduser().resolve(), "--root"
         else:
-            resolved, warnings = find_root(Path.cwd())
+            # never the script fallback: here __main__ is beamtime's own entry point (or a test
+            # runner's), not a user's training script, so it says nothing about their project.
+            resolved, warnings = find_root(Path.cwd(), script=False)
             reason = (
                 "working directory (no beamtime.yaml or git repository)"
                 if warnings

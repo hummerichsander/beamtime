@@ -90,7 +90,7 @@ function Item(props: { node: TreeNode; current: boolean; open: boolean; onToggle
   const hover = () => calls.prefetchGroup(n.path);
   const expandable = n.children.length > 0;
   const unreachable = n.state === "unreachable";
-  return html`<a class=${`tree-item${props.current ? " current" : ""}${n.path.startsWith("@") && isRoot(n.path) ? " source-root" : ""}`} href=${groupUrl(n.path)}
+  return html`<a class=${`tree-item${props.current ? " current" : ""}${isRoot(n.path) ? " source-root" : ""}`} href=${groupUrl(n.path)}
       role="treeitem" aria-current=${props.current ? "page" : undefined} aria-expanded=${expandable ? props.open : undefined}
       style=${`padding-inline-start:${8 + depth(n.path) * 14}px`} onMouseEnter=${hover} onFocus=${hover}
       onClick=${(e: MouseEvent) => {

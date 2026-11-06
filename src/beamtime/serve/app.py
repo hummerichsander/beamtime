@@ -97,8 +97,24 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
             )
         return FileResponse(index, headers={"cache-control": "no-cache"})
 
+    def first_source() -> str:
+        """The URL of the first source: local if it is one, else the first remote.
+
+        :return: ``/f/local`` or ``/f/@<name>``."""
+        if not ctx.has_local and ctx.sources is not None and ctx.sources.clients:
+            return f"/f/@{sorted(ctx.sources.clients)[0]}"
+        return "/f/local"
+
     async def home(request: Request) -> Response:
-        return RedirectResponse("/f/local", 307)
+        query = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse(f"{first_source()}{query}", 307)
+
+    async def local_page(request: Request) -> Response:
+        if not ctx.has_local and ctx.sources is not None and ctx.sources.clients:
+            rest = request.path_params.get("path", "")
+            query = f"?{request.url.query}" if request.url.query else ""
+            return RedirectResponse(f"{first_source()}{f'/{rest}' if rest else ''}{query}", 307)
+        return await page(request)
 
     @asynccontextmanager
     async def lifespan(app: Starlette) -> AsyncIterator[None]:
@@ -113,6 +129,8 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
             Route("/api/{method}", api, methods=["POST"]),
             Mount("/static", StaticFiles(directory=static, check_dir=False), name="static"),
             Route("/f", page),
+            Route("/f/local", local_page),
+            Route("/f/local/{path:path}", local_page),
             Route("/f/{path:path}", page),
             Route("/r/{path:path}", page),
             Route("/timeline", page),

@@ -312,6 +312,103 @@ def remote_checks(name: str, conf: dict[str, Any]) -> list[tuple[str, bool | Non
     return rows
 
 
+def probe_command(host: str, path: str) -> str | None:
+    """Find how to start Beamtime on a remote host: on its ``PATH``, else the venv next to the
+    project the log dir sits in.
+
+    :param host: The ssh host.
+    :param path: The remote log dir.
+    :return: The command to run there; ``None`` if neither probe succeeds."""
+    import re
+    import subprocess
+
+    def ssh(line: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, line],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    if ssh("command -v beamtime").returncode == 0:
+        return "beamtime"
+    # the remote shell expands the path's ~, ${VAR} and {user}, as the remote end does for it.
+    venv = f"{path.rstrip('/')}/../.venv/bin/beamtime".replace("{user}", "${USER}")
+    expanded = "${HOME}" + venv[1:] if venv.startswith("~") else venv
+    quoted = '"' + re.sub(r'(["\\`])', r"\\\1", expanded) + '"'
+    if ssh(f"test -x {quoted}").returncode == 0:
+        return venv
+    return None
+
+
+def source_add(ctx: Context, p: r.SourceAddParams) -> dict[str, Any]:
+    """Add a remote to the settings: the user's by default, probing ssh for how to start
+    Beamtime there unless ``--command`` is given.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: What was written."""
+    from beamtime.settings import load, user_settings_path, write_remote
+
+    host, _, path = p.remote.partition(":")
+    if not host or not path.startswith(("/", "~", "$")):
+        raise OpError(f"{p.remote!r}: give host:/absolute/path/to/beamtime", code=2)
+    command = p.command or probe_command(host, path)
+    conf = {"host": host, "path": path, "command": command or "beamtime", "cache": p.cache}
+    target = (ctx.root / "beamtime.yaml") if p.project else user_settings_path()
+    write_remote(target, p.name, conf)
+    ctx.settings = load(ctx.root)
+    lines = [f"added @{p.name}: {host}:{path} ({conf['command']}) to {target}"]
+    if command is None:
+        lines.append(f"no beamtime found on {host}; give --command if `beamtime` isn't on its PATH")
+    lines.append("`beamtime serve` picks it up; or `beamtime doctor` checks it first")
+    return answer("source add", lines, name=p.name)
+
+
+def source_list(ctx: Context, p: r.NoParams) -> dict[str, Any]:
+    """List the configured remotes.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: One row per remote: name, host, path, command and cache."""
+    remotes = ctx.settings.get("remotes") or {}
+    rows = [
+        [
+            name,
+            conf.get("host"),
+            conf.get("path"),
+            conf.get("command") or "beamtime",
+            conf.get("cache"),
+        ]
+        for name, conf in sorted(remotes.items())
+    ]
+    return {
+        "kind": "source list",
+        "columns": ["name", "host", "path", "command", "cache"],
+        "rows": rows,
+        "meta": {},
+    }
+
+
+def source_rm(ctx: Context, p: r.SourceRmParams) -> dict[str, Any]:
+    """Remove a remote from wherever it is configured.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: What was removed."""
+    from beamtime.settings import load, remove_remote, user_settings_path
+
+    removed = [
+        path
+        for path in (user_settings_path(), ctx.root / "beamtime.yaml")
+        if remove_remote(path, p.name)
+    ]
+    if not removed:
+        raise OpError(f"no remote {p.name!r} configured", code=4)
+    ctx.settings = load(ctx.root)
+    return answer("source rm", [f"removed @{p.name} from {', '.join(str(x) for x in removed)}"])
+
+
 def reindex(ctx: Context, p: r.NoParams) -> dict[str, Any]:
     """Rebuild the index from the files.
 

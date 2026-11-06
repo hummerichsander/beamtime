@@ -56,27 +56,43 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
     from beamtime.remote.client import Unreachable
     from beamtime.remote.sources import client_for
 
-    if (source := source_of(params)) is not None:
+    params = strip_local(params)
+    source = source_of(params)
+    fans = method in LISTINGS and ctx.sources is not None and ctx.merge and fans_out(params)
+    if source is None and fans:
+        return federate(method, params, ctx, local)
+    if source is None and (source := ctx.default_source) is not None:
+        params = with_default(method, params, source)
+    if source is not None:
+        # the draft stays with the agent; the op itself fetches from, or pushes to, the source.
         if method in DRAFTS:
-            raise OpError(
-                f"{method.replace('_', ' ')} works on drafts in this project; for a group on "
-                f"@{source}, run it there (ssh)",
-                code=2,
-            )
+            return local(params)
         stripped = with_author(method, strip(params, source), ctx)
         try:
             answer = client_for(ctx, source).request(method, stripped, caller=ctx.caller)
         except Unreachable as e:
             return from_snapshot(method, strip(params, source), ctx, source, e)
         return prefix(answer, source)
-    if method in LISTINGS and ctx.sources is not None and ctx.merge and fans_out(params):
-        return federate(method, params, ctx, local)
     try:
         return local(params)
     except OpError as e:
         if e.code != 4 or ctx.sources is None or (run := run_target(params)) is None:
             raise
         return elsewhere(method, params, ctx, run, e)
+
+
+def with_default(method: str, params: dict[str, Any], source: str) -> dict[str, Any]:
+    """Name the default source in a draft op's group, since the op runs here and decides by the
+    ``@`` prefix where its check and write go.
+
+    :param method: The API method.
+    :param params: Its parameters, without a source.
+    :param source: The default source.
+    :return: The parameters."""
+    if method not in DRAFTS or not isinstance(group := params.get("group"), str):
+        return params
+    bare = group.strip("/")
+    return params | {"group": f"@{source}/{bare}" if bare not in ("", ".") else f"@{source}"}
 
 
 def with_author(method: str, params: dict[str, Any], ctx: Context) -> dict[str, Any]:
@@ -142,6 +158,27 @@ def source_of(params: dict[str, Any]) -> str | None:
             if isinstance(inner, dict) and str(inner.get("from", "")).startswith("@"):
                 return str(inner["from"])[1:].split("/", 1)[0]
     return None
+
+
+def strip_local(params: dict[str, Any]) -> dict[str, Any]:
+    """Take an explicit ``@local`` prefix off every target, so it reads like a bare local path.
+
+    :param params: The parameters.
+    :return: The parameters, with ``@local`` stripped."""
+
+    def bare(v: Any) -> Any:
+        if not isinstance(v, str) or not (v == "@local" or v.startswith("@local/")):
+            return v
+        rest = v[len("@local") :].lstrip("/")
+        return rest or "."
+
+    out = {k: bare(v) if k in TARGETS else v for k, v in params.items()}
+    if isinstance(query := out.get("query"), dict):
+        out["query"] = {
+            k: {**v, "from": bare(v.get("from"))} if isinstance(v, dict) else v
+            for k, v in query.items()
+        }
+    return out
 
 
 def strip(params: dict[str, Any], source: str) -> dict[str, Any]:
@@ -274,13 +311,21 @@ def federate(method: str, params: dict[str, Any], ctx: Context, local: Local) ->
     # every remote at once: a page waits for the slowest, not for the sum of them.
     with ThreadPoolExecutor(max(1, len(clients))) as pool:
         asked = [pool.submit(ask, name, client) for name, client in clients]
-        answers = [("local", local(params))]
-        states = [{"name": "local", "state": "connected"}]
+        # a source is a named log dir; without local runs, local isn't one and is left out.
+        answers = [("local", local(params))] if ctx.has_local else []
+        states = [{"name": "local", "state": "connected"}] if ctx.has_local else []
         for (name, _), future in zip(clients, asked, strict=True):
             answer, state = future.result()
             states.append(state)
             if answer is not None:
                 answers.append((name, answer))
+    if not answers and method == "groups":
+        # the tree still has a root per source, each saying why it can't answer.
+        meta = {"source": ".", "matched": 0, "sources": states}
+        return {"kind": "groups", "columns": ["path"], "rows": [], "meta": meta}
+    if not answers:
+        reasons = "; ".join(f"{s['name']}: {s.get('error') or s['state']}" for s in states)
+        raise OpError(f"no source could answer {method}: {reasons}", code=1)
     merged = merge(method, answers, params, ctx)
     merged["meta"] = {**answers[0][1].get("meta", {}), **merged.get("meta", {}), "sources": states}
     return merged
@@ -449,3 +494,34 @@ def remote_file(ctx: Context, run: str, rel: str, source: str | None = None) -> 
         except (OpError, KeyError, TypeError):
             continue
     return None
+
+
+def on_source(method: str, target: str, ctx: Context, body: dict[str, Any]) -> Any:
+    """Send an API-only bundle method (``view_check``, ``view_put``, ``view_compile``,
+    ``view_files``, ``block_check`` or ``block_put``) to the source a group names, and give the
+    answer's paths that source's prefix back.
+
+    :param method: The API-only method.
+    :param target: The group the bundle is for, ``@source/bare``.
+    :param ctx: The operation context.
+    :param body: The rest of the body: the bundle, and for a save ``author`` and ``message``.
+    :return: The remote's answer.
+    :raises OpError: If the remote can't be reached, or is too old for the method."""
+    from beamtime.ops.views import check_size
+    from beamtime.remote.client import RemoteError
+    from beamtime.remote.sources import client_for
+
+    check_size(body)
+    source, _, group = target[1:].partition("/")
+    client = client_for(ctx, source)
+    try:
+        answer = client.request(method, {"group": group or ".", **body}, caller=ctx.caller)
+    except RemoteError as e:
+        if e.code == 4 and "no API method" in e.reason:
+            raise OpError(
+                f"@{source} runs beamtime {client.info.get('version', '?')}; this needs a newer "
+                f"version for {method.replace('_', ' ')}: `uv pip install -U beamtime` there",
+                code=2,
+            ) from None
+        raise
+    return prefix(answer, source)

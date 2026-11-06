@@ -84,11 +84,9 @@ def test_pages_of_remote_groups(box: Path, ctx: Context) -> None:
 
 
 def test_errors_name_the_source(box: Path, ctx: Context, tmp_path: Path) -> None:
-    """Unknown sources, unreachable ones and draft work on remote groups say what to do."""
+    """Unknown sources, unreachable ones and user commands on remote groups say what to do."""
     with pytest.raises(OpError, match="no source @nowhere"):
         call("runs", {"from": "@nowhere/x"}, ctx)
-    with pytest.raises(OpError, match="works on drafts"):
-        call("view new", {"group": f"@box/{SWEEP}"}, ctx)
     with pytest.raises(OpError, match="user command"):
         call("rm", {"target": f"@box/{SWEEP}"}, ctx)
     broken = Spec(name="gone", path=str(tmp_path), command="false", transport="command")

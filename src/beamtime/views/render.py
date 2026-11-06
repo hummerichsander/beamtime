@@ -27,6 +27,19 @@ SHOT_HEIGHT = 2520
 JPEG_QUALITY = 75
 
 
+def page_url(group: str) -> str:
+    """The ``/f/...`` path of a group or run, local or on another source, without a query.
+
+    :param group: ``.`` or a bare path for local, ``@source/...`` for another source.
+    :return: The URL path."""
+    if group.startswith("@"):
+        source, _, rest = group.partition("/")
+        tail = "/".join(quote(part) for part in rest.split("/")) if rest else ""
+        return f"/f/{source}" + (f"/{tail}" if tail else "")
+    tail = "/".join(quote(part) for part in group.split("/")) if group != "." else ""
+    return "/f/local" + (f"/{tail}" if tail else "")
+
+
 def render_draft(
     ctx: Context,
     d: Draft,
@@ -45,8 +58,7 @@ def render_draft(
     :param theme: ``light`` or ``dark``.
     :param width: The page width in CSS pixels.
     :return: ``{rendered, findings, shots}``, or ``{rendered: False, reason, command}``."""
-    path = "/".join(quote(part) for part in d.group.split("/")) if d.group != "." else ""
-    url = f"/f/local/{path}?draft={quote(d.name)}&render=1&theme={theme}"
+    url = f"{page_url(d.group)}?draft={quote(d.name)}&render=1&theme={theme}"
     shoot = (lambda page: screenshots(ctx, page, d, block, theme)) if shots else None
     return rendered(ctx, url, theme=theme, width=width, shoot=shoot)
 
@@ -220,6 +232,7 @@ def serving(ctx: Context) -> Iterator[tuple[str, str]]:
     :return: The base URL and the token, while serving."""
     import uvicorn
 
+    from beamtime.remote.sources import Sources, spec_of
     from beamtime.serve.app import build
     from beamtime.serve.auth import TokenGuard
     from beamtime.serve.live import Hub
@@ -228,7 +241,14 @@ def serving(ctx: Context) -> Iterator[tuple[str, str]]:
     sock = bind(0)
     port = sock.getsockname()[1]
     token = secrets.token_urlsafe(24)
-    app = build(ctx=dataclasses.replace(ctx, caller="view"), hub=Hub())
+    # a draft on another source needs its queries, and a remote-drafted group, routed; a call
+    # already holding connections (a running serve) lends them rather than opening new ones.
+    owned = ctx.sources is None
+    configured = ctx.settings.get("remotes") or {}
+    sources = ctx.sources
+    if sources is None and configured:
+        sources = Sources([spec_of(n, c) for n, c in configured.items()])
+    app = build(ctx=dataclasses.replace(ctx, caller="view", sources=sources), hub=Hub())
     config = uvicorn.Config(
         TokenGuard(app, token=token, port=port), log_level="warning", lifespan="on"
     )
@@ -244,6 +264,8 @@ def serving(ctx: Context) -> Iterator[tuple[str, str]]:
         server.should_exit = True
         thread.join(5)
         sock.close()
+        if sources is not None and owned:
+            sources.close()
 
 
 def skipped(reason: str) -> dict[str, Any]:

@@ -42,16 +42,16 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
     from beamtime.index.cache import cache_dir, daemon_status
     from beamtime.index.daemon import Daemon
 
-    if not ctx.logdir.is_dir():
-        raise OpError(
-            f"no log dir at {ctx.logdir}; runs appear there once a script calls "
-            "beamtime.init() (or try `beamtime demo`)",
-            code=4,
-        )
-    cache = cache_dir(ctx.logdir)
     hub = Hub()
     restart = threading.Event()
     sources = start_sources(ctx, p, hub)
+    if not ctx.logdir.is_dir() and sources is None:
+        raise OpError(
+            f"no log dir at {ctx.logdir} and no remotes configured; add one with "
+            "`beamtime source add <name> <host:/path>`, or run `beamtime serve host:/path`",
+            code=4,
+        )
+    cache = cache_dir(ctx.logdir)
     daemon = Daemon(logdir=ctx.logdir, cache=cache, on_change=hub.changed)
     sock = None if p.no_ui else bind(p.port)
     daemon.port = None if sock is None else sock.getsockname()[1]

@@ -370,13 +370,23 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
 
 
 def sources(ctx: Context) -> list[dict[str, Any]]:
-    """Describe the remotes this process holds connections to.
+    """Describe every source: this machine, when it is one, and the remotes this process holds
+    connections to.
 
     :param ctx: The operation context.
-    :return: One entry per source: name, state, since when, error and version."""
-    if ctx.sources is None:
-        return []
-    return [client.describe() for client in ctx.sources.clients.values()]
+    :return: One entry per source: its name, kind (``local`` or ``remote``), state and log dir;
+        for a remote also since when, its last error and its version."""
+    out: list[dict[str, Any]] = []
+    if ctx.has_local:
+        out.append(
+            {"name": "local", "kind": "local", "state": "connected", "logdir": str(ctx.logdir)}
+        )
+    if ctx.sources is not None:
+        out += [
+            client.describe() | {"kind": "remote", "logdir": client.spec.path}
+            for client in ctx.sources.clients.values()
+        ]
+    return out
 
 
 def snapshots(ctx: Context) -> list[dict[str, Any]]:

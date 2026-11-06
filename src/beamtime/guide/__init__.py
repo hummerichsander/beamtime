@@ -10,6 +10,7 @@ from typing import Any
 from beamtime.ops import call
 from beamtime.ops import registry as r
 from beamtime.ops.context import Context, OpError
+from beamtime.remote import answer as remote_answer
 
 EXAMPLES = ("sweep", "ablation", "run", "direction", "custom")
 ESSENTIAL = ("key", "x", "y", "field", "file")
@@ -154,7 +155,7 @@ def values_of(ctx: Context, group: str) -> dict[str, str]:
     :return: Placeholder values; empty where the group has nothing fitting."""
     from beamtime.views.defaults import essential, lower_is_better, ordered_metrics, varying_config
 
-    keys = call("keys", {"from": group}, ctx)
+    keys = remote_answer("keys", {"from": group}, ctx)
     metrics = ordered_metrics(keys)
     main = proposed(ctx, group, metrics) or (essential(metrics) or metrics or [""])[0]
     lower = lower_is_better(main)
@@ -198,7 +199,7 @@ def proposed(ctx: Context, group: str, metrics: list[str]) -> str | None:
     :param metrics: The metrics the group logs.
     :return: The first predicted metric that is logged, or ``None``."""
     try:
-        shown = call("proposal show", {"group": group}, ctx)
+        shown = remote_answer("proposal show", {"group": group}, ctx)
     except OpError:
         return None
     for prediction in shown["proposal"].get("predictions") or []:

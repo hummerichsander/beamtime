@@ -481,6 +481,29 @@ class GcParams(Params, kw_only=True):
     yes: bool = False
 
 
+class SourceAddParams(Params, kw_only=True):
+    """Parameters of ``source add``."""
+
+    name: str
+    remote: Annotated[str, msgspec.Meta(description="host:/absolute/path/to/beamtime")]
+    command: Annotated[
+        str | None,
+        msgspec.Meta(description="how to start beamtime there; probed over ssh by default"),
+    ] = None
+    cache: Annotated[
+        str | None, msgspec.Meta(description="a persistent index cache on a local disk there")
+    ] = None
+    project: Annotated[
+        bool, msgspec.Meta(description="write to this project's beamtime.yaml, not the user's")
+    ] = False
+
+
+class SourceRmParams(Params, kw_only=True):
+    """Parameters of ``source rm``."""
+
+    name: str
+
+
 class ServeParams(Params, kw_only=True):
     """Parameters of ``serve``."""
 
@@ -940,6 +963,29 @@ OPS = [
         impl=f"{A}:gc",
         user_only=True,
         summary="Empty the trash and remove ended runs without metrics (with --yes).",
+    ),
+    Op(
+        name="source add",
+        params=SourceAddParams,
+        impl=f"{A}:source_add",
+        positional=("name", "remote"),
+        user_only=True,
+        summary="Add a remote: name, host:/path; probes ssh for the command unless given.",
+    ),
+    Op(
+        name="source list",
+        params=NoParams,
+        impl=f"{A}:source_list",
+        user_only=True,
+        summary="List the configured remotes.",
+    ),
+    Op(
+        name="source rm",
+        params=SourceRmParams,
+        impl=f"{A}:source_rm",
+        positional=("name",),
+        user_only=True,
+        summary="Remove a remote from wherever it is configured.",
     ),
 ]
 

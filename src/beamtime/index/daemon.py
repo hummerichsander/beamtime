@@ -27,7 +27,7 @@ class Daemon:
     ):
         """Prepare the daemon; nothing runs before ``start``.
 
-        :param logdir: The log dir.
+        :param logdir: The log dir; it may not exist yet.
         :param cache: The cache directory; by default ``cache_dir(logdir)``.
         :param port: The web UI's port, recorded in ``serve.json``.
         :param on_change: Called from the indexing thread with the run and folder
@@ -44,7 +44,7 @@ class Daemon:
         self.started = time.time()
 
     def start(self) -> bool:
-        """Take ``serve.lock`` and start indexing.
+        """Take ``serve.lock``, write the status file, and start indexing once the log dir exists.
 
         :return: ``False`` if another daemon already serves this root."""
         if not self.lock.acquire():
@@ -68,7 +68,11 @@ class Daemon:
         (self.cache / SERVE_JSON).write_text(json.dumps(status))
 
     def loop(self) -> None:
-        """Index everything once, then poll for changes until stopped."""
+        """Wait for the log dir, index everything once, then poll for changes until stopped."""
+        # serving only remotes, a first local run may still create the log dir.
+        while not self.logdir.is_dir():
+            if self.stopping.wait(self.poll_s):
+                return
         with Index(logdir=self.logdir, cache=self.cache) as index:
             while not self.stopping.is_set():
                 fresh = index.catch_up(".", budget_s=float("inf"), daemon=True)

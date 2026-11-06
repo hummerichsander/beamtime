@@ -211,6 +211,80 @@ def test_doctor_and_settings(ctx: Context) -> None:
     assert ["logdir", "beamtime", "built-in"] in s["rows"]
 
 
+def test_source_add_list_rm(ctx: Context, project: Path) -> None:
+    """Adding a remote writes the user settings by default; ``--command`` skips the ssh probe."""
+    from beamtime.settings import user_settings_path
+
+    added = call(
+        "source add",
+        {"name": "cluster", "remote": "login.hpc:/scratch/me/beamtime", "command": "bt"},
+        ctx,
+    )
+    assert added["name"] == "cluster"
+    assert user_settings_path().is_file()
+    saved = load(project)
+    assert saved.get("remotes")["cluster"] == {
+        "host": "login.hpc",
+        "path": "/scratch/me/beamtime",
+        "command": "bt",
+    }
+    listed = call("source list", {}, ctx)
+    assert ["cluster", "login.hpc", "/scratch/me/beamtime", "bt", None] in listed["rows"]
+    call("source rm", {"name": "cluster"}, ctx)
+    assert not (load(project).get("remotes") or {})
+    with pytest.raises(OpError, match="no remote"):
+        call("source rm", {"name": "cluster"}, ctx)
+
+
+def test_source_add_to_the_project(ctx: Context, project: Path) -> None:
+    """``--project`` writes to the project's ``beamtime.yaml`` instead of the user settings."""
+    call("source add", {"name": "box", "remote": "h:/p", "command": "bt", "project": True}, ctx)
+    text = (project / "beamtime.yaml").read_text()
+    assert "box" in text and "remotes" in text
+    assert load(project).get("remotes")["box"]["host"] == "h"
+
+
+def test_source_add_keeps_the_file_and_checks_the_path(ctx: Context, project: Path) -> None:
+    """Adding a remote to ``beamtime.yaml`` keeps its comments; a path that isn't absolute is
+    refused."""
+    (project / "beamtime.yaml").write_text("schema: 1\n# our cluster setup\nlogdir: beamtime\n")
+    call("source add", {"name": "box", "remote": "h:/p", "command": "bt", "project": True}, ctx)
+    text = (project / "beamtime.yaml").read_text()
+    assert "# our cluster setup" in text and "logdir: beamtime" in text
+    call("source rm", {"name": "box"}, ctx)
+    assert "# our cluster setup" in (project / "beamtime.yaml").read_text()
+    with pytest.raises(OpError, match="absolute"):
+        call("source add", {"name": "x", "remote": "h:relative", "command": "bt"}, ctx)
+
+
+def test_source_probe_expands_the_path_on_the_remote(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The venv probe lets the remote shell expand ``~`` and ``${VAR}`` in the log dir's path."""
+    import subprocess
+
+    from beamtime.ops.admin import probe_command
+
+    home = tmp_path / "home"
+    venv = home / "proj" / ".venv" / "bin" / "beamtime"
+    venv.parent.mkdir(parents=True)
+    (home / "proj" / "beamtime").mkdir()
+    venv.write_text("#!/bin/sh\n")
+    venv.chmod(0o755)
+    real = subprocess.run
+
+    def remote(argv: list[str], **kw) -> subprocess.CompletedProcess:
+        # the last argument is the line ssh hands the remote shell; no beamtime on its PATH.
+        line = argv[-1].replace("command -v beamtime", "false")
+        env = {"HOME": str(home), "PROJ": str(home / "proj"), "PATH": "/usr/bin:/bin"}
+        return real(["sh", "-c", line], env=env, **kw)
+
+    monkeypatch.setattr(subprocess, "run", remote)
+    assert probe_command("h", "~/proj/beamtime") == "~/proj/beamtime/../.venv/bin/beamtime"
+    assert probe_command("h", "${PROJ}/beamtime") == "${PROJ}/beamtime/../.venv/bin/beamtime"
+    assert probe_command("h", "/nowhere/beamtime") is None
+
+
 def test_mcp_install_for_cursor(ctx: Context, project: Path) -> None:
     """Cursor's project config gets an entry that names the project root."""
     call("mcp install", {"client": "cursor"}, ctx)
@@ -310,7 +384,7 @@ def test_instructions_block(project: Path) -> None:
     call("init", {"instructions": True}, ctx)
     text = (project / "AGENTS.md").read_text()
     assert text.startswith("# My rules\n\nBe brief.\n") and text.count(START) == 1
-    assert "beamtime guide" in text and "@<remote>/<group>" in text
+    assert "beamtime guide" in text and "@<name>/<group>" in text
     stale = text.replace("Read `beamtime guide`", "Read the old guide")
     (project / "AGENTS.md").write_text(stale + "\nMine after.\n")
     lines = call("init", {"instructions": True}, ctx)["lines"]
@@ -319,3 +393,30 @@ def test_instructions_block(project: Path) -> None:
     assert again.count(START) == 1 and "Read `beamtime guide`" in again and again.endswith("Mine after.\n")
     assert again.index(END) < again.index("Mine after.")
     assert "has Beamtime's agent rules already" in call("init", {"instructions": True}, ctx)["lines"][0]
+
+
+def test_init_and_mcp_install_work_without_a_local_log_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A project that has never logged a run yet (no local log dir) can still set up its
+    instructions and register the MCP server; neither needs a source to exist."""
+    import subprocess
+
+    root = tmp_path / "proj"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    monkeypatch.chdir(root)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("BEAMTIME_CACHE", str(tmp_path / "cache"))
+    monkeypatch.delenv("BEAMTIME_LOGDIR", raising=False)
+    ctx = Context.make(caller="cli")
+    assert not ctx.logdir.is_dir()
+
+    init = call("init", {"instructions": True}, ctx)
+    assert any("AGENTS.md" in line for line in init["lines"])
+    assert "@<name>/<group>" in (root / "AGENTS.md").read_text()
+
+    installed = call("mcp install", {"client": "cursor"}, ctx)
+    config = json.loads((root / ".cursor" / "mcp.json").read_text())
+    assert config["mcpServers"]["beamtime"]["args"][:2] == ["--root", str(root.resolve())]
+    assert not any("error" in line.lower() for line in installed["lines"])
