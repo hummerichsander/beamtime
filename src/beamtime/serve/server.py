@@ -170,6 +170,9 @@ def forward_remote_change(hub: Any, name: str, event: dict[str, Any]) -> None:
     :param name: The source's name.
     :param event: The remote's ``changed`` event, ``{changed: {path: [kind, ...]}}``."""
     changed = event.get("changed") or {}
+    # a remote before 0.2 sends only ``paths``, without kinds: any kind may have changed.
+    for path in event.get("paths") or []:
+        changed.setdefault(path, ["metrics", "status", "authored"])
     hub.changed(
         {
             (f"@{name}" if path in (".", "") else f"@{name}/{path}"): set(kinds)

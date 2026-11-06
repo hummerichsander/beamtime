@@ -4,7 +4,7 @@ import json
 import math
 from typing import Any
 
-from beamtime.query.distinguish import distinguishing, flatten
+from beamtime.query.distinguish import distinguishing, flatten, is_seed
 from beamtime.query.fields import parse_field
 from beamtime.query.models import QueryError
 from beamtime.record.stats import mean, variance
@@ -27,8 +27,9 @@ def seed_groups(
     per_run = [flatten(json.loads(r["_config"] or "{}")) for r in runs]
     distinct = distinguishing(per_run)
     canon = distinct.aliases.get(seeds, seeds)
-    exclude = {canon} | {k for k, c in distinct.aliases.items() if c == canon}
-    by = [k.removeprefix("config.") for k in distinct.varying if k not in exclude]
+    # with one run per arm the seed splits the runs exactly as the arm does; the arm stays then.
+    seed_like = canon == seeds or is_seed(canon.removeprefix("config."))
+    by = [k.removeprefix("config.") for k in distinct.varying if not (seed_like and k == canon)]
     groups: dict[str, tuple[dict[str, Any], list]] = {}
     for r, cfg in zip(runs, per_run, strict=True):
         label = {k: cfg.get(k) for k in by}

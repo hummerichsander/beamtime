@@ -76,7 +76,8 @@ def test_hub_filters_by_kind() -> None:
 
 
 def test_daemon_reports_changed_runs_and_groups(project: Path) -> None:
-    """New metric lines, new notes and new proposal versions are reported by path and kind."""
+    """New metric lines, new group and run notes and new proposal versions are reported by path
+    and kind."""
     logdir = project / "beamtime"
     seen: list[dict[str, set[str]]] = []
     daemon = Daemon(logdir=logdir, on_change=seen.append, poll_s=0.1)
@@ -99,6 +100,14 @@ def test_daemon_reports_changed_runs_and_groups(project: Path) -> None:
             "---\nschema: 1\ntype: observation\ndescription: x\nauthor: t\nuser: t\n---\nx\n"
         )
         wait_for(lambda: any("tokenizer" in d and "authored" in d["tokenizer"] for d in seen))
+
+        seen.clear()
+        notes = run / "notes"
+        notes.mkdir(exist_ok=True)
+        (notes / "20261027-120000-efgh.md").write_text(
+            "---\nschema: 1\ntype: observation\ndescription: x\nauthor: t\nuser: t\n---\nx\n"
+        )
+        wait_for(lambda: any(rel in d and "authored" in d[rel] for d in seen))
 
         seen.clear()
         proposal = logdir / "scaling" / "lr-sweep" / "proposal"

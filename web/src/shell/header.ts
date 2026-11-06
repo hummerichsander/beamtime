@@ -159,7 +159,7 @@ function Best({ path }: { path: string }) {
   const isRun = isRunId(path.split("/").pop() ?? "");
   const tip = `${best.stat} of ${best.metric} over ${isRun ? "the run" : "all runs"}${config ? ` (${config})` : ""}`;
   return html`<span data-tip=${tip}>
-    best <b>${label(`metric.${best.metric}.${best.stat}`)} ${value(best.value)}</b>
+    best <b>${best.label ?? label(`metric.${best.metric}.${best.stat}`)} ${value(best.value)}</b>
     ${isRun ? null : html` · <a href=${runUrl(best.run)}>${best.name}</a>`}
   </span>`;
 }

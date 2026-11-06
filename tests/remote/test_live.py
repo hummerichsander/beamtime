@@ -50,3 +50,15 @@ def test_an_authored_change_on_a_remote_wakes_only_the_pages_watching_authored_c
             await stream.aclose()
 
     assert asyncio.run(scenario()) == {"notes"}
+
+
+def test_a_remote_before_kinds_wakes_every_call() -> None:
+    """An older remote's ``paths`` event, without kinds, reaches calls of every kind."""
+
+    class Recorder:
+        def changed(self, changed: dict[str, set[str]]) -> None:
+            self.seen = changed
+
+    hub = Recorder()
+    forward_remote_change(hub, "box", {"event": "changed", "paths": [SWEEP]})
+    assert hub.seen == {f"@box/{SWEEP}": {"metrics", "status", "authored"}}

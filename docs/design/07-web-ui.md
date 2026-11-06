@@ -127,8 +127,8 @@ These qualities are made concrete as budgets and rules, and checked like correct
     plan's progress and the current verdict;
   - the facts: run counts by status, notes, the best value of the main metric (the view's first
     entry under `metrics:` in its direction; else the group's proposed metric; else the best-ranked
-    metric that isn't a flat line) with the run that reached it, its distinguishing config in a
-    tooltip; and the view's `finding`.
+    metric that isn't a flat line), named by its `label` in the view, with the run that reached it,
+    its distinguishing config in a tooltip; and the view's `finding`.
 
   A run's header shows its name and status, steps, duration and start, its best value, and the
   proposals it belongs to; id, host, commit and job are in a tooltip.
@@ -205,13 +205,15 @@ Nothing is reloaded when data changes, neither the page nor the view:
 1. **The page subscribes** to the queries of its visible blocks over **server-sent events**
    (`/api/subscribe`), a one-way stream that passes proxies easily.
 2. **The server names only affected queries.** When a run's files change, the index tags the change
-   by kind: `metrics` (a stream grew), `status` (a run's card, started, finished or was discovered)
-   or `authored` (a note, proposal, memory or view file was written). `serve` sends the id of a
-   subscribed query only when its scope is affected *and* it reads a changed kind (a method-to-kinds
-   table in `api.ts`; an unknown method is conservatively affected by every kind), at most once per
-   second per query. `view` reads `status` too, since the default view's shape (an empty group, which
-   metrics get a chart) follows run counts, not only an authored view file. A metric tick no longer
-   refetches the view, notes or memory.
+   by kind: `metrics` (a stream grew), `status` (a run's card, started, finished, was discovered or
+   logged a metric key for the first time) or `authored` (a note, proposal, memory or view file was
+   written, a run's notes and name included). `serve` sends the id of a subscribed query only when
+   its scope is affected *and* it reads a changed kind (a method-to-kinds table in `api.ts`; an
+   unknown method is conservatively affected by every kind), at most once per second per query.
+   `view` reads `status` too, since the default view's shape (an empty group, which metrics get a
+   chart) follows run counts and metric keys, not only an authored view file; `summary` reads every
+   kind, since the header's best follows the view's and the proposal's lead metric. A metric tick no
+   longer refetches the view, notes or memory.
 3. **The page refetches those queries.** Answers come from previews, cards and the index and are small.
 4. **Only the affected blocks re-render.** `bt.useData` re-renders the one component that uses the
    query, and Preact patches only the DOM elements whose content changed.

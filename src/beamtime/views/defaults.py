@@ -103,14 +103,17 @@ def run_body(ctx: Context, path: str) -> list[m.Block]:
     return body
 
 
-def summary(ctx: Context, path: str, lead: tuple[str, bool] | None = None) -> dict[str, Any] | None:
+def summary(
+    ctx: Context, path: str, lead: tuple[str, bool, str | None] | None = None
+) -> dict[str, Any] | None:
     """Find the main metric and its best run, for the header's facts line.
 
     :param ctx: The operation context.
     :param path: A group or run path.
-    :param lead: The shown view's lead metric and whether lower is better; guessed without.
-    :return: ``{metric, stat, value, run, name, config}``, or ``None`` without metrics or for
-        a group without runs of its own."""
+    :param lead: The shown view's lead metric, whether lower is better and its label; guessed
+        without.
+    :return: ``{metric, label, stat, value, run, name, config}``, or ``None`` without metrics or
+        for a group without runs of its own."""
     run_id = path.rsplit("/", 1)[-1]
     scope = run_id if is_run_id(run_id) else path
     # a group whose runs all sit in subgroups mixes experiments; no single best there.
@@ -118,9 +121,9 @@ def summary(ctx: Context, path: str, lead: tuple[str, bool] | None = None) -> di
         return None
     keys = call("keys", {"from": scope}, ctx)
     if lead is not None and lead[0] in ordered_metrics(keys):
-        main, lower = lead
+        main, lower, label = lead
     else:
-        main = main_metric(ctx, path, keys)
+        main, label = main_metric(ctx, path, keys), None
         lower = main is not None and lower_is_better(main)
     if main is None:
         return None
@@ -140,6 +143,7 @@ def summary(ctx: Context, path: str, lead: tuple[str, bool] | None = None) -> di
     best = dict(zip(answer["columns"], answer["rows"][0], strict=True))
     return {
         "metric": main,
+        "label": label,
         "stat": stat,
         "value": best[field],
         "run": best["run.id"],

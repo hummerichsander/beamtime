@@ -1,5 +1,6 @@
 from beamtime.ops import call
 from beamtime.ops.context import Context
+from beamtime.query.aggregate import seed_groups
 from beamtime.query.distinguish import distinguishing
 
 
@@ -69,3 +70,10 @@ def test_seed_means_over_realistic_give_one_curve_per_arm(ctx: Context) -> None:
     curves = answer["curves"]
     assert len(curves) == 3
     assert {c["by"]["arm"] for c in curves} == {"small", "medium", "large"}
+
+
+def test_seed_means_keep_arms_apart_with_one_run_per_arm() -> None:
+    """With one seed per arm the seed aliases the arm; merging seeds must not merge the arms."""
+    runs = [{"_config": f'{{"arm": "{arm}", "seed": {i}}}'} for i, arm in enumerate("abc")]
+    groups = seed_groups(runs, "config.seed")
+    assert sorted(label["arm"] for label, _ in groups) == ["a", "b", "c"]

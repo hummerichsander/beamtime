@@ -247,7 +247,8 @@ const KINDS_BY_METHOD: Record<string, string[]> = {
   series: ["metrics", "status"],
   runs: ["metrics", "status"],
   keys: ["metrics", "status"],
-  summary: ["metrics", "status"],
+  // the header's best follows the view's lead metric and the proposal's, both authored.
+  summary: ALL_KINDS,
   groups: ALL_KINDS,
   status: ALL_KINDS,
   check: ALL_KINDS,

@@ -10,7 +10,8 @@ from pathlib import Path
 from beamtime.format import constants as c
 from beamtime.format.tree import is_reserved
 from beamtime.index.cache import INDEX_LOCK, FileLock, cache_dir, daemon_status
-from beamtime.index.ingest import Ingester, mtime, read_notes
+from beamtime.index.columns import open_columns
+from beamtime.index.ingest import Ingester, authored_mtime, mtime, read_notes
 from beamtime.index.store import Store
 
 # mtimes can be a second coarse; folders changed around a walk are listed again.
@@ -229,13 +230,18 @@ class Index:
                     touch(freshness.changed, row["path"], "status")
             for rel, run_mtime in found:
                 run_id = rel.rsplit("/", 1)[-1]
+                row = rows.get(run_id)
                 try:
-                    meta, streams = self.ingester.stale(rel, run_mtime, rows.get(run_id))
+                    meta, streams = self.ingester.stale(rel, run_mtime, row)
                     if meta:
                         self.ingester.ingest_meta(self.logdir / rel)
                         # the card covers both metric summaries and status and steps.
                         touch(freshness.changed, rel, "metrics")
                         touch(freshness.changed, rel, "status")
+                        # a run's notes and name are read with its meta, not by the walk.
+                        notes = authored_mtime(str(self.logdir / rel))
+                        if row is None or row["notes_mtime"] != notes:
+                            touch(freshness.changed, rel, "authored")
                 except (OSError, ValueError) as e:
                     freshness.damaged.append(f"{run_id}: {e}")
                     continue
@@ -249,9 +255,13 @@ class Index:
                     lags.append(None if indexed is None else now - indexed)
                     continue
                 try:
+                    keys = open_columns(self.series / run_dir.name)[1].keys()
                     self.ingester.ingest_streams(run_dir)
                     rel = run_dir.relative_to(self.logdir).as_posix()
                     touch(freshness.changed, rel, "metrics")
+                    # a metric logged for the first time gives the default view a new chart.
+                    if open_columns(self.series / run_dir.name)[1].keys() != keys:
+                        touch(freshness.changed, rel, "status")
                 except (OSError, ValueError) as e:
                     freshness.damaged.append(f"{run_dir.name}: {e}")
             freshness.behind = len(lags)

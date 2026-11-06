@@ -65,7 +65,8 @@ view like a built-in block (`- phase-map: {x: config.lr, y: config.wd, value: me
   need a caption.
 - **Units, labels, scales and direction** go into the view's `metrics:` once.
 - **Don't overclaim.** If the proposal's check is pending, provisional, insufficient or failed,
-  the finding says so; verdicts belong in notes.
+  the finding says so; verdicts belong in notes. An explanation not yet measured is a `theory`
+  note, not an `observation`.
 
 ## Format in brief
 

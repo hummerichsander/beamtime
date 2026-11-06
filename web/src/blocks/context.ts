@@ -251,7 +251,7 @@ export function NoteItem(props: { note: any; open?: boolean; scope?: string }) {
   const when = n.id.slice(0, 15).replace(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6Z");
   const author = n.meta?.author;
   return html`<article class=${`note${open ? " open" : ""}`}>
-    <div class="note-line" onClick=${(e: MouseEvent) => !(e.target as Element).closest(".editable, a, .note-delete") && setOpen(!open)}>
+    <div class="note-line" onClick=${(e: MouseEvent) => !(e.target as Element).closest(".editable, a, .note-delete, .popover-wrap") && setOpen(!open)}>
       <button type="button" class="note-toggle" aria-expanded=${open} aria-label=${open ? "Close the note" : "Open the note"}>
         <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${14} /></button>
       <${NoteType} note=${n} />

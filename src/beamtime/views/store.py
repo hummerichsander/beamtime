@@ -251,12 +251,12 @@ def code_text(ctx: Context, ref: dict[str, Any]) -> dict[str, Any]:
     return {"kind": "code", "path": rel, "code": file.read_text()}
 
 
-def lead(ctx: Context, path: str) -> tuple[str, bool] | None:
+def lead(ctx: Context, path: str) -> tuple[str, bool, str | None] | None:
     """Find the lead metric of a page's newest view: the first under ``metrics:``.
 
     :param ctx: The operation context.
     :param path: A group or run path.
-    :return: The metric and whether lower is better, or ``None`` without one."""
+    :return: The metric, whether lower is better and its label, or ``None`` without one."""
     from beamtime.views.defaults import lower_is_better
 
     if not (files := saved(ctx, path)):
@@ -267,5 +267,5 @@ def lead(ctx: Context, path: str) -> tuple[str, bool] | None:
         return None
     for metric, info in view.metrics.items():
         given = info.higher_is_better
-        return metric, (lower_is_better(metric) if given is None else not given)
+        return metric, (lower_is_better(metric) if given is None else not given), info.label
     return None

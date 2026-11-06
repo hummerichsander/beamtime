@@ -270,10 +270,10 @@ def test_header_follows_the_views_lead_metric(ctx: Context) -> None:
     folder = ctx.logdir / SWEEP / "view"
     newest = sorted(folder.glob("*.yaml"))[-1]
     data = yaml.safe_load(newest.read_text())
-    data["metrics"] = {"train/loss": {"higher_is_better": False}}
+    data["metrics"] = {"train/loss": {"higher_is_better": False, "label": "Training loss"}}
     (folder / "20991231-000000-zzzz.yaml").write_text(yaml.safe_dump(data))
     best = summary_of(ctx, SWEEP)["summary"]
-    assert (best["metric"], best["stat"]) == ("train/loss", "min")
+    assert (best["metric"], best["stat"], best["label"]) == ("train/loss", "min", "Training loss")
 
 
 def test_new_chart_settings_save_and_compile() -> None:
