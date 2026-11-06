@@ -317,10 +317,18 @@ series:
 - Each curve comes back either **raw** (when it has at most `points` points in the window) or
   **downsampled** as min, max and last per bucket, with the bucket edges. The answer always says
   which.
-- A metric as `x` pairs each point with that metric's most recent value at or before the same step.
+- A metric as `x` (`read.x_values`) that never decreases is a ramp: linear in the step between the steps
+  where its value changes, so `epoch` at step 1750 of 100-step epochs from 1700 is 17.5, and past the last
+  change on the slope of the last segment; with a single change it holds that value. Any other metric
+  pairs each point with its most recent value at or before the step. Points before the axis' first value
+  are dropped, and each curve says whether its `x` is `monotone`.
 - With `by: [fields]`, the runs sharing the fields' values come back as one aggregated curve per
   bucket: mean, a band (`band: minmax | std | stderr | none`) and the number of contributing runs.
   `seeds: config.seed` is the shorthand for aggregating by the varying config, apart from the seed.
+  With another `x`, the buckets are `points` equal widths from the smallest to the largest x over the
+  runs (the largest x belongs to the last bucket; a constant x is one bucket), each run is averaged
+  per bucket first, and `x` in the answer is the bucket centre. Aggregating over an `x` that is not
+  monotone in a run is an error: show each run instead. Steps keep power-of-two buckets.
   (The parameter is `by`, not `group`, since a group is a folder of runs.)
 - Each chart has a point budget of about 30k; `points` per curve shrinks when a chart requests many
   curves.

@@ -9,6 +9,7 @@ import pytest
 from beamtime.index.index import Index
 from beamtime.query import QueryError, run
 from beamtime.synth import generate
+from beamtime.synth.generate import SCALES, Generator
 
 
 @pytest.fixture(scope="module")
@@ -412,3 +413,81 @@ def test_keys_of_running_runs_come_from_their_columns(tmp_path: Path) -> None:
     metrics = {r[0]: r for r in a["metrics"]["rows"]}
     assert metrics["live/new"][:4] == ["live/new", 1, 5000, False]
     assert metrics["train/loss"][1] == 26
+
+
+@pytest.fixture(scope="module")
+def clocked(tmp_path_factory: pytest.TempPathFactory):
+    """Answer queries on two runs with known times: A at 0.5 s per step, B at 1 s per step.
+
+    A also logs 50 steps past its last ``epoch``; ``epoch`` steps up every 100 steps, ``wiggle`` is
+    not monotone and ``const`` never changes.
+
+    :param tmp_path_factory: Pytest's temporary directory factory.
+    :return: A function from query to answer."""
+    logdir = tmp_path_factory.mktemp("clocked") / "beamtime"
+    gen = Generator(logdir=logdir, seed=0, scale=SCALES["s"], now=datetime.now(timezone.utc))
+    for seed, (end, per_step) in enumerate([(350, 0.5), (300, 1.0)]):
+        rows = []
+        for s in range(0, end + 1, 50):
+            row = {
+                "_step": s,
+                "_t": 1000.0 + per_step * s,
+                "m": float(s),
+                "const": 5.0,
+                "loss": 1.0,
+            }
+            row["wiggle"] = float([0, 2, 1, 3, 4, 6, 5, 7][s // 50])
+            if s <= 300:
+                row["epoch"] = float(s // 100)
+            rows.append(row)
+        gen.write_run(gen.spec(logdir / "x", {"arm": "a", "seed": seed}, rows))
+    index = Index(logdir=logdir, cache=tmp_path_factory.mktemp("clocked-cache"))
+    index.catch_up(".", budget_s=float("inf"))
+
+    def answer(query: dict) -> dict:
+        return run(query, logdir=logdir, index=index)
+
+    yield answer
+    index.close()
+
+
+def test_series_epoch_axis_is_interpolated_and_extended(clocked) -> None:
+    """An epoch logged as a stair is a ramp: fractions between change points and after the last."""
+    curves = clocked({"series": {"from": "x", "y": ["m"], "x": "epoch", "points": 100}})["curves"]
+    a, b = sorted(curves, key=lambda c: -len(c["x"]))
+    assert a["x"] == [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5] and a["monotone"]
+    assert b["x"] == [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0] and b["monotone"]
+
+
+def test_series_elapsed_axis_stays_in_seconds(clocked) -> None:
+    """Elapsed time is measured from each run's first point."""
+    q = {"from": "x", "y": ["m"], "x": "_elapsed", "points": 100}
+    a, b = sorted(clocked({"series": q})["curves"], key=lambda c: -len(c["x"]))
+    assert a["x"] == [0.0, 25.0, 50.0, 75.0, 100.0, 125.0, 150.0, 175.0]
+    assert b["x"] == [0.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0]
+
+
+def test_grouped_series_buckets_by_the_x_axis(clocked) -> None:
+    """Group means are taken per run per bucket of x; the last x lands in the last bucket."""
+    q = {"from": "x", "y": ["m"], "by": ["config.arm"], "x": "_elapsed", "points": 3}
+    (curve,) = clocked({"series": q})["curves"]
+    # A: buckets of 100 s hold steps {0..150}, {200..350}; B: {0, 50}, {100, 150}, {200..300}.
+    assert curve["x"] == [50.0, 150.0, 250.0]
+    assert curve["mean"] == [50.0, 200.0, 250.0] and curve["n"] == [2, 2, 1]
+
+
+def test_series_with_a_non_monotone_x(clocked) -> None:
+    """Curves flag it; aggregating over it is an error."""
+    a, _ = clocked({"series": {"from": "x", "y": ["m"], "x": "wiggle", "points": 100}})["curves"]
+    assert not a["monotone"]
+    q = {"from": "x", "y": ["m"], "by": ["config.arm"], "x": "wiggle", "points": 3}
+    with pytest.raises(QueryError, match="monotone"):
+        clocked({"series": q})
+
+
+def test_grouped_series_with_a_constant_x_is_one_bucket(clocked) -> None:
+    """No width to divide by: every point lands in one bucket at the constant."""
+    q = {"from": "x", "y": ["m"], "by": ["config.arm"], "x": "const", "points": 5}
+    (curve,) = clocked({"series": q})["curves"]
+    assert curve["x"] == [5.0] and curve["n"] == [2]
+    assert curve["mean"] == [(175.0 + 150.0) / 2]

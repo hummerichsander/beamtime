@@ -13,6 +13,7 @@ from beamtime.query.read import (
     from_preview,
     value_at,
     width_for,
+    x_values,
     window_stat,
 )
 from beamtime.sdk.stats import MetricStats
@@ -163,3 +164,67 @@ def test_elapsed_values_follow_attempt_order_not_step_order() -> None:
         2.0,
         3.0,
     ]
+
+
+class FakeColumn:
+    """A column of plain lists."""
+
+    def __init__(self, steps: list[int], values: list[float]) -> None:
+        """Hold a column's steps and values.
+
+        :param steps: The steps.
+        :param values: The values."""
+        self.steps, self.values = steps, values
+
+
+class FakeColumns:
+    """The columns of a run, as ``x_values`` reads them."""
+
+    manifest = type("Manifest", (), {"attempts": []})()
+
+    def __init__(self, **columns: FakeColumn) -> None:
+        """Hold columns by key.
+
+        :param columns: The columns."""
+        self.columns = columns
+
+    def get(self, key: str) -> FakeColumn | None:
+        """Look up a column.
+
+        :param key: The key.
+        :return: The column, or ``None``."""
+        return self.columns.get(key)
+
+
+def test_x_values_interpolate_a_monotone_metric() -> None:
+    """A stair-logged epoch is a ramp between its change points and after the last one."""
+    epoch = FakeColumn([0, 50, 100, 150, 200], [0.0, 0.0, 1.0, 1.0, 2.0])
+    cols = FakeColumns(epoch=epoch)
+    assert x_values(cols, "epoch", [0, 50, 75, 100, 150, 200, 250, 300]) == [
+        0.0,
+        0.5,
+        0.75,
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+    ]
+    assert x_values(cols, "epoch", [-1]) == [None]
+
+
+def test_x_values_hold_a_metric_with_one_change_point() -> None:
+    """A constant has no slope to follow."""
+    cols = FakeColumns(c=FakeColumn([10, 20], [4.0, 4.0]))
+    assert x_values(cols, "c", [5, 10, 15, 99]) == [None, 4.0, 4.0, 4.0]
+
+
+def test_x_values_take_the_raw_value_of_a_non_monotone_metric() -> None:
+    """Without an order there is nothing to interpolate."""
+    cols = FakeColumns(w=FakeColumn([0, 10, 20], [0.0, 2.0, 1.0]))
+    assert x_values(cols, "w", [0, 5, 10, 15, 20, 25]) == [0.0, 0.0, 2.0, 2.0, 1.0, 1.0]
+
+
+def test_x_values_without_the_column_are_unknown() -> None:
+    """A run that never logged the metric has no x."""
+    assert x_values(FakeColumns(), "epoch", [0, 1]) == [None, None]

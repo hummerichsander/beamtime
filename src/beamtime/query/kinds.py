@@ -22,13 +22,14 @@ from beamtime.query.files import file_kind
 from beamtime.query.models import QueryError, closest
 from beamtime.query.read import (
     bucket_means,
+    bucket_means_by_x,
     downsample,
-    elapsed_values,
     ema,
     finite_range,
     from_preview,
-    value_at,
+    is_monotone,
     width_for,
+    x_values,
 )
 from beamtime.query.select import (
     Columns,
@@ -288,7 +289,7 @@ def run_curve(
     :param points: The point budget of the curve.
     :param q: The query.
     :return: The curve, or ``None`` if the run has no such metric."""
-    head = {"run": run["_id"], "name": run.get("run.name"), "metric": y}
+    head = {"run": run["_id"], "name": run.get("run.name"), "metric": y, "monotone": True}
     status = ctx.index.store.run(run["_id"])["status"]
     plain = q.x == "_step" and window == (None, None) and q.smooth is None
     if plain and status != "running":
@@ -308,25 +309,14 @@ def run_curve(
         steps = steps[:end]
     curve = downsample(steps, values, window=window, points=points, nonfinite=col.nonfinite)
     if q.x != "_step":
-        xs = curve["x"] if curve["raw"] else curve["first"]
-        curve["x"] = map_x(cols, q.x, xs)
+        xs = x_values(cols, q.x, curve["x"] if curve["raw"] else curve["first"])
+        known = [i for i, x in enumerate(xs) if x is not None]
+        curve["x"] = xs
+        for key, v in curve.items():
+            if isinstance(v, list) and len(v) == len(xs):
+                curve[key] = [v[i] for i in known]
+        curve["monotone"] = is_monotone(curve["x"])
     return head | {"source": "columns"} | curve
-
-
-def map_x(cols: Columns, x: str, steps: list[int]) -> list[Any]:
-    """Map steps to another x axis: wall time, elapsed time or a metric's value.
-
-    :param cols: The run's columns.
-    :param x: ``_t``, ``_elapsed`` or a metric key.
-    :param steps: The steps to map.
-    :return: The x values; ``None`` where unknown."""
-    col = cols.get(TIME_KEY if x in (TIME_KEY, "_elapsed") else x)
-    if col is None:
-        return [None] * len(steps)
-    if x == "_elapsed":
-        gaps = [(a[1], a[2]) for a in cols.manifest.attempts if len(a) > 2]
-        return elapsed_values(col.steps, col.values, steps, gaps)
-    return [value_at(col.steps, col.values, s) for s in steps]
 
 
 def grouped_curve(
@@ -348,6 +338,8 @@ def grouped_curve(
     :param points: The point budget of the curve.
     :param q: The query.
     :return: The aggregated curve."""
+    if q.x != "_step":
+        return grouped_curve_by_x(ctx, label, runs, y, window, points, q)
     series = []
     for r in runs:
         cols = Columns(index=ctx.index, run_id=r["_id"])
@@ -378,11 +370,81 @@ def grouped_curve(
             per_bucket[b].append(v)
         cols.close()
     xs = sorted(per_bucket)
-    mean, lo_band, hi_band, n = [], [], [], []
-    for b in xs:
-        vals = per_bucket[b]
+    return out | {"width": width, "x": xs} | band_stats([per_bucket[b] for b in xs], q.band)
+
+
+def grouped_curve_by_x(
+    ctx: Context,
+    label: dict[str, Any],
+    runs: list[dict[str, Any]],
+    y: str,
+    window: tuple[int | None, int | None],
+    points: int,
+    q: m.Series,
+) -> dict[str, Any]:
+    """Aggregate the curves of a group per bucket of another x axis.
+
+    :param ctx: The query context.
+    :param label: The group's field values (or config without the seed).
+    :param runs: The group's runs.
+    :param y: The metric key.
+    :param window: The step window.
+    :param points: The point budget of the curve.
+    :param q: The query.
+    :return: The aggregated curve; ``x`` is the bucket centre."""
+    series = []
+    for r in runs:
+        cols = Columns(index=ctx.index, run_id=r["_id"])
+        if (col := cols.get(y)) is not None:
+            values = ema(col.values, q.smooth.ema) if q.smooth is not None else col.values
+            i, j = col.window(*window)
+            a, b = finite_range(col.steps, values, i, j, col.nonfinite)
+            xs = x_values(cols, q.x, col.steps[a:b])
+            known = [
+                (x, v)
+                for x, v in zip(xs, values[a:b], strict=True)
+                if x is not None and math.isfinite(v)
+            ]
+            if known:
+                xs, vs = zip(*known, strict=True)
+                if not is_monotone(xs):
+                    raise QueryError(
+                        f"series: aggregating needs a monotone x, and {q.x!r} is not "
+                        f"in run {r['_id']}; show each run instead"
+                    )
+                series.append((xs, vs))
+        cols.close()
+    out: dict[str, Any] = {
+        "by": label,
+        "runs": [r["_id"] for r in runs],
+        "metric": y,
+    }
+    if not series:
+        return out | {"x": [], "mean": [], "lo": [], "hi": [], "n": []}
+    lo = min(xs[0] for xs, _ in series)
+    hi = max(xs[-1] for xs, _ in series)
+    width = (hi - lo) / points
+    per_bucket: dict[int, list[float]] = defaultdict(list)
+    for xs, vs in series:
+        for b, v in bucket_means_by_x(xs, vs, lo=lo, width=width, last=points - 1).items():
+            per_bucket[b].append(v)
+    buckets = sorted(per_bucket)
+    centres = [lo + (b + 0.5) * width for b in buckets]
+    return (
+        out | {"width": width, "x": centres} | band_stats([per_bucket[b] for b in buckets], q.band)
+    )
+
+
+def band_stats(per_bucket: list[list[float]], band: str) -> dict[str, list[Any]]:
+    """Summarize the runs' bucket means of a grouped curve.
+
+    :param per_bucket: The per-run means of every bucket, in x order.
+    :param band: ``minmax``, ``std``, ``stderr`` or ``none``.
+    :return: ``{mean, lo, hi, n}`` per bucket."""
+    mean, lo, hi, n = [], [], [], []
+    for vals in per_bucket:
         mu, sd = spread(vals)
-        match q.band:
+        match band:
             case "minmax":
                 lo_v, hi_v = min(vals), max(vals)
             case "std":
@@ -393,19 +455,12 @@ def grouped_curve(
             case "none":
                 lo_v = hi_v = None
             case _:
-                raise QueryError(f"unknown band {q.band!r}")
+                raise QueryError(f"unknown band {band!r}")
         mean.append(mu)
-        lo_band.append(lo_v)
-        hi_band.append(hi_v)
+        lo.append(lo_v)
+        hi.append(hi_v)
         n.append(len(vals))
-    return out | {
-        "width": width,
-        "x": xs,
-        "mean": mean,
-        "lo": lo_band,
-        "hi": hi_band,
-        "n": n,
-    }
+    return {"mean": mean, "lo": lo, "hi": hi, "n": n}
 
 
 def data_kind(ctx: Context, q: m.Data) -> dict[str, Any]:
