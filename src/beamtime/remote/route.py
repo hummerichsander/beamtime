@@ -57,6 +57,8 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
     from beamtime.remote.sources import client_for
 
     params = strip_local(params)
+    if method == "cp":
+        check_one_source(params, ctx)
     source = source_of(params)
     fans = method in LISTINGS and ctx.sources is not None and ctx.merge and fans_out(params)
     if source is None and fans:
@@ -79,6 +81,19 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
         if e.code != 4 or ctx.sources is None or (run := run_target(params)) is None:
             raise
         return elsewhere(method, params, ctx, run, e)
+
+
+def check_one_source(params: dict[str, Any], ctx: Context) -> None:
+    """Refuse a copy whose source and destination are not on the same machine.
+
+    :param params: The ``cp`` parameters.
+    :param ctx: The operation context, for the default source a bare path means.
+    :raises OpError: If the two name different sources."""
+    named = {source_of({key: params[key]}) or ctx.default_source for key in ("source", "dest")}
+    if len(named) > 1:
+        raise OpError(
+            "cp works within one source for now; `beamtime pull` copies across sources", code=2
+        )
 
 
 def with_default(method: str, params: dict[str, Any], source: str) -> dict[str, Any]:
@@ -239,10 +254,13 @@ def prefix(answer: Any, source: str) -> Any:
         return out
 
     out = walk(answer)
-    # a write says what it wrote; the file is on the source.
+    # a write says what it wrote, or where it copied to; the file is on the source.
     if isinstance(answer, dict) and isinstance(path := answer.get("path"), str):
         out["lines"] = [
-            line.replace(f"wrote {path}", f"wrote {p(path)}") for line in out.get("lines", [])
+            line.replace(f"wrote {path}", f"wrote {p(path)}").replace(
+                f"to {path} ", f"to {p(path)} "
+            )
+            for line in out.get("lines", [])
         ]
     return out
 

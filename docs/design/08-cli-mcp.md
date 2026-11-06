@@ -55,7 +55,7 @@ wherever a group does.
 |---|---|---|
 | `beamtime note add <group>` | `note_add` | a note: `--type`, `--description`, `--resolves`, `--supersedes`, `--completes`, `--evidence`; for verdicts `--proposal <version>`, `--verdict <prediction>=<verdict>`, `--overall`; the check snapshot is added automatically; body from stdin |
 | `beamtime name <run> <name>` | `name` | gives a run a display name (a new version in its `name/` folder) |
-| `beamtime cp <run or group> <dest-group>` | `cp` | copies it under a new run id (or ids); `--name`, `--with-checkpoints`, `--with-record`; never modifies the source ([layer 1](01-storage.md#_artifactsjsonl)) |
+| `beamtime cp <run or group> <dest-group>` | `cp` | copies it under a new run id (or ids); `--name`, `--with-checkpoints`, `--with-record`; never modifies the source ([layer 1](01-storage.md#_artifactsjsonl)); on one remote (`@au/a @au/b`), across sources refused ([layer 4](04-remotes.md#routing-and-merging)) |
 | `beamtime note rm <id>` | – | user only: moves a note and the versions it replaced to the trash |
 | `beamtime proposal set <group> <file>` | `proposal_set` | saves a new proposal version; superseding a frozen version requires `--reason` |
 | `beamtime memory update <group> <file>` | `memory_update` | saves a new memory version; warns beyond the size budget |
