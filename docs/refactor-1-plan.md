@@ -1,13 +1,13 @@
 # Refactor 1: plan after the first human end-to-end tests
 
-Status: **in progress.** Done on branch `refactor-1`: F1 `88fc5b5`, A1 `e2a5cb6`, A2 `dada516`, A3 `6899788`, A4 `3942900`, A5 `0297ea2`, A6 `c0aa283`, A7 `9c286ec`, A8 `bd71c5b`, A9 `4d03f19`, D1 `b7244e1`, D2 `f9f1f40`, D3 `3761001`, D4 `18adc31` (D1 to D3 reviewed in `dc72616` and `33c4fff`).
+Status: **in progress.** Done on branch `refactor-1`: F1 `88fc5b5`, A1 `e2a5cb6`, A2 `dada516`, A3 `6899788`, A4 `3942900`, A5 `0297ea2`, A6 `c0aa283`, A7 `9c286ec`, A8 `bd71c5b`, A9 `4d03f19`, D1 `b7244e1`, D2 `f9f1f40`, D3 `3761001`, D4 `18adc31` (D1 to D3 reviewed in `dc72616` and `33c4fff`), E1 `d9130b0`, E2 `6583a26`, E3 `2ae9cf5`, E4 `c46417e` (E1 to E3 reviewed in `a513e2b` and `5d7a83a`).
 Proposed 2026-11-04, based on the findings in `todo`, the code at `8165346`, the real log
 dir at `au002a:/remote/gpu04/hummerich/projects/split-flows-public/beamtime` (78 runs, 12 groups, 10
 custom code files) and 65 agent sessions on that project. Breaking changes are allowed where they make
 the code leaner; they are listed in [Breaking changes](#breaking-changes).
 
 Every chunk below is written to be executed on its own by a cheaper model. Read
-[How to execute](#how-to-execute) first.
+[Brief](#brief), [How to execute](#how-to-execute) and your chunk's [manifest](#manifests) first.
 
 ## The findings, in one table
 
@@ -46,6 +46,27 @@ Also found, not in the findings:
 - **Every live tick refetches `view`, `code`, `notes`, `memory_show`, `summary`, `status`, `groups` and
   `runs`** (about every 2 s in the repro), over ssh on a remote. Fixed in A1 and A6.
 
+## Brief
+
+What the remaining chunks build, so a session doesn't rediscover the design:
+
+- **Charts** (B): every chart sits in one `ChartFrame` (`web/src/bt/frame.ts`: head, settings, legend, downloads);
+  blocks keep only their data and spec. x values come from the server (`query/read.py:x_values`), never from
+  formatting steps. Every axis has a label. All chart choices (x, scale, colormap, color by) are per-chart prefs,
+  applied page-wide through `prefs.view`; Beamtime's settings hold no colormap.
+- **Default view** (B6, B7): one kind of chart, in sections by metric prefix; no essential grid. Clocks (`epoch`) are
+  an x axis and a progress fact, not charts.
+- **Run lifecycle UI** (E5): attempts, time limits, checkpoints, copies and code versions shown from data E1 to E3
+  already answer.
+- **Kit v2** (C): three tiers (YAML block, `bt.chart.*`, `bt.chart.Figure`); the app's vocabulary (`Sym`, `Tag`,
+  `Icon`, `Predictions`, `theme.tone`) is exported, so custom blocks never retype it. The validator's lints point
+  to the guide.
+- **Agents** (G): the guide by topic (`beamtime guide <topic>`), skills generated from it, a harness in
+  `bench/agents/` with scores, and new tools through `ops/registry.py`.
+
+Done, for every chunk: its **Done** line holds; the checks in How to execute pass; `docs/design/` says what the
+code does; its heading in this plan and the status line carry the commit hash.
+
 ## How to execute
 
 For the agent running a chunk:
@@ -68,26 +89,168 @@ For the agent running a chunk:
    (`tests/test_budgets.py`). `sdk/`, `format/`, `synth/` stay on Python 3.10, stdlib and PyYAML.
 8. Never touch `tests/golden/schema1/`. Readers keep accepting every file already on disk; new fields in
    `_run.json` and notes are optional and need no schema bump.
-9. One commit per chunk. Ask before making a worktree. **Web chunks run one at a time**, since the
+9. One commit per chunk (G4: one per tool). Then record its hash in the chunk's heading
+   (`— **done `abc1234`**`) and in the status line at the top, as a separate commit. Ask before making a worktree. **Web chunks run one at a time**, since the
    committed bundle conflicts otherwise; A-web, B and C are therefore sequential. D and E backend parts
    can run in parallel.
 
 Model tiers: **haiku** for mechanical chunks, **sonnet** for the default, **sonnet + review** where a
 mistake is expensive: have a stronger model read the diff afterwards.
 
+### Running a chunk cheaply
+
+- A fresh session per chunk, started with the chunk's prompt from [Manifests](#manifests). Read what the manifest
+  names, at the line ranges it gives (they are from `e476dbf`; search the symbol if a range has moved).
+- Mechanical changes with tools: `git mv` for moves, `ruff check --fix` for imports, `sed` for renames. Then let
+  the tests find what's left instead of reading every caller.
+- Small output: `pytest -q` (or `-q -x` on a subset while working, the full run before the commit),
+  `git diff --stat`, `grep -n` with a path. Never print a bundle file or `src/beamtime/serve/static/`.
+- A subagent only for a search that would flood the context (every caller across `web/src`, say), asked for
+  the conclusion, not the hits.
+- Questions go at the end of the session, not along the way.
+
 ## Order
 
 ```
-F1 ─┬─ A1 A2 A3 A4 A5 A6 A7 A8 A9     bugs, independent (F1, A1 to A4 done)
+F1 ─┬─ A1 A2 A3 A4 A5 A6 A7 A8 A9     bugs, independent (all done)
     ├─ B1 ─ B2 ─ B3 ─ B4 ─ B5 ─ B6 ─ B7    charts, in this order
     │              └─ C1 ─ C2 ─ C3         agent chart parity
-    ├─ D1 ─ D2 ─ D3 ─ D4                   sources and remote writes
-    ├─ E1   E2   E3 ─ E4 ··· E5           run lifecycle; E4 brings the branch in, E5 (its UI) after B7
+    ├─ D1 ─ D2 ─ D3 ─ D4                   sources and remote writes (done)
+    ├─ E1   E2   E3 ─ E4 ··· E5           run lifecycle (E1 to E4 done); E5, its UI, after B7
     └─ G1 ─ G2 ─ G3 ─ G4                   guides, harness, tools (G1 after C3; G3 after D2)
                               Z            docs, changelog, release
 ```
 
-If time is short: A5, B1 to B3 and D1 + D2 remove most of the daily friction (F1 and A1 to A4 are done).
+If time is short: B1 to B3 remove most of the remaining daily friction. What's left runs in this order, one
+session at a time in the main checkout (every chunk touches `web/` or the guide): B1 B2 B3 B4 B5 B6 B7 E5 C1 C2 C3
+G1 G2 G3 G4 Z.
+
+## Manifests
+
+Per remaining chunk: what it touches (line ranges at `e476dbf`), what to read, the done check, and the prompt that
+starts a fresh session. Chunks tagged **+ review** get a review session afterwards, on a stronger model:
+
+- **Review prompt** (replace `<X>`): `Review chunk <X> of docs/refactor-1-plan.md (its commit is in the chunk heading). Read the plan's Brief, How to execute, <X>'s manifest and chunk, Breaking changes and Decisions. Report bugs, departures from the plan and CLAUDE.md or design/ violations, ranked, with file:line and a failure case. Run the done check. Fix confirmed defects in one commit "Review fixes for <X>"; list departures that need a decision for me. Don't push.`
+
+### B1
+
+- **Touches:** `web/src/blocks/line.ts` (`Chart` 83–249, `Settings` 250–326, `LEGEND_MAX` 25), `web/src/blocks/plots.ts` (`PlotFrame` 280–339, `ValueLegend` 340–352); new `web/src/bt/frame.ts`, `web/src/blocks/line-settings.ts`; `design/gallery.html` and `design/components/Note.md` for `NoteType` (`web/src/blocks/context.ts:230`).
+- **Read:** `docs/design/07-web-ui.md` § Charts (l. 350); `design/components/Chart.md`.
+- **Done check:** `cd web && npm ci && npm test && npm run build`, then the Python checks; bundle committed; `uv run pytest -q tests/serve/test_browser.py tests/test_design.py`; `bench/web/timing.py` within budget.
+- **Note:** No behaviour change. + review.
+- **Prompt:** `Implement chunk B1 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B1's manifest and chunk B1; read other files only as the manifest or the code leads you. Commit when B1's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### B2
+
+- **Touches:** `src/beamtime/query/read.py` (new `x_values`; `elapsed_values` 226, `bucket_means` 263), `src/beamtime/query/kinds.py` (`run_curve` 272–315, `map_x` 316 removed, `grouped_curve` 332); tests in `tests/query/test_read.py` and `tests/query/test_queries.py` (the plan's `test_series.py` doesn't exist).
+- **Read:** `docs/design/03-index.md` § Query kinds (l. 272), § Answers (l. 373).
+- **Done check:** `uv run pytest -q tests/query` while working, then `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`.
+- **Note:** Tagged code: failing test first. + review.
+- **Prompt:** `Implement chunk B2 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B2's manifest and chunk B2; read other files only as the manifest or the code leads you. Commit when B2's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### B3
+
+- **Touches:** `web/src/bt/uplot.ts` (`lineChart` 46, axes 121–124, `plotChart` 383, axes 406–407), `web/src/bt/curves.ts` (`align` 104), `web/src/bt/plot.ts`, `web/src/blocks/line.ts` (`X_AXES` 26, `formatterFor` 327), `web/src/blocks/plots.ts`, `web/src/bt/shapes.ts` (time ticks), `src/beamtime/views/model.py` (`Line` 40, `Scatter` 67, `Bar` 79, `Histogram` 91), `views/compile.py`, `views/prefs.py` (`settle` 68).
+- **Read:** `docs/design/07-web-ui.md` § Charts; `docs/design/05-views.md` § Catalog (l. 168), § Charts (l. 381).
+- **Done check:** `cd web && npm ci && npm test && npm run build`, then the Python checks; bundle committed; `uv run pytest -q tests/serve/test_browser.py tests/views`.
+- **Prompt:** `Implement chunk B3 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B3's manifest and chunk B3; read other files only as the manifest or the code leads you. Commit when B3's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### B4
+
+- **Touches:** `web/src/ui/primitives.ts` (`Popover` 71), `web/src/blocks/line-settings.ts` (from B1), `web/src/ui/multiselect.ts`, `web/src/styles/blocks.css`, `web/src/bt/prefs.ts` (`ChartPrefs` 8, `effective` 83), `views/prefs.py` (`settle` 68), `design/components/Chart.md`.
+- **Read:** `docs/design/07-web-ui.md` § Charts; `design/components/Chart.md`.
+- **Done check:** `cd web && npm ci && npm test && npm run build`, then the Python checks; bundle committed; `uv run pytest -q tests/serve/test_browser.py`.
+- **Prompt:** `Implement chunk B4 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B4's manifest and chunk B4; read other files only as the manifest or the code leads you. Commit when B4's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### B5
+
+- **Touches:** `src/beamtime/settings.py` (`DEFAULTS` 10–22, `SETTABLE` 23, unknown keys 91, `load` 162), `ops/registry.py` (`SetParams` 447), `ops/admin.py` (`set_setting` 95), `serve/api.py` (meta 209–238), `web/src/shell/settings.ts` (17, 80–81), `web/src/bt/writes.ts`, `views/theme.py` (`DEFAULT_COLORMAPS` 16, `colormaps` 40), `web/src/bt/theme.ts` (`groupColors` 75), `web/src/kit/protocol.ts` (`Init` 9), `web/src/bt/prefs.ts`, `views/model.py`, `views/prefs.py`, `line-settings.ts`; tests `tests/ops/test_ops.py`, `tests/views/test_theme.py`; docs `guide/parts/kit.md`, `guide/examples/code/phase-map.js`, `docs/guides/settings.md`, `design/README.md`, `design/components/Chart.md`.
+- **Read:** `docs/design/05-views.md` § Theme (l. 400), § Colors for runs and groups (l. 443); `07-web-ui.md` § Theme in the UI (l. 229).
+- **Done check:** `cd web && npm ci && npm test && npm run build`, then the Python checks; bundle committed; `grep -rn colormap_diverging src web/src` finds only the migration line.
+- **Prompt:** `Implement chunk B5 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B5's manifest and chunk B5; read other files only as the manifest or the code leads you. Commit when B5's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### B6
+
+- **Touches:** `views/defaults.py` (new `CLOCKS`; `curves` 182, `ordered_metrics` 218), new `src/beamtime/query/progress.py`, `ops/reading.py` (`card` 193), `query/fields.py` (`run.epoch`), `web/src/shell/header.ts`, `web/src/blocks/table.ts`.
+- **Read:** `docs/design/03-index.md` § Fields (l. 211); `07-web-ui.md` § Pages and URLs (l. 152).
+- **Done check:** `cd web && npm ci && npm test && npm run build`, then the Python checks; bundle committed; `uv run pytest -q tests/query tests/views tests/serve/test_browser.py`.
+- **Prompt:** `Implement chunk B6 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B6's manifest and chunk B6; read other files only as the manifest or the code leads you. Commit when B6's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### B7
+
+- **Touches:** `views/defaults.py` (`ESSENTIAL` 11, `group_body` 37, `curves` 182, `line` 208, `essential` 228 removed), `web/src/blocks/layout.ts` (`Section` 15, `Grid` 40), `web/src/bt/prefs.ts` (`ViewPrefs` 25), `views/prefs.py` (`apply_prefs` 10), `views/compile.py`, `web/src/bt/index.ts` (`ViewCtx`: `charted`), `guide/examples/*.yaml`.
+- **Read:** `docs/design/07-web-ui.md` § Charts; `design/components/Section.md`.
+- **Done check:** `cd web && npm ci && npm test && npm run build`, then the Python checks; bundle committed; `uv run pytest -q tests/views tests/serve/test_browser.py`.
+- **Note:** + review.
+- **Prompt:** `Implement chunk B7 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B7's manifest and chunk B7; read other files only as the manifest or the code leads you. Commit when B7's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### E5
+
+- **Touches:** `web/src/bt/uplot.ts` (`LineSpec.marks`), `web/src/ui/symbols.ts` (time limit), `web/src/shell/header.ts` (code versions fact), the run page's details (`web/src/shell/page.ts`, `drawer.ts`), `web/src/blocks/table.ts` (column picker); `design/components/` and `design/gallery.html` for new components.
+- **Read:** `docs/design/07-web-ui.md` § Pages and URLs, § Charts; `docs/design/01-storage.md` on `attempts`, `copied_from`, `origin`.
+- **Done check:** `cd web && npm ci && npm test && npm run build`, then the Python checks; bundle committed; `uv run pytest -q tests/serve/test_browser.py tests/test_design.py`.
+- **Prompt:** `Implement chunk E5 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, E5's manifest and chunk E5; read other files only as the manifest or the code leads you. Commit when E5's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### C1
+
+- **Touches:** `web/src/kit/index.ts` (`makeKit` 46, `version` 78, `ui` 88–100, `theme` 152–175), `web/src/kit/protocol.ts`, `web/src/blocks/custom.ts`, `web/src/bt/frame.ts` (B1), `web/src/ui/symbols.ts` (`symbolFor` 53), `web/src/ui/icons.ts` (`Sym` 36), `web/src/ui/primitives.ts` (`Tag` 24), `guide/parts/kit.md`.
+- **Read:** `docs/design/05-views.md` § The `bt` kit API (l. 315), § Sandbox (l. 362), § Charts (l. 381).
+- **Done check:** `cd web && npm ci && npm test && npm run build`, then the Python checks; bundle committed; `uv run pytest -q tests/views/test_custom.py tests/serve/test_browser.py`.
+- **Note:** + review.
+- **Prompt:** `Implement chunk C1 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, C1's manifest and chunk C1; read other files only as the manifest or the code leads you. Commit when C1's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### C2
+
+- **Touches:** `views/model.py` (new `Scorecard`), `views/compile.py`, new `web/src/blocks/scorecard.ts`, `web/src/blocks/index.ts`, `guide/examples/sweep.yaml`.
+- **Read:** `docs/design/05-views.md` § Catalog (l. 168).
+- **Done check:** `cd web && npm ci && npm test && npm run build`, then the Python checks; bundle committed; `uv run pytest -q tests/views`.
+- **Prompt:** `Implement chunk C2 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, C2's manifest and chunk C2; read other files only as the manifest or the code leads you. Commit when C2's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### C3
+
+- **Touches:** `views/validate.py` (`structure` 87, `custom_checks` 169), `views/code.py` (`problems` 32), `tests/views/test_views.py`.
+- **Read:** `docs/design/05-views.md` § Validation (l. 577).
+- **Done check:** `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`.
+- **Note:** Run the lints on the real views only through a read-only `pull`.
+- **Prompt:** `Implement chunk C3 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, C3's manifest and chunk C3; read other files only as the manifest or the code leads you. Commit when C3's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### G1
+
+- **Touches:** `src/beamtime/guide/parts/` (new topic files), `src/beamtime/guide/__init__.py` (`guide` 35, `read` 57), `guide/examples/*.yaml`, new `tests/guide/`.
+- **Read:** `docs/design/05-views.md` § The agent guide (l. 603), § Agent instructions (l. 710).
+- **Done check:** `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`.
+- **Prompt:** `Implement chunk G1 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, G1's manifest and chunk G1; read other files only as the manifest or the code leads you. Commit when G1's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### G2
+
+- **Touches:** `src/beamtime/mcp/server.py` (`prompts` 182), the `mcp install` op, new `scripts/build-plugin`.
+- **Read:** `docs/design/08-cli-mcp.md` § Prompts (l. 163); Claude Code's current plugin docs before step 2.
+- **Done check:** `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`.
+- **Prompt:** `Implement chunk G2 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, G2's manifest and chunk G2; read other files only as the manifest or the code leads you. Commit when G2's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### G3
+
+- **Touches:** `git mv bench/views bench/agents`; `run.py`, `score.py`, `report.py`, `tasks/`, new `mine.py`, `README.md`, `MISTAKES.md`.
+- **Read:** `bench/views/README.md`; G3's chunk.
+- **Done check:** `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`; one smoke task with one rep.
+- **Note:** Ask before any harness run beyond the smoke test; they cost tokens. + review.
+- **Prompt:** `Implement chunk G3 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, G3's manifest and chunk G3; read other files only as the manifest or the code leads you. Commit when G3's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### G4
+
+- **Touches:** `ops/registry.py`, `ops/reading.py`, `ops/budget.py`, `query/distinguish.py` (for `compare`), `mcp/server.py` (JSON-string tolerance), `guide/parts/analysis.md`; one test per tool on `synth`.
+- **Read:** `docs/design/08-cli-mcp.md` § Operations (l. 24), § Token budgets (l. 178).
+- **Done check:** `uv run ruff check . && uv run ruff format --check . && uv run pytest -q` per tool; `docs/reference/cli.md` regenerated (its test checks it).
+- **Note:** One commit per tool.
+- **Prompt:** `Implement chunk G4 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, G4's manifest and chunk G4; read other files only as the manifest or the code leads you. Commit when G4's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
+
+### Z
+
+- **Touches:** `CHANGELOG.md`, `docs/`, `CLAUDE.md`, `todo`, `scripts/build-tokens`, `design/favicon.svg`, `web/src/shell/favicon.ts`, `tests/test_design.py`.
+- **Read:** Breaking changes, Decisions and Not verified in this plan.
+- **Done check:** `cd web && npm ci && npm test && npm run build`, then the Python checks; bundle committed; `scripts/release.py` passes.
+- **Note:** Don't publish, tag or push; hand over the publish command. The cluster pull, the upgrade and porting the remote's blocks are the user's; prepare the steps.
+- **Prompt:** `Implement chunk Z of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, Z's manifest and chunk Z; read other files only as the manifest or the code leads you. Commit when Z's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
 
 ---
 
