@@ -9,6 +9,8 @@ from typing import Annotated, Any, Literal
 
 import msgspec
 
+from beamtime.format.authored import NOTE_TYPES
+
 Where = Annotated[
     dict[str, Any],
     msgspec.Meta(
@@ -179,7 +181,7 @@ class NoteAddParams(Params, kw_only=True):
     """Parameters of ``note add``."""
 
     group: Group
-    type: Literal["observation", "decision", "idea", "question", "verdict"]
+    type: Literal[NOTE_TYPES]
     description: Annotated[str, msgspec.Meta(description="one line; what listings show")]
     body: Annotated[
         str | None, msgspec.Meta(description="Markdown; [[run-id]], [[group#prediction]] link")

@@ -191,12 +191,14 @@ def meta(ctx: Context) -> dict[str, Any]:
 
     :param ctx: The operation context.
     :return: The answer."""
+    from beamtime.format.authored import NOTE_TYPES
     from beamtime.ops.admin import figure_styles, project_styles
     from beamtime.ops.reading import sources
     from beamtime.views.theme import colormaps, names, pair
 
     return {
         "kind": "meta",
+        "note_types": list(NOTE_TYPES),
         "project": ctx.root.name,
         "root": str(ctx.root),
         "logdir": str(ctx.logdir),

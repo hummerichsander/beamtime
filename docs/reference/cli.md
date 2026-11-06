@@ -215,7 +215,7 @@ beamtime note add <group>
 
 | Option | Default | |
 |---|---|---|
-| `--type` | required | observation, decision, idea, question, verdict |
+| `--type` | required | observation, decision, idea, question, theory, verdict |
 | `--description` | required | one line; what listings show |
 | `--body` |  | Markdown; [[run-id]], [[group#prediction]] link |
 | `--resolves` |  | ids of notes it answers |

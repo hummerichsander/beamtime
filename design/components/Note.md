@@ -16,3 +16,7 @@ A note written by a person or an agent: one line that opens to its text.
 `NoteItem` in `web/src/blocks/context.ts`.
 
 - The chevron is a button (`.note-toggle`) and the title edits in place, so it is `.note-title.heading`.
+- The type Sym is a small menu (`NoteType`): picking another type supersedes the note, like any
+  edit. A `theory` note is an explanation not yet checked against data; it stays `theory` until a
+  note (not necessarily this one) ties it to a measurement. A `verdict`'s type can't change, since
+  it carries per-prediction judgements no other type holds; its Sym is plain, with a tip saying so.

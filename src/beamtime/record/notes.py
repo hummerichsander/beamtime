@@ -3,14 +3,13 @@
 import json
 from typing import Any
 
-from beamtime.format.authored import EVIDENCE_KINDS, link_kind
+from beamtime.format.authored import EVIDENCE_KINDS, NOTE_TYPES, link_kind
 from beamtime.format.ids import is_version_id
 from beamtime.index.store import in_scope
 from beamtime.query.models import closest
 from beamtime.record.check import evaluate, snapshot
 from beamtime.record.proposals import RecordError, Target, all_versions, load
 
-TYPES = ("observation", "decision", "idea", "question", "verdict")
 VERDICTS = ("confirmed", "refuted", "inconclusive")
 
 
@@ -62,9 +61,9 @@ def build(
     :param overall: The overall verdict (verdicts).
     :return: The frontmatter fields after ``schema``, without author and user."""
     problems = []
-    if type not in TYPES:
-        raise RecordError(f"type {type!r} is not a note type.{closest(type, list(TYPES))} "
-                          f"Types: {', '.join(TYPES)}.")  # fmt: skip
+    if type not in NOTE_TYPES:
+        raise RecordError(f"type {type!r} is not a note type.{closest(type, list(NOTE_TYPES))} "
+                          f"Types: {', '.join(NOTE_TYPES)}.")  # fmt: skip
     description = (description or "").strip()
     if not description or "\n" in description:
         problems.append("description is one line, required: what listings show first")
@@ -72,6 +71,12 @@ def build(
     for note in [*resolves, *([supersedes] if supersedes else [])]:
         if not is_version_id(note) or note not in known:
             problems.append(f"no note {note!r}; `beamtime notes` lists them with their ids")
+    if (
+        supersedes
+        and supersedes in known
+        and (note_type(target, supersedes) == "verdict") != (type == "verdict")
+    ):
+        problems.append("a verdict's type can't change; write a new note")
     if completes and type != "decision":
         problems.append("completes belongs to decision notes")
     for folder in completes:
@@ -149,6 +154,18 @@ def note_ids(target: Target) -> set[str]:
     :param target: Any target, for its index.
     :return: The ids."""
     return {r[0] for r in target.index.store.db.execute("SELECT id FROM notes")}
+
+
+def note_type(target: Target, note_id: str) -> str | None:
+    """Look up a note's current type.
+
+    :param target: Any target, for its index.
+    :param note_id: The note's id.
+    :return: Its type, or ``None`` if it isn't indexed."""
+    row = target.index.store.db.execute(
+        "SELECT type FROM notes WHERE id = ?", (note_id,)
+    ).fetchone()
+    return row[0] if row else None
 
 
 def listing(

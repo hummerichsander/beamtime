@@ -131,6 +131,7 @@ def test_meta_has_the_theme_pair(api) -> None:
     assert meta["project"] == "proj"
     assert meta["theme"]["light"]["type"] == "light"
     assert meta["theme"]["dark"]["colors"]["surface"] == "#252523"
+    assert "theory" in meta["note_types"] and "verdict" in meta["note_types"]
 
 
 def test_a_set_setting_reaches_the_next_meta_with_remotes(project: Path) -> None:

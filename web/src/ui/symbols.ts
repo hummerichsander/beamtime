@@ -30,6 +30,7 @@ const TABLE: Record<Kind, Record<string, SymbolSpec>> = {
     decision: { icon: "signpost", tone: "accent", label: "decision" },
     idea: { icon: "lightbulb", tone: "accent", label: "idea" },
     question: { icon: "circle-help", tone: "accent", label: "question" },
+    theory: { icon: "atom", tone: "accent", label: "theory" },
     verdict: { icon: "scale", tone: "accent", label: "verdict" },
   },
   research: {

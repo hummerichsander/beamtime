@@ -183,7 +183,12 @@ run has recorded yet are edited the same way, as new versions; a frozen proposal
 | `decision` | a choice about how to continue: a convention, a change of plan, declaring an experiment complete |
 | `idea` | something to try |
 | `question` | something open that needs an answer |
+| `theory` | an explanation not yet checked against data |
 | `verdict` | a judgement of a proposal version |
+
+Editing a note (the UI's type menu, or `note add --supersedes`) can change its type to any of these
+except `verdict`: a verdict carries per-prediction judgements no other type holds, so once a note is
+one it stays one, and no other type can become one by editing. Write a new note instead.
 
 ### Fields
 

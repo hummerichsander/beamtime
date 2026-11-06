@@ -96,3 +96,27 @@ def test_memory_commands(project: Path) -> None:
     assert out.returncode == 0, out.stderr
     shown = beamtime(project, "memory", "show", "tokenizer").stdout
     assert shown.startswith("# memory of .") and "- ok" in shown
+
+
+def test_theory_type_and_verdict_boundary(project: Path) -> None:
+    """theory is a plain note type; a verdict's type can't change by superseding it."""
+    theory = beamtime(
+        project, "note", "add", "tokenizer/bpe-vs-unigram", "--type", "theory",
+        "--description", "Unigram may split rare tokens better.", "--json",
+    )  # fmt: skip
+    assert theory.returncode == 0, theory.stderr
+    listed = beamtime(project, "notes", "tokenizer/bpe-vs-unigram", "--types", "theory").stdout
+    assert "Unigram may split rare tokens better." in listed
+
+    version = (project / "beamtime/tokenizer/bpe-vs-unigram/proposal").iterdir().__next__().stem
+    verdict = beamtime(
+        project, "note", "add", "tokenizer/bpe-vs-unigram", "--type", "verdict",
+        "--description", "Confirmed again.", "--proposal", version,
+        "--verdict", "unigram-wins=confirmed", "--overall", "confirmed", "--json",
+    )  # fmt: skip
+    assert verdict.returncode == 0, verdict.stderr
+    blocked = beamtime(
+        project, "note", "add", "tokenizer/bpe-vs-unigram", "--type", "idea",
+        "--description", "x", "--supersedes", json.loads(verdict.stdout)["version"],
+    )
+    assert blocked.returncode == 3 and "a verdict's type can't change" in blocked.stderr

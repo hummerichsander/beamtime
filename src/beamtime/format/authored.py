@@ -13,6 +13,7 @@ _FRONTMATTER = re.compile(r"---\r?\n(?P<front>.*?)\r?\n---[ \t]*(?:\r?\n|\Z)(?P<
 _LINK = re.compile(r"\[\[([^\[\]\n]+)\]\]")
 HASH_CHARS = 16
 EVIDENCE_KINDS = ("run", "view", "prediction", "note")
+NOTE_TYPES = ("observation", "decision", "idea", "question", "theory", "verdict")
 
 
 @dataclass(kw_only=True, frozen=True)

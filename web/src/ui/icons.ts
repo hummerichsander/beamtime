@@ -3,7 +3,7 @@
 import type { FunctionComponent } from "preact";
 import { html } from "htm/preact";
 import {
-  Activity, Bookmark, Check, ChevronDown, ChevronRight, Circle, CircleArrowUp, CircleCheck, CircleDashed, CircleDot,
+  Activity, Atom, Bookmark, Check, ChevronDown, ChevronRight, Circle, CircleArrowUp, CircleCheck, CircleDashed, CircleDot,
   CircleHelp, CircleMinus, CircleX, Clock, CloudOff, Copy, Download, Ellipsis, Eye, EyeOff, FileText,
   FolderTree, GitCommitHorizontal, GripVertical, History, Hourglass, Image, LayoutPanelTop, Keyboard, Lightbulb, Link, Maximize2, Minus,
   Lock, Monitor, Moon, PanelLeft, PanelRight, Pause, Pencil, Play, Plus, RotateCcw, Scale, Search, Server, Settings,
@@ -13,7 +13,7 @@ import {
 import type { SymbolSpec } from "./symbols.ts";
 
 const ICONS: Record<string, FunctionComponent<any>> = {
-  activity: Activity, bookmark: Bookmark, check: Check, "chevron-down": ChevronDown,
+  activity: Activity, atom: Atom, bookmark: Bookmark, check: Check, "chevron-down": ChevronDown,
   "chevron-right": ChevronRight, circle: Circle, "circle-check": CircleCheck, "circle-dashed": CircleDashed,
   "circle-dot": CircleDot, "circle-help": CircleHelp, "circle-minus": CircleMinus, "circle-x": CircleX,
   clock: Clock, "cloud-off": CloudOff, copy: Copy, download: Download, ellipsis: Ellipsis, eye: Eye,

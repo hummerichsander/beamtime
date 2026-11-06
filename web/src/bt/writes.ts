@@ -12,11 +12,14 @@ function refresh(group: string, methods: string[]): void {
 
 const NOTE_ANSWERS = ["notes", "timeline", "groups", "check", "card", "memory_show", "status"];
 
-export async function editNote(note: any, change: { description?: string; body?: string }): Promise<void> {
+export async function editNote(
+  note: any,
+  change: { description?: string; body?: string; type?: string },
+): Promise<void> {
   const m = note.meta ?? {};
   await post("note_add", {
     group: note.group,
-    type: note.type,
+    type: change.type ?? note.type,
     description: change.description ?? note.description,
     body: change.body ?? note.body ?? "",
     supersedes: note.id,

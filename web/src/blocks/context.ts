@@ -11,9 +11,11 @@ import { groupUrl, isRunId, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { Markdown } from "../ui/markdown.ts";
 import { Editable } from "../ui/editable.ts";
-import { Button, Disclosure, IconButton, Tag } from "../ui/primitives.ts";
+import { Button, Disclosure, IconButton, Popover, Tag } from "../ui/primitives.ts";
 import { symbolFor } from "../ui/symbols.ts";
 import { prefetchGroup } from "../shell/calls.ts";
+import { meta as projectMeta } from "../shell/ui.ts";
+import { useStore } from "../state.ts";
 import { Collapsible, Notice, Panel, rows } from "./common.ts";
 import { EXPORTED } from "../snapshot.ts";
 
@@ -172,10 +174,17 @@ function Older(props: { call: Call; before: string | undefined; scope: string })
     ${page.data?.more ? html`<${Older} call=${props.call} before=${entries[entries.length - 1]?.id} scope=${props.scope} />` : null}`;
 }
 
-const NEW_TYPES = ["observation", "idea", "question", "decision"];
+// a note's type while it's still an idea, an observation or the like; a verdict comes only from
+// a check, so it never appears here, nor can a note become one by editing its type.
+const FALLBACK_TYPES = ["observation", "decision", "idea", "question", "theory"];
+
+function newTypes(info: any): string[] {
+  return (info?.note_types ?? FALLBACK_TYPES).filter((t: string) => t !== "verdict");
+}
 
 // a form that stays open until saved or cancelled: type, title and an optional Markdown body.
 function NewNote(props: { group: string; onDone: () => void }) {
+  const types = newTypes(useStore(projectMeta));
   const [type, setType] = useState("observation");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -200,7 +209,7 @@ function NewNote(props: { group: string; onDone: () => void }) {
   return html`<form class="note new-note" onSubmit=${save} onKeyDown=${keys}>
     <div class="note-line">
       <span class="input body"><select class="note-type" value=${type} aria-label="Note type" onChange=${(e: Event) => setType((e.target as HTMLSelectElement).value)}>
-        ${NEW_TYPES.map((t) => html`<option value=${t}>${t}</option>`)}
+        ${types.map((t) => html`<option value=${t}>${t}</option>`)}
       </select></span>
       <span class="input body new-note-field"><input class="new-note-title" value=${title} placeholder="What did you see, decide or wonder?" aria-label="Title"
         autofocus onInput=${(e: Event) => setTitle((e.target as HTMLInputElement).value)} /></span>
@@ -216,6 +225,22 @@ function NewNote(props: { group: string; onDone: () => void }) {
   </form>`;
 }
 
+// the note's type, as a small menu to change it (a new, superseding version); a verdict's
+// type is fixed, since it carries per-prediction judgements a different type can't hold.
+function NoteType({ note: n }: { note: any }) {
+  const types = newTypes(useStore(projectMeta)).filter((t) => t !== n.type);
+  if (n.type === "verdict") {
+    return html`<span class="sym tone-accent" data-tip="a verdict's type can't change; write a new note">
+      <${Icon} name=${symbolFor("note", "verdict").icon} size=${15} /></span>`;
+  }
+  return html`<${Popover} icon=${symbolFor("note", n.type).icon} label="Change the note's type" title="Note type">
+    <div class="menu-list">
+      ${types.map((t) => html`<button type="button" key=${t} onClick=${() => editNote(n, { type: t })}>
+        <${Icon} name=${symbolFor("note", t).icon} size=${15} /> ${t}</button>`)}
+    </div>
+  <//>`;
+}
+
 // one line per note: type, title, who and when; the body opens below. Both edit in place.
 export function NoteItem(props: { note: any; open?: boolean; scope?: string }) {
   const n = props.note;
@@ -229,7 +254,7 @@ export function NoteItem(props: { note: any; open?: boolean; scope?: string }) {
     <div class="note-line" onClick=${(e: MouseEvent) => !(e.target as Element).closest(".editable, a, .note-delete") && setOpen(!open)}>
       <button type="button" class="note-toggle" aria-expanded=${open} aria-label=${open ? "Close the note" : "Open the note"}>
         <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${14} /></button>
-      <${Sym} spec=${symbolFor("note", n.type)} />
+      <${NoteType} note=${n} />
       <${Editable} value=${n.description} label="the note's title" class="note-title heading" render=${inline}
         onSave=${(description: string) => editNote(n, { description })} />
       ${n.overall ? html`<${Sym} spec=${symbolFor("verdict", n.overall)} />` : null}

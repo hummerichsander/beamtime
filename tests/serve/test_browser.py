@@ -82,6 +82,26 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     added = set(notes_dir.iterdir()) - before
     assert len(added) == 1 and "supersedes:" in added.pop().read_text()
 
+    # the type menu supersedes too, keeping the body and evidence; only the type line changes.
+    # (nth=0 is the group's verdict note, whose type is fixed; nth=1 is a plain observation.)
+    old_path = next(p for p in notes_dir.iterdir() if "type: observation" in p.read_text())
+    old_text = old_path.read_text()
+    before = set(notes_dir.iterdir())
+    page.click(".notes .note >> nth=1 >> button[aria-label=\"Change the note's type\"]")
+    page.click(".menu-list button:has-text('theory')")
+    page.wait_for_timeout(500)
+    added = set(notes_dir.iterdir()) - before
+    assert len(added) == 1
+    new_text = added.pop().read_text()
+    assert "type: theory" in new_text
+    # the body and the description are byte-identical; the evidence still names the same run
+    # (its YAML shorthand may be rewritten, since this goes through the op layer, not the raw file).
+    assert old_text.rsplit("---", 1)[-1].strip() == new_text.rsplit("---", 1)[-1].strip()
+    old_description = next(l for l in old_text.splitlines() if l.startswith("description:"))
+    assert old_description in new_text
+    run_id = re.search(r"\d{8}-\d{6}-\w+", old_text.split("evidence:")[1]).group()
+    assert run_id in new_text
+
     # a new note: choosing its type keeps the form open; title and body are saved together.
     before = set(notes_dir.iterdir())
     page.click(".notes-block .block-action button, .collapsible:has(.notes) .block-action button")

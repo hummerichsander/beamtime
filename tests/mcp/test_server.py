@@ -99,6 +99,10 @@ def test_record_writes_and_prompts(project: Path) -> None:
             "note_add",
             {"group": "agent/dropout", "type": "idea", "description": "Try 0.2.", "body": "x"},
         )
+        theory = await s.call_tool(
+            "note_add",
+            {"group": "agent/dropout", "type": "theory", "description": "Dropout regularizes."},
+        )
         bad = await s.call_tool("note_add", {"group": "agent", "type": "idea", "description": ""})
         memory = await s.call_tool("memory_update", {"group": "agent", "body": "- idea [[x]]"})
         shown = await s.call_tool("memory_show", {"group": "agent/dropout"})
@@ -106,15 +110,17 @@ def test_record_writes_and_prompts(project: Path) -> None:
             await s.get_prompt(name, {"group": "agent/dropout"})
             for name in ("proposal", "verdict", "memory")
         ]
-        return saved, yaml_text, note, bad, memory, shown, prompts
+        return saved, yaml_text, note, theory, bad, memory, shown, prompts
 
-    saved, yaml_text, note, bad, memory, shown, prompts = session(project, work)
-    for result in (saved, yaml_text, note, memory, shown):
+    saved, yaml_text, note, theory, bad, memory, shown, prompts = session(project, work)
+    for result in (saved, yaml_text, note, theory, memory, shown):
         assert not result.is_error, result.content[0].text
     path = project / "beamtime" / json.loads(saved.content[0].text)["path"]
     assert "author: m" in path.read_text()
     note_path = project / "beamtime" / json.loads(note.content[0].text)["path"]
     assert "author: agent" in note_path.read_text()
+    theory_path = project / "beamtime" / json.loads(theory.content[0].text)["path"]
+    assert "type: theory" in theory_path.read_text()
     assert bad.is_error and "one line" in bad.content[0].text
     assert json.loads(shown.content[0].text)["chain"][-1]["group"] == "agent"
     texts = [p.messages[0].content.text for p in prompts]
