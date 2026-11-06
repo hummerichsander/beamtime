@@ -259,6 +259,8 @@ def page_of(ctx: Context, path: str) -> tuple[str, str | None]:
     name = path.rsplit("/", 1)[-1]
     run = name if is_run_id(name) else None
     if run is not None:
+        if not ctx.logdir.is_dir():
+            raise OpError(f"no run {run!r}; no local log dir", code=4)
         with Index(logdir=ctx.logdir) as index:
             if (found := index.run_path(run)) is None:
                 index.catch_up(".", budget_s=0)

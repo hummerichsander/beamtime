@@ -105,6 +105,8 @@ export function Settings() {
         <tr><td class="muted">version</td><td>${info?.version}</td></tr>
         <tr><td class="muted">root</td><td><code class="code">${info?.root}</code></td></tr>
         <tr><td class="muted">log dir</td><td><code class="code">${info?.logdir}</code></td></tr>
+        ${(info?.sources ?? []).map((s: { name: string; kind: string; state: string; logdir: string }) => html`
+          <tr><td class="muted">${s.name}</td><td><code class="code">${s.logdir}</code> (${s.kind}, ${s.state})</td></tr>`)}
       </table>
     <//>
   </div></div>`;

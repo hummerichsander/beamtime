@@ -178,7 +178,7 @@ def render(answer: dict[str, Any]) -> str:
     :return: The text."""
     kind = answer.get("kind")
     match kind:
-        case "runs" | "groups" | "file" | "settings" | "doctor":
+        case "runs" | "groups" | "file" | "settings" | "doctor" | "source list":
             lines = table(answer["columns"], answer["rows"])
             noun = {"runs": "runs", "groups": "groups"}.get(kind, "rows")
             if kind == "runs" and answer["meta"].get("means") is not None:

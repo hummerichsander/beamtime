@@ -213,3 +213,46 @@ def write_project(root: Path, key: str, value: Any) -> Path:
     # replaced, not rewritten: writes at once can't interleave; a reader never sees half a file.
     write_bytes_replaced(path, text.encode())
     return path
+
+
+def write_remote(path: Path, name: str, conf: dict[str, Any]) -> Path:
+    """Add or update one remote in a settings file, keeping the rest of it as is.
+
+    :param path: The settings file (user or project), created if missing.
+    :param name: The remote's name.
+    :param conf: Its fields (``host``, ``command``, ``cache``, ``path``); ``None`` values are
+        left out.
+    :return: The file."""
+    import yaml
+
+    from beamtime.format.io import write_bytes_replaced
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data: dict[str, Any] = (yaml.safe_load(path.read_text()) or {}) if path.is_file() else {}
+    data.setdefault("schema", 1)
+    remotes = data.setdefault("remotes", {})
+    remotes[name] = {k: v for k, v in conf.items() if v is not None}
+    write_bytes_replaced(path, yaml.safe_dump(data, sort_keys=False, allow_unicode=True).encode())
+    return path
+
+
+def remove_remote(path: Path, name: str) -> bool:
+    """Remove one remote from a settings file.
+
+    :param path: The settings file.
+    :param name: The remote's name.
+    :return: Whether it was there."""
+    import yaml
+
+    from beamtime.format.io import write_bytes_replaced
+
+    if not path.is_file():
+        return False
+    data = yaml.safe_load(path.read_text()) or {}
+    remotes = data.get("remotes") or {}
+    if name not in remotes:
+        return False
+    del remotes[name]
+    data["remotes"] = remotes
+    write_bytes_replaced(path, yaml.safe_dump(data, sort_keys=False, allow_unicode=True).encode())
+    return True

@@ -25,6 +25,7 @@ GROUPS = {
     "memory": "show or update a group's memory",
     "view": "build, check and save a group's view",
     "block": "library blocks: list, show, promote, fork, check and save",
+    "source": "add, list or remove a remote",
 }
 
 

@@ -146,6 +146,17 @@ cluster is two groups, each with its own proposal, notes and view. Inheritance o
 stays within a source. Run ids are unique across sources, so links like `[[20261024-101532-k3m9xq2a]]`
 work wherever the run is. In URLs, the local source is called `local` (`/f/local/scaling`).
 
+**A source is a named log dir; `local` is one only when this machine has runs, otherwise it doesn't
+exist** (`Context.has_local`): the log dir must exist, and either no remotes are configured or it
+already holds a run — re-checked on every poll while remotes are configured, so a first local run
+made after `serve` started is picked up without a restart. `serve` refuses only with no source at
+all; without a local log dir it still writes `serve.lock`/`serve.json` (so `via_serve` finds the
+port) but skips the indexing loop. `@local/...` is accepted and stripped to a bare path, so an agent
+that always writes `@name/group` doesn't need a special case. A path without a prefix means local
+when it exists; with no local and exactly one remote, it means that remote (`Context.default_source`);
+with several and no local, it is ambiguous and needs the prefix. `/` and a bookmarked `/f/local`
+redirect to the first source when there is no local one.
+
 ## Configuration
 
 ```yaml
@@ -174,6 +185,10 @@ remotes:
   `--cache <dir>`, or an ad-hoc `host:/abs/path`. A name that matches a configured remote means that
   remote; anything else is an ssh host.
 - Beamtime stores no credentials; authentication is the user's ssh configuration.
+- `beamtime source add <name> <host:/path> [--command] [--cache] [--project]` writes the user
+  settings by default (`--project` writes `beamtime.yaml` instead), probing ssh for the command
+  (`command -v beamtime`, then the venv next to the path) unless `--command` is given.
+  `source list` and `source rm <name>` read and edit the same settings; all three are user-only.
 
 ## Protocol
 
@@ -225,4 +240,7 @@ the host.
 - Paths carry their source (`@cluster/...`); operations route by their target, listings on `.`
   merge across sources.
 - The API's methods are the operations of layer 8, plus `hello`, `subscribe` and `files`.
-- Remotes are configured in user and project settings, with placeholders; no credentials are stored.
+- Remotes are configured in user and project settings, with placeholders; no credentials are stored;
+  `source add`/`list`/`rm` write and read that configuration.
+- A source is a named log dir; `local` is one only when this machine has runs or no remotes are
+  configured, checked fresh each time.

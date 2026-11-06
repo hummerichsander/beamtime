@@ -211,6 +211,39 @@ def test_doctor_and_settings(ctx: Context) -> None:
     assert ["logdir", "beamtime", "built-in"] in s["rows"]
 
 
+def test_source_add_list_rm(ctx: Context, project: Path) -> None:
+    """Adding a remote writes the user settings by default; ``--command`` skips the ssh probe."""
+    from beamtime.settings import user_settings_path
+
+    added = call(
+        "source add",
+        {"name": "cluster", "remote": "login.hpc:/scratch/me/beamtime", "command": "bt"},
+        ctx,
+    )
+    assert added["name"] == "cluster"
+    assert user_settings_path().is_file()
+    saved = load(project)
+    assert saved.get("remotes")["cluster"] == {
+        "host": "login.hpc",
+        "path": "/scratch/me/beamtime",
+        "command": "bt",
+    }
+    listed = call("source list", {}, ctx)
+    assert ["cluster", "login.hpc", "/scratch/me/beamtime", "bt", None] in listed["rows"]
+    call("source rm", {"name": "cluster"}, ctx)
+    assert not (load(project).get("remotes") or {})
+    with pytest.raises(OpError, match="no remote"):
+        call("source rm", {"name": "cluster"}, ctx)
+
+
+def test_source_add_to_the_project(ctx: Context, project: Path) -> None:
+    """``--project`` writes to the project's ``beamtime.yaml`` instead of the user settings."""
+    call("source add", {"name": "box", "remote": "h:/p", "command": "bt", "project": True}, ctx)
+    text = (project / "beamtime.yaml").read_text()
+    assert "box" in text and "remotes" in text
+    assert load(project).get("remotes")["box"]["host"] == "h"
+
+
 def test_mcp_install_for_cursor(ctx: Context, project: Path) -> None:
     """Cursor's project config gets an entry that names the project root."""
     call("mcp install", {"client": "cursor"}, ctx)

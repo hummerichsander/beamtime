@@ -42,17 +42,19 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
     from beamtime.index.cache import cache_dir, daemon_status
     from beamtime.index.daemon import Daemon
 
-    if not ctx.logdir.is_dir():
-        raise OpError(
-            f"no log dir at {ctx.logdir}; runs appear there once a script calls "
-            "beamtime.init() (or try `beamtime demo`)",
-            code=4,
-        )
-    cache = cache_dir(ctx.logdir)
     hub = Hub()
     restart = threading.Event()
     sources = start_sources(ctx, p, hub)
-    daemon = Daemon(logdir=ctx.logdir, cache=cache, on_change=hub.changed)
+    if not ctx.logdir.is_dir() and sources is None:
+        raise OpError(
+            f"no log dir at {ctx.logdir} and no remotes configured; add one with "
+            "`beamtime source add <name> <host:/path>`, or run `beamtime serve host:/path`",
+            code=4,
+        )
+    cache = cache_dir(ctx.logdir)
+    daemon = Daemon(
+        logdir=ctx.logdir, cache=cache, on_change=hub.changed, index=ctx.logdir.is_dir()
+    )
     sock = None if p.no_ui else bind(p.port)
     daemon.port = None if sock is None else sock.getsockname()[1]
     if not daemon.start():
@@ -66,9 +68,14 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
         )
     try:
         if sock is None:
-            say(f"Beamtime indexes {ctx.logdir} (no UI); Ctrl-C stops.")
-            while daemon.thread.is_alive():
-                daemon.thread.join(1.0)
+            if daemon.index:
+                say(f"Beamtime indexes {ctx.logdir} (no UI); Ctrl-C stops.")
+                while daemon.thread.is_alive():
+                    daemon.thread.join(1.0)
+            else:
+                say("Beamtime connects to its sources (no local log dir; no UI); Ctrl-C stops.")
+                while not daemon.stopping.is_set():
+                    daemon.stopping.wait(1.0)
             return {"kind": "serve", "lines": ["stopped"]}
         token = load_token(cache)
         url = f"http://localhost:{daemon.port}/f/local?token={token}"

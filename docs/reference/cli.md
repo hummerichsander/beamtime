@@ -567,3 +567,33 @@ beamtime gc
 | Option | Default | |
 |---|---|---|
 | `--yes` | `False` |  |
+
+### `beamtime source add` *(you)*
+
+Add a remote: name, host:/path; probes ssh for the command unless given.
+
+```sh
+beamtime source add <name> <remote>
+```
+
+| Option | Default | |
+|---|---|---|
+| `--command` |  | how to start beamtime there; probed over ssh by default |
+| `--cache` |  | a persistent index cache on a local disk there |
+| `--project` | `False` | write to this project's beamtime.yaml, not the user's |
+
+### `beamtime source list` *(you)*
+
+List the configured remotes.
+
+```sh
+beamtime source list
+```
+
+### `beamtime source rm` *(you)*
+
+Remove a remote from wherever it is configured.
+
+```sh
+beamtime source rm <name>
+```

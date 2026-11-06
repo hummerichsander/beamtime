@@ -24,6 +24,7 @@ class Daemon:
         port: int | None = None,
         on_change: Callable[[dict[str, set[str]]], None] | None = None,
         poll_s: float = POLL_S,
+        index: bool = True,
     ):
         """Prepare the daemon; nothing runs before ``start``.
 
@@ -32,25 +33,30 @@ class Daemon:
         :param port: The web UI's port, recorded in ``serve.json``.
         :param on_change: Called from the indexing thread with the run and folder
             paths (relative to the log dir) that changed in a poll, and how.
-        :param poll_s: Seconds between polls."""
+        :param poll_s: Seconds between polls.
+        :param index: Whether to index at all; ``False`` when there is no local log dir, so
+            only the lock and status file run (``via_serve`` still needs the port)."""
         self.logdir = logdir.resolve()
         self.cache = cache or cache_dir(self.logdir)
         self.port = port
         self.on_change = on_change
         self.poll_s = poll_s
+        self.index = index
         self.lock = FileLock(path=self.cache / SERVE_LOCK)
         self.stopping = threading.Event()
         self.thread = threading.Thread(target=self.loop, name="beamtime-index", daemon=True)
         self.started = time.time()
 
     def start(self) -> bool:
-        """Take ``serve.lock`` and start indexing.
+        """Take ``serve.lock``, write the status file, and start indexing unless there is no
+        local log dir.
 
         :return: ``False`` if another daemon already serves this root."""
         if not self.lock.acquire():
             return False
         self.write_status()
-        self.thread.start()
+        if self.index:
+            self.thread.start()
         return True
 
     def write_status(self) -> None:

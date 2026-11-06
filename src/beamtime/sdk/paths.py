@@ -62,17 +62,20 @@ def logdir_of(root: Path) -> Path:
     return (root / Path(name).expanduser()).resolve()
 
 
-def find_root(cwd: Path) -> tuple[Path, list[str]]:
+def find_root(cwd: Path, *, script: bool = True) -> tuple[Path, list[str]]:
     """Find the root: ``beamtime.yaml`` above the working directory or the script, then
     the git root, then the working directory itself.
 
     :param cwd: The working directory.
+    :param script: Whether to also look above the running script's own directory, for a training
+        script launched from elsewhere. The CLI and ops layer turn this off, since their own
+        ``__main__`` is Beamtime's (or a test runner's), never the user's project.
     :return: The root and any warnings."""
-    script = script_dir()
-    for start in (cwd, script):
+    starts = (cwd, script_dir()) if script else (cwd,)
+    for start in starts:
         if start is not None and (root := find_up(start, SETTINGS)) is not None:
             return root, []
-    for start in (cwd, script):
+    for start in starts:
         if start is not None and (root := find_up(start, ".git")) is not None:
             return root, []
     return cwd, [

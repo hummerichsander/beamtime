@@ -56,7 +56,11 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
     from beamtime.remote.client import Unreachable
     from beamtime.remote.sources import client_for
 
-    if (source := source_of(params)) is not None:
+    params = strip_local(params)
+    source = source_of(params)
+    if source is None and not ctx.has_local and ctx.default_source is not None:
+        source = ctx.default_source
+    if source is not None:
         if method in DRAFTS:
             raise OpError(
                 f"{method.replace('_', ' ')} works on drafts in this project; for a group on "
@@ -142,6 +146,27 @@ def source_of(params: dict[str, Any]) -> str | None:
             if isinstance(inner, dict) and str(inner.get("from", "")).startswith("@"):
                 return str(inner["from"])[1:].split("/", 1)[0]
     return None
+
+
+def strip_local(params: dict[str, Any]) -> dict[str, Any]:
+    """Take an explicit ``@local`` prefix off every target, so it reads like a bare local path.
+
+    :param params: The parameters.
+    :return: The parameters, with ``@local`` stripped."""
+
+    def bare(v: Any) -> Any:
+        if not isinstance(v, str) or not (v == "@local" or v.startswith("@local/")):
+            return v
+        rest = v[len("@local") :].lstrip("/")
+        return rest or "."
+
+    out = {k: bare(v) if k in TARGETS else v for k, v in params.items()}
+    if isinstance(query := out.get("query"), dict):
+        out["query"] = {
+            k: {**v, "from": bare(v.get("from"))} if isinstance(v, dict) else v
+            for k, v in query.items()
+        }
+    return out
 
 
 def strip(params: dict[str, Any], source: str) -> dict[str, Any]:
@@ -274,13 +299,17 @@ def federate(method: str, params: dict[str, Any], ctx: Context, local: Local) ->
     # every remote at once: a page waits for the slowest, not for the sum of them.
     with ThreadPoolExecutor(max(1, len(clients))) as pool:
         asked = [pool.submit(ask, name, client) for name, client in clients]
-        answers = [("local", local(params))]
-        states = [{"name": "local", "state": "connected"}]
+        # a source is a named log dir; without local runs, local isn't one and is left out.
+        answers = [("local", local(params))] if ctx.has_local else []
+        states = [{"name": "local", "state": "connected"}] if ctx.has_local else []
         for (name, _), future in zip(clients, asked, strict=True):
             answer, state = future.result()
             states.append(state)
             if answer is not None:
                 answers.append((name, answer))
+    if not answers:
+        reasons = "; ".join(f"{s['name']}: {s.get('error') or s['state']}" for s in states)
+        raise OpError(f"no source could answer {method}: {reasons}", code=1)
     merged = merge(method, answers, params, ctx)
     merged["meta"] = {**answers[0][1].get("meta", {}), **merged.get("meta", {}), "sources": states}
     return merged
