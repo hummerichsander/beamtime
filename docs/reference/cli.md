@@ -129,6 +129,14 @@ beamtime output <run>
 | `--grep` |  |  |
 | `--rank` | `0` | a number |
 
+### `beamtime resume`
+
+What's needed to resume a killed run by hand: command, cwd, step, checkpoint.
+
+```sh
+beamtime resume <run>
+```
+
 ### `beamtime timeline`
 
 Notes and run events in time order.

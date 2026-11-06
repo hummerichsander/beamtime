@@ -38,6 +38,7 @@ class RunInfo:
     proposals: dict[str, str] = field(default_factory=dict)
     proposal_hashes: dict[str, str] = field(default_factory=dict)
     job_key: str | None = None
+    key: str | None = None
     host: dict[str, Any] = field(default_factory=dict)
     scheduler: dict[str, Any] | None = None
     git: dict[str, Any] | None = None
@@ -75,6 +76,7 @@ def read_run_info(run_dir: Path) -> RunInfo:
                 proposals=d.get("proposals") or {},
                 proposal_hashes=d.get("proposal_hashes") or {},
                 job_key=d.get("job_key"),
+                key=d.get("key"),
                 host=d.get("host") or {},
                 scheduler=d.get("scheduler"),
                 git=d.get("git"),

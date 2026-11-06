@@ -121,6 +121,12 @@ class OutputParams(Params, kw_only=True):
     rank: int = 0
 
 
+class ResumeParams(Params, kw_only=True):
+    """Parameters of ``resume``."""
+
+    run: Annotated[str, msgspec.Meta(description="the run id")]
+
+
 class TimelineParams(Selection, kw_only=True):
     """Parameters of ``timeline``."""
 
@@ -647,6 +653,13 @@ OPS = [
         impl=f"{R}:output",
         positional=("run",),
         summary="Captured stdout and stderr of a run: tail, grep, rank.",
+    ),
+    Op(
+        name="resume",
+        params=ResumeParams,
+        impl=f"{R}:resume",
+        positional=("run",),
+        summary="What's needed to resume a killed run by hand: command, cwd, step, checkpoint.",
     ),
     Op(
         name="timeline",

@@ -13,6 +13,7 @@ from typing import Any
 
 GIT_DIFF_CAP = 1024 * 1024
 RANK_VARS = ("RANK", "SLURM_PROCID", "LOCAL_RANK", "NODE_RANK")
+TIME_LIMIT_WINDOW_S = 300
 
 
 def user() -> str:
@@ -121,6 +122,30 @@ def scheduler(env: Mapping[str, str]) -> dict[str, Any] | None:
     if env.get("KUBERNETES_SERVICE_HOST"):
         return {"kind": "kubernetes"} | pick(pod="HOSTNAME", namespace="POD_NAMESPACE")
     return None
+
+
+def requeued(env: Mapping[str, str]) -> bool:
+    """Tell whether this process is a SLURM requeue of a killed job.
+
+    :param env: The environment variables.
+    :return: Whether ``SLURM_RESTART_COUNT`` is set and above zero."""
+    try:
+        return int(env.get("SLURM_RESTART_COUNT") or 0) > 0
+    except ValueError:
+        return False
+
+
+def near_time_limit(env: Mapping[str, str], now: float) -> bool:
+    """Tell whether the job's wall-time limit is about to end this process.
+
+    :param env: The environment variables.
+    :param now: The current time, unix seconds.
+    :return: Whether ``SLURM_JOB_END_TIME`` is within ``TIME_LIMIT_WINDOW_S`` of ``now``."""
+    try:
+        end = float(env["SLURM_JOB_END_TIME"])
+    except (KeyError, ValueError):
+        return False
+    return 0 <= end - now <= TIME_LIMIT_WINDOW_S
 
 
 def job_key(env: Mapping[str, str]) -> str | None:

@@ -9,6 +9,7 @@ from typing import Any
 from beamtime.format import constants as c
 from beamtime.format.run import (
     derived_status,
+    read_artifacts,
     read_card,
     read_config,
     read_events,
@@ -324,6 +325,37 @@ def output(ctx: Context, p: r.OutputParams) -> dict[str, Any]:
         "rank": p.rank,
         "lines": shown,
         "meta": meta,
+    }
+
+
+def resume(ctx: Context, p: r.ResumeParams) -> dict[str, Any]:
+    """Show what's needed to resume a killed or failed run by hand; it runs nothing.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The recorded command, cwd, last step, newest checkpoint and scheduler, and
+        the environment variable that continues it."""
+    run_dir = find_run(ctx, p.run)
+    info = read_run_info(run_dir)
+    card = read_card(run_dir) if (run_dir / c.CARD).exists() else None
+    checkpoints = [a for a in read_artifacts(run_dir) if a.kind == "checkpoint"]
+    checkpoint = checkpoints[-1] if checkpoints else None
+    return {
+        "kind": "resume",
+        "run": info.id,
+        "name": info.name,
+        "status": info.status,
+        "command": info.command,
+        "cwd": info.cwd,
+        "last_step": card.steps if card else None,
+        "scheduler": info.scheduler,
+        "checkpoint": (
+            {"name": checkpoint.name, "path": checkpoint.path, "uri": checkpoint.uri}
+            if checkpoint
+            else None
+        ),
+        "export": f"BEAMTIME_RESUME={info.id}",
+        "meta": {},
     }
 
 

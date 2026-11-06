@@ -41,6 +41,7 @@ wherever a group does.
 | `beamtime data <group> <key>` | `data` | logged tables, images (as references) and text |
 | `beamtime file <view-group> <path>` | `file` | a data file stored with a view |
 | `beamtime output <run>` | `output` | captured output: `--tail`, `--grep`, `--rank` |
+| `beamtime resume <run>` | `resume` | what's needed to resume a killed or failed run by hand: command, cwd, step, checkpoint; it runs nothing |
 | `beamtime timeline <group>` | `timeline` | notes and events in time order: `--types`, `--since` |
 | `beamtime notes <group>` | `notes` | notes with descriptions; `--open` for open questions, `--current` without superseded notes, `--full` for bodies |
 | `beamtime proposal show <group>` | `proposal_show` | the current proposal version, its earlier versions and their checks |

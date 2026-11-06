@@ -132,8 +132,34 @@ def test_resume_truncates_older_attempt(index: Index, logdir: Path) -> None:
     run = next(p for p in iter_runs(logdir / "scaling" / "long-context"))
     index.catch_up(".", budget_s=float("inf"))
     check_all(index, logdir)
-    resumed = [r for r in iter_runs(logdir) if len(json.loads((r / "_run.json").read_text())["attempts"]) > 1]
+    resumed = [
+        r
+        for r in iter_runs(logdir)
+        if len(json.loads((r / "_run.json").read_text())["attempts"]) > 1
+    ]
     assert resumed and run
+
+
+def test_resume_records_the_queue_gap(index: Index, logdir: Path) -> None:
+    """The gap between a resumed attempt's start and the previous attempt's last line is cached."""
+    run_id = json.loads((logdir / "_synth.json").read_text())["roles"]["resumed"]
+    run_dir = next(p for p in iter_runs(logdir) if p.name == run_id)
+    index.catch_up(".", budget_s=float("inf"))
+    events = [json.loads(line) for line in (run_dir / "_events.jsonl").read_text().splitlines()]
+    started = next(
+        e["_t"] for e in events if e["kind"] == "attempt_started" and e.get("resume_step")
+    )
+    offset = next(
+        e["metrics_offset"]
+        for e in events
+        if e["kind"] == "attempt_started" and e.get("resume_step")
+    )
+    last_old_t = json.loads((run_dir / "_metrics.jsonl").read_bytes()[:offset].splitlines()[-1])[
+        "_t"
+    ]
+    manifest, _ = open_columns(index.series / run_id)
+    (gap,) = [a[2] for a in manifest.attempts if a[2]]
+    assert gap == pytest.approx(max(0.0, started - last_old_t), abs=1e-6)
 
 
 def test_late_attempt_event_and_implicit_resume(index: Index, logdir: Path) -> None:

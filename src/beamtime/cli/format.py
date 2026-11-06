@@ -196,6 +196,8 @@ def render(answer: dict[str, Any]) -> str:
             return render_keys(answer)
         case "card":
             return render_card(answer)
+        case "resume":
+            return render_resume(answer)
         case "data":
             lines = [render_entry(e) for e in answer["entries"]]
             answer["meta"]["matched"] = answer["meta"].get("entries")
@@ -328,6 +330,26 @@ def render_card(answer: dict[str, Any]) -> str:
         lines += ["", "recent events"] + [
             f"  {e['t'][:16].replace('T', ' ')}  {e['description']}" for e in answer["events"]
         ]
+    return "\n".join(lines)
+
+
+def render_resume(answer: dict[str, Any]) -> str:
+    """Render a ``resume`` answer: what's needed to resume a run by hand.
+
+    :param answer: The answer.
+    :return: The text."""
+    lines = [
+        f"{answer['name']}  {answer['run']}  {answer['status']}",
+        f"command     {' '.join(answer['command'])}",
+        f"cwd         {answer['cwd']}",
+        f"last step   {num(answer['last_step'])}",
+    ]
+    if answer.get("scheduler"):
+        lines.append(f"scheduler   {answer['scheduler']}")
+    if answer.get("checkpoint"):
+        ckpt = answer["checkpoint"]
+        lines.append(f"checkpoint  {ckpt['name']}  {ckpt.get('path') or ckpt.get('uri')}")
+    lines.append(f"export      {answer['export']}")
     return "\n".join(lines)
 
 

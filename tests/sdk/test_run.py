@@ -19,6 +19,7 @@ from beamtime.format.run import (
     read_preview,
     read_run_info,
 )
+from beamtime.format.tree import iter_runs
 from beamtime.synth.summary import card_and_preview
 from tests.sdk.conftest import Script, only_run
 
@@ -180,7 +181,9 @@ def test_bad_input_warns_and_continues(script: Script, logdir: Path) -> None:
     assert proc.stderr.decode().count("beamtime: warning") == 4
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="Windows doesn't delete files a process has open")
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows doesn't delete files a process has open"
+)
 def test_io_errors_never_reach_the_script(script: Script, logdir: Path) -> None:
     """Deleting the run directory mid-run produces warnings, not exceptions."""
     proc = script(
@@ -244,10 +247,13 @@ def test_resume_explicit_step(script: Script, logdir: Path) -> None:
 
 def test_resume_implicit_step_and_unknown_id(script: Script, logdir: Path) -> None:
     """Without explicit steps a resumed run continues at the last step plus one."""
-    run_id = script(
-        "import beamtime\nr = beamtime.init()\nr.log({'x': 1})\nr.log({'x': 2})\n"
-        "print(r.id)\n"
-    ).stdout.decode().strip()
+    run_id = (
+        script(
+            "import beamtime\nr = beamtime.init()\nr.log({'x': 1})\nr.log({'x': 2})\nprint(r.id)\n"
+        )
+        .stdout.decode()
+        .strip()
+    )
     proc = script(
         f"""
         import beamtime
@@ -263,6 +269,136 @@ def test_resume_implicit_step_and_unknown_id(script: Script, logdir: Path) -> No
     run = only_run(logdir)
     assert [r["_step"] for r in read_effective_metrics(run)] == [0, 1, 2]
     assert read_run_info(run).attempts[-1].resume_step == 2
+
+
+def test_resume_by_key(script: Script, logdir: Path) -> None:
+    """A killed run is continued by its key, with no id named, and finishing it ends that."""
+    first = script(
+        """
+        import beamtime
+        run = beamtime.init(key="demo")
+        run.log({"x": 1}, step=0)
+        run.end("killed", exit={"signal": "SIGTERM"})
+        print(run.id)
+        """
+    )
+    run_id = first.stdout.decode().strip()
+    second = script(
+        """
+        import beamtime
+        run = beamtime.init(key="demo")
+        run.log({"x": 2}, step=1)
+        run.finish()
+        """
+    )
+    assert second.returncode == 0, second.stderr.decode()
+    run = only_run(logdir)
+    assert run.name == run_id
+    info = read_run_info(run)
+    assert info.status == "finished" and [a.resume_step for a in info.attempts] == [None, 1]
+
+
+def test_resume_by_key_across_job_ids(script: Script, logdir: Path) -> None:
+    """A key resumes a run regardless of a different job id the second time."""
+    script(
+        'import beamtime\nr = beamtime.init(key="k")\nr.log({"x": 1})\n'
+        'r.end("killed", exit={"signal": "SIGTERM"})\n',
+        env={"SLURM_JOB_ID": "1"},
+    )
+    proc = script(
+        'import beamtime\nr = beamtime.init(key="k")\nr.log({"x": 2})\nr.finish()\n',
+        env={"SLURM_JOB_ID": "2"},
+    )
+    assert proc.returncode == 0, proc.stderr.decode()
+    run = only_run(logdir)
+    assert [a.resume_step for a in read_run_info(run).attempts] == [None, 1]
+
+
+def test_resume_by_key_after_it_finished(script: Script, logdir: Path) -> None:
+    """A key whose run already ended starts a new run, with a warning."""
+    first = script('import beamtime\nr = beamtime.init(key="done")\nr.finish()\nprint(r.id)\n')
+    first_id = first.stdout.decode().strip()
+    proc = script('import beamtime\nr = beamtime.init(key="done")\nr.finish()\nprint(r.id)\n')
+    assert proc.returncode == 0, proc.stderr.decode()
+    second_id = proc.stdout.decode().strip()
+    assert second_id != first_id
+    runs = {d.name: d for d in iter_runs(logdir)}
+    assert runs.keys() == {first_id, second_id}
+    warning = next(e for e in read_events(runs[second_id]) if e.kind == "warning")
+    assert "already finished" in warning.message
+
+
+def test_requeue_resumes_the_one_unfinished_run(script: Script, logdir: Path) -> None:
+    """A SLURM requeue continues the one unfinished run of the same job, with no id or key."""
+    env = {"SLURM_JOB_ID": "500"}
+    first = script(
+        'import beamtime\nr = beamtime.init()\nr.log({"x": 1})\n'
+        'r.end("killed", exit={"signal": "SIGTERM"}, reason="time_limit")\nprint(r.id)\n',
+        env=env,
+    )
+    run_id = first.stdout.decode().strip()
+    proc = script(
+        'import beamtime\nr = beamtime.init()\nr.log({"x": 2})\nr.finish()\n',
+        env=env | {"SLURM_RESTART_COUNT": "1"},
+    )
+    assert proc.returncode == 0, proc.stderr.decode()
+    run = only_run(logdir)
+    assert run.name == run_id
+    info = read_run_info(run)
+    assert info.status == "finished" and [a.resume_step for a in info.attempts] == [None, 1]
+
+
+def test_requeue_ambiguous_candidates_start_a_new_run(script: Script, logdir: Path) -> None:
+    """Two unfinished runs of the same job can't be told apart without a key."""
+    env = {"SLURM_JOB_ID": "501"}
+    for _ in range(2):
+        script(
+            'import beamtime\nr = beamtime.init()\nr.log({"x": 1})\n'
+            'r.end("killed", exit={"signal": "SIGTERM"})\n',
+            env=env,
+        )
+    proc = script(
+        'import beamtime\nr = beamtime.init()\nr.log({"x": 2})\nr.finish()\n',
+        env=env | {"SLURM_RESTART_COUNT": "1"},
+    )
+    assert proc.returncode == 0, proc.stderr.decode()
+    runs = list(iter_runs(logdir))
+    assert len(runs) == 3
+    new = max(runs, key=lambda d: d.name)
+    warning = next(e for e in read_events(new) if e.kind == "warning")
+    assert "unfinished runs match this job" in warning.message
+    assert read_run_info(new).attempts[0].resume_step is None
+
+
+def test_broken_run_json_does_not_stop_resolution(script: Script, logdir: Path) -> None:
+    """A damaged ``_run.json`` next to the group doesn't keep a new run from starting."""
+    garbage = logdir / "toy" / "garbage"
+    garbage.mkdir(parents=True)
+    (garbage / "_run.json").write_text("{not json")
+    proc = script(
+        'import beamtime\nr = beamtime.init(dir="toy", key="k")\nr.finish()\nprint(r.id)\n'
+    )
+    assert proc.returncode == 0, proc.stderr.decode()
+
+
+@POSIX
+def test_sigterm_near_time_limit_records_the_reason(script: Script, logdir: Path) -> None:
+    """SIGTERM within 300 s of SLURM_JOB_END_TIME is recorded as reason time_limit."""
+    proc = script(
+        """
+        import os, signal, time
+        os.environ["SLURM_JOB_END_TIME"] = str(int(time.time()) + 100)
+        import beamtime
+        run = beamtime.init()
+        run.log({"x": 1})
+        os.kill(os.getpid(), signal.SIGTERM)
+        time.sleep(2)
+        """
+    )
+    run = only_run(logdir)
+    killed = next(e for e in read_events(run) if e.kind == "killed")
+    assert killed.data.get("reason") == "time_limit"
+    assert proc.returncode != 0
 
 
 def test_null_run_on_other_ranks(script: Script, logdir: Path) -> None:
@@ -305,9 +441,7 @@ def test_rank_finds_run_by_job_key(script: Script, logdir: Path, tmp_path: Path)
     rank1 = subprocess.Popen(
         [sys.executable, str(worker)], env=environ | env | {"SLURM_PROCID": "1"}
     )
-    proc = script(
-        "import time, beamtime\nr = beamtime.init(dir='job')\ntime.sleep(4)\n", env=env
-    )
+    proc = script("import time, beamtime\nr = beamtime.init(dir='job')\ntime.sleep(4)\n", env=env)
     rank1.wait(30)
     assert proc.returncode == 0
     run = only_run(logdir)

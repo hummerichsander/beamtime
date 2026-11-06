@@ -33,6 +33,7 @@ run = beamtime.init(
     config=cfg,                      # dict, dataclass, Pydantic model, Namespace, OmegaConf
     proposal="Warmup removes the loss spike.",    # str, dict, path to a YAML file, or None
     resume=None,                     # None: new run; a run id: continue that run
+    key=None,                        # a name for this launch; resuming it needs no id
 )
 
 for step, batch in enumerate(loader):
@@ -133,7 +134,7 @@ stops capture and the heartbeat. Calling it twice is a no-op.
 | `finish()`, or the context manager exits cleanly | direct call | `finished` |
 | the script ends without `finish()` | `atexit` | `finished` |
 | an unhandled exception | `sys.excepthook` chain, or the context manager | `failed`, traceback in `_events.jsonl`, last line in the card's `error` |
-| `SIGTERM` (scheduler timeout, preemption, cancellation) | signal handler (POSIX) | `killed` |
+| `SIGTERM` (scheduler timeout, preemption, cancellation) | signal handler (POSIX) | `killed`, reason `time_limit` within 300 s of `SLURM_JOB_END_TIME` |
 | `Ctrl-C` | `KeyboardInterrupt` | `killed`, reason `interrupted` |
 | `SIGKILL`, out of memory, node crash | nothing; the process is gone | `lost`, derived from the stale heartbeat |
 
@@ -186,11 +187,24 @@ everything on the calling thread.
 
 ## Resume
 
-There are two modes:
+`init` resolves which run to continue, in order, before anything else runs; every mode past the
+first can never raise, since starting the experiment must never be at the mercy of a lookup:
 
-- **New** (`resume=None`, the default): always a new run with a fresh id.
-- **Continue** (`resume=<run id>`): continue that run, wherever it is below the log dir. An unknown
-  id raises in `init`.
+1. **Explicit** (`resume=<run id>`): continue that run, wherever it is below the log dir. An unknown
+   id raises in `init`, as misuse (unchanged).
+2. **By key** (`key=...`, or `BEAMTIME_RUN_KEY`): the key is stored in `_run.json`. The newest run in
+   this folder recorded under it: `running` or `killed` → continue; `finished` or `failed` → a new
+   run, with a warning. For a job submitted again by hand, or several models in one job
+   (`beamtime.init(dir=..., key=f"{job}-{model}")`).
+3. **Requeue** (automatic): `SLURM_RESTART_COUNT > 0` and **exactly one** `running` or `killed` run
+   in this folder shares the launch's `job_key` and this call's `name` (name only filters when
+   given). Several candidates → a new run, with a warning naming `key` as the way to tell them
+   apart. This is also why `find_by_job_key` (used to find rank 0's run) keeps its own recency
+   window: resume looks at every unfinished run, not only recent ones.
+4. **New** (nothing above matched): a fresh id.
+
+A broken `_run.json` elsewhere in the folder, or any other error while looking, is swallowed with a
+warning and falls back to a new run.
 
 Continuing a run:
 
@@ -211,6 +225,23 @@ Steps from the resume step on belong to the new attempt; the index drops the old
 for those steps ([layer 1](01-storage.md#_metricsjsonl)). A config that differs from the stored one
 is recorded as a `config_conflict` event and not applied. The run's proposal membership is kept from
 its first attempt.
+
+**`_elapsed` counts active time, not wall-clock time.** The queue wait between two attempts (minutes
+to hours on a busy cluster) would otherwise show up as a jump in the elapsed-time axis. At ingest,
+when an attempt boundary is applied, the gap between the new attempt's start and the previous
+attempt's last logged time is computed once (from `attempt_started`'s own timestamp, since nothing
+else records where the previous attempt's writing ended) and cached next to the resume step in the
+index; `_elapsed` subtracts the cumulative gap up to each point's step
+(`beamtime.query.read.elapsed_values`). `_t` (wall clock) and `_step` are unaffected.
+
+**`beamtime resume <run>`** (also over MCP) answers what's needed to continue a killed or failed run
+by hand: the recorded command and working directory, the last step, the newest checkpoint (from
+`_artifacts.jsonl`), the scheduler, and the environment variable (`BEAMTIME_RESUME=<id>`) that
+continues it. It is read-only and runs nothing itself, so an agent can write the `sbatch` call.
+
+**Time limits.** When a scheduler sends `SIGTERM` within 300 seconds of `SLURM_JOB_END_TIME`, the
+`killed` event carries `reason: "time_limit"`, shown as "killed · time limit" wherever event
+descriptions are rendered. Ctrl-C's `reason: "interrupted"` is shown the same way.
 
 ## Environment capture
 
@@ -298,9 +329,11 @@ rank; the rank rule makes that safe, and output before `fit` is captured too.
 - **Checkpointing follows Lightning's rules**: without a `dirpath`, checkpoints go to
   `<run>/checkpoints/`; an explicit `dirpath` wins.
 - **SLURM requeue**: Lightning's `SLURMEnvironment(auto_requeue=True)` handles `SIGUSR1`; Beamtime
-  records `requeue_requested`, and the following `SIGTERM` sets `killed`. The requeued job starts a
-  new run unless the script passes `resume`. The handler composition is covered by the Lightning
-  version matrix in the tests.
+  records `requeue_requested`, and the following `SIGTERM` sets `killed` (reason `time_limit` when it
+  arrives near the job's end time). The requeued job continues the same run automatically
+  ([Resume](#resume)); pass `key=` to tell several models of one job apart. Lightning resumes
+  training itself from `ckpt_path="last"`; Beamtime only needs to find the same run, not the
+  checkpoint. The handler composition is covered by the Lightning version matrix in the tests.
 
 ## Module layout
 
@@ -326,8 +359,11 @@ libraries are imported inside the functions that need them.
 - All logging goes through the `Run` object; deep code uses `beamtime.current()`.
 - Python 3.10+, standard library and PyYAML; Linux, macOS and Windows.
 - `init` records proposal membership in `_run.json`; the run never writes into group folders.
-- Two resume modes, new and continue; continuing rebuilds card and preview, and the newer attempt
-  wins from its resume step on.
+- Four ways to resolve a run at `init`: explicit id, key, automatic SLURM requeue, or new; continuing
+  rebuilds card and preview, and the newer attempt wins from its resume step on. Only the explicit id
+  can raise; the others fall back to a new run with a warning.
+- `_elapsed` is active time: the queue wait between attempts is computed once at ingest and
+  subtracted, so a resumed run's curve doesn't jump.
 - Output capture uses a pipe and a bounded buffer and never blocks training; notebooks capture
   `sys.stdout` and must finish explicitly.
 - The heartbeat is the modification time of `_run.json`; card and preview are written every 3
@@ -339,8 +375,5 @@ libraries are imported inside the functions that need them.
 
 ## Later
 
-- **Auto resume**: continuing a matching run without an id, e.g. after a requeue. Matching on the job
-  id alone is not enough, since one job may train several models; candidates are an explicit run
-  `key` or a checkpoint path inside a run directory.
 - Adapters for other frameworks (Hugging Face Trainer, Accelerate).
 - The uploader for the self-hosted server ([layer 6](06-server.md)).

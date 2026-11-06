@@ -165,9 +165,7 @@ def test_series_raw_downsampled_and_from_preview(ask, roles) -> None:
     overview = ask({"series": {"from": "scaling/lr-sweep", "y": ["train/loss"], "points": 50}})
     assert overview["meta"]["downsampled"]
     assert overview["meta"]["from_preview"] == overview["meta"]["curves"]
-    zoom = ask(
-        {"series": {"from": roles["killed"], "y": ["train/loss"], "steps": [100, 119]}}
-    )
+    zoom = ask({"series": {"from": roles["killed"], "y": ["train/loss"], "steps": [100, 119]}})
     (curve,) = zoom["curves"]
     assert curve["raw"] and curve["x"] == list(range(100, 120)) and curve["source"] == "columns"
 
@@ -177,6 +175,9 @@ def test_series_x_axes_and_smoothing(ask, roles) -> None:
     base = {"from": roles["resumed"], "y": ["train/loss"], "points": 10}
     elapsed = ask({"series": base | {"x": "_elapsed"}})["curves"][0]
     assert elapsed["x"][0] == 0.0 and elapsed["x"] == sorted(elapsed["x"])
+    # active time: the queue wait between the two attempts must not show as a jump.
+    diffs = [b - a for a, b in zip(elapsed["x"][:-1], elapsed["x"][1:], strict=True)]
+    assert max(diffs) < 2 * min(diffs)
     raw = ask({"series": base})["curves"][0]
     smooth = ask({"series": base | {"smooth": {"ema": 0.99}}})["curves"][0]
     spread = lambda c: mean(b - a for a, b in zip(c["min"], c["max"]))  # noqa: E731
@@ -225,7 +226,9 @@ def test_data_kinds(ask) -> None:
 
 def test_timeline(ask, roles) -> None:
     """Notes and events in time order, filtered by type; bodies on request."""
-    a = ask({"timeline": {"from": "scaling/lr-sweep", "types": ["failed", "observation"], "full": True}})
+    a = ask(
+        {"timeline": {"from": "scaling/lr-sweep", "types": ["failed", "observation"], "full": True}}
+    )
     kinds = [(e["kind"], e["type"]) for e in a["entries"]]
     assert ("event", "failed") in kinds and ("note", "observation") in kinds
     note = next(e for e in a["entries"] if e["kind"] == "note")

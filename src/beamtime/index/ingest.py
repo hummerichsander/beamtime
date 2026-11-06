@@ -193,29 +193,34 @@ class Ingester:
                 },
             )
         attempts = []
-        for (raw,) in self.store.db.execute(
-            "SELECT data FROM events WHERE run_id = ? AND kind = 'attempt_started'",
+        for started_at, raw in self.store.db.execute(
+            "SELECT t, data FROM events WHERE run_id = ? AND kind = 'attempt_started'",
             (run_id,),
         ):
             if (d := json.loads(raw)).get("resume_step") is not None:
-                attempts.append((d.get("metrics_offset", 0), d["resume_step"]))
+                attempts.append((d.get("metrics_offset", 0), d["resume_step"], started_at))
         consumed = self.ingest_metrics(run_dir, row["status"], sorted(attempts))
         self.store.upsert_run(run_id, {"metrics_size": consumed, "indexed_at": time.time()})
 
-    def ingest_metrics(self, run_dir: Path, status: str, attempts: list[tuple[int, int]]) -> int:
+    def ingest_metrics(
+        self, run_dir: Path, status: str, attempts: list[tuple[int, int, float | None]]
+    ) -> int:
         """Append new metric lines to the run's columns, applying resumed attempts.
 
         :param run_dir: The run directory.
         :param status: The run status from ``_run.json``.
-        :param attempts: ``(metrics offset, resume step)`` of every resumed attempt.
+        :param attempts: ``(metrics offset, resume step, started at)`` of every resumed attempt.
         :return: The byte offset up to which the file is consumed."""
         writer = ColumnWriter(dir=self.series / run_dir.name)
         manifest = writer.manifest
-        done = {tuple(a) for a in manifest.attempts}
-        pending = [a for a in attempts if a not in done and a[0] >= manifest.source_offset]
+        done = {(a[0], a[1]) for a in manifest.attempts}
+        pending = [
+            a for a in attempts if (a[0], a[1]) not in done and a[0] >= manifest.source_offset
+        ]
         path = run_dir / c.METRICS
         pos = manifest.source_offset
         last = manifest.last_step
+        last_t = manifest.last_t
         if not path.exists():
             return 0
         with path.open("rb") as f:
@@ -230,10 +235,17 @@ class Ingester:
                     end = chunk.index(b"\n", start)
                     here = pos + start
                     while pending and pending[0][0] <= here:
-                        offset, resume = pending.pop(0)
+                        offset, resume, started_at = pending.pop(0)
                         writer.truncate_from(resume)
-                        manifest.attempts.append([offset, resume])
-                        last = None if resume == 0 else resume - 1
+                        # the queue wait before this attempt: its start minus the previous
+                        # attempt's last logged time, not stored anywhere else.
+                        gap = (
+                            max(0.0, started_at - last_t)
+                            if started_at is not None and last_t is not None
+                            else 0.0
+                        )
+                        manifest.attempts.append([offset, resume, gap])
+                        last, last_t = (None if resume == 0 else resume - 1), None
                     row = decode(chunk[start:end]) if end > start else None
                     if isinstance(row, dict) and isinstance(step := row.get("_step"), int):
                         if last is not None and step < last:
@@ -242,7 +254,8 @@ class Ingester:
                                 stop = True
                                 break
                             writer.truncate_from(step)
-                            manifest.attempts.append([here, step])
+                            manifest.attempts.append([here, step, 0.0])
+                            last_t = None
                         last = step
                         appended = False
                         for key, value in row.items():
@@ -251,10 +264,12 @@ class Ingester:
                                 appended = True
                         if appended and isinstance(t := row.get("_t"), (int, float)):
                             writer.append(TIME_KEY, step, float(t))
+                            last_t = float(t)
                     start = end + 1
                 pos += start
                 if stop or len(chunk) < CHUNK:
                     break
+        manifest.last_t = last_t
         writer.commit(pos)
         return pos
 

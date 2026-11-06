@@ -19,6 +19,7 @@ def main() -> None:
     parser.add_argument("--sleep", type=float, default=0.0, help="seconds per step")
     parser.add_argument("--crash-at", type=int, default=None)
     parser.add_argument("--resume", default=os.environ.get("BEAMTIME_RESUME"))
+    parser.add_argument("--key", default=None, help="resume by key instead of an id")
     parser.add_argument("--start-step", type=int, default=0, help="checkpoint step")
     args = parser.parse_args()
 
@@ -27,6 +28,7 @@ def main() -> None:
         config=vars(args),
         proposal="The toy loss decays exponentially.",
         resume=args.resume,
+        key=args.key,
     )
     print(f"run {run.id} in {run.dir}", flush=True)
     rng = random.Random(0)

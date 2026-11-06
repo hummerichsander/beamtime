@@ -36,7 +36,11 @@ class Manifest:
 
     source_offset: int = 0
     last_step: int | None = None
-    attempts: list[list[int]] = field(default_factory=list)
+    # the last logged `_t` of the current attempt; survives across ingest calls so a gap
+    # can be computed even when the boundary lands in a later call than the rows before it.
+    last_t: float | None = None
+    # per resumed attempt: [metrics offset, resume step, queue-wait gap in seconds].
+    attempts: list[list[float]] = field(default_factory=list)
     entries: dict[str, Entry] = field(default_factory=dict)
 
     @classmethod
@@ -52,6 +56,7 @@ class Manifest:
         return cls(
             source_offset=d.get("source_offset", 0),
             last_step=d.get("last_step"),
+            last_t=d.get("last_t"),
             attempts=d.get("attempts", []),
             entries={k: Entry(**e) for k, e in d.get("entries", {}).items()},
         )
@@ -64,6 +69,7 @@ class Manifest:
             "schema": 1,
             "source_offset": self.source_offset,
             "last_step": self.last_step,
+            "last_t": self.last_t,
             "attempts": self.attempts,
             "entries": {
                 k: {"file": e.file, "length": e.length, "nonfinite": e.nonfinite}

@@ -223,6 +223,42 @@ def value_at(steps: Sequence[int], values: Sequence[float], step: int) -> float 
     return values[i] if i >= 0 else None
 
 
+def elapsed_values(
+    steps: Sequence[int],
+    t_values: Sequence[float],
+    query_steps: Sequence[int],
+    gaps: Sequence[tuple[int, float]],
+) -> list[float | None]:
+    """Map steps to active elapsed time, skipping the queue wait between attempts.
+
+    :param steps: The ``_t`` column's sorted steps.
+    :param t_values: The ``_t`` column's wall-clock values.
+    :param query_steps: The steps to map.
+    :param gaps: ``(resume step, gap seconds)`` of every resumed attempt, any order.
+    :return: Elapsed seconds per query step, or ``None`` before the first point."""
+    if not len(steps):
+        return [None] * len(query_steps)
+    t0 = t_values[0]
+    bounds = sorted(gaps)
+    cumulative, total = [], 0.0
+    for resume_step, gap in bounds:
+        total += gap
+        cumulative.append((resume_step, total))
+    out = []
+    for s in query_steps:
+        t = value_at(steps, t_values, s)
+        if t is None:
+            out.append(None)
+            continue
+        sub = 0.0
+        for resume_step, running_total in cumulative:
+            if s < resume_step:
+                break
+            sub = running_total
+        out.append(t - t0 - sub)
+    return out
+
+
 def bucket_means(
     steps: Sequence[int],
     values: Sequence[float],
