@@ -283,6 +283,22 @@ Move a note, with the earlier versions it replaced, into the trash.
 beamtime note rm <note>
 ```
 
+## Copying runs
+
+### `beamtime cp`
+
+Copy a run or group into another group, under new run ids; never the source.
+
+```sh
+beamtime cp <source> <dest>
+```
+
+| Option | Default | |
+|---|---|---|
+| `--name` |  | a run: its new display name; a group: the destination's name |
+| `--with-checkpoints` | `False` | copy checkpoint files in, leaving no reference to the source |
+| `--with-record` | `False` | a group only: also copy proposal, notes, view, memory and blocks |
+
 ## Pages and views
 
 ### `beamtime view new`

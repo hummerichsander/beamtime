@@ -304,6 +304,8 @@ def render_card(answer: dict[str, Any]) -> str:
         lines.append(f"tags        {', '.join(run['tags'])}")
     if run.get("warnings"):
         lines.append(f"warnings    {run['warnings']} (see `beamtime output` and the events)")
+    if run.get("copied_from"):
+        lines.append(f"copied from {run['copied_from']['id']}")
     if answer["config"]:
         lines += ["", "config"] + [f"  {k} = {num(v)}" for k, v in flat(answer["config"])]
     if answer["metrics"]:
@@ -322,6 +324,11 @@ def render_card(answer: dict[str, Any]) -> str:
             if prop.get("current") is False:
                 line += "  (superseded)"
             lines.append(line)
+    if answer.get("checkpoints"):
+        lines += ["", "checkpoints"] + [
+            f"  {ck['name']}  {ck['location']}" + ("" if ck["exists"] else "  (missing)")
+            for ck in answer["checkpoints"]
+        ]
     if answer.get("cited_by"):
         lines += ["", "cited by"] + [
             f"  {n['id']}  {n['type']}  {n['description']}" for n in answer["cited_by"]
@@ -348,8 +355,10 @@ def render_resume(answer: dict[str, Any]) -> str:
         lines.append(f"scheduler   {answer['scheduler']}")
     if answer.get("checkpoint"):
         ckpt = answer["checkpoint"]
-        lines.append(f"checkpoint  {ckpt['name']}  {ckpt.get('path') or ckpt.get('uri')}")
+        lines.append(f"checkpoint  {ckpt['name']}  {ckpt['location']}")
     lines.append(f"export      {answer['export']}")
+    if answer.get("warning"):
+        lines.append(f"warning     {answer['warning']}")
     return "\n".join(lines)
 
 

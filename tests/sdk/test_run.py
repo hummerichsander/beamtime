@@ -357,6 +357,7 @@ def test_requeue_ambiguous_candidates_start_a_new_run(script: Script, logdir: Pa
             'r.end("killed", exit={"signal": "SIGTERM"})\n',
             env=env,
         )
+    before = {d.name for d in iter_runs(logdir)}
     proc = script(
         'import beamtime\nr = beamtime.init()\nr.log({"x": 2})\nr.finish()\n',
         env=env | {"SLURM_RESTART_COUNT": "1"},
@@ -364,7 +365,9 @@ def test_requeue_ambiguous_candidates_start_a_new_run(script: Script, logdir: Pa
     assert proc.returncode == 0, proc.stderr.decode()
     runs = list(iter_runs(logdir))
     assert len(runs) == 3
-    new = max(runs, key=lambda d: d.name)
+    # ids only carry second resolution, so the newest is whichever wasn't there before,
+    # not the lexicographically greatest: two runs can share a second's timestamp.
+    (new,) = (d for d in runs if d.name not in before)
     warning = next(e for e in read_events(new) if e.kind == "warning")
     assert "unfinished runs match this job" in warning.message
     assert read_run_info(new).attempts[0].resume_step is None

@@ -45,6 +45,7 @@ class RunInfo:
     command: list[str] = field(default_factory=list)
     cwd: str | None = None
     beamtime_version: str | None = None
+    copied_from: dict[str, Any] | None = None
 
 
 def read_run_info(run_dir: Path) -> RunInfo:
@@ -83,6 +84,7 @@ def read_run_info(run_dir: Path) -> RunInfo:
                 command=d.get("command") or [],
                 cwd=d.get("cwd"),
                 beamtime_version=d.get("beamtime_version"),
+                copied_from=d.get("copied_from"),
             )
         case v:
             raise SchemaError(f"{path}: no reader for run schema {v}.")
@@ -336,6 +338,10 @@ class Artifact:
     path: str | None = None
     uri: str | None = None
     kind: str | None = None
+    # where a copied run's checkpoint really lives: the source run's id and its path there.
+    origin: dict[str, str] | None = None
+    score: float | None = None
+    monitor: str | None = None
 
 
 def read_artifacts(run_dir: Path, *, schema: int = 1) -> list[Artifact]:
@@ -352,6 +358,9 @@ def read_artifacts(run_dir: Path, *, schema: int = 1) -> list[Artifact]:
             path=r.get("path"),
             uri=r.get("uri"),
             kind=r.get("kind"),
+            origin=r.get("origin"),
+            score=r.get("score"),
+            monitor=r.get("monitor"),
         )
         for r in rows
     ]

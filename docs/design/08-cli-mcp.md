@@ -55,6 +55,7 @@ wherever a group does.
 |---|---|---|
 | `beamtime note add <group>` | `note_add` | a note: `--type`, `--description`, `--resolves`, `--supersedes`, `--completes`, `--evidence`; for verdicts `--proposal <version>`, `--verdict <prediction>=<verdict>`, `--overall`; the check snapshot is added automatically; body from stdin |
 | `beamtime name <run> <name>` | `name` | gives a run a display name (a new version in its `name/` folder) |
+| `beamtime cp <run or group> <dest-group>` | `cp` | copies it under a new run id (or ids); `--name`, `--with-checkpoints`, `--with-record`; never modifies the source ([layer 1](01-storage.md#_artifactsjsonl)) |
 | `beamtime note rm <id>` | – | user only: moves a note and the versions it replaced to the trash |
 | `beamtime proposal set <group> <file>` | `proposal_set` | saves a new proposal version; superseding a frozen version requires `--reason` |
 | `beamtime memory update <group> <file>` | `memory_update` | saves a new memory version; warns beyond the size budget |
@@ -196,7 +197,8 @@ The guide states these as defaults ([layer 5](05-views.md#defaults)):
   `beamtime serve --no-ui` or `beamtime rm 20261024-101532-k3m9xq2a`. This is an instruction, not an
   enforcement: Beamtime cannot tell who types a command.
 - **Agent writes are additive**: notes, proposal versions (a frozen version is superseded with a
-  reason, never edited), memory versions, view and block versions, exports.
+  reason, never edited), memory versions, view and block versions, exports, run copies (`cp` only
+  ever adds a new run; it never touches the source).
 - **Live data**: before working with running runs, agents check `status`; if no daemon runs, they ask
   the user to start `beamtime serve --no-ui`.
 

@@ -466,6 +466,27 @@ class InitParams(Params, kw_only=True):
     instructions: Instructions = False
 
 
+class CpParams(Params, kw_only=True):
+    """Parameters of ``cp``."""
+
+    source: Annotated[str, msgspec.Meta(description="a run id, or a group to copy")]
+    dest: Annotated[str, msgspec.Meta(description="the destination group")]
+    name: Annotated[
+        str | None,
+        msgspec.Meta(description="a run: its new display name; a group: the destination's name"),
+    ] = None
+    with_checkpoints: Annotated[
+        bool,
+        msgspec.Meta(description="copy checkpoint files in, leaving no reference to the source"),
+    ] = False
+    with_record: Annotated[
+        bool,
+        msgspec.Meta(
+            description="a group only: also copy proposal, notes, view, memory and blocks"
+        ),
+    ] = False
+
+
 class MoveParams(Params, kw_only=True):
     """Parameters of ``mv``."""
 
@@ -586,6 +607,7 @@ W = "beamtime.ops.record"
 A = "beamtime.ops.admin"
 V = "beamtime.ops.views"
 B = "beamtime.ops.blocks"
+C = "beamtime.ops.copy"
 OPS = [
     Op(
         name="status",
@@ -911,6 +933,14 @@ OPS = [
         impl=f"{A}:reindex",
         user_only=True,
         summary="Rebuild the index from the files.",
+    ),
+    Op(
+        name="cp",
+        writes=True,
+        params=CpParams,
+        impl=f"{C}:cp",
+        positional=("source", "dest"),
+        summary="Copy a run or group into another group, under new run ids; never the source.",
     ),
     Op(
         name="mv",

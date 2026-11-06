@@ -516,6 +516,61 @@ def inside(ctx: Context, path: str) -> Path:
     return target
 
 
+def doomed_run_ids(paths: list[Path]) -> list[str]:
+    """Collect the ids of every run below the given paths.
+
+    :param paths: Run or group directories.
+    :return: Their ids; unreadable runs are skipped."""
+    ids = []
+    for path in paths:
+        for run_dir in iter_runs(path):
+            try:
+                ids.append(read_json(run_dir / c.RUN)["id"])
+            except (OSError, ValueError, KeyError):
+                continue
+    return ids
+
+
+def copies_of(ctx: Context, run_ids: list[str]) -> list[str]:
+    """List runs that reference one of these runs' checkpoints by id.
+
+    A copy stays readable once its source is gone; only the checkpoint becomes unresolved.
+
+    :param ctx: The operation context.
+    :param run_ids: The run ids about to be moved to the trash or deleted.
+    :return: One line per referencing copy."""
+    if not run_ids:
+        return []
+    with Index(logdir=ctx.logdir) as index:
+        index.catch_up(".", budget_s=0.2)
+        placeholders = ",".join("?" * len(run_ids))
+        rows = index.store.db.execute(
+            "SELECT id, path FROM runs WHERE json_extract(info, '$.copied_from.id') IN "
+            f"({placeholders})",
+            run_ids,
+        ).fetchall()
+    return [f"{run_id} ({path}) references its checkpoints" for run_id, path in rows]
+
+
+def stray_copies(logdir: Path) -> list[Path]:
+    """Find ``cp`` working directories a crash left behind, never renamed into place.
+
+    :param logdir: The log dir.
+    :return: Their paths."""
+    from beamtime.ops.copy import TEMP_PREFIX
+
+    out = []
+    for d, dirs, _ in os.walk(logdir):
+        keep = []
+        for name in dirs:
+            if name.startswith(TEMP_PREFIX):
+                out.append(Path(d) / name)
+            elif not is_reserved(name):
+                keep.append(name)
+        dirs[:] = keep
+    return out
+
+
 def remove(ctx: Context, p: r.RemoveParams) -> dict[str, Any]:
     """Move a run or group into the trash.
 
@@ -530,12 +585,11 @@ def remove(ctx: Context, p: r.RemoveParams) -> dict[str, Any]:
     rel = target.relative_to(ctx.logdir)
     if rel.parts and rel.parts[0] == c.TRASH:
         raise OpError("that is already in the trash; `beamtime gc --yes` empties it", code=2)
+    referencing = copies_of(ctx, doomed_run_ids([target]))
     dest = to_trash(ctx.logdir, rel, stamp())
-    return answer(
-        "rm",
-        [f"moved {rel} to {dest}", "`beamtime gc --yes` deletes the trash for good"],
-        trash=dest.as_posix(),
-    )
+    lines = [f"moved {rel} to {dest}", "`beamtime gc --yes` deletes the trash for good"]
+    lines += referencing
+    return answer("rm", lines, trash=dest.as_posix())
 
 
 def gc(ctx: Context, p: r.GcParams) -> dict[str, Any]:
@@ -557,21 +611,24 @@ def gc(ctx: Context, p: r.GcParams) -> dict[str, Any]:
         except OpError:
             continue
         doomed.append(run_dir)
+    doomed += stray_copies(ctx.logdir)
     lines = [str(d.relative_to(ctx.logdir)) for d in doomed]
     if not doomed:
         return answer("gc", ["nothing to delete"], deleted=[])
+    referencing = copies_of(ctx, doomed_run_ids(doomed))
     if not p.yes:
         return answer(
             "gc",
             [
                 *lines,
                 f"would delete {len(doomed)} item(s); run `beamtime gc --yes` to delete",
+                *referencing,
             ],
             deleted=[],
         )
     for d in doomed:
         shutil.rmtree(d)
-    return answer("gc", [*lines, f"deleted {len(doomed)} item(s)"], deleted=lines)
+    return answer("gc", [*lines, f"deleted {len(doomed)} item(s)", *referencing], deleted=lines)
 
 
 def mcp_install(ctx: Context, p: r.McpInstallParams) -> dict[str, Any]:
