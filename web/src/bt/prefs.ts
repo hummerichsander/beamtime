@@ -7,7 +7,7 @@ export type Scale = "linear" | "log" | "symlog";
 
 export type ChartPrefs = {
   y?: string[];
-  x?: "_step" | "_t" | "_elapsed";
+  x?: "_step" | "epoch" | "_t" | "_elapsed";
   steps?: [number | null, number | null] | null;
   smooth?: number;
   raw?: boolean;

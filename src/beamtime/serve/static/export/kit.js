@@ -348,7 +348,7 @@ l0,-`+(r+144)+`c-2,-159.3,-10,-310.7,-24,-454c-53.3,-528,-210,-949.7,
               onPointerDown=${h=>h.preventDefault()} onClick=${()=>f(p)} onPointerEnter=${()=>i(x)}>
             <span class="ms-tick">${d.has(p)?Y`<${Ir} name="check" size=${14} />`:null}</span>${p}</li>`)}
         </ul>`:null}
-  </div>`}var d3=[["_step","step"],["_t","wall time"],["_elapsed","elapsed"]],oC=["metrics","x","steps","runs","band","smooth","scale","range","outliers","legend"],DW=[["Data",["metrics","x","steps"]],["Aggregation",["runs","band"]],["Smoothing",["smooth"]],["Axes",["scale","range","outliers","legend"]]],jp=e=>e.trim()===""||!Number.isFinite(Number(e))?null:Number(e),RW={metrics:({y:e,metrics:t,set:r})=>Y`
+  </div>`}var d3=[["_step","step"],["epoch","epoch"],["_t","wall time"],["_elapsed","elapsed"]],oC=["metrics","x","steps","runs","band","smooth","scale","range","outliers","legend"],DW=[["Data",["metrics","x","steps"]],["Aggregation",["runs","band"]],["Smoothing",["smooth"]],["Axes",["scale","range","outliers","legend"]]],jp=e=>e.trim()===""||!Number.isFinite(Number(e))?null:Number(e),RW={metrics:({y:e,metrics:t,set:r})=>Y`
     <span class="field-label">Metrics</span>
     <${nC} options=${t} value=${e} label="Metrics" placeholder="Add a metric" onChange=${a=>r({y:a})} />`,x:({prefs:e,set:t})=>Y`
     <span class="field-label">x axis</span>

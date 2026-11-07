@@ -133,7 +133,7 @@ import{A as oa,B as Gt,E as Uo,G as dt,J as Eo,L as zo,N as la,a as Ut,b as re,c
     ${e.children}
     ${e.legend??null}
     ${e.caption?n`<figcaption class="caption"><b></b> ${e.caption}</figcaption>`:null}
-  </figure>`}var ko=[["_step","step"],["_t","wall time"],["_elapsed","elapsed"]],Iu=["metrics","x","steps","runs","band","smooth","scale","range","outliers","legend"],bs=[["Data",["metrics","x","steps"]],["Aggregation",["runs","band"]],["Smoothing",["smooth"]],["Axes",["scale","range","outliers","legend"]]],Ht=e=>e.trim()===""||!Number.isFinite(Number(e))?null:Number(e),Ps={metrics:({y:e,metrics:a,set:t})=>n`
+  </figure>`}var ko=[["_step","step"],["epoch","epoch"],["_t","wall time"],["_elapsed","elapsed"]],Iu=["metrics","x","steps","runs","band","smooth","scale","range","outliers","legend"],bs=[["Data",["metrics","x","steps"]],["Aggregation",["runs","band"]],["Smoothing",["smooth"]],["Axes",["scale","range","outliers","legend"]]],Ht=e=>e.trim()===""||!Number.isFinite(Number(e))?null:Number(e),Ps={metrics:({y:e,metrics:a,set:t})=>n`
     <span class="field-label">Metrics</span>
     <${lu} options=${a} value=${e} label="Metrics" placeholder="Add a metric" onChange=${o=>t({y:o})} />`,x:({prefs:e,set:a})=>n`
     <span class="field-label">x axis</span>

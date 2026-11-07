@@ -371,7 +371,7 @@ Line charts behave like W&B's panels:
 - **Zoom**: drag zooms one chart's x axis and refetches that step window for exact points;
   double-click or the reset button zooms out. Live data keeps the zoom.
 - **Settings per chart**, in sections; there are no view-wide chart settings:
-  - data: the metrics (a searchable multi-select), the x axis (step, wall time, elapsed time), a
+  - data: the metrics (a searchable multi-select), the x axis (step, epoch, wall time, elapsed time), a
     step range;
   - aggregation: each run, over seeds or by a varying config key, and the band (min to max, ± std,
     ± std error, none);

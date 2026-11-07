@@ -13,6 +13,7 @@ import { Popover } from "../ui/primitives.ts";
 
 export const X_AXES = [
   ["_step", "step"],
+  ["epoch", "epoch"],
   ["_t", "wall time"],
   ["_elapsed", "elapsed"],
 ] as const;
