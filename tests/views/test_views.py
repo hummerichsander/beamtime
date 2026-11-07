@@ -311,6 +311,20 @@ def test_axis_titles_compile_and_yield_to_the_viewer() -> None:
     assert folded[0]["line"]["xlabel"] == "tokens" and "ylabel" not in folded[0]["line"]
 
 
+def test_a_metric_as_x_and_a_page_wide_x_fold_into_the_view() -> None:
+    """Any logged metric is an x axis; a page-wide x reaches every line, a chart's own wins."""
+    body = [
+        {"line": {"id": "a", "y": "val/loss", "xlabel": "tokens"}},
+        {"line": {"id": "b", "y": "val/loss"}},
+    ]
+    prefs = {"view": {"x": "sys/gpu_mem"}, "charts": {"b": {"x": "epoch"}}}
+    folded = apply_prefs(deepcopy(body), prefs)
+    assert folded[0]["line"] == {"id": "a", "y": "val/loss", "x": "sys/gpu_mem"}
+    assert folded[1]["line"]["x"] == "epoch"
+    tree = compile_view(m.parse({"body": folded}, source="t"), path="g")
+    assert [k["data"]["main"]["params"]["x"] for k in tree["children"]] == ["sys/gpu_mem", "epoch"]
+
+
 def test_text_panels_from_the_ui(ctx: Context) -> None:
     """A text panel is added at the top, edited, and removed, each a new version."""
     from beamtime.ops.views import edit_text

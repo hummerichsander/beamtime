@@ -413,7 +413,7 @@ def grouped_curve_by_x(
             known_x, known_v = zip(*known, strict=True)
             if not is_monotone(known_x):
                 raise QueryError(
-                    f"series: aggregating needs a monotone x, and {q.x!r} is not "
+                    f"series: aggregating needs a monotone x, and {q.x!r} goes back on itself "
                     f"in run {r['_id']}; show each run instead"
                 )
             series.append((known_x, known_v))

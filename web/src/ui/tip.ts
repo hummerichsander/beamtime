@@ -33,7 +33,8 @@ export function installTips(): void {
   });
   document.addEventListener("focusin", (e) => {
     const target = (e.target as Element).closest?.("[data-tip]");
-    if (target && (e.target as Element).matches(":focus-visible")) show(target);
+    // a closing popover hands its focus back inside its own hide steps, where showing another popover throws.
+    if (target && (e.target as Element).matches(":focus-visible")) showTimer = setTimeout(() => show(target), 0);
   });
   document.addEventListener("focusout", () => hide());
   document.addEventListener("keydown", (e) => {

@@ -7,7 +7,7 @@ export type Scale = "linear" | "log" | "symlog";
 
 export type ChartPrefs = {
   y?: string[];
-  x?: "_step" | "epoch" | "_t" | "_elapsed";
+  x?: string;
   steps?: [number | null, number | null] | null;
   smooth?: number;
   raw?: boolean;
@@ -79,15 +79,27 @@ export function toggleRun(path: string, key: string, all: string[], solo = false
 
 export type Effective = Required<Pick<ChartPrefs, "x" | "smooth" | "raw" | "band" | "scale" | "outliers" | "legend">> & ChartPrefs;
 
-// the settings a chart uses: its node's defaults, then the viewer's own for this chart.
+// the settings a chart uses: its node's defaults, the viewer's for the whole page, then for this chart.
 export function effective(defaults: ChartPrefs, prefs: ViewPrefs, id: string): Effective {
   const base = { smooth: 0, raw: true, x: "_step", band: "minmax", scale: "linear", outliers: false, legend: true };
-  return { ...base, ...strip(defaults), ...strip(prefs.charts[id] ?? {}) } as Effective;
+  return { ...base, ...strip(defaults), ...strip(prefs.view), ...strip(prefs.charts[id] ?? {}) } as Effective;
+}
+
+// one setting for every chart of the page: the chart's own choices of it give way.
+export function setView(path: string, prefs: ChartPrefs): void {
+  update(path, (p) => {
+    const keys = Object.keys(prefs);
+    const charts = Object.fromEntries(
+      Object.entries(p.charts).map(([id, c]) => [id, Object.fromEntries(Object.entries(c).filter(([k]) => !keys.includes(k)))]),
+    );
+    return { view: { ...p.view, ...prefs }, charts };
+  });
 }
 
 // whether a viewer changed anything "Save as view" would keep.
 export function changed(prefs: ViewPrefs): boolean {
   return (
+    Object.keys(strip(prefs.view)).length > 0 ||
     Object.values(prefs.charts).some((c) => Object.keys(strip(c)).length > 0) ||
     prefs.added.length > 0 ||
     Object.keys(prefs.order).length > 0 ||

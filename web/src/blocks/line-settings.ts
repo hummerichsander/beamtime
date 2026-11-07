@@ -7,7 +7,7 @@ import { useState } from "preact/hooks";
 import { useCall } from "../api.ts";
 import type { Node } from "../bt/index.ts";
 import { label } from "../bt/fmt.ts";
-import { setChart, type ChartPrefs, type Effective } from "../bt/prefs.ts";
+import { setChart, setView, type ChartPrefs, type Effective } from "../bt/prefs.ts";
 import { MultiSelect } from "../ui/multiselect.ts";
 import { Popover } from "../ui/primitives.ts";
 
@@ -17,6 +17,12 @@ export const X_AXES = [
   ["_t", "wall time"],
   ["_elapsed", "elapsed"],
 ] as const;
+
+// the x axes on offer: the progress clocks (epoch only when logged), then every other metric.
+function xGroups(metrics: string[]): [string, string[]][] {
+  const clocks = X_AXES.filter(([k]) => k !== "epoch" || metrics.includes("epoch")).map(([k]) => k);
+  return [["Progress", clocks], ["Metrics", metrics.filter((k) => !clocks.includes(k as never))]];
+}
 
 export type Field = "metrics" | "x" | "steps" | "runs" | "band" | "smooth" | "scale" | "range" | "outliers" | "legend";
 
@@ -32,6 +38,7 @@ const SECTIONS: [string, Field[]][] = [
 type Context = {
   prefs: Effective;
   set: (p: ChartPrefs) => void;
+  setAll: (p: ChartPrefs) => void;
   y: string[];
   metrics: string[];
   varying: string[];
@@ -45,11 +52,12 @@ const FIELDS: Record<Field, (c: Context) => unknown> = {
     <span class="field-label">Metrics</span>
     <${MultiSelect} options=${metrics} value=${y} label="Metrics" placeholder="Add a metric" onChange=${(v: string[]) => set({ y: v })} />`,
 
-  x: ({ prefs, set }) => html`
+  x: ({ prefs, metrics, set, setAll }) => html`
     <span class="field-label">x axis</span>
-    <span class="input"><select value=${prefs.x} onChange=${(e: Event) => set({ x: (e.target as HTMLSelectElement).value as ChartPrefs["x"] })}>
-      ${X_AXES.map(([k, l]) => html`<option value=${k}>${l}</option>`)}
-    </select></span>`,
+    <${MultiSelect} single groups=${xGroups(metrics)} labels=${Object.fromEntries(X_AXES)} value=${[prefs.x]} label="x axis"
+      placeholder=${Object.fromEntries(X_AXES)[prefs.x] ?? prefs.x} onChange=${(v: string[]) => set({ x: v[0] })} />
+    <span></span>
+    <button type="button" class="link small" onClick=${() => setAll({ x: prefs.x })}>Use this x axis on all charts on this page</button>`,
 
   steps: ({ prefs, set }) => {
     const steps = prefs.steps ?? [null, null];
@@ -124,11 +132,12 @@ export function Settings(props: { node: Node; path: string; prefs: Effective; y:
   const context: Context = {
     prefs,
     set: (p) => setChart(path, node.id, p),
+    setAll: (p) => setView(path, p),
     y: props.y,
     metrics: keys?.metrics?.rows.map((r: unknown[]) => r[0]) ?? [],
     varying: (keys?.config?.varying ?? []).filter((k: string) => k !== "config.seed"),
   };
-  return html`<${Popover} icon="sliders" label="Chart settings" title="This chart" class="chart-settings"
+  return html`<${Popover} icon="sliders" label="Chart settings" title="This chart" class="chart-settings" beside=".chart-frame"
       onOpen=${() => setOpened(true)}>
     <div class="settings-grid small">
       ${SECTIONS.map(([name, members]) => {

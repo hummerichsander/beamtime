@@ -60,7 +60,9 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     first = page.locator(".chart-frame").first
     first.hover()
     first.locator("button[aria-label='Chart settings']").click()
-    page.locator(".chart-settings:popover-open select").first.select_option("_t")
+    settings = page.locator(".chart-settings:popover-open")
+    settings.get_by_role("combobox", name="x axis").click()
+    settings.get_by_role("option", name="wall time").click()
     page.wait_for_timeout(1000)
     assert asked and all(q["x"] == "_t" for q in asked), "a chart's own settings refetch only it"
     page.keyboard.press("Escape")

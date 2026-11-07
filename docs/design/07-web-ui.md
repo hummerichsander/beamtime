@@ -371,8 +371,9 @@ Line charts behave like W&B's panels:
 - **Zoom**: drag zooms one chart's x axis and refetches that step window for exact points;
   double-click or the reset button zooms out. Live data keeps the zoom.
 - **Settings per chart**, in sections; there are no view-wide chart settings:
-  - data: the metrics (a searchable multi-select), the x axis (step, epoch, wall time, elapsed time), a
-    step range;
+  - data: the metrics (a searchable multi-select), the x axis (one pick from "Progress": step, epoch
+    when logged, wall time, elapsed time; and "Metrics": every other logged metric, searchable), a step
+    range; "Use this x axis on all charts on this page" sets it for every chart of the page;
   - aggregation: each run, over seeds or by a varying config key, and the band (min to max, ± std,
     ± std error, none);
   - smoothing: TensorBoard's debiased EMA, computed in the page; the band is smoothed with the
@@ -388,8 +389,14 @@ Line charts behave like W&B's panels:
   `no-latex` is added for `science`. PDF needs the `figures` extra; without it the menu says how to
   install it.
 
-Settings, added charts and hidden runs are kept per viewer in the browser, by group; "reset this
-chart" returns to the view's defaults, and "Save as view" writes them into the view.
+Settings, added charts and hidden runs are kept per viewer in the browser, by group; a chart's settings
+are the view's defaults, then the page-wide ones, then its own. "Reset this chart" returns to the view's
+defaults, and "Save as view" writes them into the view.
+
+The settings panel opens beside its chart, so a change can be seen as it happens: to the right of the
+chart if it fits, else to its left, else against the viewport's right edge; it stays on screen and
+follows scrolling and resizing. It never scrolls sideways: long metric names wrap. When the server
+refuses a chart (averaging over an x that goes back on itself), the chart shows its message as a notice.
 
 In the code every chart sits in one `ChartFrame` (`web/src/bt/frame.ts`): the head with title and
 notes, the tools, the download menu, the legend (the shared `Legend`) and the caption. A chart kind

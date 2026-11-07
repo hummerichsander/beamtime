@@ -133,7 +133,7 @@ function SaveView(props: { path: string; view: any }) {
     setBusy(true);
     setError(null);
     try {
-      const keep = { charts: prefs.charts, added: prefs.added, order: prefs.order, spans: prefs.spans };
+      const keep = { charts: prefs.charts, view: prefs.view, added: prefs.added, order: prefs.order, spans: prefs.spans };
       await post("save_view", { path: props.path, prefs: keep, title, finding });
       // the saved view now shows what the viewer had set; their own settings would repeat it.
       update(props.path, () => ({ view: {}, charts: {}, added: [], order: {}, spans: {} }));

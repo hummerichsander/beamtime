@@ -7,7 +7,11 @@ import { useId, useRef, useState } from "preact/hooks";
 import { Icon } from "./icons.ts";
 
 export function MultiSelect(props: {
-  options: string[];
+  options?: string[];
+  // options under headings, in place of `options`; searching spans all of them.
+  groups?: [string, string[]][];
+  // what an option shows, where it isn't its value.
+  labels?: Record<string, string>;
   value: string[];
   onChange: (value: string[]) => void;
   label: string;
@@ -21,7 +25,11 @@ export function MultiSelect(props: {
   const input = useRef<HTMLInputElement>(null);
   const id = `ms-${useId()}`.replace(/:/g, "");
   const q = query.trim().toLowerCase();
-  const shown = props.options.filter((o) => !q || o.toLowerCase().includes(q));
+  const text = (o: string) => props.labels?.[o] ?? o;
+  const groups = (props.groups ?? [["", props.options ?? []]]).map(
+    ([name, options]) => [name, options.filter((o) => !q || text(o).toLowerCase().includes(q))] as const,
+  );
+  const shown = groups.flatMap(([, options]) => options);
   const chosen = new Set(props.value);
   const toggle = (o: string) => {
     if (props.single) {
@@ -66,7 +74,7 @@ export function MultiSelect(props: {
     <div class="ms-field input body" onClick=${() => input.current?.focus()}>
       ${props.single
         ? null
-        : props.value.map((v) => html`<span class="ms-chip small" key=${v}>${v}
+        : props.value.map((v) => html`<span class="ms-chip small" key=${v}>${text(v)}
             ${props.value.length > 1
               ? html`<button type="button" aria-label=${`Remove ${v}`} data-tip=${`Remove ${v}`} onClick=${(e: Event) => { e.stopPropagation(); toggle(v); }}>
                   <${Icon} name="x" size=${14} /></button>`
@@ -83,9 +91,11 @@ export function MultiSelect(props: {
     ${open
       ? html`<ul class="ms-list small" id=${id} role="listbox" aria-multiselectable=${!props.single}>
           ${shown.length ? null : html`<li class="ms-empty">No match</li>`}
-          ${shown.map((o, i) => html`<li key=${o} role="option" aria-selected=${chosen.has(o)} class=${i === active ? "active" : ""}
-              onPointerDown=${(e: Event) => e.preventDefault()} onClick=${() => toggle(o)} onPointerEnter=${() => setActive(i)}>
-            <span class="ms-tick">${chosen.has(o) ? html`<${Icon} name="check" size=${14} />` : null}</span>${o}</li>`)}
+          ${groups.map(([name, options]) => html`
+            ${name && options.length ? html`<li class="ms-group" role="presentation">${name}</li>` : null}
+            ${options.map((o) => html`<li key=${o} role="option" aria-selected=${chosen.has(o)} class=${shown.indexOf(o) === active ? "active" : ""}
+                onPointerDown=${(e: Event) => e.preventDefault()} onClick=${() => toggle(o)} onPointerEnter=${() => setActive(shown.indexOf(o))}>
+              <span class="ms-tick">${chosen.has(o) ? html`<${Icon} name="check" size=${14} />` : null}</span>${text(o)}</li>`)}`)}
         </ul>`
       : null}
   </div>`;

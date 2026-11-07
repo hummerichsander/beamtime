@@ -67,7 +67,9 @@ export function Disclosure(props: { summary: ComponentChildren; open?: boolean; 
 }
 
 // a panel that opens from a button, light-dismisses, and sits next to its trigger. Anchor
-// positioning isn't available everywhere yet, so the panel is placed when it opens.
+// positioning isn't available everywhere yet, so the panel is placed when it opens. With `beside`
+// (a selector of an ancestor) it sits to the right of that element, else to its left, else against
+// the viewport's right edge, so what it changes stays visible; it follows scrolling and resizing.
 export function Popover(props: {
   icon: string;
   label: string;
@@ -75,6 +77,7 @@ export function Popover(props: {
   children?: ComponentChildren;
   class?: string;
   onOpen?: () => void;
+  beside?: string;
 }) {
   const id = `pop-${useId()}`.replace(/:/g, "");
   const panel = useRef<HTMLDivElement>(null);
@@ -82,20 +85,47 @@ export function Popover(props: {
   useEffect(() => {
     const el = panel.current;
     if (!el) return;
-    const place = (e: Event) => {
-      if ((e as ToggleEvent).newState !== "open") return;
-      props.onOpen?.();
+    const place = () => {
       const button = trigger.current?.querySelector("button");
       if (!button) return;
       const r = button.getBoundingClientRect();
       const p = el.getBoundingClientRect();
-      const left = Math.min(Math.max(8, r.right - p.width), innerWidth - p.width - 8);
-      const below = r.bottom + 6;
+      const around = props.beside ? trigger.current?.closest(props.beside)?.getBoundingClientRect() : undefined;
+      let left: number;
+      let top: number;
+      if (around) {
+        const docked = Math.max(8, innerWidth - p.width - 8);
+        if (around.right + 8 + p.width <= innerWidth - 8) left = around.right + 8;
+        else left = around.left - 8 - p.width >= 8 ? around.left - 8 - p.width : docked;
+        top = around.top;
+      } else {
+        left = Math.min(Math.max(8, r.right - p.width), innerWidth - p.width - 8);
+        top = r.bottom + 6 + p.height > innerHeight - 8 ? r.top - p.height - 6 : r.bottom + 6;
+      }
       el.style.left = `${left}px`;
-      el.style.top = `${below + p.height > innerHeight - 8 ? Math.max(8, r.top - p.height - 6) : below}px`;
+      el.style.top = `${Math.max(8, Math.min(top, innerHeight - p.height - 8))}px`;
     };
-    el.addEventListener("toggle", place);
-    return () => el.removeEventListener("toggle", place);
+    const watch = new ResizeObserver(place);
+    const onToggle = (e: Event) => {
+      if ((e as ToggleEvent).newState === "open") {
+        props.onOpen?.();
+        place();
+        watch.observe(el);
+        addEventListener("scroll", place, true);
+        addEventListener("resize", place);
+      } else {
+        watch.disconnect();
+        removeEventListener("scroll", place, true);
+        removeEventListener("resize", place);
+      }
+    };
+    el.addEventListener("toggle", onToggle);
+    return () => {
+      el.removeEventListener("toggle", onToggle);
+      watch.disconnect();
+      removeEventListener("scroll", place, true);
+      removeEventListener("resize", place);
+    };
   }, []);
   return html`<div class="popover-wrap" ref=${trigger}>
     <${IconButton} icon=${props.icon} label=${props.label} popovertarget=${id} />

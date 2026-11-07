@@ -21,6 +21,8 @@ A line chart without a frame: a title with a short note, the curves, a legend, a
 `Line` in `web/src/blocks/line.ts` (data and spec; settings in `line-settings.ts`); `web/src/blocks/plots.ts` for scatter, bar and histogram. Every chart sits in `ChartFrame` (`web/src/bt/frame.ts`): head, tools, download menu, legend and caption; the legend is the shared `Legend`.
 
 - The plot is a uPlot canvas in `.chart-plot`, not the preview's SVG; `web/src/bt/uplot.ts` draws it with the same colors and dashes.
+- The settings panel (`Popover` with `beside=".chart-frame"`, class `chart-settings`) opens to the right of the chart if it fits, else to its left, else docked to the viewport's right edge, with its top kept on screen; it re-places on scroll and resize, and never scrolls sideways (chips wrap, selects and the step range fill their column). The x axis is a single-choice `MultiSelect` with the groups "Progress" and "Metrics", and a link below it applies the choice to every chart of the page.
+- A chart the server refuses (a grouped curve over an x that goes back on itself) shows the message as an error `Notice` in place of the plot.
 - Legend items are `button.legend-item`: they toggle curves.
 - uPlot only scales whole-pixel fonts, so axis text is `small` rounded up to 13px.
 - A caption's number comes from a CSS counter: write `<b></b>`.

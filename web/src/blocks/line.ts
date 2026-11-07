@@ -19,7 +19,7 @@ import { chartStyle, dashOf, groupColors, palette as paletteOf, swatch, type The
 import { groupUrl, navigate } from "../router.ts";
 import { IconButton } from "../ui/primitives.ts";
 import { Notice, Panel } from "./common.ts";
-import { LINE_FIELDS, Settings, X_AXES } from "./line-settings.ts";
+import { LINE_FIELDS, Settings } from "./line-settings.ts";
 import { EXPORTED } from "../snapshot.ts";
 
 const LEGEND_MAX = 12;
@@ -170,7 +170,7 @@ function Chart(props: {
   const notes = [
     prefs.by === "seeds" ? "seed mean" : prefs.by ? `by ${label(prefs.by)}` : null,
     prefs.smooth > 0 ? `smoothed ${prefs.smooth.toFixed(2)}` : null,
-    prefs.x !== "_step" ? X_AXES.find(([k]) => k === prefs.x)?.[1] : null,
+    prefs.x !== "_step" ? xTitle(prefs.x, metrics) : null,
     prefs.scale !== "linear" ? prefs.scale : null,
     node.props.note && !prefs.by && !node.props.note.startsWith("seed") ? node.props.note : null,
     node.props.color ? `colored by ${label(node.props.color)}` : null,
