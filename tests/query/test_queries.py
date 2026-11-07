@@ -491,3 +491,10 @@ def test_grouped_series_with_a_constant_x_is_one_bucket(clocked) -> None:
     (curve,) = clocked({"series": q})["curves"]
     assert curve["x"] == [5.0] and curve["n"] == [2]
     assert curve["mean"] == [(175.0 + 150.0) / 2]
+
+
+def test_grouped_series_of_single_point_runs_is_one_bucket(clocked) -> None:
+    """Runs cut to their first step all sit at elapsed 0."""
+    q = {"from": "x", "y": ["m"], "by": ["config.arm"], "x": "_elapsed", "steps": [0, 0]}
+    (curve,) = clocked({"series": q | {"points": 5}})["curves"]
+    assert curve["x"] == [0.0] and curve["n"] == [2] and curve["mean"] == [0.0]

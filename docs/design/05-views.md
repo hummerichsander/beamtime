@@ -266,7 +266,8 @@ curves that stops being readable:
 
 - **Aggregating only makes sense over runs that differ in noise.** `validate` warns when keys other
   than the seed vary within an aggregate.
-- **Aggregates are averaged per bucket**, on the fixed bucket edges of previews and downsampling.
+- **Aggregates are averaged per bucket**, on the fixed bucket edges of previews and downsampling;
+  over another x than the step, on equal widths of that x ([layer 3](03-index.md#query-kinds)).
 - **Runs of different length**: the tooltip shows how many runs contribute per bucket, and the band
   fades where fewer than half of the aggregate's runs contribute.
 

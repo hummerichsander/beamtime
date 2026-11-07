@@ -395,6 +395,7 @@ def grouped_curve_by_x(
     series = []
     for r in runs:
         cols = Columns(index=ctx.index, run_id=r["_id"])
+        known = []
         if (col := cols.get(y)) is not None:
             values = ema(col.values, q.smooth.ema) if q.smooth is not None else col.values
             i, j = col.window(*window)
@@ -405,15 +406,15 @@ def grouped_curve_by_x(
                 for x, v in zip(xs, values[a:b], strict=True)
                 if x is not None and math.isfinite(v)
             ]
-            if known:
-                xs, vs = zip(*known, strict=True)
-                if not is_monotone(xs):
-                    raise QueryError(
-                        f"series: aggregating needs a monotone x, and {q.x!r} is not "
-                        f"in run {r['_id']}; show each run instead"
-                    )
-                series.append((xs, vs))
         cols.close()
+        if known:
+            known_x, known_v = zip(*known, strict=True)
+            if not is_monotone(known_x):
+                raise QueryError(
+                    f"series: aggregating needs a monotone x, and {q.x!r} is not "
+                    f"in run {r['_id']}; show each run instead"
+                )
+            series.append((known_x, known_v))
     out: dict[str, Any] = {
         "by": label,
         "runs": [r["_id"] for r in runs],
