@@ -16,3 +16,7 @@ test("unknown states still show something", () => {
   assert.deepEqual(symbolFor("run", "weird"), { icon: "circle-dashed", tone: "muted", label: "weird" });
   assert.equal(symbolFor("result", null).label, "unknown");
 });
+
+test("an unknown kind, as a custom block may pass it, falls back to the neutral symbol", () => {
+  assert.deepEqual(symbolFor("nope" as never, "failed"), { icon: "circle-dashed", tone: "muted", label: "failed" });
+});

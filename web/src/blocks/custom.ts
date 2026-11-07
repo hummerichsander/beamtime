@@ -27,7 +27,7 @@ export function Custom({ node }: { node: Node }) {
   // the element in state, so the bridge is set up once per frame; new code gets a new frame.
   const [frame, setFrame] = useState<HTMLIFrameElement | null>(null);
   const [height, setHeight] = useState(120);
-  const [state, setState] = useState<{ error: string | null; warnings: string[]; blank?: boolean; overflow?: boolean }>({ error: null, warnings: [] });
+  const [state, setState] = useState<{ error: string | null; warnings: string[]; blank?: boolean; overflow?: boolean; own?: boolean }>({ error: null, warnings: [] });
   const fail = (message: string) => {
     if (rendering) console.error(`[block ${node.id}] ${message}`);
     setState((s) => ({ ...s, error: message }));
@@ -88,6 +88,9 @@ export function Custom({ node }: { node: Node }) {
         case "height":
           if (guard.accept(performance.now())) setHeight(Math.max(40, msg.height));
           else warn("its height keeps changing, so it is fixed at its last height");
+          break;
+        case "chrome":
+          setState((s) => ({ ...s, own: msg.own }));
           break;
         case "ready":
           setState((s) => ({ ...s, blank: msg.blank, overflow: msg.overflow }));
@@ -152,6 +155,9 @@ export function Custom({ node }: { node: Node }) {
     frame?.contentWindow?.postMessage(msg, "*");
   }, [view.names, view.colors, view.metrics, frame]);
 
+  // and its colormaps, which can load after the frame has started.
+  useEffect(() => colormaps.subscribe((maps) => frame?.contentWindow?.postMessage({ type: "colormaps", colormaps: maps } satisfies ToFrame, "*")), [frame]);
+
   // the frame follows the page's theme.
   useEffect(() => {
     if (theme) frame?.contentWindow?.postMessage({ type: "theme", theme } satisfies ToFrame, "*");
@@ -161,7 +167,9 @@ export function Custom({ node }: { node: Node }) {
   register(node.id, { png: () => frame?.contentWindow?.postMessage({ type: "snapshot" } satisfies ToFrame, "*") });
   const ready = visible && code.status === "ready" && !state.error;
   return html`<div ref=${box} class="custom-block">
-    <div class="chart-head">
+    ${state.own
+      ? null
+      : html`<div class="chart-head">
       <b class="chart-title">${node.props.title ?? ""}</b>
       ${ready
         ? html`<span class="chart-tools">
@@ -172,7 +180,7 @@ export function Custom({ node }: { node: Node }) {
               : html`<${IconButton} icon="maximize" label="Expand" onClick=${() => host().expand(node, view)} />`}
           </span>`
         : null}
-    </div>
+    </div>`}
     <${Panel} caption=${node.props.expanded ? undefined : node.props.caption} result=${code}>
       ${state.error
         ? html`<div class="notice body error custom-error">

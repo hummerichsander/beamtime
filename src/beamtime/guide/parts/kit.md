@@ -8,7 +8,53 @@ say why in the `--message` of `view_save`. Built-in blocks need no code and foll
 and every later change to it.
 
 A custom block is an ES module on the `bt` kit. It runs in a sandboxed frame with no network: all data
-comes from the queries it declares.
+comes from the queries it declares. Declare `kit: 2` for `bt.chart.Figure` and the app's vocabulary
+(`bt.ui.Sym`, `Icon`, `Tag`, `Predictions`, `bt.theme.tone`); version 1 blocks run unchanged.
+
+## Three tiers of charts
+
+Use the first tier that can show what you need; each later one gives up something the earlier ones do.
+
+1. **A YAML block** (`line`, `scatter`, `scorecard`, ...): everything is included. No code.
+2. **`bt.chart.Line`, `Scatter`, `Bar`, `Histogram`** in a custom layout: the props of the YAML form, a
+   declared query as `data`, and the same features (settings, legend, hover, downloads, axis titles).
+   Use these when the layout is custom (a table beside a chart, a chart for the selected run) and the chart is
+   a built-in one.
+3. **`bt.chart.Figure`**, for a drawing no block can make (a phase portrait, a heatmap, an annotated curve):
+
+```js
+const { html } = bt.preact;
+const d3 = bt.lib.d3;
+
+function Phase() {
+  const orbit = bt.useData("orbit");
+  const series = orbit.curves.map((c) => ({ key: c.run, label: bt.name(c.run), color: bt.theme.runColor(c.run) }));
+  const draw = (el, { width, height, prefs, hovered, hidden }) => {
+    const ramp = bt.theme.scale("sequential", prefs.colormap);
+    const curves = orbit.curves.filter((c) => !hidden.has(c.run));
+    // d3 into el: replace what is there, el is the same element on every call
+    d3.select(el).selectAll("svg").data([0]).join("svg").attr("width", width).attr("height", height)
+      .selectAll("path").data(curves, (c) => c.run).join("path")
+      .attr("fill", "none")
+      .attr("stroke", (c, i) => ramp(i / Math.max(1, curves.length - 1)))
+      .attr("stroke-width", (c) => (c.run === hovered ? 3 : 1.5))
+      .on("pointerenter", (e, c) => bt.hover(c.run))
+      .on("pointerleave", () => bt.hover(null));
+    /* scales, axes and the path data omitted */
+  };
+  return html`<${bt.chart.Figure} id="phase" title="Phase portrait" xlabel="x" ylabel="p"
+    series=${series} settings=${["scale", "colormap"]} draw=${draw}
+    csv=${orbit.curves.flatMap((c) => c.x.map((x, i) => ({ run: c.run, x, y: c.y?.[i] ?? c.last?.[i] })))} />`;
+}
+```
+
+`Figure` supplies the head, the settings panel (the fields in `settings`: `x`, `scale`, `range`, `smooth`, `color`,
+`colormap`, `outliers`, `legend`), the legend with hide and solo (from `series`), hover both ways, downloads (SVG or
+PNG of what `el` holds, CSV from `csv`) and the viewer's saved preferences. Your code draws the plot into `el` and
+**titles both axes** from `xlabel` and `ylabel` (also in `draw`'s context). `draw` runs again when the data, the
+preferences, the hovered key, the hidden keys, the size or the theme change, and never fetches: keep it a pure
+function of its inputs. Colors come from `bt.theme` (`runColor`, `scale`, `tone`), never from literals. A block with a
+`Figure` has no head of its own.
 
 ```yaml
 - custom:
@@ -57,8 +103,13 @@ export default function render(root) {
 | `bt.data(name, values?)`, `bt.subscribe(name, cb, values?)` | the same as a promise, or a callback per update |
 | result | `status` (`loading`, `ready`, `error`), `error`, `columns`, `rows` (objects keyed by field), `curves` (`{run, key, group, x, y \| min, max, last, mean, count}`), `data` (the raw answer); a `runs` answer's `columns` always start with `run.id`, selected or not |
 | `bt.chart.Line`, `Scatter`, `Bar`, `Histogram` | built-in charts: the props of their YAML form, plus `data` (a result) |
+| `bt.chart.Figure` | your own drawing in the chart frame: `id`, `title`, `xlabel`, `ylabel`, `series`, `settings`, `csv`, `draw(el, {width, height, prefs, hovered, hidden})` |
 | `bt.ui.Table`, `Stat`, `DataTable`, `Grid`, `Row`, `Section`, `Tabs`/`Tab`, `Note` | built-in blocks and layouts |
+| `bt.ui.Sym` (`kind`, `value`, `word?`) | the app's symbol for a value; `kind`: `run`, `result`, `verdict`, `note`, `research`; unknown values get a neutral symbol |
+| `bt.ui.Icon` (`name`), `bt.ui.Tag` (`tone`) | a lucide icon by name; a pill with a tone |
+| `bt.ui.Predictions` (`of?`) | the `proposal` block's prediction rows with the live check of a group (default: the view's) |
 | `bt.ui.Config` (`config`, optional `varying`: dotted keys) | a nested config as a collapsible, filterable tree |
+| `bt.theme.tone(name)` | the colour of `good`, `bad`, `warn`, `muted` or `accent` in the current theme: colour a pass or fail like the app does |
 | `bt.theme.tokens`, `.mode`, `.onChange(cb)` | the theme (`colors.ink`, `colors["data-1"]`, ...); also as CSS variables (`var(--ink)`, `var(--muted)`, `var(--line)`, ...) |
 | `bt.theme.runColor(id)`, `.runDash(id)`, `.groupColor(values, value)`, `.scale(kind, name?)` | a run's color and line style (stroke-dasharray values), a group value's color, the built-in colormaps as `sequential` (viridis)/`diverging` (coolwarm) (t in 0..1) or the matplotlib colormap `name` (e.g. `.scale("sequential", "magma")`), or `categorical` (index) |
 | `bt.fmt.value(v)`, `bt.fmt.step(n)`, `bt.fmt.duration(s)`, `bt.label(field)`, `bt.name(run)` | formatting |

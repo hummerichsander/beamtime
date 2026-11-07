@@ -254,7 +254,7 @@ function Chart(props: {
               onClick=${() => setMain(path, pins.map((p) => (p === pin ? { ...p, higher: !p.higher } : p)))} />`
           : null}
         ${zoom ? html`<${IconButton} icon="reset" label="Reset zoom (double-click)" onClick=${() => setZoom(null)} />` : null}
-        <${Settings} node=${node} path=${path} prefs=${prefs} y=${shownMetrics} fields=${LINE_FIELDS} pinning=${pinning} />`}
+        <${Settings} id=${node.id} path=${path} prefs=${prefs} y=${shownMetrics} fields=${LINE_FIELDS} pinning=${pinning} />`}
       legend=${items.length ? html`<${Legend} items=${items} label="Show or hide curves" role="group" />` : null}
       caption=${props.expanded ? undefined : node.props.caption}>
     ${problem ? html`<p class="block-error small">${problem}</p>` : null}

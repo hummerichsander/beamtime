@@ -188,7 +188,7 @@ def custom_checks(n: m.Custom, at: dict[str, Any], data_dir: Path | None) -> lis
 
     out = []
     if n.kit not in code.KITS:
-        out.append(Finding(level="error", **at, message=f"no kit {n.kit}", fix="kit: 1"))
+        out.append(Finding(level="error", **at, message=f"no kit {n.kit}", fix="kit: 2"))
     for lib in n.libs:
         if lib not in code.LIBS:
             out.append(

@@ -4,7 +4,8 @@
 import { html } from "htm/preact";
 
 import { useCall } from "../api.ts";
-import { describe, progressText } from "../blocks/context.ts";
+import { progressText } from "../blocks/context.ts";
+import { describe } from "../blocks/predictions.ts";
 import { rows } from "../blocks/common.ts";
 import { usePrefs } from "../bt/prefs.ts";
 import { ago, duration, label, step, value, versionTime } from "../bt/fmt.ts";

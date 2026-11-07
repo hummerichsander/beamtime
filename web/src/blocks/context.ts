@@ -18,18 +18,7 @@ import { meta as projectMeta } from "../shell/ui.ts";
 import { useStore } from "../state.ts";
 import { Collapsible, Notice, Panel, rows } from "./common.ts";
 import { EXPORTED } from "../snapshot.ts";
-
-export function describe(pr: any): string {
-  const parts: string[] = [];
-  if (pr.effect !== undefined && pr.effect !== null) {
-    const ci = pr.ci ? ` [${value(pr.ci[0])}, ${value(pr.ci[1])}]` : "";
-    parts.push(`${pr.effect >= 0 ? "+" : ""}${value(pr.effect)}${ci}`);
-  }
-  if (pr.threshold !== undefined && pr.threshold !== null) parts.push(`needs ${pr.op} ${value(pr.threshold)}`);
-  if (pr.points) parts.push(`${pr.points} point${pr.points > 1 ? "s" : ""}`);
-  if (pr.detail) parts.push(pr.detail);
-  return parts.join(" · ");
-}
+import { Predictions } from "./predictions.ts";
 
 // the plan's progress: "15 of 15 grid points", with what was left out in the tooltip.
 export function progressText(text: string | null | undefined): [string, string | undefined] {
@@ -51,15 +40,7 @@ export function Proposal({ node }: { node: Node }) {
   return html`<${Panel} title="Predictions" result=${proposal} class="proposal">
     ${own ? null : html`<p class="statement">${doc.statement}</p>`}
     ${doc.rationale ? html`<p class="rationale prose">${doc.rationale}</p>` : null}
-    <div class="predictions">
-      ${(c?.predictions ?? []).map(
-        (pr: any) => html`<div class="prediction" key=${pr.name}>
-          <${Sym} spec=${symbolFor("result", pr.result)} />
-          <span class="pname">${pr.name}</span>
-          <span class="pdetail num small">${describe(pr)}</span>
-        </div>`,
-      )}
-    </div>
+    <${Predictions} predictions=${c?.predictions} />
     ${older.length
       ? html`<${Disclosure} summary=${`${older.length} earlier version${older.length > 1 ? "s" : ""}`}>
           ${older.map((v: any) => html`<p class="small"><code>${v.version}</code> ${v.statement}

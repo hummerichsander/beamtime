@@ -14,6 +14,7 @@ import { Store } from "../state.ts";
 import { installTips } from "../ui/tip.ts";
 import { makeKit } from "./index.ts";
 import type { Init, ToFrame, ToPage } from "./protocol.ts";
+import { svgOf } from "./snapshot.ts";
 
 const LIBS: Record<string, () => Promise<unknown>> = {
   d3: () => import("./d3.ts"),
@@ -57,10 +58,18 @@ async function start(init: Init): Promise<void> {
   }
   view.set({ path: init.path, colors: new Map(init.colors), names: new Map(init.names), metrics: init.metrics, charted: new Map(), pins: [] });
   if (init.pair) pair.set(init.pair);
-  colormaps.set(init.colormaps);
+  // the page may have sent them already, while the libraries loaded.
+  if (init.colormaps) colormaps.set(init.colormaps);
   name = init.id;
   share(init.path, init.prefs);
-  (window as any).bt = makeKit({ queries: init.queries, params: init.params, view, libs, warn: (message) => send({ type: "warn", message }) });
+  (window as any).bt = makeKit({
+    queries: init.queries,
+    params: init.params,
+    view,
+    libs,
+    warn: (message) => send({ type: "warn", message }),
+    own: () => send({ type: "chrome", own: true }),
+  });
   const render = await load(init.code);
   if (typeof render !== "function") throw new Error("the block's code must `export default function render(root)`");
   await render(document.getElementById("root"));
@@ -116,6 +125,9 @@ addEventListener("message", (e: MessageEvent<ToFrame>) => {
       break;
     case "theme":
       applyTheme(msg.theme);
+      break;
+    case "colormaps":
+      colormaps.set(msg.colormaps);
       break;
     case "context":
       view.set({ ...view.value, names: new Map(msg.names), colors: new Map(msg.colors), metrics: msg.metrics });
@@ -180,19 +192,8 @@ function share(path: string, prefs: ViewPrefs): void {
 // what the block draws as a file: its SVG with the theme's colors written in, else its canvas.
 function snapshot(): { href: string | null; name: string } {
   const root = document.getElementById("root")!;
-  const svg = root.querySelector("svg");
-  if (svg) {
-    const copy = svg.cloneNode(true) as SVGSVGElement;
-    const from = [svg, ...svg.querySelectorAll("*")];
-    const to = [copy, ...copy.querySelectorAll("*")];
-    from.forEach((el, i) => {
-      const style = getComputedStyle(el);
-      for (const prop of ["fill", "stroke", "font-family", "font-size"]) to[i].setAttribute(prop, style.getPropertyValue(prop));
-    });
-    copy.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    const text = new XMLSerializer().serializeToString(copy);
-    return { href: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`, name: `${name}.svg` };
-  }
+  const svg = svgOf(root);
+  if (svg) return { href: svg, name: `${name}.svg` };
   const canvas = root.querySelector("canvas");
   return { href: canvas ? canvas.toDataURL("image/png") : null, name: `${name}.png` };
 }

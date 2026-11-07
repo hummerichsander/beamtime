@@ -14,13 +14,18 @@ import { BarBlock, HistogramBlock, Scatter } from "../blocks/plots.ts";
 import { Stat } from "../blocks/stat.ts";
 import { Table } from "../blocks/table.ts";
 import { Notice } from "../blocks/common.ts";
+import { Predictions } from "../blocks/predictions.ts";
 import { ConfigTree } from "../ui/config.ts";
+import { Icon, Sym } from "../ui/icons.ts";
+import { Tag } from "../ui/primitives.ts";
+import { symbolFor, type Kind, type Tone } from "../ui/symbols.ts";
 import { hovered, runColors, theme, ViewCtx, type Node, type ViewContext } from "../bt/index.ts";
 import * as fmt from "../bt/fmt.ts";
 import { lineChart } from "../bt/plot.ts";
 import { dashOf, groupColors, palette, ramp, stopsOf } from "../bt/theme.ts";
 import { groupUrl, runUrl } from "../router.ts";
 import { Store, useStore } from "../state.ts";
+import { makeFigure } from "./figure.ts";
 import { fill, placeholders } from "./protocol.ts";
 import { shape, type KitResult } from "./shape.ts";
 
@@ -41,6 +46,8 @@ export type Host = {
   view: Store<ViewContext>;
   libs: Record<string, unknown>;
   warn(message: string): void;
+  // the block draws its own chart head (a `Figure`); the page leaves out its own.
+  own(): void;
 };
 
 export function makeKit(host: Host) {
@@ -107,6 +114,12 @@ export function makeKit(host: Host) {
     </div>`;
   }
 
+  function PredictionRows(props: { of?: string }) {
+    const path = props.of ?? host.view.value.path;
+    const check = useCall({ method: "check", params: { group: path }, scope: path });
+    return html`<${Predictions} predictions=${check.data?.predictions} />`;
+  }
+
   function useSize(): [RefObject<HTMLDivElement>, number] {
     const ref = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(0);
@@ -120,7 +133,7 @@ export function makeKit(host: Host) {
   }
 
   return {
-    version: 1,
+    version: 2,
     preact: { h, render, html, ...hooks },
     useData,
     // a library block's params, as the view gives them (defaults filled in).
@@ -140,6 +153,13 @@ export function makeKit(host: Host) {
       Stat: component("stat"),
       DataTable: component("data_table"),
       Config: ConfigTree,
+      // the app's symbol for a value of a kind: run status, prediction result, verdict, note type, research status.
+      Sym: (props: { kind: Kind; value?: string | null; word?: boolean; size?: number }) =>
+        html`<${Sym} spec=${symbolFor(props.kind, props.value)} word=${props.word} size=${props.size} />`,
+      Icon,
+      Tag,
+      // the predictions of a group (default: the view's) with their live check, like the `proposal` block's.
+      Predictions: PredictionRows,
       Note: (props: { kind?: string; children?: ComponentChildren }) => html`<${Notice} kind=${props.kind}>${props.children}<//>`,
     },
     chart: {
@@ -148,6 +168,7 @@ export function makeKit(host: Host) {
       Bar: component("bar"),
       Histogram: component("histogram"),
       line: lineChart,
+      Figure: makeFigure(host),
     },
     theme: {
       get tokens() {
@@ -157,6 +178,14 @@ export function makeKit(host: Host) {
         return theme.value?.type ?? "light";
       },
       onChange: (cb: (t: unknown) => void) => theme.subscribe(cb),
+      // the color of good, bad, warn, muted or accent in the current theme.
+      tone(name: Tone): string {
+        const t = theme.value;
+        if (!t) throw new Error("no theme yet");
+        const color = t.colors[name];
+        if (!color) throw new Error(`no tone ${name}; use good, bad, warn, muted or accent`);
+        return color;
+      },
       runColor: (id: string) => host.view.value.colors.get(id) ?? runColors([id], theme.value).get(id),
       groupColor: (values: unknown[], value: unknown): string | undefined => (theme.value ? groupColors(values, theme.value).get(JSON.stringify(value)) : undefined),
       runDash(id: string): number[] {

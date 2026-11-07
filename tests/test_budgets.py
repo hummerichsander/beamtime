@@ -66,7 +66,7 @@ def test_one_shot_runs_budget(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 
 STATIC = Path(__file__).parents[1] / "src" / "beamtime" / "serve" / "static"
 SHELL_BUDGET = 120_000
-KIT_BUDGET = 45_000
+KIT_BUDGET = 48_000
 
 
 def imports(entry: str) -> tuple[set[str], set[str]]:
@@ -114,7 +114,7 @@ def test_shell_bundle_budget() -> None:
 
 
 def test_kit_bundle_budget() -> None:
-    """A custom block's frame loads the kit within 45 KB compressed; D3 and uPlot only on use."""
+    """A custom block's frame loads the kit within 48 KB compressed; D3 and uPlot only on use."""
     static, lazy = imports("kit.js")
     size = gzipped(static)
     assert size <= KIT_BUDGET, f"the kit is {size / 1000:.1f} KB compressed"

@@ -18,7 +18,7 @@ export function expandedHeight(): number {
   return Math.round(innerHeight * 0.62);
 }
 
-export type DownloadSet = { png: (b: Background) => unknown; pdf?: () => unknown; csv?: () => unknown };
+export type DownloadSet = { png: (b: Background) => unknown; svg?: () => unknown; pdf?: () => unknown; csv?: () => unknown };
 
 export function Downloads(props: DownloadSet & { id?: string }) {
   register(props.id, props);
@@ -28,6 +28,7 @@ export function Downloads(props: DownloadSet & { id?: string }) {
     <div class="menu-list" onClick=${close}>
       <button type="button" onClick=${() => props.png("transparent")}><${Icon} name="image" size=${15} /> PNG, transparent</button>
       <button type="button" onClick=${() => props.png("white")}><${Icon} name="image" size=${15} /> PNG, white background</button>
+      ${props.svg ? html`<button type="button" onClick=${props.svg}><${Icon} name="image" size=${15} /> SVG (vector)</button>` : null}
       ${props.pdf && !EXPORTED ? html`<button type="button" onClick=${props.pdf}><${Icon} name="file-text" size=${15} /> PDF (vector)</button>` : null}
       ${props.csv ? html`<button type="button" onClick=${props.csv}><${Icon} name="file-text" size=${15} /> CSV data</button>` : null}
     </div>

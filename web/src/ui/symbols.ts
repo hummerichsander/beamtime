@@ -53,7 +53,7 @@ const TABLE: Record<Kind, Record<string, SymbolSpec>> = {
 export function symbolFor(kind: Kind, value: string | null | undefined): SymbolSpec {
   // check results can carry " (provisional)"; the first word decides the symbol.
   const key = (value ?? "").split(" ")[0];
-  return TABLE[kind][key] ?? { icon: "circle-dashed", tone: "muted", label: value ?? "unknown" };
+  return TABLE[kind]?.[key] ?? { icon: "circle-dashed", tone: "muted", label: value ?? "unknown" };
 }
 
 // the icon of a run event in timelines.

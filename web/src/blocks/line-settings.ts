@@ -5,7 +5,6 @@ import { html } from "htm/preact";
 import { useState } from "preact/hooks";
 
 import { useCall } from "../api.ts";
-import type { Node } from "../bt/index.ts";
 import { label } from "../bt/fmt.ts";
 import { setChart, setView, type ChartPrefs, type Effective } from "../bt/prefs.ts";
 import { colormaps, type Colormaps } from "../bt/theme.ts";
@@ -47,6 +46,7 @@ type Context = {
   metrics: string[];
   varying: string[];
   maps: Colormaps | null;
+  keepsRunColors: boolean;
 };
 
 const DEFAULT = "default";
@@ -102,10 +102,10 @@ const FIELDS: Record<Field, (c: Context) => unknown> = {
       ${varying.map((k) => html`<option value=${k}>${label(k)}</option>`)}
     </select></span>`,
 
-  colormap: ({ prefs, maps, set, setAll }) => {
+  colormap: ({ prefs, maps, keepsRunColors, set, setAll }) => {
     const all = { ...maps?.sequential, ...maps?.diverging };
     // one curve per run keeps its page-wide color, so the same run matches its swatch everywhere.
-    const fixed = !prefs.color && !prefs.by;
+    const fixed = keepsRunColors && !prefs.color && !prefs.by;
     return html`
       <span class="field-label">Colormap</span>
       <span data-tip=${fixed ? "each run keeps its color on this page; choose Color by or a grouping" : undefined}>
@@ -156,26 +156,29 @@ const FIELDS: Record<Field, (c: Context) => unknown> = {
 };
 
 export function Settings(props: {
-  node: Node;
+  id: string;
   path: string;
   prefs: Effective;
   y: string[];
   fields: Field[];
   pinning?: { pinned: boolean; toggle: () => void };
+  // a chart with one curve per run keeps the page's run colors; a figure draws its own.
+  keepsRunColors?: boolean;
 }) {
-  const { node, path, prefs } = props;
+  const { id, path, prefs } = props;
   const [opened, setOpened] = useState(false);
   const maps = useStore(colormaps);
   // what to offer comes from keys, asked only once the settings are opened.
   const keys = useCall(opened ? { method: "keys", params: { from: path }, scope: path } : null).data;
   const context: Context = {
     prefs,
-    set: (p) => setChart(path, node.id, p),
+    set: (p) => setChart(path, id, p),
     setAll: (p) => setView(path, p),
     y: props.y,
     metrics: keys?.metrics?.rows.map((r: unknown[]) => r[0]) ?? [],
     varying: (keys?.config?.varying ?? []).filter((k: string) => k !== "config.seed"),
     maps,
+    keepsRunColors: props.keepsRunColors ?? true,
   };
   return html`<${Popover} icon="sliders" label="Chart settings" title="This chart" class="chart-settings" beside=".chart-frame"
       onOpen=${() => setOpened(true)}>
@@ -190,6 +193,6 @@ export function Settings(props: {
           <${Icon} name=${props.pinning.pinned ? "pin-off" : "pin"} size=${14} />
           ${props.pinning.pinned ? "Unpin" : "Pin as main metric"}</button>`
       : null}
-    <button type="button" class="link small reset" onClick=${() => setChart(path, node.id, null)}>Reset this chart</button>
+    <button type="button" class="link small reset" onClick=${() => setChart(path, id, null)}>Reset this chart</button>
   <//>`;
 }

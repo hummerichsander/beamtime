@@ -323,7 +323,7 @@ export default function render(root) {
 ### The `bt` kit API
 
 The kit is a small, versioned JavaScript API. A block declares the major version it was written for
-(`kit: 1`); Beamtime keeps serving older majors as long as blocks use them. The kit exists only as
+(`kit: 1` or `kit: 2`); Beamtime keeps serving older majors as long as blocks use them. Version 2 only adds to version 1 (`bt.chart.Figure`, `bt.ui.Sym`, `Icon`, `Tag`, `Predictions`, `bt.theme.tone`), so a version 1 block runs unchanged. The kit exists only as
 Preact components and functions; there is no separate imperative widget API.
 
 **Entry point.** `export default function render(root)` is called once; re-rendering on data changes
@@ -348,6 +348,36 @@ objects keyed by field; curves as a list of `{run, key, group, x, y}` or, aggreg
 and takes its data as a prop. The run hovered anywhere on the page is shared: `bt.hover(run)` sets
 it, `bt.useHovered()` follows it (row selection callbacks on components come later).
 
+**Three tiers of charts.** (1) A YAML block (`line`, `scatter`, `scorecard`, …) has everything. (2) `bt.chart.Line`,
+`Scatter`, `Bar` and `Histogram` in a custom layout take the props of the YAML form and a declared query, and have the same
+features. (3) `bt.chart.Figure` is for drawings no block can make:
+
+```js
+html`<${bt.chart.Figure} id="phase" title="…" xlabel="…" ylabel="…"
+  series=${[{ key: "run-id", label: "vec", color }]}
+  settings=${["scale", "smooth", "colormap"]}
+  csv=${rows}
+  draw=${(el, { width, height, prefs, hovered, hidden }) => { /* d3, svg or canvas into el */ }} />`
+```
+
+`Figure` puts the drawing in the chart frame of layer 7: the head, a settings panel with the fields listed in `settings`
+(any of the line chart's: `x`, `scale`, `range`, `smooth`, `color`, `colormap`, `outliers`, `legend`), a legend of `series`
+with hide and solo, hover in both directions (a legend item or `bt.hover(key)` sets the page's hovered run; `draw` gets
+it back as `hovered`), downloads (SVG or PNG of what `el` holds, CSV from `csv`: rows as objects or arrays with the header
+first) and the viewer's preferences, kept like a built-in chart's under the figure's `id`. `draw` runs when the block gives a
+new `draw` (new data), and when the figure's own inputs change: its preferences, the hovered key, the hidden keys, its size
+or the theme; another chart's settings never redraw it, and none of this fetches. `prefs.colormap` is the chosen colormap
+(sample it with `bt.theme.scale(kind, prefs.colormap)`). A frame that uses `Figure` sends `{type: "chrome", own: true}`
+and the page hides the block's own head, so there is one. The page sends the project's colormaps in a `colormaps` message
+when they load, because they may arrive after the frame started; a version 1 frame ignores both messages. A figure has no
+expand button (the page can expand only built-in blocks).
+
+**The app's vocabulary.** `bt.ui.Sym({kind, value, word?})` is the app's symbol for a value (`kind`: `run`, `result`,
+`verdict`, `note`, `research`, `thing`); an unknown value or kind gets the neutral symbol, and a block cannot choose an
+icon or tone of its own. `bt.ui.Icon({name})` (lucide, by name), `bt.ui.Tag({tone})` and `bt.ui.Predictions({of?})` (the
+`proposal` block's prediction rows with the live check of group `of`, default the view's) are the same components the app
+uses. `bt.theme.tone(name)` is the colour of `good`, `bad`, `warn`, `muted` or `accent` in the current theme.
+
 **Theme, formatting and the rest**
 
 | Function | Purpose |
@@ -356,6 +386,7 @@ it, `bt.useHovered()` follows it (row selection callbacks on components come lat
 | `bt.theme.runColor(id)`, `bt.theme.groupColor(field, value)` | stable colors for runs and group values |
 | `bt.theme.runDash(id)` | a run's line style |
 | `bt.theme.scale(kind, name?)` | the built-in colormaps as `sequential` (viridis), `diverging` (coolwarm), or the named matplotlib colormap; `categorical` |
+| `bt.theme.tone(name)` | the colour of `good`, `bad`, `warn`, `muted` or `accent` in the current theme |
 | `bt.theme.mode`, `bt.theme.onChange(cb)` | light or dark, and a callback when it switches |
 | `bt.fmt.value(v)` | values formatted compactly (full values in tooltips) |
 | `bt.fmt.step(n)`, `bt.fmt.duration(s)`, `bt.label(field)` | readable steps, durations and labels |
@@ -407,6 +438,7 @@ with hundreds of runs and thousands of points per curve.
   `histogram` write them; otherwise the x axis is `step`, `epoch`, `wall time`, `elapsed` or the
   metric's label, and the y axis is `label (unit)` from the view's `metrics`, the path several metrics
   share, or none.
+- **Drawings by custom code** (d3, SVG, canvas) use `bt.chart.Figure` ([the kit](#the-bt-kit-api)): the frame, settings, legend, hover and downloads are the same as a built-in chart's; only the plot is the block's own.
 - Wave-1 widgets beyond curves (`scatter`, `bar`, `histogram`) use uPlot's point and bar paths.
 
 ## Theme

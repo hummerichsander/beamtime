@@ -27,6 +27,8 @@ export type ToFrame =
   | { type: "ping" }
   | { type: "init"; init: Init }
   | { type: "theme"; theme: Theme }
+  // the project's colormaps, which may arrive after the frame started.
+  | { type: "colormaps"; colormaps: Colormaps | null }
   | { type: "context"; names: [string, string][]; colors: [string, string][]; metrics: Record<string, MetricInfo> }
   | { type: "result"; id: string; result: Result }
   | { type: "hover"; run: string | null }
@@ -36,6 +38,8 @@ export type ToFrame =
 
 export type ToPage =
   | { type: "hello" }
+  // the frame draws its own head (a `Figure`), so the page leaves its own out.
+  | { type: "chrome"; own: boolean }
   | { type: "sub"; id: string; call: Call }
   | { type: "unsub"; id: string }
   | { type: "navigate"; url: string }

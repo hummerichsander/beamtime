@@ -48,7 +48,9 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     assert errors == []
 
     asked: list[dict] = []
-    page.on("request", lambda r: r.url.endswith("/api/series") and asked.append(json.loads(r.post_data)))
+    page.on(
+        "request", lambda r: r.url.endswith("/api/series") and asked.append(json.loads(r.post_data))
+    )
     over = box_of(page, ".chart .u-over")
     page.mouse.move(over["x"] + over["width"] * 0.2, over["y"] + 40)
     page.mouse.down()
@@ -89,7 +91,7 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     old_path = next(p for p in notes_dir.iterdir() if "type: observation" in p.read_text())
     old_text = old_path.read_text()
     before = set(notes_dir.iterdir())
-    page.click(".notes .note >> nth=1 >> button[aria-label=\"Change the note's type\"]")
+    page.click('.notes .note >> nth=1 >> button[aria-label="Change the note\'s type"]')
     page.click(".menu-list button:has-text('theory')")
     page.wait_for_timeout(500)
     added = set(notes_dir.iterdir()) - before
@@ -178,22 +180,30 @@ def test_custom_blocks_share_hover_downloads_and_expand(project: Path, page) -> 
     file = project / ".beamtime" / "drafts" / "pm" / "view.yaml"
     data = yaml.safe_load(file.read_text())
     data["finding"] = "x"
-    data["body"].append({"table": {"id": "runs", "columns": ["run.name", "config.lr", "config.seed"]}})
+    data["body"].append(
+        {"table": {"id": "runs", "columns": ["run.name", "config.lr", "config.seed"]}}
+    )
     file.write_text(yaml.safe_dump(data, sort_keys=False))
     call("view save", {"draft": "pm"}, ctx)
     script = Path(sys.executable).parent / "beamtime"
-    proc = subprocess.Popen([script, "serve", "--port", "0"], cwd=project, stderr=subprocess.PIPE, text=True)
+    proc = subprocess.Popen(
+        [script, "serve", "--port", "0"], cwd=project, stderr=subprocess.PIPE, text=True
+    )
     try:
         url = None
         while url is None:
-            if m := re.search(r"(http://localhost:\d+)/f/local\?token=(\S+)", proc.stderr.readline()):
+            if m := re.search(
+                r"(http://localhost:\d+)/f/local\?token=(\S+)", proc.stderr.readline()
+            ):
                 url = m
         page.goto(f"{url[1]}/f/local/{sweep}?token={url[2]}")
         frame = page.frame_locator(".custom-frame iframe")
         frame.locator("rect").first.wait_for(timeout=30_000)
         # the frame is sandboxed (an opaque origin): its fonts are CORS requests.
         inner = next(f for f in page.frames if "kit/frame" in f.url)
-        assert inner.evaluate("document.fonts.load('12.5px \"IBM Plex Sans\"').then((f) => f.length > 0)")
+        assert inner.evaluate(
+            "document.fonts.load('12.5px \"IBM Plex Sans\"').then((f) => f.length > 0)"
+        )
         muted = "getComputedStyle(document.documentElement).getPropertyValue('--muted')"
         light = inner.evaluate(muted)
         toggle = page.locator(".topbar-actions [aria-label^='Theme']")
@@ -208,7 +218,9 @@ def test_custom_blocks_share_hover_downloads_and_expand(project: Path, page) -> 
             page.locator(".custom-block .chart-tools [aria-label^='Download']").click()
         assert download.value.suggested_filename == "phase-map.svg"
         page.locator(".custom-block .chart-tools [aria-label='Expand']").click()
-        page.frame_locator("dialog.chart-dialog[open] iframe").locator("rect").first.wait_for(timeout=30_000)
+        page.frame_locator("dialog.chart-dialog[open] iframe").locator("rect").first.wait_for(
+            timeout=30_000
+        )
     finally:
         proc.terminate()
         proc.wait(10)
@@ -312,7 +324,13 @@ def test_custom_blocks_follow_live_data(live_page) -> None:
     call("view save", {"draft": "last"}, ctx)
 
     asked: list[str] = []
-    page.on("request", lambda r: r.url.rsplit("/", 1)[-1] in ("code", "series") and asked.append(r.url.rsplit("/", 1)[-1]))
+    page.on(
+        "request",
+        lambda r: (
+            r.url.rsplit("/", 1)[-1] in ("code", "series")
+            and asked.append(r.url.rsplit("/", 1)[-1])
+        ),
+    )
     live_page.goto("/f/local/live")
     page.wait_for_selector(".custom-frame iframe")
     deadline = time.time() + 30
@@ -335,8 +353,10 @@ def test_live_ticks_refetch_only_what_changed(live_page) -> None:
     asked: list[str] = []
     page.on(
         "request",
-        lambda r: r.url.rsplit("/", 1)[-1] in ("series", "view", "notes", "memory_show")
-        and asked.append(r.url.rsplit("/", 1)[-1]),
+        lambda r: (
+            r.url.rsplit("/", 1)[-1] in ("series", "view", "notes", "memory_show")
+            and asked.append(r.url.rsplit("/", 1)[-1])
+        ),
     )
     live_page.goto("/f/local/live")
     page.wait_for_selector(".chart canvas")
@@ -361,7 +381,12 @@ def test_nested_configs_read_well_everywhere(server: str, page, project: Path) -
     call("view new", {"group": group, "name": "nested"}, ctx)
     draft = project / ".beamtime" / "drafts" / "nested"
     view = yaml.safe_load((draft / "view.yaml").read_text())
-    columns = ["run.name", "config.hydrantic", "config.hydrantic.trainer.max_epochs", "config.hparams.egnn.vector_channels"]
+    columns = [
+        "run.name",
+        "config.hydrantic",
+        "config.hydrantic.trainer.max_epochs",
+        "config.hparams.egnn.vector_channels",
+    ]
     view["body"].append({"table": {"id": "nested", "title": "Nested", "columns": columns}})
     (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
     call("view save", {"draft": "nested"}, ctx)
@@ -373,7 +398,9 @@ def test_nested_configs_read_well_everywhere(server: str, page, project: Path) -
     page.wait_for_selector("table.runs th:has-text('max_epochs')")
     headers = page.locator("table.runs").last.locator("th").all_inner_texts()
     assert "max_epochs" in " ".join(headers) and "vector_channels" in " ".join(headers), headers
-    cells = page.locator("table.runs").last.locator("tbody tr").first.locator("td").all_inner_texts()
+    cells = (
+        page.locator("table.runs").last.locator("tbody tr").first.locator("td").all_inner_texts()
+    )
     assert any(c.startswith("{") and c.endswith("keys}") for c in cells), cells
     assert "[object" not in page.inner_text("body")
 
@@ -387,9 +414,16 @@ def test_nested_configs_read_well_everywhere(server: str, page, project: Path) -
     assert drawer.locator(".config-varies").count() > 0
     assert "[object" not in page.inner_text(".drawer")
 
-    run = page.locator("table.runs").last.locator("tbody tr").first.locator("a").first.get_attribute("href")
+    run = (
+        page.locator("table.runs")
+        .last.locator("tbody tr")
+        .first.locator("a")
+        .first.get_attribute("href")
+    )
     page.goto(f"{base}{run}?token={token}")
-    section = page.locator("section.collapsible:has(.config-tree), .section:has(.section-label:text-is('config')) section.collapsible").first
+    section = page.locator(
+        "section.collapsible:has(.config-tree), .section:has(.section-label:text-is('config')) section.collapsible"
+    ).first
     section.wait_for()
     assert section.locator(".config-tree").count() == 0, "the config starts closed on a run's page"
     section.locator("button.collapse-toggle").click()
@@ -438,7 +472,14 @@ def test_a_single_point_is_drawn(server: str, page, project: Path) -> None:
         "finding": "x",
         "body": [
             {"line": {"id": "once", "y": "validation/first_eval", "where": one}},
-            {"table": {"id": "once-table", "columns": ["run.name"], "sparkline": "validation/first_eval", "where": one}},
+            {
+                "table": {
+                    "id": "once-table",
+                    "columns": ["run.name"],
+                    "sparkline": "validation/first_eval",
+                    "where": one,
+                }
+            },
         ],
     }
     (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
@@ -507,7 +548,9 @@ def test_a_band_on_a_log_axis_reaches_the_bottom(server: str, page, project: Pat
 def test_a_colormap_belongs_to_its_chart(server: str, page, project: Path) -> None:
     """Choosing a colormap recolors that chart's groups only, and the choice survives a reload;
     with one curve per run the row is disabled."""
-    url = f"{server.split('/f/local')[0]}/f/local/scaling/lr-sweep?token={server.split('token=')[1]}"
+    url = (
+        f"{server.split('/f/local')[0]}/f/local/scaling/lr-sweep?token={server.split('token=')[1]}"
+    )
     page.goto(url)
     page.wait_for_selector(".chart canvas")
     first = page.locator(".chart-frame").first
@@ -523,6 +566,7 @@ def test_a_colormap_belongs_to_its_chart(server: str, page, project: Path) -> No
     settings.get_by_role("combobox", name="Colormap").click()
     settings.get_by_role("option", name="magma").click()
     page.keyboard.press("Escape")
+    page.evaluate("scrollTo(0, 0)")
     page.wait_for_timeout(500)
 
     def marks(frame) -> list[str]:
@@ -539,7 +583,9 @@ def test_a_colormap_belongs_to_its_chart(server: str, page, project: Path) -> No
     assert magma <= set(marks(page.locator(".chart-frame").first))
 
 
-def test_epochs_are_a_fact_and_a_column_not_a_chart(server: str, page, project: Path, roles: dict) -> None:
+def test_epochs_are_a_fact_and_a_column_not_a_chart(
+    server: str, page, project: Path, roles: dict
+) -> None:
     """A run's header says how far it is through its epochs; the group's table has the column, and
     neither page draws the epoch stair."""
     base = server.split("/f/local")[0]
@@ -596,10 +642,15 @@ def test_the_default_view_groups_charts_by_prefix_and_a_hidden_chart_comes_back(
     page.locator(".save-actions button[type=submit]").click()
     # the form closes once the save has landed; the chart count holds before it already.
     page.wait_for_selector(".save-actions", state="detached")
-    page.wait_for_function(f"() => document.querySelectorAll('.chart-frame').length == {before - 1}")
+    page.wait_for_function(
+        f"() => document.querySelectorAll('.chart-frame').length == {before - 1}"
+    )
     page.reload()
     page.wait_for_selector(".chart canvas")
-    assert frames.count() == before - 1 and page.locator("button:has-text('hidden · show')").count() == 0
+    assert (
+        frames.count() == before - 1
+        and page.locator("button:has-text('hidden · show')").count() == 0
+    )
     assert page.locator(f".chart-title:text-is('{gone}')").count() == 0
 
     page.locator(toggles).nth(1).click()
@@ -635,7 +686,9 @@ def test_main_metrics_are_pinned_in_the_ui(server: str, page, project: Path) -> 
     top, scrolled = own.bounding_box()["y"], scroller.evaluate("e => e.scrollTop")
     assert scrolled > 0
     pin.click()
-    page.wait_for_function("() => document.querySelector('button.view-section-title')?.getAttribute('aria-label') == 'Close Main (1)'")
+    page.wait_for_function(
+        "() => document.querySelector('button.view-section-title')?.getAttribute('aria-label') == 'Close Main (1)'"
+    )
     page.wait_for_function("() => document.querySelector('.facts').innerText.includes('best')")
     page.wait_for_selector("table.runs td.spark")
     # the chart stays in its own section as well, and where the viewer was looking.
@@ -669,7 +722,9 @@ def test_main_metrics_are_pinned_in_the_ui(server: str, page, project: Path) -> 
     frame = page.locator(".chart-frame", has=page.locator(".chart-title:text-is('val/acc')")).first
     frame.locator("button[aria-label='Chart settings']").click()
     frame.locator("button:has-text('Unpin')").click()
-    page.wait_for_function("() => !document.querySelector('button.view-section-title')?.getAttribute('aria-label')?.includes('Main')")
+    page.wait_for_function(
+        "() => !document.querySelector('button.view-section-title')?.getAttribute('aria-label')?.includes('Main')"
+    )
     page.wait_for_function("() => !document.querySelector('.facts').innerText.includes('best')")
 
 
@@ -693,7 +748,13 @@ def test_hiding_works_outside_grids_and_add_a_chart_follows_the_charts(
         "finding": "x",
         "body": [
             {"line": {"id": "alone", "y": "validation/loss"}},
-            {"section": {"id": "more", "title": "More", "children": [{"line": {"id": "inner", "y": "training/loss"}}]}},
+            {
+                "section": {
+                    "id": "more",
+                    "title": "More",
+                    "children": [{"line": {"id": "inner", "y": "training/loss"}}],
+                }
+            },
             {"table": {"id": "runs", "columns": ["run.name"]}},
         ],
     }
@@ -717,3 +778,231 @@ def test_hiding_works_outside_grids_and_add_a_chart_follows_the_charts(
         )
     page.locator("button:has-text('1 hidden · show')").first.click()
     page.wait_for_selector(".chart-title:text-is('validation/loss')")
+
+
+CURVES = """
+const { html } = bt.preact;
+const d3 = bt.lib.d3;
+const M = { top: 8, right: 8, bottom: 34, left: 48 };
+
+// a d3 line chart in the frame's chart: what the remote's curves.js draws by hand.
+const yOf = (c) => c.y ?? c.last ?? c.mean;
+
+function drawer(curves, tag) {
+  return (el, { width, height, prefs, hovered, hidden, xlabel, ylabel }) => {
+    el.dataset.draws = String(Number(el.dataset.draws ?? 0) + 1);
+    el.dataset.tone = bt.theme.tone("good");
+    const shown = curves.filter((c) => !hidden.has(c.run));
+    const xs = shown.flatMap((c) => c.x);
+    const ys = shown.flatMap(yOf).filter((v) => v !== null && v > 0);
+    const x = d3.scaleLinear(d3.extent(xs), [M.left, width - M.right]);
+    const y = (prefs.scale === "log" ? d3.scaleLog() : d3.scaleLinear()).domain(d3.extent(ys)).range([height - M.bottom, M.top]);
+    const ramp = bt.theme.scale("sequential", prefs.colormap);
+    const svg = d3.select(el).selectAll("svg").data([0]).join("svg").attr("width", width).attr("height", height).attr("data-scale", prefs.scale);
+    svg.selectAll("path.curve")
+      .data(shown, (c) => c.run)
+      .join("path")
+      .attr("class", "curve")
+      .attr("data-run", (c) => c.run)
+      .attr("data-hot", (c) => (c.run === hovered ? "1" : null))
+      .attr("fill", "none")
+      .attr("stroke", (c, i) => ramp(i / Math.max(1, shown.length - 1)))
+      .attr("stroke-width", (c) => (c.run === hovered ? 3 : 1.5))
+      .attr("d", (c) => d3.line().defined((_, i) => yOf(c)[i] !== null && yOf(c)[i] > 0).x((_, i) => x(c.x[i])).y((_, i) => y(yOf(c)[i]))(c.x))
+      .on("pointerenter", (e, c) => bt.hover(c.run))
+      .on("pointerleave", () => bt.hover(null));
+    svg.selectAll("text.axis")
+      .data([[width / 2, height - 6, xlabel], [12, height / 2, ylabel]])
+      .join("text")
+      .attr("class", "axis")
+      .attr("x", (d) => d[0])
+      .attr("y", (d) => d[1])
+      .attr("fill", "var(--muted)")
+      .text((d) => `${tag} ${d[2]}`);
+  };
+}
+
+function Curves() {
+  const curves = bt.useData("curves");
+  const list = curves.curves;
+  const series = list.map((c) => ({ key: c.run, label: bt.name(c.run), color: bt.theme.runColor(c.run) }));
+  const rows = [["step", ...list.map((c) => c.run)], ...(list[0]?.x ?? []).map((s, i) => [s, ...list.map((c) => yOf(c)[i])])];
+  return html`
+    <${bt.chart.Figure} id="a" title="Train loss" xlabel="step" ylabel="train/loss" series=${series}
+      settings=${["scale", "smooth", "colormap"]} csv=${rows} draw=${drawer(list, "a")} />
+    <${bt.chart.Figure} id="b" title="Second" xlabel="step" ylabel="train/loss" settings=${["scale"]} draw=${drawer(list, "b")} />
+    <p id="vocab">
+      <${bt.ui.Sym} kind="run" value="finished" word />
+      <${bt.ui.Sym} kind="run" value="no-such-state" />
+      <${bt.ui.Sym} kind="no-such-kind" value="x" />
+      <${bt.ui.Tag} tone="good">tag<//> <${bt.ui.Icon} name="check" />
+      <${bt.ui.Predictions} />
+    </p>`;
+}
+
+export default function render(root) {
+  bt.preact.render(html`<${Curves} />`, root);
+}
+"""
+
+
+def figure_view(project: Path, group: str, code: str, queries: dict, table: bool) -> None:
+    """Save a view of one custom block on ``bt.chart.Figure``, with a run table beside it if asked.
+
+    :param project: The project root.
+    :param group: The group the view belongs to.
+    :param code: The block's code.
+    :param queries: The block's declared queries.
+    :param table: Whether to add a run table block, for the hovered row."""
+    import yaml
+
+    from beamtime.ops import call
+    from beamtime.ops.context import Context
+
+    ctx = Context.make()
+    call("view new", {"group": group, "name": "fig"}, ctx)
+    draft = project / ".beamtime" / "drafts" / "fig"
+    body = [
+        {
+            "custom": {
+                "id": "curves",
+                "title": "Curves",
+                "code": "code/curves.js",
+                "libs": ["d3"],
+                "queries": queries,
+            }
+        }
+    ]
+    if table:
+        body.append({"table": {"id": "runs", "columns": ["run.name", "config.lr"]}})
+    view = {"schema": 1, "title": "fig", "finding": "x", "body": body}
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "code").mkdir(exist_ok=True)
+    (draft / "code" / "curves.js").write_text(code)
+    call("view save", {"draft": "fig"}, ctx)
+
+
+def test_figure_gets_the_chart_frame(project: Path, server: str, page) -> None:
+    """A ``Figure`` with a d3 line has one head (the frame's), settings that redraw only that figure,
+    a legend, hover to the table and back, downloads and the theme, and hover or a resize do not refetch."""
+    figure_view(
+        project,
+        "scaling/lr-sweep",
+        CURVES,
+        {"curves": {"series": {"y": ["train/loss"], "points": 60}}},
+        table=True,
+    )
+    errors: list[str] = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    series: list[str] = []
+    page.on("request", lambda r: r.url.endswith("/api/series") and series.append(r.url))
+    base, token = server.split("/f/local")[0], server.split("token=")[1]
+    page.goto(f"{base}/f/local/scaling/lr-sweep?token={token}")
+    frame = page.frame_locator(".custom-frame iframe")
+    frame.locator("path.curve").first.wait_for(timeout=30_000)
+    assert page.locator(".custom-block > .chart-head").count() == 0, "the page leaves its head out"
+    assert frame.locator(".chart-head").count() == 2, "one head per figure"
+    assert "a step" in frame.locator(".chart-plot svg").first.locator("text.axis").first.text_content()
+    assert frame.locator("#vocab > .sym.tone-good").count() == 1
+    assert frame.locator("#vocab > .sym.tone-muted").count() == 2, (
+        "unknown values and kinds get the neutral symbol"
+    )
+    assert frame.locator("#vocab .tag.tone-good").count() == 1
+    frame.locator("#vocab .prediction").first.wait_for(timeout=10_000)
+    inner = next(f for f in page.frames if "kit/frame" in f.url)
+
+    series_before = len(series)
+    first = frame.locator("path.curve").nth(1)
+    first.dispatch_event("pointerenter")
+    page.wait_for_selector("table.runs tr.hovered", timeout=5_000)
+    first.dispatch_event("pointerleave")
+    page.wait_for_function(
+        "document.querySelector('table.runs tr.hovered') === null", timeout=5_000
+    )
+    page.locator("table.runs tbody tr").nth(2).hover()
+    frame.locator("path.curve[data-hot='1']").first.wait_for(timeout=5_000)
+    page.mouse.move(5, 5)
+    page.set_viewport_size({"width": 1000, "height": 900})
+    page.wait_for_timeout(800)
+    assert len(series) == series_before, "hover and a resize redraw without asking for data again"
+
+    draws = lambda fig: int(
+        inner.evaluate(f"document.querySelectorAll('.chart-plot')[{fig}].dataset.draws")
+    )  # noqa: E731
+    stroke = lambda fig: inner.evaluate(
+        f"document.querySelectorAll('.chart-plot')[{fig}].querySelector('path.curve').getAttribute('stroke')"
+    )  # noqa: E731
+    a, b, color = draws(0), draws(1), stroke(0)
+    frame.locator(".chart-frame").first.hover()
+    frame.locator(".chart-frame").first.locator("[aria-label='Chart settings']").click()
+    page.wait_for_timeout(300)
+    frame.locator("input[aria-label='Colormap']").click()
+    frame.locator("li[role='option']").nth(3).click()
+    page.wait_for_timeout(500)
+    assert draws(0) > a and stroke(0) != color, "a new colormap redraws its figure"
+    assert draws(1) == b, "and only that figure"
+    frame.locator("button[role='radio']:has-text('log')").first.click()
+    page.wait_for_timeout(300)
+    assert frame.locator(".chart-plot svg").first.get_attribute("data-scale") == "log"
+    assert frame.locator(".chart-plot svg").nth(1).get_attribute("data-scale") == "linear"
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(500)
+
+    with page.expect_download() as download:
+        frame.locator(".chart-frame").first.locator("button[aria-label='Download']").click()
+        frame.locator(".chart-frame").first.locator("button:has-text('SVG')").dispatch_event("click")
+    assert download.value.suggested_filename == "Train_loss.svg"
+    page.wait_for_timeout(1100)
+    with page.expect_download() as download:
+        frame.locator(".chart-frame").first.locator("button[aria-label='Download']").click()
+        frame.locator(".chart-frame").first.locator("button:has-text('PNG, white')").dispatch_event("click")
+    assert download.value.suggested_filename == "Train_loss.png"
+    page.wait_for_timeout(1100)
+    with page.expect_download() as download:
+        frame.locator(".chart-frame").first.locator("button[aria-label='Download']").click()
+        frame.locator(".chart-frame").first.locator("button:has-text('CSV')").dispatch_event("click")
+    assert download.value.suggested_filename == "Train_loss.csv"
+
+    legend = frame.locator(".legend-item")
+    count = frame.locator("path.curve").count()
+    legend.first.click()
+    page.wait_for_timeout(300)
+    assert frame.locator("path.curve").count() < count, "the legend hides a series"
+
+    tone, a = inner.evaluate("document.querySelector('.chart-plot').dataset.tone"), draws(0)
+    toggle = page.locator(".topbar-actions [aria-label^='Theme']")
+    while "(switch to system)" not in toggle.get_attribute("aria-label"):
+        toggle.click()
+        page.wait_for_timeout(300)
+    page.wait_for_timeout(500)
+    assert draws(0) > a, "a theme change redraws"
+    assert inner.evaluate("document.querySelector('.chart-plot').dataset.tone") != tone
+    assert errors == []
+
+
+def test_figure_follows_live_data(live_page) -> None:
+    """A ``Figure`` redraws when its query answers with more steps."""
+    code = """
+const { html } = bt.preact;
+function Live() {
+  const d = bt.useData("loss");
+  const draw = (el) => { el.textContent = ""; const n = d.curves[0]?.x.length ?? 0; el.innerHTML = `<b id="n">${n}</b>`; };
+  return html`<${bt.chart.Figure} id="live" title="Live" xlabel="step" ylabel="loss" draw=${draw} />`;
+}
+export default function render(root) { bt.preact.render(html`<${Live} />`, root); }
+"""
+    figure_view(
+        live_page.project,
+        "live",
+        code,
+        {"loss": {"series": {"y": ["live/loss"], "points": 50}}},
+        table=False,
+    )
+    live_page.goto("/f/local/live")
+    page = live_page.page
+    text = lambda: (
+        page.frame_locator(".custom-frame iframe").locator("#n").inner_text(timeout=30_000)
+    )  # noqa: E731
+    first = int(text())
+    page.wait_for_timeout(8_000)
+    assert int(text()) > first

@@ -588,7 +588,7 @@ view"; a group with a proposal opens with its predicted metric pinned and can un
 Why agents hand-roll d3 (real data): no axis labels, no epoch axis, no scorecard, no status pills. B3 and B6
 remove the first two. C makes the built-in route the easy one, and gives real custom drawing the same frame.
 
-### C1. Three tiers, one frame (sonnet + review)
+### C1. Three tiers, one frame (sonnet + review) — **done**
 
 - **Touches:** `web/src/kit/index.ts` (`makeKit` 46, `version` 78, `ui` 88–100, `theme` 152–175), `web/src/kit/protocol.ts`, `web/src/blocks/custom.ts`, `web/src/bt/frame.ts` (B1), `web/src/ui/symbols.ts` (`symbolFor` 53), `web/src/ui/icons.ts` (`Sym` 36), `web/src/ui/primitives.ts` (`Tag` 24), `web/src/bt/theme.ts` (`stopsOf`, read only), `src/beamtime/guide/parts/kit.md`.
 - **Read:** `docs/design/05-views.md` § The `bt` kit API (l. 315), § Sandbox (l. 362), § Charts (l. 381).
