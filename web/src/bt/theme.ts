@@ -1,6 +1,8 @@
 // The theme on the page: light/dark, a theme file's colors as CSS variables, stable run colors and
 // line styles, and the chart style.
 
+import { Store } from "../state.ts";
+
 export type Theme = {
   name: string;
   type: "light" | "dark";
@@ -72,21 +74,30 @@ export function hash(s: string): number {
   return h >>> 0;
 }
 
-export function groupColors(values: unknown[], theme: Theme): Map<string, string> {
+// matplotlib's colormaps, sampled by the server, by family and name; a chart picks one by name.
+export type Colormaps = { sequential: Record<string, string[]>; diverging: Record<string, string[]> };
+export const colormaps = new Store<Colormaps | null>(null);
+
+// the colors of a named colormap of either family, or null for none or an unknown name.
+export function stopsOf(name: string | null | undefined): string[] | null {
+  const maps = colormaps.value;
+  return (name && (maps?.sequential[name] ?? maps?.diverging[name])) || null;
+}
+
+// a color per distinct value. A chosen colormap always applies: numeric values by their order,
+// categories at evenly spaced positions. Without one, categories take the theme's palette and
+// more numeric values than it has colors take the default sequential ramp.
+export function groupColors(values: unknown[], theme: Theme, stops: string[] | null = null): Map<string, string> {
   const distinct = [...new Set(values.map((v) => JSON.stringify(v)))];
   const numeric = distinct.every((v) => typeof JSON.parse(v) === "number");
   const sorted = numeric
     ? distinct.sort((a, b) => JSON.parse(a) - JSON.parse(b))
     : distinct.sort();
   const colors = palette(theme);
+  const ramped = stops ?? (numeric && sorted.length > colors.length ? theme.ramps.sequential : null);
   const out = new Map<string, string>();
   sorted.forEach((v, i) => {
-    out.set(
-      v,
-      numeric && sorted.length > colors.length
-        ? ramp(theme.ramps.sequential, sorted.length === 1 ? 1 : i / (sorted.length - 1))
-        : colors[i % colors.length],
-    );
+    out.set(v, ramped ? ramp(ramped, sorted.length === 1 ? 1 : i / (sorted.length - 1)) : colors[i % colors.length]);
   });
   return out;
 }

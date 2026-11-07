@@ -7,7 +7,7 @@ import { busy, deliver, setRemote } from "../api.ts";
 import { setHost } from "../bt/host.ts";
 import { hovered, pair, theme, type ViewContext } from "../bt/index.ts";
 import { prefsOf, type ViewPrefs } from "../bt/prefs.ts";
-import { paint, type Theme } from "../bt/theme.ts";
+import { colormaps, paint, type Theme } from "../bt/theme.ts";
 import { setAway } from "../router.ts";
 import { EXPORTED } from "../snapshot.ts";
 import { Store } from "../state.ts";
@@ -57,6 +57,7 @@ async function start(init: Init): Promise<void> {
   }
   view.set({ path: init.path, colors: new Map(init.colors), names: new Map(init.names), metrics: init.metrics });
   if (init.pair) pair.set(init.pair);
+  colormaps.set(init.colormaps);
   name = init.id;
   share(init.path, init.prefs);
   (window as any).bt = makeKit({ queries: init.queries, params: init.params, view, libs, warn: (message) => send({ type: "warn", message }) });

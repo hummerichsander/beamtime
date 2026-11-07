@@ -18,7 +18,7 @@ import { ConfigTree } from "../ui/config.ts";
 import { hovered, runColors, theme, ViewCtx, type Node, type ViewContext } from "../bt/index.ts";
 import * as fmt from "../bt/fmt.ts";
 import { lineChart } from "../bt/plot.ts";
-import { dashOf, groupColors, palette, ramp } from "../bt/theme.ts";
+import { dashOf, groupColors, palette, ramp, stopsOf } from "../bt/theme.ts";
 import { groupUrl, runUrl } from "../router.ts";
 import { Store, useStore } from "../state.ts";
 import { fill, placeholders } from "./protocol.ts";
@@ -163,7 +163,8 @@ export function makeKit(host: Host) {
         const color = host.view.value.colors.get(id) ?? runColors([id], theme.value).get(id);
         return theme.value ? dashOf(color, theme.value) : [];
       },
-      scale(kind: "sequential" | "diverging" | "categorical") {
+      // the built-in ramp of a kind, or a named colormap (any family) from the chart's settings.
+      scale(kind: "sequential" | "diverging" | "categorical", name?: string | null) {
         const t = theme.value;
         if (!t) throw new Error("no theme yet");
         switch (kind) {
@@ -172,8 +173,11 @@ export function makeKit(host: Host) {
             return (i: number) => colors[i % colors.length];
           }
           case "sequential":
-          case "diverging":
-            return (x: number) => ramp(t.ramps[kind], Math.min(1, Math.max(0, x)));
+          case "diverging": {
+            const stops = name ? stopsOf(name) : t.ramps[kind];
+            if (!stops) throw new Error(`no colormap ${name}`);
+            return (x: number) => ramp(stops, Math.min(1, Math.max(0, x)));
+          }
           default:
             throw new Error(`no scale ${kind}`);
         }

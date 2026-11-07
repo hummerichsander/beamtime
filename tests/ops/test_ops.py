@@ -82,6 +82,7 @@ def test_settings_levels(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     )
     (tmp_path / "beamtime.yaml").write_text(
         "schema: 1\nlogdir: runs\nremotes:\n  cluster: {path: /scratch}\nbogus: 1\n"
+        "colormap: magma\ncolormap_diverging: RdBu\n"
     )
     s = load(tmp_path)
     assert s.get("logdir") == "runs" and s.get("theme") == "dark"
@@ -97,6 +98,9 @@ def test_settings_levels(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     assert levels["logdir"] == "project" and levels["theme"] == "user"
     assert any("belongs in the project" in p for p in s.problems)
     assert any("bogus" in p for p in s.problems)
+    moved = [p for p in s.problems if "moved to the chart settings" in p]
+    assert len(moved) == 2 and not any("unknown setting 'colormap" in p for p in s.problems)
+    assert s.get("colormap") is None
 
 
 def test_budget_cut_and_cursor() -> None:
@@ -366,10 +370,8 @@ def test_set_writes_beamtime_yaml_and_keeps_the_rest(ctx: Context, project: Path
         call("set", {"key": "theme_mode", "value": "sepia"}, ctx)
     with pytest.raises(OpError, match="no theme"):
         call("set", {"key": "theme", "value": "nope"}, ctx)
-    call("set", {"key": "colormap", "value": "magma"}, ctx)
-    assert ctx.settings.get("colormap") == "magma"
-    with pytest.raises(OpError, match="no colormap"):
-        call("set", {"key": "colormap", "value": "RdBu"}, ctx)
+    with pytest.raises(Exception, match="colormap"):  # no longer a setting
+        call("set", {"key": "colormap", "value": "magma"}, ctx)
     if pytest.importorskip("scienceplots"):
         with pytest.raises(OpError, match="unknown style"):
             call("set", {"key": "figure_style", "value": ["science", "nope"]}, ctx)

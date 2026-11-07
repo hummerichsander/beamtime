@@ -9,8 +9,6 @@ Settings live in two files; the project's file wins, and command-line options wi
 logdir: beamtime                 # where runs go, relative to the project
 theme: beamtime                  # the web UI's theme
 theme_mode: system               # light, dark or system
-colormap: viridis                # for numeric groups and heatmaps
-colormap_diverging: coolwarm     # the same, for values around a center
 figure_style: [science, nature]  # matplotlib styles for PDF figures
 remotes: {}                      # see Remote machines
 ```
@@ -53,12 +51,14 @@ Fonts, sizes and spacing stay Beamtime's.
 
 ## Colormaps
 
-Numeric groups and heatmaps are colored by matplotlib's colormaps; individual runs keep their own
-colors and line styles. Choose them on the settings page or with `beamtime set colormap magma`.
-
-- `colormap`: `viridis`, `plasma`, `inferno`, `magma`, `cividis`, `turbo`, `Blues`, `Greens`, `Greys`,
-  `Oranges`, `Purples`, `Reds`.
-- `colormap_diverging`: `coolwarm`, `RdBu`, `bwr`, `seismic`, `PuOr`, `BrBG`, `PiYG`, `RdYlBu`, `Spectral`.
+Colormaps are not a setting: each chart has its own, in its settings (the sliders icon), and "Use this
+on all charts on this page" applies a choice to the page. Numeric and grouped colors then follow matplotlib's
+colormap (`viridis`, `plasma`, `inferno`, `magma`, `cividis`, `turbo`, `Blues`, `Greens`, `Greys`,
+`Oranges`, `Purples`, `Reds`; `coolwarm`, `RdBu`, `bwr`, `seismic`, `PuOr`, `BrBG`, `PiYG`, `RdYlBu`,
+`Spectral`). Without a choice, categories use the theme's palette and many numeric values use viridis.
+A chart with one curve per run keeps each run's color, so the run matches its swatch everywhere: choose
+"Color by" or a grouping there. "Save as view" keeps the choice in the view (`colormap:` on the chart).
+An old `colormap` key in a settings file is ignored with one line.
 
 ## Figure style
 

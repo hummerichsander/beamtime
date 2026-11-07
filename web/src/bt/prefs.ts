@@ -12,6 +12,9 @@ export type ChartPrefs = {
   smooth?: number;
   raw?: boolean;
   by?: string | null;
+  // null: no color field, or the default colormap, over what the view says.
+  color?: string | null;
+  colormap?: string | null;
   band?: "minmax" | "std" | "stderr" | "none";
   scale?: Scale;
   ymin?: number | null;

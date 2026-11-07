@@ -132,39 +132,22 @@ def resolve(name: str, root: Path | None) -> dict[str, Any]:
     return out | {"name": theme.name, "problems": problems}
 
 
-def ramps(sequential: str | None, diverging: str | None) -> tuple[dict[str, list[str]], list[str]]:
-    """Look up the colors of the chosen colormaps.
+def ramps() -> dict[str, list[str]]:
+    """Look up the colors of the default colormaps.
 
-    :param sequential: The ``colormap`` setting.
-    :param diverging: The ``colormap_diverging`` setting.
-    :return: ``sequential`` and ``diverging`` colors, and problems with unknown names."""
+    :return: ``sequential`` and ``diverging`` colors."""
     maps = colormaps()
-    chosen = {"sequential": sequential, "diverging": diverging}
-    out: dict[str, list[str]] = {}
-    problems = []
-    for kind, name in chosen.items():
-        if name is not None and name not in maps[kind]:
-            problems.append(f"no {kind} colormap {name!r}; using {DEFAULT_COLORMAPS[kind]}")
-            name = None
-        out[kind] = maps[kind][name or DEFAULT_COLORMAPS[kind]]
-    return out, problems
+    return {kind: maps[kind][name] for kind, name in DEFAULT_COLORMAPS.items()}
 
 
-def pair(
-    setting: str,
-    root: Path | None,
-    colormap: str | None = None,
-    colormap_diverging: str | None = None,
-) -> dict[str, Any]:
-    """Resolve the light and dark variant a ``theme`` setting names, with the chosen colormaps.
+def pair(setting: str, root: Path | None) -> dict[str, Any]:
+    """Resolve the light and dark variant a ``theme`` setting names, with the default colormaps.
 
     ``beamtime`` names the design system's own pair; the name of a pair of files ``x-light`` and
     ``x-dark`` names both; the name of a single theme file is used for both modes.
 
     :param setting: The ``theme`` setting.
     :param root: The project root, or ``None``.
-    :param colormap: The sequential colormap's name.
-    :param colormap_diverging: The diverging colormap's name.
     :return: ``{light, dark, problems}``; on errors the default pair with the problem."""
     files = available(root)
     if setting == DEFAULT or (f"{setting}-light" in files and f"{setting}-dark" in files):
@@ -177,7 +160,5 @@ def pair(
     except ThemeError as e:
         out = {"light": base("light"), "dark": base("dark")}
         problems = [f"{e}; using the default theme"]
-    scales, missing = ramps(colormap, colormap_diverging)
-    return {mode: t | {"ramps": scales} for mode, t in out.items()} | {
-        "problems": problems + missing
-    }
+    scales = ramps()
+    return {mode: t | {"ramps": scales} for mode, t in out.items()} | {"problems": problems}

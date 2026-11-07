@@ -43,6 +43,9 @@ class Line(Node, tag="line"):
     y: Metric | list[Metric]
     x: Annotated[str, msgspec.Meta(description="_step, _t, _elapsed or a metric key")] = "_step"
     color: Annotated[Field | None, msgspec.Meta(description="color curves by this field")] = None
+    colormap: Annotated[
+        str | None, msgspec.Meta(description="matplotlib colormap for numeric and grouped colors")
+    ] = None
     by: Annotated[
         Field | list[Field] | None, msgspec.Meta(description="mean and band per value")
     ] = None
@@ -72,6 +75,9 @@ class Scatter(Node, tag="scatter"):
     x: Field
     y: Field
     color: Field | None = None
+    colormap: Annotated[
+        str | None, msgspec.Meta(description="matplotlib colormap for numeric and grouped colors")
+    ] = None
     x_scale: Scale = "linear"
     y_scale: Scale = "linear"
     fit: Literal["linear", "log", "power"] | None = None
@@ -88,6 +94,9 @@ class Bar(Node, tag="bar"):
     ]
     y: Field
     by: Annotated[Field | None, msgspec.Meta(description="a second field: grouped bars")] = None
+    colormap: Annotated[
+        str | None, msgspec.Meta(description="matplotlib colormap for numeric and grouped colors")
+    ] = None
     error: Literal["std", "stderr", "minmax", "none"] = "std"
     sort: Literal["x", "y", "-y"] = "x"
     xlabel: Annotated[str | None, msgspec.Meta(description="x axis title; default from x")] = None

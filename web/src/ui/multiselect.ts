@@ -12,6 +12,9 @@ export function MultiSelect(props: {
   groups?: [string, string[]][];
   // what an option shows, where it isn't its value.
   labels?: Record<string, string>;
+  // a CSS background drawn before an option (a colormap's gradient).
+  marks?: Record<string, string>;
+  disabled?: boolean;
   value: string[];
   onChange: (value: string[]) => void;
   label: string;
@@ -79,7 +82,7 @@ export function MultiSelect(props: {
               ? html`<button type="button" aria-label=${`Remove ${v}`} data-tip=${`Remove ${v}`} onClick=${(e: Event) => { e.stopPropagation(); toggle(v); }}>
                   <${Icon} name="x" size=${14} /></button>`
               : null}</span>`)}
-      <input ref=${input} value=${query} placeholder=${props.placeholder ?? "Search"} aria-label=${props.label}
+      <input ref=${input} value=${query} disabled=${props.disabled} placeholder=${props.placeholder ?? "Search"} aria-label=${props.label}
         role="combobox" aria-expanded=${open} aria-controls=${id} aria-autocomplete="list"
         onFocus=${() => setOpen(true)} onKeyDown=${onKey}
         onInput=${(e: Event) => {
@@ -95,7 +98,7 @@ export function MultiSelect(props: {
             ${name && options.length ? html`<li class="ms-group" role="presentation">${name}</li>` : null}
             ${options.map((o) => html`<li key=${o} role="option" aria-selected=${chosen.has(o)} class=${shown.indexOf(o) === active ? "active" : ""}
                 onPointerDown=${(e: Event) => e.preventDefault()} onClick=${() => toggle(o)} onPointerEnter=${() => setActive(shown.indexOf(o))}>
-              <span class="ms-tick">${chosen.has(o) ? html`<${Icon} name="check" size=${14} />` : null}</span>${text(o)}</li>`)}`)}
+              <span class="ms-tick">${chosen.has(o) ? html`<${Icon} name="check" size=${14} />` : null}</span>${props.marks?.[o] ? html`<span class="ms-ramp" style=${`background:${props.marks[o]}`}></span>` : null}${text(o)}</li>`)}`)}
         </ul>`
       : null}
   </div>`;

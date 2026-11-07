@@ -71,8 +71,8 @@ numbers.
 The layout, type and spacing are fixed. A **theme file** recolors them: any color token above, in
 `themes/` next to `beamtime.yaml` or in `~/.config/beamtime/themes/`
 ([Settings](../docs/guides/settings.md#themes)). Colors only ever change through tokens, so a theme reaches
-everything. **Colormaps** are matplotlib's, chosen in the settings; they color numeric groups and
-heatmaps, never individual runs.
+everything. **Colormaps** are matplotlib's, chosen per chart in its settings (none in Beamtime's); they
+color numeric and grouped values, never individual runs.
 
 ## Components
 

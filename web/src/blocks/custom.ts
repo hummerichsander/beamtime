@@ -9,6 +9,7 @@ import { register } from "../bt/figures.ts";
 import { expanded, host } from "../bt/host.ts";
 import { theme as currentTheme, hovered, pair, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { prefsOf } from "../bt/prefs.ts";
+import { colormaps } from "../bt/theme.ts";
 import { expandable, READS, ResizeGuard, savable, type ToFrame, type ToPage } from "../kit/protocol.ts";
 import { IconButton } from "../ui/primitives.ts";
 import { navigate, rendering } from "../router.ts";
@@ -66,7 +67,7 @@ export function Custom({ node }: { node: Node }) {
         case "hello":
           post({ type: "init", init: {
             id: node.id, code: code.data.code, libs: node.props.libs ?? [], path: view.path, queries: (node.data ?? {}) as Record<string, Call>, params: node.props.params ?? {},
-            theme: currentTheme.value, pair: pair.value, prefs: prefsOf(view.path).value, names: [...view.names], colors: [...view.colors], metrics: view.metrics,
+            theme: currentTheme.value, pair: pair.value, colormaps: colormaps.value, prefs: prefsOf(view.path).value, names: [...view.names], colors: [...view.colors], metrics: view.metrics,
           } });  // prettier-ignore
           break;
         case "sub":

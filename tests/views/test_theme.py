@@ -73,12 +73,9 @@ def test_problems_are_reported_and_ignored(root: Path) -> None:
     assert p["light"]["colors"]["paper"] == "#faf9f6"
 
 
-def test_colormaps_are_chosen_by_name(root: Path) -> None:
-    """The settings pick the ramps; an unknown name falls back and says so."""
+def test_ramps_are_the_built_in_defaults(root: Path) -> None:
+    """The theme carries viridis and coolwarm; no setting changes them."""
     maps = colormaps()
-    p = pair("beamtime", root, "magma", "PuOr")
-    assert p["light"]["ramps"]["sequential"] == maps["sequential"]["magma"]
-    assert p["dark"]["ramps"]["diverging"] == maps["diverging"]["PuOr"]
-    q = pair("beamtime", root, "nope")
-    assert q["light"]["ramps"]["sequential"] == maps["sequential"]["viridis"]
-    assert "no sequential colormap 'nope'" in q["problems"][0]
+    p = pair("beamtime", root)
+    assert p["light"]["ramps"]["sequential"] == maps["sequential"]["viridis"]
+    assert p["dark"]["ramps"]["diverging"] == maps["diverging"]["coolwarm"]

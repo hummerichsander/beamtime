@@ -215,12 +215,7 @@ def meta(ctx: Context) -> dict[str, Any]:
         "root": str(ctx.root),
         "logdir": str(ctx.logdir),
         "version": version("beamtime"),
-        "theme": pair(
-            str(ctx.settings.get("theme") or "beamtime"),
-            ctx.root,
-            ctx.settings.get("colormap"),
-            ctx.settings.get("colormap_diverging"),
-        ),
+        "theme": pair(str(ctx.settings.get("theme") or "beamtime"), ctx.root),
         # a frontend rebuilt after the server started (an editable install) may call
         # methods this server doesn't know yet; the shell then asks for a restart.
         "outdated": (STATIC / "app.js").is_file() and (STATIC / "app.js").stat().st_mtime > STARTED,
@@ -229,13 +224,11 @@ def meta(ctx: Context) -> dict[str, Any]:
         "settings": {
             "theme": ctx.settings.get("theme"),
             "theme_mode": ctx.settings.get("theme_mode"),
-            "colormap": ctx.settings.get("colormap"),
-            "colormap_diverging": ctx.settings.get("colormap_diverging"),
             "figure_style": ctx.settings.get("figure_style"),
             "file": str(ctx.root / "beamtime.yaml"),
         },
         "themes": names(ctx.root),
-        "colormaps": {kind: list(maps) for kind, maps in colormaps().items()},
+        "colormaps": colormaps(),
         "figure_styles": figure_styles() + project_styles(ctx.root),
         "sources": sources(ctx),
     }

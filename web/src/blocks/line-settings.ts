@@ -8,6 +8,8 @@ import { useCall } from "../api.ts";
 import type { Node } from "../bt/index.ts";
 import { label } from "../bt/fmt.ts";
 import { setChart, setView, type ChartPrefs, type Effective } from "../bt/prefs.ts";
+import { colormaps, type Colormaps } from "../bt/theme.ts";
+import { useStore } from "../state.ts";
 import { MultiSelect } from "../ui/multiselect.ts";
 import { Popover } from "../ui/primitives.ts";
 
@@ -24,13 +26,14 @@ function xGroups(metrics: string[]): [string, string[]][] {
   return [["Progress", clocks], ["Metrics", metrics.filter((k) => !clocks.includes(k as never))]];
 }
 
-export type Field = "metrics" | "x" | "steps" | "runs" | "band" | "smooth" | "scale" | "range" | "outliers" | "legend";
+export type Field = "metrics" | "x" | "steps" | "runs" | "band" | "color" | "colormap" | "smooth" | "scale" | "range" | "outliers" | "legend";
 
-export const LINE_FIELDS: Field[] = ["metrics", "x", "steps", "runs", "band", "smooth", "scale", "range", "outliers", "legend"];
+export const LINE_FIELDS: Field[] = ["metrics", "x", "steps", "runs", "band", "color", "colormap", "smooth", "scale", "range", "outliers", "legend"];
 
 const SECTIONS: [string, Field[]][] = [
   ["Data", ["metrics", "x", "steps"]],
   ["Aggregation", ["runs", "band"]],
+  ["Colors", ["color", "colormap"]],
   ["Smoothing", ["smooth"]],
   ["Axes", ["scale", "range", "outliers", "legend"]],
 ];
@@ -42,7 +45,11 @@ type Context = {
   y: string[];
   metrics: string[];
   varying: string[];
+  maps: Colormaps | null;
 };
+
+const DEFAULT = "default";
+const gradient = (stops: string[]) => `linear-gradient(90deg, ${stops.join(", ")})`;
 
 const num = (v: string) => (v.trim() === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 
@@ -87,6 +94,29 @@ const FIELDS: Record<Field, (c: Context) => unknown> = {
       <option value="stderr">± std error</option><option value="none">none</option>
     </select></span>`,
 
+  color: ({ prefs, varying, set }) => html`
+    <span class="field-label">Color by</span>
+    <span class="input"><select value=${prefs.color ?? ""} onChange=${(e: Event) => set({ color: (e.target as HTMLSelectElement).value || null })}>
+      <option value="">none</option>
+      ${varying.map((k) => html`<option value=${k}>${label(k)}</option>`)}
+    </select></span>`,
+
+  colormap: ({ prefs, maps, set, setAll }) => {
+    const all = { ...maps?.sequential, ...maps?.diverging };
+    // one curve per run keeps its page-wide color, so the same run matches its swatch everywhere.
+    const fixed = !prefs.color && !prefs.by;
+    return html`
+      <span class="field-label">Colormap</span>
+      <span data-tip=${fixed ? "each run keeps its color on this page; choose Color by or a grouping" : undefined}>
+        <${MultiSelect} single disabled=${fixed} groups=${[["", [DEFAULT]], ["Sequential", Object.keys(maps?.sequential ?? {})], ["Diverging", Object.keys(maps?.diverging ?? {})]]}
+          labels=${{ [DEFAULT]: "Default" }} marks=${Object.fromEntries(Object.entries(all).map(([k, v]) => [k, gradient(v)]))}
+          value=${[prefs.colormap ?? DEFAULT]} label="Colormap" placeholder=${prefs.colormap ?? "Default"}
+          onChange=${(v: string[]) => set({ colormap: v[0] === DEFAULT ? null : v[0] })} />
+      </span>
+      <span></span>
+      <button type="button" class="link small" disabled=${fixed} onClick=${() => setAll({ colormap: prefs.colormap ?? null })}>Use this colormap on all charts on this page</button>`;
+  },
+
   smooth: ({ prefs, set }) => html`
     <span class="field-label">EMA <b class="num">${prefs.smooth.toFixed(2)}</b></span>
     <input type="range" min="0" max="0.99" step="0.01" value=${prefs.smooth}
@@ -127,6 +157,7 @@ const FIELDS: Record<Field, (c: Context) => unknown> = {
 export function Settings(props: { node: Node; path: string; prefs: Effective; y: string[]; fields: Field[] }) {
   const { node, path, prefs } = props;
   const [opened, setOpened] = useState(false);
+  const maps = useStore(colormaps);
   // what to offer comes from keys, asked only once the settings are opened.
   const keys = useCall(opened ? { method: "keys", params: { from: path }, scope: path } : null).data;
   const context: Context = {
@@ -136,6 +167,7 @@ export function Settings(props: { node: Node; path: string; prefs: Effective; y:
     y: props.y,
     metrics: keys?.metrics?.rows.map((r: unknown[]) => r[0]) ?? [],
     varying: (keys?.config?.varying ?? []).filter((k: string) => k !== "config.seed"),
+    maps,
   };
   return html`<${Popover} icon="sliders" label="Chart settings" title="This chart" class="chart-settings" beside=".chart-frame"
       onOpen=${() => setOpened(true)}>

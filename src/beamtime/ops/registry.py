@@ -447,7 +447,7 @@ class GuideParams(Params, kw_only=True):
 class SetParams(Params, kw_only=True):
     """Parameters of ``set``."""
 
-    key: Literal["theme", "theme_mode", "colormap", "colormap_diverging", "figure_style"]
+    key: Literal["theme", "theme_mode", "figure_style"]
     value: Annotated[
         Any, msgspec.Meta(description="e.g. beamtime, dark, or [science, nature] (YAML)")
     ]

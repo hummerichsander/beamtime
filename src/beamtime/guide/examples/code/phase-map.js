@@ -49,7 +49,7 @@ function PhaseMap() {
           <text x="0" y=${(ys.length * CELL) / 2} dominant-baseline="middle" fill="var(--muted)" class="small">${bt.label(yf)}</text>
         </svg>`
       : null}
-    <p class="muted small">Color runs from worst to best along the colormap.${run ? "" : " Click a cell to see the curves of its best run."}</p>
+    <p class="muted small">Color runs from worst to best along the default sequential colormap (viridis).${run ? "" : " Click a cell to see the curves of its best run."}</p>
     ${run ? html`<${Detail} run=${run} />` : null}
   </div>`;
 }

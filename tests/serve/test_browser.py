@@ -502,3 +502,38 @@ def test_a_band_on_a_log_axis_reaches_the_bottom(server: str, page, project: Pat
     box_of(page, ".chart .u-over")
     page.wait_for_timeout(500)
     assert page.evaluate(BAND_AT_BOTTOM) > 10, "the band does not reach the bottom of the plot"
+
+
+def test_a_colormap_belongs_to_its_chart(server: str, page, project: Path) -> None:
+    """Choosing a colormap recolors that chart's groups only, and the choice survives a reload;
+    with one curve per run the row is disabled."""
+    url = f"{server.split('/f/local')[0]}/f/local/scaling/lr-sweep?token={server.split('token=')[1]}"
+    page.goto(url)
+    page.wait_for_selector(".chart canvas")
+    first = page.locator(".chart-frame").first
+    first.hover()
+    first.locator("button[aria-label='Chart settings']").click()
+    settings = page.locator(".chart-settings:popover-open")
+    runs = settings.locator("select").filter(has_text="each run")
+    runs.select_option(label="each run")
+    page.wait_for_timeout(300)
+    assert settings.get_by_role("combobox", name="Colormap").is_disabled()
+    runs.select_option(label="mean by lr")
+    page.wait_for_timeout(500)
+    settings.get_by_role("combobox", name="Colormap").click()
+    settings.get_by_role("option", name="magma").click()
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(500)
+
+    def marks(frame) -> list[str]:
+        """The inline colors of a chart's legend swatches."""
+        return frame.locator(".legend-item .swatch").evaluate_all(
+            "els => els.map(e => e.getAttribute('style') || '')"
+        )
+
+    magma = {"color: rgb(0, 0, 4);", "color: rgb(252, 253, 191);"}
+    assert magma <= set(marks(page.locator(".chart-frame").first))
+    assert not magma & set(marks(page.locator(".chart-frame").nth(1)))
+    page.reload()
+    page.wait_for_selector(".chart canvas")
+    assert magma <= set(marks(page.locator(".chart-frame").first))

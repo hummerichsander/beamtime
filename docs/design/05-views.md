@@ -348,7 +348,7 @@ it, `bt.useHovered()` follows it (row selection callbacks on components come lat
 | `bt.theme.tokens` | the theme's colors; also as CSS variables (`--ink`, `--muted`, …) |
 | `bt.theme.runColor(id)`, `bt.theme.groupColor(field, value)` | stable colors for runs and group values |
 | `bt.theme.runDash(id)` | a run's line style |
-| `bt.theme.scale(kind)` | the colormaps as `sequential`, `diverging`; `categorical` |
+| `bt.theme.scale(kind, name?)` | the built-in colormaps as `sequential` (viridis), `diverging` (coolwarm), or the named matplotlib colormap; `categorical` |
 | `bt.theme.mode`, `bt.theme.onChange(cb)` | light or dark, and a callback when it switches |
 | `bt.fmt.value(v)` | values formatted compactly (full values in tooltips) |
 | `bt.fmt.step(n)`, `bt.fmt.duration(s)`, `bt.label(field)` | readable steps, durations and labels |
@@ -451,9 +451,15 @@ reserved for data and status. Exported figures use the light variant.
   collisions move later runs (in id order) to the next free slot. A slot is a color and a line style,
   in charts, legends and table swatches alike. Beyond six runs, slots repeat: group runs instead.
 - **Groups** colored by a categorical field use the same slots in sorted value order; by a numeric field
-  with more than six values, the `colormap` setting ordered by value.
+  with more than six values, viridis ordered by value, unless the chart chose a colormap (below).
 - **Colormaps** are matplotlib's, sampled into `src/beamtime/views/colormaps.json` by
-  `scripts/colormaps.py`. `colormap` and `colormap_diverging` choose them; `bt.theme.scale` reads them.
+  `scripts/colormaps.py`. There is no setting for them: `meta.colormaps` hands the samples to the frontend and to
+  the custom-block frame, and a chart picks one by name with `colormap` (`line`, `scatter`, `bar`; the settings
+  panel's "Colors" group, folded by "Save as view"). A chosen colormap always applies, to numeric groups by value
+  order and to categories at evenly spaced positions; one curve per run without `color` or `by` keeps its run
+  color, so the Colormap row is disabled there. `color` (a field of `config.varying`) is chosen in the same group.
+  The built-in `sequential` and `diverging` ramps of the theme stay viridis and coolwarm. An old `colormap`
+  or `colormap_diverging` key in a settings file loads with one problem line.
 - **Selection** dims other runs to a fixed 20 %.
 
 ## Block library
@@ -834,7 +840,7 @@ Decided while building themes (milestone M5):
 - **Run colors**: an FNV-1a hash of the run id picks one of the six run slots (a color and a line style); runs are
   placed in id order and move to the next free slot on a collision, over all runs of the viewed
   group, so a run keeps its style across the blocks of a view. Beyond six, slots
-  repeat. Group values use the same slots in sorted order, or the `colormap` setting's ramp for more
+  repeat. Group values use the same slots in sorted order, or the chart's colormap (viridis by default) for more
   numeric values than the palette has colors.
 
 ## Later

@@ -139,6 +139,7 @@ input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
   & li { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-2); border-radius: var(--radius); cursor: pointer; }
   & li.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
   & .ms-tick { inline-size: 14px; display: inline-flex; color: var(--accent); }
+  & .ms-ramp { flex: none; inline-size: var(--space-4); block-size: var(--space-2); border-radius: var(--radius); }
   & .ms-empty { color: var(--muted); cursor: default; }
   & .ms-group { padding: var(--space-1) var(--space-2); color: var(--muted); font-weight: 600; cursor: default; }
 }

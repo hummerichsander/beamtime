@@ -1,10 +1,11 @@
-// The settings page: the project's theme, mode, colormaps and figure styles, written to its beamtime.yaml.
+// The settings page: the project's theme, mode and figure styles, written to its beamtime.yaml.
 
 import { html } from "htm/preact";
 import { useState } from "preact/hooks";
 
 import { Notice } from "../blocks/common.ts";
 import { applyTheme, mode, pair, useTheme } from "../bt/index.ts";
+import { colormaps } from "../bt/theme.ts";
 import { saveSetting } from "../bt/writes.ts";
 import { useStore } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
@@ -14,7 +15,7 @@ import { useTitle } from "./favicon.ts";
 import { meta, SHORTCUTS } from "./ui.ts";
 
 type Mode = "system" | "light" | "dark";
-type Key = "theme" | "theme_mode" | "colormap" | "colormap_diverging" | "figure_style";
+type Key = "theme" | "theme_mode" | "figure_style";
 
 const MODES = [
   ["system", "monitor", "System"],
@@ -26,6 +27,7 @@ const MODES = [
 export function applyMeta(m: any): void {
   meta.set(m);
   pair.set(m.theme);
+  colormaps.set(m.colormaps);
   if (m.settings?.theme_mode) mode.set(m.settings.theme_mode as Mode);
   applyTheme();
 }
@@ -77,11 +79,9 @@ export function Settings() {
             <${Icon} name=${icon} size=${15} />${label}</button>`)}
         </div>
         ${choice("theme", "Theme", info?.themes ?? [])}
-        ${choice("colormap", "Colormap", info?.colormaps?.sequential ?? [])}
-        ${choice("colormap_diverging", "Diverging colormap", info?.colormaps?.diverging ?? [])}
       </div>
       <p class="muted small">Shown: <b>${theme?.name ?? "–"}</b>. Your own theme files recolor this layout: they go in <code>themes/</code> next to
-        beamtime.yaml. Colormaps color numeric groups and heatmaps.</p>
+        beamtime.yaml. Colormaps are chosen in each chart's settings.</p>
       ${(info?.theme?.problems ?? []).map((p: string) => html`<${Notice} kind="warning">${p}<//>`)}
     <//>
     <${Section} label="figures">

@@ -10,22 +10,33 @@ import { host } from "../bt/host.ts";
 import { hovered, useData, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { label, step, value } from "../bt/fmt.ts";
 import { plotChart, type PlotSpec } from "../bt/plot.ts";
+import { effective, usePrefs } from "../bt/prefs.ts";
 import { bars, extent, fit, histograms, logSplits, points, type Bar, type Point } from "../bt/shapes.ts";
 import { linthresh } from "../bt/curves.ts";
 import { fileName, light, paper, recolor, type Background } from "../bt/export.ts";
-import { alpha, chartStyle, groupColors, palette, swatch, type Theme } from "../bt/theme.ts";
+import { alpha, chartStyle, colormaps, groupColors, palette, stopsOf, swatch, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate } from "../router.ts";
+import { useStore } from "../state.ts";
 import type { TipRow } from "../bt/uplot.ts";
 import { ChartFrame, expandedHeight, Legend, type LegendItem } from "../bt/frame.ts";
 import { Notice, Panel } from "./common.ts";
 
 const HEIGHT = 260;
 
+// the colormap a scatter or bar uses: the viewer's for the page, else the view's.
+function useColormap(node: Node): [string | null, string[] | null] {
+  const path = useContext(ViewCtx).path;
+  const name = effective({ colormap: node.props.colormap ?? undefined }, usePrefs(path), node.id).colormap ?? null;
+  useStore(colormaps);
+  return [name, stopsOf(name)];
+}
+
 export function Scatter({ node }: { node: Node }) {
   const p = node.props;
   const result = useData("main");
   const view = useContext(ViewCtx);
   const colors = useRunColors();
+  const [colormap, stops] = useColormap(node);
   const pts = points(result.data, p.x, p.y, p.color);
   const xLog = p.x_scale === "log";
   const yLog = p.y_scale === "log";
@@ -37,7 +48,7 @@ export function Scatter({ node }: { node: Node }) {
     const xr = extent(pts.map((q) => q.x), xLog);
     const yr = extent(pts.flatMap((q) => (q.err ? [q.y - q.err, q.y + q.err] : [q.y])), yLog);
     if (!xr || !yr) return null;
-    const byValue = p.color ? groupColors(pts.map((q) => q.color), theme) : null;
+    const byValue = p.color ? groupColors(pts.map((q) => q.color), theme, stops) : null;
     const colorOf = (q: Point): string =>
       byValue?.get(JSON.stringify(q.color)) ?? theme.colors["data-1"];
     const line = p.fit ? fit(pts, p.fit) : null;
@@ -120,9 +131,9 @@ export function Scatter({ node }: { node: Node }) {
     };
   };
   const few = result.data && pts.length < 2;
-  const legend = p.color && pts.length ? html`<${ValueLegend} values=${pts.map((q) => q.color)} field=${p.color} />` : null;
+  const legend = p.color && pts.length ? html`<${ValueLegend} values=${pts.map((q) => q.color)} field=${p.color} stops=${stops} />` : null;
   return html`<${PlotFrame} node=${node} result=${result} make=${few ? null : make} figure=${few ? undefined : figure}
-      deps=${[result.data, colors]} empty=${few ? `Fewer than two runs log ${label(p.x)} and ${label(p.y)}.` : null}
+      deps=${[result.data, colors, colormap]} empty=${few ? `Fewer than two runs log ${label(p.x)} and ${label(p.y)}.` : null}
       legend=${legend} />`;
 }
 
@@ -130,6 +141,7 @@ export function BarBlock({ node }: { node: Node }) {
   const p = node.props;
   const result = useData("main");
   const view = useContext(ViewCtx);
+  const [colormap, stops] = useColormap(node);
   const xlabel = p.xlabel ?? fieldTitle(p.x, view.metrics);
   const ylabel = p.ylabel ?? fieldTitle(p.y, view.metrics);
   const items = bars(result.data, p.x, p.y, p.by ?? null, p.error ?? "std", p.sort ?? "x");
@@ -142,7 +154,7 @@ export function BarBlock({ node }: { node: Node }) {
     const hi = Math.max(0, ...values);
     const pad = (hi - lo || 1) * 0.06;
     // without by, each category takes its value's color, as lines aggregated by the same field do.
-    const byValue = groupColors(p.by ? groups : cats.map(numberOr), theme);
+    const byValue = groupColors(p.by ? groups : cats.map(numberOr), theme, stops);
     const colorOf = (b: Bar) => byValue.get(JSON.stringify(p.by ? b.group : numberOr(b.label))) ?? theme.colors["data-1"];
     const w = 0.76 / groups.length;
     const center = (b: Bar) => cats.indexOf(b.label) - 0.38 + (groups.indexOf(b.group) + 0.5) * w;
@@ -210,8 +222,8 @@ export function BarBlock({ node }: { node: Node }) {
       }),
     };
   };
-  const legend = p.by ? html`<${ValueLegend} values=${groups} field=${p.by} />` : null;
-  return html`<${PlotFrame} node=${node} result=${result} make=${make} figure=${figure} deps=${[result.data]}
+  const legend = p.by ? html`<${ValueLegend} values=${groups} field=${p.by} stops=${stops} />` : null;
+  return html`<${PlotFrame} node=${node} result=${result} make=${make} figure=${figure} deps=${[result.data, colormap]}
       empty=${result.data && !items.length ? `No run logs ${label(p.y)}.` : null} legend=${legend} />`;
 }
 
@@ -335,10 +347,10 @@ function PlotFrame(props: {
   <//>`;
 }
 
-function ValueLegend(props: { values: unknown[]; field: string }) {
+function ValueLegend(props: { values: unknown[]; field: string; stops: string[] | null }) {
   const theme = useTheme();
   if (!theme) return null;
-  const entries = [...groupColors(props.values, theme).entries()];
+  const entries = [...groupColors(props.values, theme, props.stops).entries()];
   const mark = ([k, c]: [string, string]): LegendItem => ({ label: value(JSON.parse(k)), mark: swatch(c, theme) });
   const items = entries.length > 10 ? [mark(entries[0]), null, mark(entries[entries.length - 1])] : entries.map(mark);
   return html`<${Legend} items=${items} label=${`Colors by ${label(props.field)}`} name=${label(props.field)} />`;

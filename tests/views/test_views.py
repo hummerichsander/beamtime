@@ -325,6 +325,27 @@ def test_a_metric_as_x_and_a_page_wide_x_fold_into_the_view() -> None:
     assert [k["data"]["main"]["params"]["x"] for k in tree["children"]] == ["sys/gpu_mem", "epoch"]
 
 
+def test_a_charts_colormap_and_color_fold_into_its_block() -> None:
+    """A colormap and a color field reach the chart they were chosen for; the page-wide one the others."""
+    from beamtime.views.validate import structure
+
+    body = [
+        {"line": {"id": "a", "y": "val/loss", "color": "config.lr"}},
+        {"line": {"id": "b", "y": "val/loss"}},
+        {"scatter": {"id": "s", "x": "config.lr", "y": "val/loss"}},
+        {"bar": {"id": "r", "x": "config.arm", "y": "val/loss", "colormap": "magma"}},
+    ]
+    prefs = {"view": {"colormap": "RdBu"}, "charts": {"a": {"color": None}, "b": {"colormap": None}}}
+    folded = apply_prefs(deepcopy(body), prefs)
+    assert "color" not in folded[0]["line"] and folded[0]["line"]["colormap"] == "RdBu"
+    assert "colormap" not in folded[1]["line"]
+    assert folded[2]["scatter"]["colormap"] == "RdBu" and folded[3]["bar"]["colormap"] == "RdBu"
+    tree = compile_view(m.parse({"body": folded}, source="t"), path="g")
+    assert [k["props"].get("colormap") for k in tree["children"]] == ["RdBu", None, "RdBu", "RdBu"]
+    bad = m.parse({"body": [{"line": {"id": "c", "y": "val/loss", "colormap": "nope"}}]}, source="t")
+    assert any("no colormap 'nope'" in f.message for f in structure(bad, None))
+
+
 def test_text_panels_from_the_ui(ctx: Context) -> None:
     """A text panel is added at the top, edited, and removed, each a new version."""
     from beamtime.ops.views import edit_text

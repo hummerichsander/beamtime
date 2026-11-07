@@ -4,7 +4,7 @@
 import type { Call, Result } from "../api.ts";
 import type { MetricInfo, Node } from "../bt/index.ts";
 import type { ViewPrefs } from "../bt/prefs.ts";
-import type { Pair, Theme } from "../bt/theme.ts";
+import type { Colormaps, Pair, Theme } from "../bt/theme.ts";
 
 export type Init = {
   id: string;
@@ -16,6 +16,7 @@ export type Init = {
   theme: Theme | null;
   // both themes: figures leave in the light one.
   pair: Pair | null;
+  colormaps: Colormaps | null;
   prefs: ViewPrefs;
   names: [string, string][];
   colors: [string, string][];

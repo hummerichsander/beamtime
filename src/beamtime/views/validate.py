@@ -14,6 +14,7 @@ from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import BY_TOOL
 from beamtime.views import model as m
 from beamtime.views.compile import compile_view, walk_tree
+from beamtime.views.theme import colormaps
 
 MAX_CURVES = 8
 
@@ -109,9 +110,19 @@ def structure(view: m.View, data_dir: Path | None) -> list[Finding]:
                     fix="give every node its own id",
                 )
             )
+    known = [name for maps in colormaps().values() for name in maps]
     for n in m.walk(view.body):
         block = m.block_of(n)
         at = {"id": n.id, "block": block}
+        if (name := getattr(n, "colormap", None)) is not None and name not in known:
+            out.append(
+                Finding(
+                    level="error",
+                    **at,
+                    message=f"no colormap {name!r}",
+                    fix=f"one of: {', '.join(known)}",
+                )
+            )
         if block in m.CHARTS and not n.caption:
             out.append(
                 Finding(

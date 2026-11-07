@@ -60,7 +60,7 @@ export default function render(root) {
 | `bt.ui.Table`, `Stat`, `DataTable`, `Grid`, `Row`, `Section`, `Tabs`/`Tab`, `Note` | built-in blocks and layouts |
 | `bt.ui.Config` (`config`, optional `varying`: dotted keys) | a nested config as a collapsible, filterable tree |
 | `bt.theme.tokens`, `.mode`, `.onChange(cb)` | the theme (`colors.ink`, `colors["data-1"]`, ...); also as CSS variables (`var(--ink)`, `var(--muted)`, `var(--line)`, ...) |
-| `bt.theme.runColor(id)`, `.runDash(id)`, `.groupColor(values, value)`, `.scale(kind)` | a run's color and line style (stroke-dasharray values), a group value's color, the colormaps set in the settings as `sequential`/`diverging` (t in 0..1), or `categorical` (index) |
+| `bt.theme.runColor(id)`, `.runDash(id)`, `.groupColor(values, value)`, `.scale(kind, name?)` | a run's color and line style (stroke-dasharray values), a group value's color, the built-in colormaps as `sequential` (viridis)/`diverging` (coolwarm) (t in 0..1) or the matplotlib colormap `name` (e.g. `.scale("sequential", "magma")`), or `categorical` (index) |
 | `bt.fmt.value(v)`, `bt.fmt.step(n)`, `bt.fmt.duration(s)`, `bt.label(field)`, `bt.name(run)` | formatting |
 | `bt.link.run(id)`, `bt.link.group(path)` | URLs; links open in the page |
 | `bt.useSize()` | `[ref, width]` of an element |

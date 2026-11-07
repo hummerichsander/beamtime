@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 
 import { labelOf } from "../src/bt/labels.ts";
-import { assignColors, chartStyle, cssVariables, dashOf, groupColors, ramp, slotOf, swatch } from "../src/bt/theme.ts";
+import { assignColors, chartStyle, colormaps, cssVariables, dashOf, groupColors, ramp, slotOf, stopsOf, swatch } from "../src/bt/theme.ts";
 import { groupUrl, parse } from "../src/router.ts";
 
 const palette = ["#aaaaaa", "#bbbbbb", "#cccccc", "#dddddd"];
@@ -35,6 +35,30 @@ test("groups: palette in sorted order, numeric ramps from the colormap when many
   assert.equal(many.get("1"), "#000000");
   assert.equal(many.get("5"), "#ffffff");
   assert.equal(ramp(["#000000", "#ffffff"], 0.5), "#808080");
+});
+
+test("a chosen colormap always applies: to numbers by order, to categories evenly spaced", () => {
+  const stops = ["#000000", "#ffffff"];
+  const few = groupColors([0.1, 0.01, 0.001], theme, stops);
+  assert.deepEqual([...few.values()], ["#000000", "#808080", "#ffffff"]);
+  const arms = groupColors(["a", "b", "c"], theme, stops);
+  assert.equal(arms.get('"a"'), "#000000");
+  assert.equal(arms.get('"c"'), "#ffffff");
+  assert.equal(groupColors(["only"], theme, stops).get('"only"'), "#ffffff");
+  assert.equal(groupColors(["a", "b"], theme).get('"a"'), palette[0]);
+});
+
+test("colormaps are found by name in either family, and an export keeps their colors", async () => {
+  // export.ts reads the page's color scheme when it loads.
+  (globalThis as any).matchMedia ??= () => ({ matches: false, addEventListener() {} });
+  const { recolor } = await import("../src/bt/export.ts");
+  colormaps.set({ sequential: { viridis: ["#440154", "#fde725"] }, diverging: { coolwarm: ["#3b4cc0", "#b40426"] } });
+  assert.deepEqual(stopsOf("coolwarm"), ["#3b4cc0", "#b40426"]);
+  assert.equal(stopsOf("nope"), null);
+  assert.equal(stopsOf(null), null);
+  const dark = { ...theme, colors: { ...theme.colors, "data-1": "#111111" } };
+  assert.equal(recolor("#440154", theme, dark), "#440154");
+  assert.equal(recolor(palette[0], theme, dark), "#111111");
 });
 
 test("a run's color carries its line style; a colormap's color is solid", () => {

@@ -12,15 +12,13 @@ DEFAULTS: dict[str, Any] = {
     "theme": "beamtime",
     # system, light or dark: the web UI's mode, unless a viewer picks another for themselves.
     "theme_mode": "system",
-    # the matplotlib colormaps of numeric groups and heatmaps: sequential, and around a center.
-    "colormap": "viridis",
-    "colormap_diverging": "coolwarm",
     # matplotlib style sheets for figures (scienceplots' and matplotlib's), as for plt.style.use.
     "figure_style": ["science", "nature"],
     "remotes": {},
 }
 # what `beamtime set` (and the web UI's settings page) may write into beamtime.yaml.
-SETTABLE = ("theme", "theme_mode", "colormap", "colormap_diverging", "figure_style")
+SETTABLE = ("theme", "theme_mode", "figure_style")
+MOVED = ("colormap", "colormap_diverging")
 REMOTE_KEYS = ("host", "command", "cache", "path", "transport")
 PROJECT_ONLY = ("logdir",)
 
@@ -88,7 +86,12 @@ def read_level(path: Path, level: Level, problems: list[str]) -> dict[str, Any]:
         return {}
     data.pop("schema", None)
     for key in list(data):
-        if key not in DEFAULTS:
+        if key in MOVED:
+            problems.append(
+                f"{path}: {key} moved to the chart settings; this key no longer does anything"
+            )
+            del data[key]
+        elif key not in DEFAULTS:
             problems.append(f"{path}: unknown setting {key!r}; known: {', '.join(DEFAULTS)}")
         elif level == "user" and key in PROJECT_ONLY:
             problems.append(f"{path}: {key!r} belongs in the project's beamtime.yaml; ignored")

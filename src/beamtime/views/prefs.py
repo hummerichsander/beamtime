@@ -27,6 +27,9 @@ def apply_prefs(body: list[dict[str, Any]], prefs: dict[str, Any]) -> list[dict[
     for props in lines:
         settings = shared | clean(charts.get(props.get("id"), {}))
         settle(props, settings)
+    for b, props in yaml_walk(body):
+        if b in ("scatter", "bar"):
+            settle_colormap(props, shared | clean(charts.get(props.get("id"), {})))
     shown = {
         y for props in lines for y in ([props["y"]] if isinstance(props["y"], str) else props["y"])
     }
@@ -89,6 +92,11 @@ def settle(props: dict[str, Any], settings: dict[str, Any]) -> None:
             case "scale":
                 # explicit, since a loss without a scale is drawn on a log axis.
                 props["scale"] = value
+            case "color" | "colormap":
+                if value:
+                    props[key] = value
+                else:
+                    props.pop(key, None)
             case "steps":
                 if value and any(v is not None for v in value):
                     props["steps"] = list(value)
@@ -113,12 +121,24 @@ def settle(props: dict[str, Any], settings: dict[str, Any]) -> None:
                 pass
 
 
+def settle_colormap(props: dict[str, Any], settings: dict[str, Any]) -> None:
+    """Write the colormap setting into a ``scatter`` or ``bar`` node's props.
+
+    :param props: The node's props; changed in place.
+    :param settings: The settings, as the web UI names them."""
+    if "colormap" in settings:
+        if settings["colormap"]:
+            props["colormap"] = settings["colormap"]
+        else:
+            props.pop("colormap", None)
+
+
 def clean(settings: dict[str, Any]) -> dict[str, Any]:
     """Drop unset settings.
 
     :param settings: The settings.
     :return: Those with a value, and ``by`` when set to none."""
-    # by: null is a choice (each run, even where the view aggregates); so are cleared limits.
-    return {
-        k: v for k, v in settings.items() if v is not None or k in ("by", "ymin", "ymax", "steps")
-    }
+    # by: null is a choice (each run, even where the view aggregates); so are cleared limits,
+    # no color field and the default colormap.
+    keep = ("by", "ymin", "ymax", "steps", "color", "colormap")
+    return {k: v for k, v in settings.items() if v is not None or k in keep}

@@ -15,7 +15,7 @@ import { host } from "../bt/host.ts";
 import { duration, label, step, value } from "../bt/fmt.ts";
 import { lineChart, type LineSpec } from "../bt/plot.ts";
 import { effective, toggleRun, update, usePrefs, type ChartPrefs, type Effective } from "../bt/prefs.ts";
-import { chartStyle, dashOf, groupColors, palette as paletteOf, swatch, type Theme } from "../bt/theme.ts";
+import { chartStyle, dashOf, groupColors, palette as paletteOf, stopsOf, swatch, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate } from "../router.ts";
 import { IconButton } from "../ui/primitives.ts";
 import { Notice, Panel } from "./common.ts";
@@ -52,6 +52,13 @@ export function seriesCall(node: Node, prefs: Effective, zoom: [number, number] 
   return { ...base, params };
 }
 
+// the runs call that gives each run its value of a field, on the node's own runs.
+function colorsCall(node: Node, field: string): Call {
+  const { params, scope } = node.data!.main;
+  const { from, where, depth } = params;
+  return { method: "runs", params: { from, where, depth, select: [field], limit: 10000 }, scope };
+}
+
 // a line node's metrics: one key, or several in an authored view.
 export function metricsOf(node: Node): string[] {
   return Array.isArray(node.props.y) ? node.props.y : [node.props.y];
@@ -66,6 +73,8 @@ function defaultsOf(node: Node): ChartPrefs {
     outliers: p.outliers ?? undefined,
     raw: p.raw ?? undefined,
     legend: p.legend ?? undefined,
+    color: p.color ?? undefined,
+    colormap: p.colormap ?? undefined,
     ymin: p.ymin ?? undefined,
     ymax: p.ymax ?? undefined,
     scale: p.scale === "log" || p.scale === "symlog" ? p.scale : "linear",
@@ -94,8 +103,9 @@ function Chart(props: {
   const theme = useTheme();
   const runs = useRunColors();
   // colored by a field: each run takes the color of its value.
-  const byField = useCall(node.props.color && visible ? node.data?.colors ?? null : null).data;
-  const colors = useMemo(() => (byField && theme ? fieldColors(byField, node.props.color, theme) : runs), [byField, theme, runs]);
+  const byField = useCall(prefs.color && visible ? colorsCall(node, prefs.color) : null).data;
+  const stops = stopsOf(prefs.colormap);
+  const colors = useMemo(() => (byField && prefs.color && theme ? fieldColors(byField, prefs.color, theme, stops) : runs), [byField, theme, runs, prefs.color, prefs.colormap]);
   const el = useRef<HTMLDivElement>(null);
   const log = prefs.scale === "log";
   // while a new call (a zoom, a setting) loads, the legend keeps the last answer; the chart
@@ -145,7 +155,7 @@ function Chart(props: {
       formatStep: step,
     };
   };
-  const palette = curves && theme ? colorsFor(curves, theme, colors) : [];
+  const palette = curves && theme ? colorsFor(curves, theme, colors, stops) : [];
 
   useEffect(() => {
     if (!el.current) return;
@@ -173,7 +183,7 @@ function Chart(props: {
     prefs.x !== "_step" ? xTitle(prefs.x, metrics) : null,
     prefs.scale !== "linear" ? prefs.scale : null,
     node.props.note && !prefs.by && !node.props.note.startsWith("seed") ? node.props.note : null,
-    node.props.color ? `colored by ${label(node.props.color)}` : null,
+    prefs.color ? `colored by ${label(prefs.color)}` : null,
   ].filter(Boolean);
   const empty = curves && !curves.curves.length;
 
@@ -207,7 +217,7 @@ function Chart(props: {
   const exportCsv = () => smoothed && host().download(csv(smoothed), fileName(title, "csv"));
 
   // what the renderer's layout check counts; aggregated or colored charts tame many runs.
-  const visibleCurves = curves?.aggregated || node.props.color ? 0 : curves?.curves.filter(isShown).length;
+  const visibleCurves = curves?.aggregated || prefs.color ? 0 : curves?.curves.filter(isShown).length;
   const items: LegendItem[] =
     prefs.legend && curves && curves.curves.length > 1 && curves.curves.length <= LEGEND_MAX
       ? curves.curves.map((c, i) => {
@@ -254,16 +264,16 @@ function formatterFor(x: string): (v: number) => string {
   }
 }
 
-function fieldColors(answer: { columns: string[]; rows: unknown[][] }, field: string, theme: Theme): Map<string, string> {
+function fieldColors(answer: { columns: string[]; rows: unknown[][] }, field: string, theme: Theme, stops: string[] | null): Map<string, string> {
   const id = answer.columns.indexOf("run.id");
   const at = answer.columns.indexOf(field);
-  const byValue = groupColors(answer.rows.map((r) => r[at]), theme);
+  const byValue = groupColors(answer.rows.map((r) => r[at]), theme, stops);
   return new Map(answer.rows.map((r) => [String(r[id]), byValue.get(JSON.stringify(r[at])) ?? theme.colors["data-1"]]));
 }
 
-function colorsFor(curves: Curves, theme: Theme, colors: Map<string, string>): string[] {
+function colorsFor(curves: Curves, theme: Theme, colors: Map<string, string>, stops: string[] | null): string[] {
   if (curves.aggregated) {
-    const byLabel = groupColors(curves.curves.map((c) => c.label), theme);
+    const byLabel = groupColors(curves.curves.map((c) => c.label), theme, stops);
     return curves.curves.map((c) => byLabel.get(JSON.stringify(c.label))!);
   }
   const cat = paletteOf(theme);
