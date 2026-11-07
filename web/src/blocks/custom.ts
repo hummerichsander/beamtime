@@ -6,6 +6,7 @@ import { useContext, useEffect, useRef, useState } from "preact/hooks";
 
 import { busy, useCall, watch, type Call } from "../api.ts";
 import { register } from "../bt/figures.ts";
+import { expandedHeight } from "../bt/frame.ts";
 import { expanded, host } from "../bt/host.ts";
 import { theme as currentTheme, hovered, pair, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { prefsOf } from "../bt/prefs.ts";
@@ -37,6 +38,8 @@ export function Custom({ node }: { node: Node }) {
   const firstDone = useRef<() => void>(() => {});
   useEffect(() => {
     if (!frame) return;
+    // a new frame draws the page's head until it asks for its own.
+    setState((s) => (s.own ? { ...s, own: false } : s));
     let waiting = true;
     busy.n++;
     const done = () => {
@@ -68,6 +71,7 @@ export function Custom({ node }: { node: Node }) {
           post({ type: "init", init: {
             id: node.id, code: code.data.code, libs: node.props.libs ?? [], path: view.path, queries: (node.data ?? {}) as Record<string, Call>, params: node.props.params ?? {},
             theme: currentTheme.value, pair: pair.value, colormaps: colormaps.value, prefs: prefsOf(view.path).value, names: [...view.names], colors: [...view.colors], metrics: view.metrics,
+            expanded: node.props.expanded ? expandedHeight() : null,
           } });  // prettier-ignore
           break;
         case "sub":
@@ -120,6 +124,12 @@ export function Custom({ node }: { node: Node }) {
           break;
         case "expand":
           if (expandable(msg.node)) host().expand(msg.node, view);
+          break;
+        case "expand-block":
+          if (!node.props.expanded) host().expand(node, view);
+          break;
+        case "close":
+          if (node.props.expanded) expanded.set(null);
           break;
         case "error":
           // stack lines name the block's file instead of the blob it was loaded from.

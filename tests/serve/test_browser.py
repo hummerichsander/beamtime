@@ -853,15 +853,18 @@ def figure_view(project: Path, group: str, code: str, queries: dict, table: bool
     :param group: The group the view belongs to.
     :param code: The block's code.
     :param queries: The block's declared queries.
-    :param table: Whether to add a run table block, for the hovered row."""
+    :param table: Whether to add a run table block, for the hovered row.
+
+    A second call saves a new version from the same draft."""
     import yaml
 
     from beamtime.ops import call
     from beamtime.ops.context import Context
 
     ctx = Context.make()
-    call("view new", {"group": group, "name": "fig"}, ctx)
     draft = project / ".beamtime" / "drafts" / "fig"
+    if not draft.exists():
+        call("view new", {"group": group, "name": "fig"}, ctx)
     body = [
         {
             "custom": {
@@ -1006,3 +1009,47 @@ export default function render(root) { bt.preact.render(html`<${Live} />`, root)
     first = int(text())
     page.wait_for_timeout(8_000)
     assert int(text()) > first
+
+
+def test_new_code_without_a_figure_gets_the_page_head_back(project: Path, server: str, page) -> None:
+    """A block whose new version drops ``Figure`` shows the page's head again: the head belongs to
+    the frame that asked for it, not to the block."""
+    fig = """
+const { html } = bt.preact;
+export default function render(root) {
+  bt.preact.render(html`<${bt.chart.Figure} id="f" title="Fig" draw=${(el) => { el.innerHTML = "<b id='fig'>fig</b>"; }} />`, root);
+}
+"""
+    plain = "export default function render(root) { root.innerHTML = \"<b id='plain'>plain</b>\"; }\n"
+    figure_view(project, "scaling/lr-sweep", fig, {}, table=False)
+    base, token = server.split("/f/local")[0], server.split("token=")[1]
+    page.goto(f"{base}/f/local/scaling/lr-sweep?token={token}")
+    frame = page.frame_locator(".custom-frame iframe")
+    frame.locator("#fig").wait_for(timeout=30_000)
+    page.wait_for_function("document.querySelector('.custom-block > .chart-head') === null")
+    figure_view(project, "scaling/lr-sweep", plain, {}, table=False)
+    page.frame_locator(".custom-frame iframe").locator("#plain").wait_for(timeout=30_000)
+    page.wait_for_timeout(500)
+    assert page.locator(".custom-block > .chart-head").count() == 1
+
+
+def test_a_figure_expands_its_block(project: Path, server: str, page) -> None:
+    """A ``Figure``'s head opens its block in the page's dialog, taller, and closes it again."""
+    fig = """
+const { html } = bt.preact;
+export default function render(root) {
+  const draw = (el, { height }) => { el.innerHTML = `<b id="h">${height}</b>`; };
+  bt.preact.render(html`<${bt.chart.Figure} id="f" title="Fig" draw=${draw} />`, root);
+}
+"""
+    figure_view(project, "scaling/lr-sweep", fig, {}, table=False)
+    base, token = server.split("/f/local")[0], server.split("token=")[1]
+    page.goto(f"{base}/f/local/scaling/lr-sweep?token={token}")
+    inline = page.frame_locator(".custom-frame iframe").first
+    small = int(inline.locator("#h").inner_text(timeout=30_000))
+    inline.locator(".chart-head [aria-label='Expand']").click()
+    opened = page.frame_locator("dialog.chart-dialog[open] iframe")
+    assert int(opened.locator("#h").inner_text(timeout=30_000)) > small
+    assert opened.locator(".chart-head [aria-label='Expand']").count() == 0
+    opened.locator(".chart-head [aria-label^='Close']").click()
+    page.wait_for_selector("dialog.chart-dialog[open]", state="detached", timeout=5_000)

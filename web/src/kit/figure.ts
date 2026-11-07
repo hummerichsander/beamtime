@@ -48,7 +48,7 @@ export type FigureProps = {
   children?: ComponentChildren;
 };
 
-type Env = { view: Store<ViewContext>; own(): void; warn(message: string): void };
+type Env = { view: Store<ViewContext>; own(): void; warn(message: string): void; expanded: number | null; expand(): void; close(): void };
 
 export function makeFigure(env: Env) {
   return function Figure(props: FigureProps) {
@@ -61,7 +61,7 @@ export function makeFigure(env: Env) {
     const active = useStore(hovered);
     const el = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(0);
-    const height = props.height ?? HEIGHT;
+    const height = env.expanded ?? props.height ?? HEIGHT;
     const hidden = new Set(all.hidden);
 
     useEffect(() => env.own(), []);
@@ -102,7 +102,8 @@ export function makeFigure(env: Env) {
       csv: props.csv?.length ? () => save(csvOf(props.csv!), "csv") : undefined,
     };
 
-    return html`<${ChartFrame} id=${id} title=${props.title} downloads=${downloads} caption=${props.caption}
+    return html`<${ChartFrame} id=${id} title=${props.title} downloads=${downloads} caption=${env.expanded ? undefined : props.caption}
+        expanded=${env.expanded !== null} onExpand=${env.expand} onClose=${env.close}
         tools=${props.settings?.length ? html`<${Settings} id=${id} path=${path} prefs=${prefs} y=${[]} fields=${props.settings} keepsRunColors=${false} />` : null}
         legend=${items.length ? html`<${Legend} items=${items} label="Show or hide series" role="group" />` : null}>
       <div class="chart-plot" ref=${el} style=${`min-block-size:${height}px`}></div>

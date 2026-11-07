@@ -139,3 +139,31 @@ def test_figures_at_paper_size(chromium, ctx: Context, tmp_path: Path) -> None:
     pytest.importorskip("scienceplots")
     assert (out / "line-val-acc.pdf").read_bytes().startswith(b"%PDF")
     assert json.loads(json.dumps(answer["lines"]))
+
+
+FIGURE = """
+const { html } = bt.preact;
+function Drawing() {
+  const draw = (el, { width, height }) => {
+    el.innerHTML = `<svg width="${width}" height="${height}"><path class="curve" d="M0 0L10 10" stroke="red" /></svg>`;
+  };
+  return html`<${bt.chart.Figure} id="drawing" title="Drawing" xlabel="x" ylabel="y" settings=${["scale"]} draw=${draw} />`;
+}
+export default function render(root) { bt.preact.render(html`<${Drawing} />`, root); }
+"""
+
+
+def test_a_figure_exports_its_drawing(chromium, ctx: Context, project: Path, tmp_path: Path) -> None:
+    """A custom block on ``bt.chart.Figure`` exports the drawing, not an icon of the frame's head."""
+    call("view new", {"group": SWEEP, "name": "fig"}, ctx)
+    draft = project / ".beamtime" / "drafts" / "fig"
+    block = {"id": "drawing", "title": "Drawing", "code": "code/drawing.js", "queries": {}}
+    view = {"schema": 1, "title": "fig", "finding": "x", "body": [{"custom": block}]}
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "code").mkdir(exist_ok=True)
+    (draft / "code" / "drawing.js").write_text(FIGURE)
+    call("view save", {"draft": "fig"}, ctx)
+    out = tmp_path / "figs"
+    call("export", {"group": SWEEP, "figures": str(out)}, ctx)
+    svg = (out / "drawing.svg").read_text()
+    assert 'class="curve"' in svg and "lucide" not in svg, svg[:300]

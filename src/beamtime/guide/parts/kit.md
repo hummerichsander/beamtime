@@ -11,6 +11,45 @@ A custom block is an ES module on the `bt` kit. It runs in a sandboxed frame wit
 comes from the queries it declares. Declare `kit: 2` for `bt.chart.Figure` and the app's vocabulary
 (`bt.ui.Sym`, `Icon`, `Tag`, `Predictions`, `bt.theme.tone`); version 1 blocks run unchanged.
 
+```yaml
+- custom:
+    id: phase-map
+    title: val/acc over lr and weight decay
+    caption: Mean val/acc per cell over seeds; click a cell for its best run.
+    code: code/phase-map.js          # in the draft's code/ folder
+    libs: [d3]                       # optional: d3, uplot, katex
+    queries:                         # one kind each: keys, runs, series, data, timeline, groups, file
+      runs:   {runs: {select: [run.id, config.lr, config.weight_decay, metric.val/acc.max]}}
+      detail: {series: {from: $run, y: [train/acc, val/acc]}}   # $run is filled at runtime
+```
+
+Queries take the parameters of the MCP tool of the same name; `from` is relative to the page, and
+the view's `filters` and the block's `where` apply. `$name` strings are placeholders the code fills.
+`guide examples custom` shows a complete view; `view_new <group> --from custom` copies its code.
+
+## The module
+
+```js
+const { html, useState } = bt.preact;
+
+function Block() {
+  const runs = bt.useData("runs");              // {status, error, columns, rows, curves, data}
+  const [run, setRun] = useState(null);
+  return html`
+    <${bt.ui.Table} data=${runs} columns=${runs.columns} />
+    ${run ? html`<${Detail} run=${run} />` : null}`;
+}
+
+function Detail({ run }) {
+  const detail = bt.useData("detail", { run }); // fills $run
+  return html`<${bt.chart.Line} data=${detail} caption="Curves of the selected run." />`;
+}
+
+export default function render(root) {
+  bt.preact.render(html`<${Block} />`, root);
+}
+```
+
 ## Three tiers of charts
 
 Use the first tier that can show what you need; each later one gives up something the earlier ones do.
@@ -54,46 +93,7 @@ PNG of what `el` holds, CSV from `csv`) and the viewer's saved preferences. Your
 **titles both axes** from `xlabel` and `ylabel` (also in `draw`'s context). `draw` runs again when the data, the
 preferences, the hovered key, the hidden keys, the size or the theme change, and never fetches: keep it a pure
 function of its inputs. Colors come from `bt.theme` (`runColor`, `scale`, `tone`), never from literals. A block with a
-`Figure` has no head of its own.
-
-```yaml
-- custom:
-    id: phase-map
-    title: val/acc over lr and weight decay
-    caption: Mean val/acc per cell over seeds; click a cell for its best run.
-    code: code/phase-map.js          # in the draft's code/ folder
-    libs: [d3]                       # optional: d3, uplot, katex
-    queries:                         # one kind each: keys, runs, series, data, timeline, groups, file
-      runs:   {runs: {select: [run.id, config.lr, config.weight_decay, metric.val/acc.max]}}
-      detail: {series: {from: $run, y: [train/acc, val/acc]}}   # $run is filled at runtime
-```
-
-Queries take the parameters of the MCP tool of the same name; `from` is relative to the page, and
-the view's `filters` and the block's `where` apply. `$name` strings are placeholders the code fills.
-`guide examples custom` shows a complete view; `view_new <group> --from custom` copies its code.
-
-## The module
-
-```js
-const { html, useState } = bt.preact;
-
-function Block() {
-  const runs = bt.useData("runs");              // {status, error, columns, rows, curves, data}
-  const [run, setRun] = useState(null);
-  return html`
-    <${bt.ui.Table} data=${runs} columns=${runs.columns} />
-    ${run ? html`<${Detail} run=${run} />` : null}`;
-}
-
-function Detail({ run }) {
-  const detail = bt.useData("detail", { run }); // fills $run
-  return html`<${bt.chart.Line} data=${detail} caption="Curves of the selected run." />`;
-}
-
-export default function render(root) {
-  bt.preact.render(html`<${Block} />`, root);
-}
-```
+`Figure` has no head of its own; the figure's Expand opens the block in the page's dialog, where `height` is larger.
 
 ## The API
 
@@ -105,7 +105,7 @@ export default function render(root) {
 | `bt.chart.Line`, `Scatter`, `Bar`, `Histogram` | built-in charts: the props of their YAML form, plus `data` (a result) |
 | `bt.chart.Figure` | your own drawing in the chart frame: `id`, `title`, `xlabel`, `ylabel`, `series`, `settings`, `csv`, `draw(el, {width, height, prefs, hovered, hidden})` |
 | `bt.ui.Table`, `Stat`, `DataTable`, `Grid`, `Row`, `Section`, `Tabs`/`Tab`, `Note` | built-in blocks and layouts |
-| `bt.ui.Sym` (`kind`, `value`, `word?`) | the app's symbol for a value; `kind`: `run`, `result`, `verdict`, `note`, `research`; unknown values get a neutral symbol |
+| `bt.ui.Sym` (`kind`, `value`, `word?`) | the app's symbol for a value; `kind`: `run`, `result`, `verdict`, `note`, `research`, `thing`; unknown values get a neutral symbol |
 | `bt.ui.Icon` (`name`), `bt.ui.Tag` (`tone`) | a lucide icon by name; a pill with a tone |
 | `bt.ui.Predictions` (`of?`) | the `proposal` block's prediction rows with the live check of a group (default: the view's) |
 | `bt.ui.Config` (`config`, optional `varying`: dotted keys) | a nested config as a collapsible, filterable tree |

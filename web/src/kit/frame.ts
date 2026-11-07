@@ -69,6 +69,10 @@ async function start(init: Init): Promise<void> {
     libs,
     warn: (message) => send({ type: "warn", message }),
     own: () => send({ type: "chrome", own: true }),
+    // a frame from before `expanded` was sent gets none, as inline.
+    expanded: init.expanded ?? null,
+    expand: () => send({ type: "expand-block" }),
+    close: () => send({ type: "close" }),
   });
   const render = await load(init.code);
   if (typeof render !== "function") throw new Error("the block's code must `export default function render(root)`");
@@ -189,9 +193,10 @@ function share(path: string, prefs: ViewPrefs): void {
   shared.subscribe((v) => !fromPage && send({ type: "prefs", prefs: v }));
 }
 
-// what the block draws as a file: its SVG with the theme's colors written in, else its canvas.
+// what the block draws as a file: its SVG with the theme's colors written in, else its canvas;
+// in a chart frame (`Figure`, `bt.chart.Line`, ...) the first chart's plot.
 function snapshot(): { href: string | null; name: string } {
-  const root = document.getElementById("root")!;
+  const root = document.querySelector("#root .chart-plot") ?? document.getElementById("root")!;
   const svg = svgOf(root);
   if (svg) return { href: svg, name: `${name}.svg` };
   const canvas = root.querySelector("canvas");

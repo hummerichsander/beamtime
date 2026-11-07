@@ -634,7 +634,8 @@ Also export Beamtime's visual vocabulary, so that custom blocks reuse it instead
 Bump `bt.version` to 2, additions only.
 
 Done: browser test: a `Figure` with a d3 line gets settings, hover to a table row and back, a download, and
-follows the theme and live data. Port `curves.js` from the remote as the test's content.
+follows the theme and live data. The test's content is a d3 line chart standing in for the remote's `curves.js`
+(decision 15).
 
 ### C2. Built-in `scorecard` (sonnet)
 
@@ -1119,7 +1120,8 @@ Done: per tool, CLI and MCP both come from the registry; a test on `synth`; its 
 - Update `todo`: mark the findings done, with one line each.
 - `scripts/release.py`, then upgrade on the cluster. **Check the real data first**: all 12 groups and the 10 custom
   blocks render on 0.2.0 from a read-only `pull`.
-- Port the remote's `curves.js`, `scorecard.js` and `predictions.js` to built-ins as new view versions, after asking.
+- Port the remote's `curves.js`, `scorecard.js` and `predictions.js` to built-ins (or to `bt.chart.Figure` where no
+  block draws it, noting what `draw`'s context lacked; decision 15) as new view versions, after asking.
 - CHANGELOG: 0.1.1's "Colormaps" entry (choose them with the `colormap` and `colormap_diverging` settings) is
   released (`v0.1.1`), so leave it; 0.2.0 says both settings are gone (B5): a colormap is chosen per chart, or for
   the page with "Apply to all charts", and an old settings key loads with one problem line.
@@ -1195,6 +1197,13 @@ Executors follow these unless told otherwise.
    settings of its own; the original stays `line-<slug>`. Supersedes decision 3's "every metric once" for pinned metrics and
    B8's risk that a pinned chart keeps its id. Pinning keeps the viewer's place: the page keeps the old answer while the new
    one loads, and holds the clicked chart where it was on screen until the viewer scrolls.
+14. **A `Figure` expands its block** (your decision; review of C1). The figure's head has Expand, which sends
+   `{type: "expand-block"}`; the page opens the whole block in its dialog, `Init.expanded` gives the plot's height
+   there, and Close sends `{type: "close"}`. Frames from before ignore all three, so C1's stop condition holds. Moving a
+   block to `Figure` loses nothing the page's head had.
+15. **C1's browser test keeps a stand-in for `curves.js`** (your decision; review of C1). The remote's file wasn't at
+   hand; the stand-in exercises the frame (settings, hover both ways, downloads, theme, colormap). The real file is
+   ported in Z1 with the remote's other blocks, which notes what `Figure`'s `draw` context lacked for it.
 
 ## Not verified
 

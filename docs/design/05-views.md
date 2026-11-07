@@ -368,9 +368,11 @@ first) and the viewer's preferences, kept like a built-in chart's under the figu
 new `draw` (new data), and when the figure's own inputs change: its preferences, the hovered key, the hidden keys, its size
 or the theme; another chart's settings never redraw it, and none of this fetches. `prefs.colormap` is the chosen colormap
 (sample it with `bt.theme.scale(kind, prefs.colormap)`). A frame that uses `Figure` sends `{type: "chrome", own: true}`
-and the page hides the block's own head, so there is one. The page sends the project's colormaps in a `colormaps` message
-when they load, because they may arrive after the frame started; a version 1 frame ignores both messages. A figure has no
-expand button (the page can expand only built-in blocks).
+and the page hides the block's own head, so there is one; a new frame (new code) has the page's head until it asks. The page
+sends the project's colormaps in a `colormaps` message when they load, because they may arrive after the frame started. A
+figure's head has Expand: the frame sends `{type: "expand-block"}` and the page opens the whole block in its dialog, where
+`Init.expanded` is the plot's height (null inline) and Close sends `{type: "close"}`. A version 1 frame ignores all of these.
+An export by block (`--figures`) takes the first chart's plot in the frame, never an icon of its head.
 
 **The app's vocabulary.** `bt.ui.Sym({kind, value, word?})` is the app's symbol for a value (`kind`: `run`, `result`,
 `verdict`, `note`, `research`, `thing`); an unknown value or kind gets the neutral symbol, and a block cannot choose an

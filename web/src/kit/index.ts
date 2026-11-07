@@ -48,6 +48,10 @@ export type Host = {
   warn(message: string): void;
   // the block draws its own chart head (a `Figure`); the page leaves out its own.
   own(): void;
+  // the plot's height in the page's dialog, or null inline; a `Figure` opens and closes it.
+  expanded: number | null;
+  expand(): void;
+  close(): void;
 };
 
 export function makeKit(host: Host) {

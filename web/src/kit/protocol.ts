@@ -21,6 +21,8 @@ export type Init = {
   names: [string, string][];
   colors: [string, string][];
   metrics: Record<string, MetricInfo>;
+  // the plot's height while the block is open in the page's dialog, else null.
+  expanded: number | null;
 };
 
 export type ToFrame =
@@ -52,6 +54,9 @@ export type ToPage =
   | { type: "download"; href: string; name: string }
   | { type: "figure"; spec: Record<string, unknown>; name: string }
   | { type: "expand"; node: Node }
+  // a `Figure`'s head opens the block itself in the page's dialog, or closes it there.
+  | { type: "expand-block" }
+  | { type: "close" }
   | { type: "snapshot"; href: string | null; name: string };
 
 // what a frame may ask the page for: reading operations only.

@@ -3,9 +3,12 @@
 
 import type { Background } from "../bt/export.ts";
 
+// a drawing's SVG; the app's icons are SVGs too, and never what a block draws.
+const DRAWING = "svg:not(.icon)";
+
 // the SVG inside `el` as a data URL, or null when it draws none.
 export function svgOf(el: Element): string | null {
-  const svg = el.querySelector("svg");
+  const svg = el.querySelector(DRAWING);
   if (!svg) return null;
   const copy = svg.cloneNode(true) as SVGSVGElement;
   const from = [svg, ...svg.querySelectorAll("*")];
@@ -27,7 +30,7 @@ export async function pngOf(el: Element, background: Background = "transparent")
   const svg = canvas ? null : svgOf(el);
   if (!canvas && !svg) return null;
   const source: CanvasImageSource = canvas ?? (await image(svg!));
-  const box = canvas ? canvas.getBoundingClientRect() : el.querySelector("svg")!.getBoundingClientRect();
+  const box = canvas ? canvas.getBoundingClientRect() : el.querySelector(DRAWING)!.getBoundingClientRect();
   const out = document.createElement("canvas");
   out.width = Math.max(1, Math.round(box.width * 2));
   out.height = Math.max(1, Math.round(box.height * 2));

@@ -76,6 +76,8 @@ export function ChartFrame(props: {
   caption?: string;
   expanded?: boolean;
   onExpand?: () => void;
+  // closes the dialog; a chart in a custom block's frame asks the page.
+  onClose?: () => void;
   onRemove?: () => void;
   // the element the page watches to draw the chart once it is on screen.
   box?: RefObject<HTMLDivElement>;
@@ -94,7 +96,7 @@ export function ChartFrame(props: {
         ${props.tools ?? null}
         <${Downloads} id=${props.id} ...${props.downloads} />
         ${props.expanded
-          ? html`<${IconButton} icon="x" label="Close (Esc)" onClick=${() => dialog.set(null)} />`
+          ? html`<${IconButton} icon="x" label="Close (Esc)" onClick=${props.onClose ?? (() => dialog.set(null))} />`
           : props.onExpand
             ? html`<${IconButton} icon="maximize" label="Expand" onClick=${props.onExpand} />`
             : null}
