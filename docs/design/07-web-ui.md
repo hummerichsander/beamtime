@@ -354,6 +354,16 @@ Line charts behave like W&B's panels:
 - **Hover**: a crosshair synced across the view; the tooltip lists every curve at that step, sorted,
   with its color. Hovering a curve dims the others in every chart of the view, and highlights its
   run in the table and legends; an aggregated curve matches by its group and by the runs in it.
+  Each curve answers with its own nearest point (within a few pixels beyond its ends), so runs logged
+  at different times, as on an elapsed or wall-time axis, all show.
+- **Axes**: every chart titles both axes: a clock by name (`step`, `epoch`, `wall time`, `elapsed`),
+  else the metric's label and unit from the view's `metrics`; several metrics share the path they have
+  in common, or get no y title. A view's `xlabel` and `ylabel` replace these until the viewer picks
+  another x axis or other metrics. The y axis is as wide as its widest tick label; wall-time ticks
+  fall on round clock times and show dates for ranges beyond a day.
+- **Paths**: when a run's x goes back on itself (a metric as x), the chart draws each run as a path in
+  step order with an arrow at its end and no bands; aggregating over such an x is refused by the
+  server ([layer 3](03-index.md#query-kinds)).
 - **Click**: clicking a curve (or a point) opens its run in the side panel.
 - **Legend**: click hides or shows a curve, double-click shows only it (again: all). The run table's
   color dots do the same for runs. Hidden runs apply to every chart of the view; a chart with hidden

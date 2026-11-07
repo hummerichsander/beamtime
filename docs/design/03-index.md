@@ -322,7 +322,8 @@ series:
   `epoch` stays a stair.
   Interpolating a metric that never decreases was tried and dropped: it can't tell a stair from a
   plateau, and continued a learning-rate warmup far past any logged value. Points before the axis'
-  first value are dropped, and each curve says whether its `x` is `monotone`.
+  first value are dropped. Each curve says whether its `x` is `monotone` and, when `x` is not the
+  step, keeps the `step` of each point.
 - With `by: [fields]`, the runs sharing the fields' values come back as one aggregated curve per
   bucket: mean, a band (`band: minmax | std | stderr | none`) and the number of contributing runs.
   `seeds: config.seed` is the shorthand for aggregating by the varying config, apart from the seed.

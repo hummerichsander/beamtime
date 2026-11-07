@@ -4,6 +4,9 @@ A line chart without a frame: a title with a short note, the curves, a legend, a
 
 - Run n is drawn in `data-n` with `dash-n` at `stroke-data`, so curves stay apart without color. Grid lines in `line`, axis labels in `small` `muted`.
 - A run keeps its color and line style everywhere: chart, legend, table swatch. Name the run beside it.
+- Both axes carry a title in the axis font, left of the y labels and under the x labels: a clock by name (`step`, `epoch`, `wall time`, `elapsed`), else the metric's label and unit from the view's `metrics`; several metrics are named by the path they share, or not at all. A view writes its own with `xlabel` and `ylabel`. The y axis takes the room its widest tick label needs, so `1.2e-05` is never cut. Wall time ticks fall on round clock times, with dates where the range is long.
+- Hover finds each curve's own nearest point, so curves logged at different times still answer together; the tooltip's first row names the x axis.
+- A curve whose x goes back on itself (a metric as x) is a path: polylines in step order with an arrow at the end, no bands; the tooltip gives the step, x and y.
 - Beyond six runs, group them (seeds, a config value) rather than adding colors.
 - A curve with 30 finite points or fewer marks each of them with a dot of its color, so a single point or a sparse metric shows; denser curves draw the line only. Band layers never get dots. On a log axis a band clips at a floor just under the smallest positive curve value, as matplotlib's `nonpositive="clip"` does, so mean − std ≤ 0 fills down to the bottom instead of leaving holes; the axis range follows the curves and the band edges above the floor, never the clipped part. A sparkline of one value is its end dot.
 

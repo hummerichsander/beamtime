@@ -11,7 +11,7 @@ import { type Background } from "./export.ts";
 import { register } from "./figures.ts";
 import { expanded as dialog } from "./host.ts";
 
-export const HEIGHT = 220;
+export const HEIGHT = 240;
 
 // a chart's height in the page's dialog.
 export function expandedHeight(): number {

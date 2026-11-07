@@ -177,15 +177,15 @@ of a field or per subgroup, each narrowed to its runs; `$value` names the value 
 
 | Block | Wave | Purpose | Key props |
 |---|---|---|---|
-| `line` | 1 | metric curves over steps, time or another metric | `y`, `x`, `color`, `by`, `band`, `seeds`, `smooth`, `raw`, `scale` (`linear`, `log`, `symlog`), `ymin`, `ymax`, `steps`, `outliers`, `legend`; wave 2: `facet`, `highlight` |
-| `histogram` | 1 | a logged distribution (a table with `bin_start`, `bin_end`, `count`), one outline per run | `key`, `step` (`last` or a step); wave 2: `all` as a step-by-bin heatmap |
+| `line` | 1 | metric curves over steps, time or another metric | `y`, `x`, `color`, `by`, `band`, `seeds`, `smooth`, `raw`, `scale` (`linear`, `log`, `symlog`), `ymin`, `ymax`, `steps`, `outliers`, `legend`, `xlabel`, `ylabel`; wave 2: `facet`, `highlight` |
+| `histogram` | 1 | a logged distribution (a table with `bin_start`, `bin_end`, `count`), one outline per run | `key`, `step` (`last` or a step), `xlabel`, `ylabel`; wave 2: `all` as a step-by-bin heatmap |
 
 **One value per run**
 
 | Block | Wave | Purpose | Key props |
 |---|---|---|---|
-| `scatter` | 1 | two fields against each other | `x`, `y`, `color`, `x_scale`, `y_scale`, `fit` (`linear`, `log`, `power`), `seeds`; wave 2: `size` |
-| `bar` | 1 | a field per category | `x`, `y`, `by`, `error` (`std`, `stderr`, `minmax`), `sort` |
+| `scatter` | 1 | two fields against each other | `x`, `y`, `color`, `x_scale`, `y_scale`, `fit` (`linear`, `log`, `power`), `seeds`, `xlabel`, `ylabel`; wave 2: `size` |
+| `bar` | 1 | a field per category | `x`, `y`, `by`, `error` (`std`, `stderr`, `minmax`), `sort`, `xlabel`, `ylabel` |
 | `stat` | 1 | one number | `field`, `aggregate` (`best`, `mean`, `last`, `count`); wave 2: `delta` against the baseline |
 | `table` | 1 | runs as rows, fields as columns | `columns`, `sort`, `limit`, `highlight_best`, `sparkline` (a metric per row, from previews) |
 | `heatmap` | 2 | a value over two config axes | `x`, `y`, `value`, `aggregate` (`mean`, `max`, `min`) |
@@ -396,6 +396,10 @@ with hundreds of runs and thousands of points per curve.
   (scienceplots' `[science, nature]` by default; the `figures` extra). `figure_style` may also
   name the project's own `.mplstyle` files by their path from the project root, and the settings
   page lists them next to the built-in sheets.
+- **Axis titles**: every chart titles both axes. `xlabel` and `ylabel` on `line`, `scatter`, `bar` and
+  `histogram` write them; otherwise the x axis is `step`, `epoch`, `wall time`, `elapsed` or the
+  metric's label, and the y axis is `label (unit)` from the view's `metrics`, the path several metrics
+  share, or none.
 - Wave-1 widgets beyond curves (`scatter`, `bar`, `histogram`) use uPlot's point and bar paths.
 
 ## Theme

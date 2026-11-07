@@ -2,7 +2,8 @@
 
 import uPlot from "uplot";
 
-import { align, logDomain, logRange, logTicks, markers, type Curve } from "./curves.ts";
+import { align, logDomain, logRange, logTicks, markers, nearest, type Curve } from "./curves.ts";
+import { extent, logSplits, timeLabel, timeTicks } from "./shapes.ts";
 import { alpha, type ChartStyle } from "./theme.ts";
 
 export type LineSpec = {
@@ -25,8 +26,16 @@ export type LineSpec = {
   zoom: [number, number] | null;
   zoomFetched: boolean;
   sync: string;
+  // the axis titles; empty for none.
+  xlabel: string;
+  ylabel: string;
+  // x is seconds since the epoch: ticks at round times.
+  xTime: boolean;
+  // some curve's x goes back on itself: drawn as paths, not as functions of x.
+  trajectory: boolean;
   formatX: (v: number) => string;
   formatY: (v: number) => string;
+  formatStep: (v: number) => string;
   onFocus?: (curve: Curve | null) => void;
   onZoom?: (window: [number, number] | null) => void;
   onClick?: (curve: Curve) => void;
@@ -118,10 +127,15 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       },
       axes: [
         // read through `current`: a chart kept in place on update still formats the new x axis.
-        { ...axisOf(spec.style, (v) => current.formatX(v)), size: 30 },
+        {
+          ...(spec.xTime ? timeAxis(spec.style) : axisOf(spec.style, (v) => current.formatX(v))),
+          size: 30,
+          ...titled(spec.style, spec.xlabel),
+        },
         {
           ...axisOf(spec.style, (v) => current.formatY(v)),
-          size: 52,
+          size: tickWidth(spec.style),
+          ...titled(spec.style, spec.ylabel),
           // symlog keeps uPlot's own ticks; log and linear get ours, which uPlot mustn't thin.
           ...(spec.scale === "symlog"
             ? {}
@@ -151,6 +165,7 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
         ],
         ready: [
           (self) => {
+            titles(self, spec.xlabel, spec.ylabel);
             self.over.append(tip);
             self.over.addEventListener("dblclick", () => current.onZoom?.(null));
             // a click (not the end of a drag-zoom) opens the curve under the pointer.
@@ -198,48 +213,56 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
   }
 
   function cursorMoved(self: uPlot): void {
-    const idx = self.cursor.idx;
+    const left = self.cursor.left ?? -1;
     const top = self.cursor.top ?? -1;
     // only the chart under the pointer decides the focus; synced charts follow the view's hover.
     const active = self.over.matches(":hover");
-    if (idx === null || idx === undefined || top < 0) {
+    if (left < 0 || top < 0) {
       tip.hidden = true;
       // a chart that only follows the synced cursor leaves the shared focus alone.
       if (active) report(null);
       return;
     }
-    const x = self.data[0][idx];
-    const rows: { i: number; v: number }[] = [];
-    let nearest: number | null = null;
+    const at = self.posToVal(left, "x");
+    const rows: { i: number; v: number; x: number }[] = [];
+    let nearestRow: number | null = null;
     let best = 14;
     for (let i = 0; i < n; i++) {
-      const v = self.data[i + 1][idx];
-      if (v === null || v === undefined || !self.series[i + 1].show) continue;
-      rows.push({ i, v });
+      const c = current.curves[i];
+      if (!self.series[i + 1].show) continue;
+      // each curve answers with its own nearest point, whatever x the other curves were logged at.
+      const k = nearest(c.x, at);
+      const v = k < 0 ? null : c.y[k];
+      if (v === null || v === undefined) continue;
+      // beyond its first or last point a curve answers only close by.
+      const outside = at < c.x[0] || at > c.x[c.x.length - 1];
+      if (outside && Math.abs(self.valToPos(c.x[k], "x") - left) > 14) continue;
+      rows.push({ i, v, x: c.x[k] });
       const d = Math.abs(self.valToPos(v, "y") - top);
       if (d < best) {
         best = d;
-        nearest = i;
+        nearestRow = i;
       }
     }
-    if (active) report(nearest);
+    if (active) report(nearestRow);
     if (!rows.length) {
       tip.hidden = true;
       return;
     }
+    const head = rows.find((r) => r.i === nearestRow) ?? rows[0];
     rows.sort((a, b) => b.v - a.v);
-    tip.replaceChildren(line("step", current.formatX(x), null, true));
+    tip.replaceChildren(line(current.xlabel || "x", current.formatX(head.x), null, true));
     for (const { i, v } of rows.slice(0, 12)) {
-      tip.append(line(current.curves[i].label, current.formatY(v), current.colors[i], i === nearest));
+      tip.append(line(current.curves[i].label, current.formatY(v), current.colors[i], i === nearestRow));
     }
     if (rows.length > 12) tip.append(line(`and ${rows.length - 12} more`, "", null, false));
-    if (nearest !== null && current.curves[nearest].run && current.onClick) {
+    if (nearestRow !== null && current.curves[nearestRow].run && current.onClick) {
       const hint = document.createElement("div");
       hint.className = "bt-tip-hint";
       hint.textContent = "click for the run's details";
       tip.append(hint);
     }
-    place(tip, self, self.cursor.left ?? 0, top);
+    place(tip, self, left, top);
   }
 
   function setFocus(i: number | null): void {
@@ -268,6 +291,10 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
         next.asinh === current.asinh &&
         !!next.raw === !!current.raw &&
         next.height === current.height &&
+        next.xlabel === current.xlabel &&
+        next.ylabel === current.ylabel &&
+        next.xTime === current.xTime &&
+        !next.trajectory &&
         sameStyle(next.style, current.style);
       if (!same) return false;
       current = next;
@@ -281,14 +308,114 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       return true;
     },
     focus(key: string | null): void {
-      const i = key === null ? -1 : current.curves.findIndex((c) => c.key === key || c.run === key ||
-        (c.group !== null && key === `by:${c.group}`) || c.runs.includes(key));  // prettier-ignore
+      const i = key === null ? -1 : current.curves.findIndex((c) => isCurve(c, key));
       setFocus(i < 0 ? null : i);
     },
     png: (background) => png(u, background),
     destroy(): void {
       ro.disconnect();
       u.destroy();
+    },
+  };
+}
+
+// curves whose x goes back on itself, as paths in step order with an arrow at the end, on plotChart.
+export function trajectoryChart(el: HTMLElement, spec: LineSpec): LineChart {
+  let current = spec;
+  const plot = plotChart(el, trajectorySpec(spec, () => current));
+  return {
+    update(next: LineSpec): boolean {
+      if (!next.trajectory || next.height !== current.height) return false;
+      current = next;
+      plot.update(trajectorySpec(next, () => current));
+      return true;
+    },
+    focus(key: string | null): void {
+      const c = key === null ? undefined : current.curves.find((k) => isCurve(k, key));
+      plot.focus(c ? (c.run ?? c.key) : null);
+    },
+    png: (background) => plot.png(background),
+    destroy: () => plot.destroy(),
+  };
+}
+
+function trajectorySpec(s: LineSpec, now: () => LineSpec): PlotSpec {
+  const shown = s.curves
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => !s.hidden.has(c.key) && !(c.run !== null && s.hidden.has(c.run)));
+  const log = s.scale === "log";
+  const xr = extent(shown.flatMap(({ c }) => c.x), false) ?? [0, 1];
+  const auto = extent(shown.flatMap(({ c }) => c.y.filter((v): v is number => v !== null)), log) ?? [log ? 0.1 : 0, 1];
+  const yr: [number, number] = [s.range?.[0] ?? auto[0], s.range?.[1] ?? auto[1]];
+  const keyOf = (c: Curve) => c.run ?? c.key;
+  return {
+    style: s.style,
+    height: s.height,
+    x: { range: xr, log: false, format: s.formatX, label: s.xlabel },
+    y: {
+      range: yr,
+      log,
+      symlog: s.scale === "symlog" ? s.asinh : undefined,
+      format: s.formatY,
+      label: s.ylabel,
+      ...(log ? { splits: logSplits(yr) } : {}),
+    },
+    draw: ({ ctx, x, y, px, focused }) => {
+      for (const { c, i } of shown) {
+        const pts: [number, number][] = [];
+        c.x.forEach((xv, k) => {
+          const yv = c.y[k];
+          if (yv !== null && yv !== undefined && !(log && yv <= 0)) pts.push([x(xv), y(yv)]);
+        });
+        ctx.globalAlpha = focused !== null && focused !== keyOf(c) ? s.style.dim + 0.15 : 1;
+        ctx.strokeStyle = s.colors[i];
+        ctx.fillStyle = s.colors[i];
+        ctx.lineWidth = s.style.line * px;
+        ctx.setLineDash((s.dashes[i] ?? []).map((v) => v * px));
+        ctx.beginPath();
+        pts.forEach(([a, b], k) => (k ? ctx.lineTo(a, b) : ctx.moveTo(a, b)));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (pts.length > 1) {
+          const [[x0, y0], [x1, y1]] = pts.slice(-2);
+          const angle = Math.atan2(y1 - y0, x1 - x0);
+          const size = s.style.line * 4 * px;
+          ctx.beginPath();
+          ctx.moveTo(x1 + Math.cos(angle) * size, y1 + Math.sin(angle) * size);
+          ctx.lineTo(x1 + Math.cos(angle + 2.5) * size, y1 + Math.sin(angle + 2.5) * size);
+          ctx.lineTo(x1 + Math.cos(angle - 2.5) * size, y1 + Math.sin(angle - 2.5) * size);
+          ctx.fill();
+        } else if (pts.length === 1) {
+          ctx.beginPath();
+          ctx.arc(pts[0][0], pts[0][1], s.style.line * 1.5 * px, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    },
+    hit: (left, top, x, y) => {
+      let best: { c: Curve; i: number; k: number } | null = null;
+      let d = 14;
+      for (const { c, i } of shown) {
+        for (let k = 0; k < c.x.length; k++) {
+          const yv = c.y[k];
+          if (yv === null || yv === undefined || (log && yv <= 0)) continue;
+          const dk = Math.hypot(x(c.x[k]) - left, y(yv) - top);
+          if (dk < d) [best, d] = [{ c, i, k }, dk];
+        }
+      }
+      if (!best) return null;
+      const { c, i, k } = best;
+      const rows: TipRow[] = [{ label: c.label, value: "", color: s.colors[i], strong: true }];
+      if (c.step) rows.push({ label: "step", value: s.formatStep(c.step[k]), color: null });
+      rows.push({ label: s.xlabel || "x", value: s.formatX(c.x[k]), color: null });
+      rows.push({ label: s.ylabel || "y", value: s.formatY(c.y[k]!), color: null });
+      return { key: keyOf(c), rows };
+    },
+    onFocus: (key) => now().onFocus?.(key === null ? null : (now().curves.find((c) => keyOf(c) === key) ?? null)),
+    onClick: (key) => {
+      const c = now().curves.find((k) => keyOf(k) === key);
+      if (c) now().onClick?.(c);
     },
   };
 }
@@ -326,6 +453,47 @@ function axisOf(style: ChartStyle, format: (v: number) => string, splits?: () =>
   };
 }
 
+// the page's hover and legend name a curve by its key, its run, its group or a run in it.
+function isCurve(c: Curve, key: string): boolean {
+  return c.key === key || c.run === key || (c.group !== null && key === `by:${c.group}`) || c.runs.includes(key);
+}
+
+// the axis titles are drawn on the canvas; the root carries them for readers of the page.
+function titles(u: uPlot, x: string, y: string): void {
+  u.root.dataset.xlabel = x;
+  u.root.dataset.ylabel = y;
+}
+
+// an axis title in the chart's font; none takes no room.
+function titled(style: ChartStyle, text: string): Partial<uPlot.Axis> {
+  return text ? { label: text, labelFont: style.font, labelSize: 22 } : {};
+}
+
+let probe: CanvasRenderingContext2D | null = null;
+
+// the room a y axis needs: its widest tick label, measured, so `1.2e-05` isn't cut.
+function tickWidth(style: ChartStyle): (u: uPlot, values: string[] | null) => number {
+  return (_u, values) => {
+    probe ??= document.createElement("canvas").getContext("2d")!;
+    probe.font = style.font;
+    // the axis' gap on top of the text.
+    return Math.ceil(Math.max(20, ...(values ?? []).map((v) => probe!.measureText(v).width))) + 8;
+  };
+}
+
+// ticks at round times; the labels name the date where the range is long.
+function timeAxis(style: ChartStyle): uPlot.Axis {
+  return {
+    ...axisOf(style, String),
+    splits: (_u, _i, min, max) => timeTicks(min, max).at,
+    filter: (_u, at) => at,
+    values: (self, at) => {
+      const { step } = timeTicks(self.scales.x.min!, self.scales.x.max!);
+      return at.map((v) => timeLabel(v, step));
+    },
+  };
+}
+
 // the tooltip sits beside the pointer, on the side with more room.
 function place(tip: HTMLElement, u: uPlot, left: number, top: number): void {
   tip.hidden = false;
@@ -341,6 +509,8 @@ export type PlotAxis = {
   // linear near zero, logarithmic beyond this.
   symlog?: number;
   format: (v: number) => string;
+  // the axis title; empty for none.
+  label: string;
   // fixed tick positions, e.g. one per category.
   splits?: number[];
   // the axis' room in pixels (labels on the y axis).
@@ -403,8 +573,12 @@ export function plotChart(el: HTMLElement, spec: PlotSpec): Plot {
       padding: [10, 10, 0, 0],
       scales: { x: scale(() => current.x), y: scale(() => current.y) },
       axes: [
-        { ...axisOf(spec.style, (v) => current.x.format(v), spec.x.splits && (() => current.x.splits ?? [])), size: 30 },
-        { ...axisOf(spec.style, (v) => current.y.format(v), spec.y.splits && (() => current.y.splits ?? [])), size: spec.y.size ?? 52 },
+        { ...axisOf(spec.style, (v) => current.x.format(v), spec.x.splits && (() => current.x.splits ?? [])), size: 30, ...titled(spec.style, spec.x.label) },
+        {
+          ...axisOf(spec.style, (v) => current.y.format(v), spec.y.splits && (() => current.y.splits ?? [])),
+          size: spec.y.size ?? tickWidth(spec.style),
+          ...titled(spec.style, spec.y.label),
+        },
       ],
       cursor: { x: false, y: false, points: { show: false }, drag: { x: false, y: false } },
       hooks: {
@@ -447,6 +621,7 @@ export function plotChart(el: HTMLElement, spec: PlotSpec): Plot {
         ],
         ready: [
           (self) => {
+            titles(self, spec.x.label, spec.y.label);
             self.over.append(tip);
             self.over.addEventListener("click", () => under && current.onClick?.(under));
           },
@@ -468,6 +643,7 @@ export function plotChart(el: HTMLElement, spec: PlotSpec): Plot {
   return {
     update(next: PlotSpec): void {
       current = next;
+      titles(u, next.x.label, next.y.label);
       u.setData([next.x.range, [null, null]] as unknown as uPlot.AlignedData, true);
     },
     focus: setFocus,

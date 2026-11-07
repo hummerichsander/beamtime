@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { align, byLabels, logDomain, markers, reshape } from "../src/bt/curves.ts";
+import { align, byLabels, logDomain, markers, nearest, reshape } from "../src/bt/curves.ts";
 
 test("raw and bucketed run curves", () => {
   const out = reshape({
@@ -140,4 +140,23 @@ test("the log range follows the curves and the band edges above the floor, nothi
   assert.deepEqual(logDomain(curves), [0.5, 2.5]);
   // a window leaves out the points outside it.
   assert.deepEqual(logDomain(curves, [1, 1]), [0.5, 1.1]);
+});
+
+test("the nearest point of a sorted x, with steps and duplicates", () => {
+  assert.equal(nearest([], 3), -1);
+  assert.equal(nearest([5], 100), 0);
+  assert.equal(nearest([0, 10, 20], -4), 0);
+  assert.equal(nearest([0, 10, 20], 4), 0);
+  assert.equal(nearest([0, 10, 20], 6), 1);
+  assert.equal(nearest([0, 10, 20], 99), 2);
+  assert.ok([1, 2, 3].includes(nearest([0, 1, 1, 1, 2], 1)));
+});
+
+test("a curve is a path when x goes back, and keeps the steps its points were logged at", () => {
+  const out = reshape({ curves: [
+    { run: "r1", metric: "m", raw: true, x: [0, 2, 1], y: [1, 2, 3], monotone: false, step: [0, 10, 20] },
+    { run: "r2", metric: "m", raw: true, x: [0, 1], y: [1, 2] },
+  ] });
+  assert.deepEqual(out.curves.map((c) => c.monotone), [false, true]);
+  assert.deepEqual(out.curves.map((c) => c.step), [[0, 10, 20], null]);
 });

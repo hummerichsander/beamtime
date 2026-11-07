@@ -309,9 +309,11 @@ def run_curve(
         steps = steps[:end]
     curve = downsample(steps, values, window=window, points=points, nonfinite=col.nonfinite)
     if q.x != "_step":
-        xs = x_values(cols, q.x, curve["x"] if curve["raw"] else curve["first"])
+        steps = curve["x"] if curve["raw"] else curve["first"]
+        xs = x_values(cols, q.x, steps)
         known = [i for i, x in enumerate(xs) if x is not None]
         curve["x"] = xs
+        curve["step"] = steps
         for key, v in curve.items():
             if isinstance(v, list) and len(v) == len(xs):
                 curve[key] = [v[i] for i in known]

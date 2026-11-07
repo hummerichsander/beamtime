@@ -6,6 +6,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { type Call, useCall } from "../api.ts";
 import { hovered, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
+import { xTitle, yTitle } from "../bt/axes.ts";
 import { align, linthresh, reshape, robustRange, smooth, type Curve, type Curves } from "../bt/curves.ts";
 import { png, useChart } from "../bt/chart.ts";
 import { fileName, light, paper, recolor, type Background } from "../bt/export.ts";
@@ -106,6 +107,13 @@ function Chart(props: {
   const hidden = new Set(all.hidden);
   const isShown = (c: Curve) => !hidden.has(c.key) && !(c.run && hidden.has(c.run));
 
+  const metrics = useContext(ViewCtx).metrics;
+  const shownMetrics = prefs.y?.length ? prefs.y : metricsOf(node);
+  // a title the view wrote stands until the viewer picks another x or other metrics.
+  const xlabel = (prefs.x === (node.props.x ?? "_step") ? node.props.xlabel : undefined) ?? xTitle(prefs.x, metrics);
+  const ylabel = (prefs.y?.length ? undefined : node.props.ylabel) ?? yTitle(shownMetrics, metrics);
+  const trajectory = !!curves?.curves.some((c) => !c.monotone);
+
   // the spec for a theme: the page's, or the light one for exported figures.
   const specFor = (t: Theme, height: number, palette: string[]): LineSpec | null => {
     if (!smoothed || !curves || !smoothed.curves.length) return null;
@@ -123,13 +131,18 @@ function Chart(props: {
       height,
       scale: prefs.scale,
       asinh: prefs.scale === "symlog" ? linthresh(align(shown).y) : 1,
-      band: (smoothed.aggregated || smoothed.curves.length === 1) && prefs.band !== "none",
+      band: (smoothed.aggregated || smoothed.curves.length === 1) && prefs.band !== "none" && !trajectory,
       range,
       zoom,
       zoomFetched: prefs.x === "_step" && !EXPORTED,
       sync: `view:${path}`,
+      xlabel,
+      ylabel,
+      xTime: prefs.x === "_t",
+      trajectory,
       formatX: formatterFor(prefs.x),
       formatY: (v) => value(v),
+      formatStep: step,
     };
   };
   const palette = curves && theme ? colorsFor(curves, theme, colors) : [];
@@ -150,8 +163,6 @@ function Chart(props: {
   };
   useChart(el, lineChart, spec, [result.data, colors, JSON.stringify(prefs), all.hidden, zoom], theme);
 
-  const metrics = useContext(ViewCtx).metrics;
-  const shownMetrics = prefs.y?.length ? prefs.y : metricsOf(node);
   const named = shownMetrics.map((m) => metrics[m]?.label ?? m).join(", ");
   const title = prefs.y?.length ? named : node.props.title ?? named;
   const keys = curves?.curves.map((c) => c.run ?? c.key) ?? [];
@@ -176,15 +187,15 @@ function Chart(props: {
   const exportPdf = async () => {
     const t = light();
     if (!t || !theme || !smoothed) return;
-    const band = (smoothed.aggregated || smoothed.curves.length === 1) && prefs.band !== "none";
+    const band = (smoothed.aggregated || smoothed.curves.length === 1) && prefs.band !== "none" && !trajectory;
     const series = smoothed.curves.filter(isShown);
     setProblem(null);
     try {
       await host().figure({
         kind: "line",
         title,
-        xlabel: X_AXES.find(([k]) => k === prefs.x)?.[1] ?? prefs.x,
-        ylabel: named,
+        xlabel,
+        ylabel,
         yscale: prefs.scale,
         ylim: [prefs.ymin ?? null, prefs.ymax ?? null],
         series: series.map((c) => ({ label: c.label, x: c.x, y: c.y, ...(band ? { lo: c.lo, hi: c.hi } : {}) })),
@@ -237,7 +248,7 @@ function formatterFor(x: string): (v: number) => string {
     case "_elapsed":
       return (v) => duration(v);
     case "_t":
-      return (v) => new Date(v * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return (v) => new Date(v * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
     default:
       return step;
   }

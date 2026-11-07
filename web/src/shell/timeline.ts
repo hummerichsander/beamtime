@@ -88,11 +88,12 @@ function Lanes(props: { bars: Bar[]; marks: Mark[] }) {
     return {
       style: chartStyle(t),
       height,
-      x: { range, log: false, format: (v) => timeLabel(v, ticks.step), splits: ticks.at },
+      x: { range, log: false, format: (v) => timeLabel(v, ticks.step), label: "", splits: ticks.at },
       y: {
         range: [NOTE_LANE - 0.8, lanes + 0.5],
         log: false,
         reverse: true,
+        label: "",
         size: 150,
         splits: lanes <= 40 ? [NOTE_LANE, ...props.bars.map((b) => b.lane)] : [NOTE_LANE],
         format: (v) => (v === NOTE_LANE ? "notes" : short(props.bars[Math.round(v)]?.name ?? "")),

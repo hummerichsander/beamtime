@@ -12,6 +12,10 @@ export type Curve = {
   lo: (number | null)[] | null;
   hi: (number | null)[] | null;
   n: (number | null)[] | null;
+  // false when x goes back on itself within the curve (a metric as x): it is a path, not a function.
+  monotone: boolean;
+  // the step each point was logged at, when x is not the step.
+  step: number[] | null;
   // aggregated curves: the group's label and its runs, so hover can match them across charts.
   group: string | null;
   runs: string[];
@@ -36,6 +40,8 @@ export function reshape(answer: { curves: any[] }, opts: { log?: boolean } = {})
       lo: null,
       hi: null,
       n: null,
+      monotone: c.monotone !== false,
+      step: c.step ?? null,
       group: aggregated ? labels[i] : null,
       runs: aggregated ? (c.runs ?? []) : [c.run],
     };
@@ -115,6 +121,19 @@ export function align(curves: Curve[]): Aligned {
     lo: curves.map((c) => spread(c, c.lo)),
     hi: curves.map((c) => spread(c, c.hi)),
   };
+}
+
+// the index of the point of a sorted x whose value is closest to `x`; -1 for no points.
+export function nearest(xs: ArrayLike<number>, x: number): number {
+  let lo = 0;
+  let hi = xs.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (xs[mid] < x) lo = mid + 1;
+    else hi = mid;
+  }
+  if (xs.length === 0) return -1;
+  return lo > 0 && x - xs[lo - 1] <= xs[lo] - x ? lo - 1 : lo;
 }
 
 export function byLabels(values: Record<string, unknown>[]): string[] {

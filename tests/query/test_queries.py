@@ -477,9 +477,9 @@ def test_grouped_series_buckets_by_the_x_axis(clocked) -> None:
 
 
 def test_series_with_a_non_monotone_x(clocked) -> None:
-    """Curves flag it; aggregating over it is an error."""
+    """Curves flag it and keep the steps their points were logged at; aggregating is an error."""
     a, _ = clocked({"series": {"from": "x", "y": ["m"], "x": "wiggle", "points": 100}})["curves"]
-    assert not a["monotone"]
+    assert not a["monotone"] and len(a["step"]) == len(a["x"])
     q = {"from": "x", "y": ["m"], "by": ["config.arm"], "x": "wiggle", "points": 3}
     with pytest.raises(QueryError, match="monotone"):
         clocked({"series": q})

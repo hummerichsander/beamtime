@@ -62,6 +62,8 @@ class Line(Node, tag="line"):
     outliers: Annotated[bool, msgspec.Meta(description="y range ignores outliers")] = False
     raw: Annotated[bool, msgspec.Meta(description="when smoothing, the raw curve faintly")] = True
     legend: bool = True
+    xlabel: Annotated[str | None, msgspec.Meta(description="x axis title; default from x")] = None
+    ylabel: Annotated[str | None, msgspec.Meta(description="y axis title; default from y")] = None
 
 
 class Scatter(Node, tag="scatter"):
@@ -74,6 +76,8 @@ class Scatter(Node, tag="scatter"):
     y_scale: Scale = "linear"
     fit: Literal["linear", "log", "power"] | None = None
     seeds: Field | None = None
+    xlabel: Annotated[str | None, msgspec.Meta(description="x axis title; default from x")] = None
+    ylabel: Annotated[str | None, msgspec.Meta(description="y axis title; default from y")] = None
 
 
 class Bar(Node, tag="bar"):
@@ -86,6 +90,8 @@ class Bar(Node, tag="bar"):
     by: Annotated[Field | None, msgspec.Meta(description="a second field: grouped bars")] = None
     error: Literal["std", "stderr", "minmax", "none"] = "std"
     sort: Literal["x", "y", "-y"] = "x"
+    xlabel: Annotated[str | None, msgspec.Meta(description="x axis title; default from x")] = None
+    ylabel: Annotated[str | None, msgspec.Meta(description="y axis title; default from y")] = None
 
 
 class Histogram(Node, tag="histogram"):
@@ -93,6 +99,8 @@ class Histogram(Node, tag="histogram"):
 
     key: str
     step: Step = "last"
+    xlabel: Annotated[str | None, msgspec.Meta(description="x axis title; default from x")] = None
+    ylabel: Annotated[str | None, msgspec.Meta(description="y axis title; default from y")] = None
 
 
 class Stat(Node, tag="stat"):

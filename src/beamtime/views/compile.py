@@ -106,6 +106,8 @@ class Compiler:
                     y_scale=n.y_scale,
                     fit=n.fit,
                     seeds=n.seeds,
+                    xlabel=n.xlabel,
+                    ylabel=n.ylabel,
                     **common,
                 )
             case m.Bar():
@@ -120,11 +122,21 @@ class Compiler:
                     by=n.by,
                     error=n.error,
                     sort=n.sort,
+                    xlabel=n.xlabel,
+                    ylabel=n.ylabel,
                     **common,
                 )
             case m.Histogram():
                 call = api("data", sel | {"key": n.key, "step": n.step}, scope)
-                return node("histogram", n.id, data={"main": call}, key=n.key, **common)
+                return node(
+                    "histogram",
+                    n.id,
+                    data={"main": call},
+                    key=n.key,
+                    xlabel=n.xlabel,
+                    ylabel=n.ylabel,
+                    **common,
+                )
             case m.Stat():
                 select = [*([n.field] if n.field else []), "run.status"]
                 call = api("runs", sel | {"select": select, "limit": RUNS_LIMIT}, scope)
@@ -288,6 +300,8 @@ class Compiler:
             raw=None if n.raw else False,
             legend=None if n.legend else False,
             color=n.color,
+            xlabel=n.xlabel,
+            ylabel=n.ylabel,
             note=", ".join(note) or None,
             **common,
         )

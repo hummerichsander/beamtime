@@ -4,6 +4,7 @@
 import { html } from "htm/preact";
 import { useContext, useRef, useState } from "preact/hooks";
 
+import { fieldTitle, metricTitle } from "../bt/axes.ts";
 import { png, useChart } from "../bt/chart.ts";
 import { host } from "../bt/host.ts";
 import { hovered, useData, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
@@ -30,6 +31,8 @@ export function Scatter({ node }: { node: Node }) {
   const yLog = p.y_scale === "log";
   const xSym = p.x_scale === "symlog" ? linthresh([pts.map((q) => q.x)]) : undefined;
   const ySym = p.y_scale === "symlog" ? linthresh([pts.map((q) => q.y)]) : undefined;
+  const xlabel = p.xlabel ?? fieldTitle(p.x, view.metrics);
+  const ylabel = p.ylabel ?? fieldTitle(p.y, view.metrics);
   const make = (theme: Theme, height: number): PlotSpec | null => {
     const xr = extent(pts.map((q) => q.x), xLog);
     const yr = extent(pts.flatMap((q) => (q.err ? [q.y - q.err, q.y + q.err] : [q.y])), yLog);
@@ -42,8 +45,8 @@ export function Scatter({ node }: { node: Node }) {
     return {
       style: chartStyle(theme),
       height,
-      x: { range: xr, log: xLog, symlog: xSym, format: value, ...(xLog ? { splits: logSplits(xr) } : {}) },
-      y: { range: yr, log: yLog, symlog: ySym, format: value, ...(yLog ? { splits: logSplits(yr) } : {}) },
+      x: { range: xr, log: xLog, symlog: xSym, format: value, label: xlabel, ...(xLog ? { splits: logSplits(xr) } : {}) },
+      y: { range: yr, log: yLog, symlog: ySym, format: value, label: ylabel, ...(yLog ? { splits: logSplits(yr) } : {}) },
       draw: ({ ctx, x, y, px, focused }) => {
         if (line) {
           ctx.beginPath();
@@ -103,8 +106,8 @@ export function Scatter({ node }: { node: Node }) {
     const xr = extent(pts.map((q) => q.x), xLog);
     return {
       kind: "scatter",
-      xlabel: label(p.x),
-      ylabel: label(p.y),
+      xlabel,
+      ylabel,
       xscale: p.x_scale,
       yscale: p.y_scale,
       series: [...groups.entries()].map(([k, qs]) => ({
@@ -126,6 +129,9 @@ export function Scatter({ node }: { node: Node }) {
 export function BarBlock({ node }: { node: Node }) {
   const p = node.props;
   const result = useData("main");
+  const view = useContext(ViewCtx);
+  const xlabel = p.xlabel ?? fieldTitle(p.x, view.metrics);
+  const ylabel = p.ylabel ?? fieldTitle(p.y, view.metrics);
   const items = bars(result.data, p.x, p.y, p.by ?? null, p.error ?? "std", p.sort ?? "x");
   const cats = [...new Set(items.map((b) => b.label))];
   const groups = [...new Set(items.map((b) => b.group))];
@@ -143,8 +149,8 @@ export function BarBlock({ node }: { node: Node }) {
     return {
       style: chartStyle(theme),
       height,
-      x: { range: [-0.6, cats.length - 0.4], log: false, format: (v) => cats[Math.round(v)] ?? "", splits: cats.map((_, i) => i) },
-      y: { range: [lo < 0 ? lo - pad : 0, hi + pad], log: false, format: value },
+      x: { range: [-0.6, cats.length - 0.4], log: false, format: (v) => cats[Math.round(v)] ?? "", label: xlabel, splits: cats.map((_, i) => i) },
+      y: { range: [lo < 0 ? lo - pad : 0, hi + pad], log: false, format: value, label: ylabel },
       draw: ({ ctx, x, y, px, focused }) => {
         for (const b of items) {
           const c = colorOf(b);
@@ -190,8 +196,8 @@ export function BarBlock({ node }: { node: Node }) {
   const figure = () => {
     return {
       kind: "bar",
-      xlabel: label(p.x),
-      ylabel: label(p.y),
+      xlabel,
+      ylabel,
       categories: cats,
       groups: groups.map((g) => {
         const of = (c: string) => items.find((b) => b.label === c && b.group === g) ?? null;
@@ -215,6 +221,8 @@ export function HistogramBlock({ node }: { node: Node }) {
   const colors = useRunColors();
   const page = useTheme();
   const hs = histograms(result.data);
+  const xlabel = node.props.xlabel ?? metricTitle(node.props.key, view.metrics);
+  const ylabel = node.props.ylabel ?? "count";
   // run colors are the page theme's; an exported figure takes the same slots of its own.
   const runColor = (run: string, i: number, t: Theme) => {
     const c = colors.get(run);
@@ -222,8 +230,8 @@ export function HistogramBlock({ node }: { node: Node }) {
   };
   const figure = () => ({
     kind: "histogram",
-    xlabel: node.props.key,
-    ylabel: "count",
+    xlabel,
+    ylabel,
     series: hs.map((h) => ({ label: view.names.get(h.run) ?? h.run, start: h.start, end: h.end, count: h.count })),
   });
   const make = (theme: Theme, height: number): PlotSpec | null => {
@@ -234,8 +242,8 @@ export function HistogramBlock({ node }: { node: Node }) {
     return {
       style: chartStyle(theme),
       height,
-      x: { range: xr, log: false, format: value },
-      y: { range: [0, top * 1.06], log: false, format: value },
+      x: { range: xr, log: false, format: value, label: xlabel },
+      y: { range: [0, top * 1.06], log: false, format: value, label: ylabel },
       draw: ({ ctx, x, y, px, focused }) => {
         hs.forEach((h, i) => {
           const c = colorOf(h.run, i);

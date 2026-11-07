@@ -1,3 +1,4 @@
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -289,6 +290,25 @@ def test_new_chart_settings_save_and_compile() -> None:
     line = tree["children"][0]["children"][0]
     assert line["props"]["scale"] == "symlog" and line["props"]["legend"] is False
     assert line["data"]["main"]["params"]["steps"] == [100, None]
+
+
+def test_axis_titles_compile_and_yield_to_the_viewer() -> None:
+    """Authored axis titles reach every chart kind; a viewer's other x or metric drops its title."""
+    body = [
+        {"line": {"id": "c", "y": "val/loss", "xlabel": "tokens", "ylabel": "loss"}},
+        {"scatter": {"id": "s", "x": "config.lr", "y": "val/loss", "ylabel": "best loss"}},
+        {"bar": {"id": "b", "x": "config.arm", "y": "val/loss", "xlabel": "arm"}},
+        {"histogram": {"id": "h", "key": "grads", "ylabel": "layers"}},
+    ]
+    tree = compile_view(m.parse({"body": body}, source="t"), path="g")
+    line, scatter, bar, hist = (k["props"] for k in tree["children"])
+    assert (line["xlabel"], line["ylabel"]) == ("tokens", "loss")
+    assert (scatter["xlabel"], scatter["ylabel"]) == (None, "best loss")
+    assert bar["xlabel"] == "arm" and hist["ylabel"] == "layers"
+    folded = apply_prefs(deepcopy(body), {"charts": {"c": {"x": "_elapsed"}}})
+    assert folded[0]["line"] == {"id": "c", "y": "val/loss", "ylabel": "loss", "x": "_elapsed"}
+    folded = apply_prefs(deepcopy(body), {"charts": {"c": {"y": ["val/acc", "val/f1"]}}})
+    assert folded[0]["line"]["xlabel"] == "tokens" and "ylabel" not in folded[0]["line"]
 
 
 def test_text_panels_from_the_ui(ctx: Context) -> None:

@@ -70,6 +70,10 @@ def settle(props: dict[str, Any], settings: dict[str, Any]) -> None:
 
     :param props: The node's props; changed in place.
     :param settings: The settings, as the web UI names them."""
+    # an axis title written for the old x or metrics would be wrong for the new ones.
+    for key, title in (("x", "xlabel"), ("y", "ylabel")):
+        if key in settings:
+            props.pop(title, None)
     for key, value in settings.items():
         match key:
             case "y":

@@ -15,7 +15,8 @@ export function charts(): Promise<typeof import("./uplot.ts")> {
 export async function lineChart(el: HTMLElement, spec: LineSpec): Promise<LineChart> {
   busy.n++;
   try {
-    return (await charts()).lineChart(el, spec);
+    const runtime = await charts();
+    return spec.trajectory ? runtime.trajectoryChart(el, spec) : runtime.lineChart(el, spec);
   } finally {
     busy.n--;
   }
