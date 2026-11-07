@@ -124,6 +124,7 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
     <div class="facts">
       <span><b>${step(r.steps)}</b> steps</span>
       <span><b>${duration(r.duration_s)}</b></span>
+      ${card.progress ? html`<${EpochFact} run=${r} progress=${card.progress} />` : null}
       <span data-tip=${r.created_at}>${ago(r.created_at)}</span>
       <${Best} path=${scope} />
       <${IconButton} icon="copy" label=${`Copy the run id ${r.id}`} onClick=${copy} />
@@ -148,6 +149,17 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
           })}
         </div>`
       : null}`;
+}
+
+// where a run is in its epochs: "epoch 3 of 5 · 38 % through · about 2h 4m left"; the time left only for a
+// running run that logged its speed, from the steps still to go.
+function EpochFact({ run, progress }: { run: any; progress: any }) {
+  const { epoch, total, fraction, steps_per_epoch: perEpoch } = progress;
+  const left =
+    run.status === "running" && fraction !== null && perEpoch && run.steps_per_s
+      ? duration(((1 - fraction) * total * perEpoch) / run.steps_per_s)
+      : null;
+  return html`<span>epoch <b>${epoch}</b>${total ? ` of ${total}` : ""}${fraction === null ? "" : ` · ${Math.round(fraction * 100)} % through`}${left ? ` · about ${left} left` : ""}</span>`;
 }
 
 // the main metric's best value, and for a group which run reached it; its distinguishing

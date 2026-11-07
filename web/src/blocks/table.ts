@@ -84,6 +84,12 @@ function cell(column: string, v: unknown, id: string, live: boolean, color: stri
   if (column === "run.created_at" || column === "run.ended_at") {
     return html`<td class="muted" data-tip=${v ? String(v) : undefined}>${ago(v as string)}</td>`;
   }
+  if (column === "run.progress") {
+    const fraction = typeof v === "number" ? v : null;
+    return html`<td class="num progress" data-tip=${fraction === null ? undefined : "of the planned epochs"}>
+      ${fraction === null ? null : `${Math.round(fraction * 100)} %`}
+      ${live && fraction !== null ? html`<span class="bar" style=${`--fraction: ${fraction}`}></span>` : null}</td>`;
+  }
   const isNum = typeof v === "number";
   const changing = live && column.startsWith("metric.");
   const cls = `${isNum ? "num" : ""}${changing ? " live" : ""}${best ? " best" : ""}`;

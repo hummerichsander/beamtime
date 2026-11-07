@@ -187,7 +187,7 @@ of a field or per subgroup, each narrowed to its runs; `$value` names the value 
 | `scatter` | 1 | two fields against each other | `x`, `y`, `color`, `x_scale`, `y_scale`, `fit` (`linear`, `log`, `power`), `seeds`, `xlabel`, `ylabel`; wave 2: `size` |
 | `bar` | 1 | a field per category | `x`, `y`, `by`, `error` (`std`, `stderr`, `minmax`), `sort`, `xlabel`, `ylabel` |
 | `stat` | 1 | one number | `field`, `aggregate` (`best`, `mean`, `last`, `count`); wave 2: `delta` against the baseline |
-| `table` | 1 | runs as rows, fields as columns | `columns`, `sort`, `limit`, `highlight_best`, `sparkline` (a metric per row, from previews) |
+| `table` | 1 | runs as rows, fields as columns | `columns` (`run.progress` draws the planned epochs done, with a thin bar on running runs), `sort`, `limit`, `highlight_best`, `sparkline` (a metric per row, from previews) |
 | `heatmap` | 2 | a value over two config axes | `x`, `y`, `value`, `aggregate` (`mean`, `max`, `min`) |
 | `parallel` | 2 | many config fields and one or two metrics | `fields`, `color` |
 | `compare` | 2 | two runs or groups: config diff and metric deltas | `a`, `b` (run ids or `where` filters), `fields` |

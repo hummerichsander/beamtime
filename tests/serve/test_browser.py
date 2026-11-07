@@ -537,3 +537,20 @@ def test_a_colormap_belongs_to_its_chart(server: str, page, project: Path) -> No
     page.reload()
     page.wait_for_selector(".chart canvas")
     assert magma <= set(marks(page.locator(".chart-frame").first))
+
+
+def test_epochs_are_a_fact_and_a_column_not_a_chart(server: str, page, project: Path, roles: dict) -> None:
+    """A run's header says how far it is through its epochs; the group's table has the column, and
+    neither page draws the epoch stair."""
+    base = server.split("/f/local")[0]
+    token = server.split("token=")[1]
+    page.goto(f"{base}/r/{roles['realistic_killed']}?token={token}")
+    page.wait_for_selector(".facts")
+    page.wait_for_function("document.querySelector('.facts').innerText.includes('epoch')")
+    assert "epoch 2 of 5 · 38 % through" in page.locator(".facts").inner_text()
+    assert page.locator(".chart .chart-title:text-is('epoch')").count() == 0
+
+    page.goto(f"{base}/f/local/realistic/egnn-bench?token={token}")
+    page.wait_for_selector("table.runs th:has-text('progress')")
+    cells = page.locator("table.runs td.progress").all_inner_texts()
+    assert {c.strip() for c in cells} == {"80 %", "20 %"}, cells

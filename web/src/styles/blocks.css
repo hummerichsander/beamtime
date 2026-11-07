@@ -65,6 +65,8 @@ table.runs {
   & td.best { color: var(--ink); }
   & td.spark { padding-block: 0; line-height: 0; }
   & td.live { font-style: italic; }
+  & td.progress { position: relative; }
+  & td.progress .bar { position: absolute; inset-inline-start: 0; inset-block-end: 0; inline-size: calc(var(--fraction) * 100%); block-size: var(--stroke-data); background: var(--accent); }
 }
 .swatch-toggle { padding-block: var(--space-1); vertical-align: middle; &:hover .swatch { block-size: 3px; } &[aria-pressed="false"] { opacity: 0.3; } }
 .more-rows { margin: var(--space-2) 0 0; color: var(--muted); }

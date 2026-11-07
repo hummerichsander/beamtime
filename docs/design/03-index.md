@@ -214,7 +214,7 @@ Every value a query can filter, sort or show is a **field**, a dotted path with 
 
 | Namespace | Example | Source |
 |---|---|---|
-| `run.` | `run.id`, `run.name`, `run.status`, `run.created_at`, `run.duration_s`, `run.steps`, `run.tags`, `run.path`, `run.commit`, `run.branch`, `run.dirty`, `run.code` | `_run.json`, run card |
+| `run.` | `run.id`, `run.name`, `run.status`, `run.created_at`, `run.duration_s`, `run.steps`, `run.tags`, `run.path`, `run.commit`, `run.branch`, `run.dirty`, `run.code`, `run.epoch`, `run.progress` | `_run.json`, run card |
 | `config.` | `config.optimizer.lr` | `_config.json` |
 | `metric.` | `metric.val/acc.max`, `metric.train/loss.ema_last` | run card statistics |
 | `value.` | `value.test/acc` | explicit run card values |
@@ -232,6 +232,15 @@ same commit and the same uncommitted changes compare equal across runs and check
 without a git checkout, or on a dirty run recorded before `diff_sha` existed. `keys` lists a
 group's distinct codes by count (only when they differ: a single version isn't a fact worth
 showing), and `check` adds a note to a proposal when its members didn't all run on the same code.
+
+**`run.epoch`** and **`run.progress`** read the `epoch` clock from the run card and the config alone:
+the current epoch (the last logged value, plus 1 when the metric starts at 0, as Lightning's does)
+and the share of the config's `max_epochs` completed before it. Both are `null` without an `epoch`
+metric, `run.progress` also without a positive `max_epochs`. The run's card (`beamtime card`) adds
+`progress`, computed exactly from the epoch column's change points
+(`query/progress.py`): `epoch`, `in_epoch` and `steps_per_epoch` (the step distance between the
+last two changes, so an `epoch` logged every 50 steps with 100 steps per epoch gives 100), `total`
+and `fraction`.
 
 **Windowed statistics** are computed exactly from the column files, with a step window appended:
 `metric.val/acc.mean[1000:2000]`. They support `first`, `last`, `min`, `max`, `mean` and `count`.

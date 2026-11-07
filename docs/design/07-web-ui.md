@@ -130,8 +130,10 @@ These qualities are made concrete as budgets and rules, and checked like correct
     metric that isn't constant, one logged as a single point only after those with a curve), named by its `label` in the view, with the run that reached it,
     its distinguishing config in a tooltip; and the view's `finding`.
 
-  A run's header shows its name and status, steps, duration and start, its best value, and the
-  proposals it belongs to; id, host, commit and job are in a tooltip.
+  A run's header shows its name and status, steps, duration, how far it is through its epochs
+  (`epoch 123 of 500 · 42 % through · about 2 h left`, only for a run that logged `epoch`; the
+  total is its config's `max_epochs`, the time left comes from the card's `steps_per_s` and only
+  for a running run), start, its best value, and the proposals it belongs to; id, host, commit and job are in a tooltip.
 - **View body**: the page's own view, else the built-in default.
 - **Context drawer**, opened on demand: for selected runs their run card, config, latest notes and
   output tail; with no selection, the group's notes and timeline.
@@ -450,7 +452,9 @@ Decided while building the shell (milestone M5):
   (`{block, id, props, data, children}`, where `data` names API calls) like authored views. A
   group with runs of its own gets at most four essential charts (validation and test metrics, then
   training losses; averaged over `config.seed` beyond eight runs) and the rest under a folded "More
-  metrics", the run table (name, status, varying config, the main metric, a sparkline), its memory
+  metrics" (clocks, `epoch` and the global step, are an x axis and a progress fact, so they get no
+  chart), the run table (name, status, a progress column when the group logs `epoch`, varying
+  config, the main metric, a sparkline), its memory
   and its latest notes. A group whose runs all live in subgroups gets its groups and the recent runs
   (with group and start time) instead. A run gets its charts, logged images and text, and its output
   (open when it failed). The header covers the proposal, so there is no proposal block or stat

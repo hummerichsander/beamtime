@@ -488,7 +488,7 @@ Done: `colormap` appears in no settings file, settings page or `beamtime set`; `
 finds only the migration line. Changing a chart's colormap changes only that chart, also for `config.arm` groups, and
 survives "Save as view" and reload. An old `beamtime.yaml` with the keys loads with the one line.
 
-### B6. Epochs are a clock (sonnet) — real data
+### B6. Epochs are a clock (sonnet) — real data — **done**
 
 - **Touches:** `src/beamtime/views/defaults.py` (new `CLOCKS`; `curves` 182, `ordered_metrics` 218), new `src/beamtime/query/progress.py`, `src/beamtime/ops/reading.py` (`card` 193), `src/beamtime/query/fields.py` (`run.epoch`), `web/src/shell/header.ts`, `web/src/blocks/table.ts`.
 - **Read:** `docs/design/03-index.md` § Fields (l. 211); `07-web-ui.md` § Pages and URLs (l. 152).

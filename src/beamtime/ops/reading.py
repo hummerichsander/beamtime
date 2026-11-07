@@ -25,6 +25,8 @@ from beamtime.ops.context import Context, OpError
 from beamtime.query import QueryError
 from beamtime.query import run as run_query
 from beamtime.query.kinds import describe_event
+from beamtime.query.progress import progress
+from beamtime.query.select import Columns
 
 RECENT_EVENTS = 10
 
@@ -202,14 +204,20 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
     from beamtime.record.proposals import Target
 
     run_dir = find_run(ctx, p.run)
+    run_card = read_card(run_dir) if (run_dir / c.CARD).exists() else None
+    config = read_config(run_dir) if (run_dir / c.CONFIG).exists() else {}
+    epochs = None
     with Index(logdir=ctx.logdir) as index:
         freshness = index.catch_up(run_dir.relative_to(ctx.logdir).as_posix(), 0.2)
         info = read_run_info(run_dir)
         proposals = run_proposals(index, run_dir, info.proposals)
         cited = cited_by(Target(index=index, rel=".", run_id=None), info.id)
+        if run_card is not None and "epoch" in run_card.metrics:
+            cols = Columns(index=index, run_id=info.id)
+            epochs = progress(cols, config)
+            cols.close()
     heartbeat = (run_dir / c.RUN).stat().st_mtime
     status = run_status(info, heartbeat=heartbeat, now=ctx.now or time.time())
-    run_card = read_card(run_dir) if (run_dir / c.CARD).exists() else None
     events = read_events(run_dir)
     return {
         "kind": "card",
@@ -230,11 +238,13 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
             "proposals": info.proposals,
             "duration_s": run_card.duration_s if run_card else None,
             "steps": run_card.steps if run_card else None,
+            "steps_per_s": run_card.steps_per_s if run_card else None,
             "error": run_card.error if run_card else None,
             "warnings": run_card.warnings if run_card else 0,
             "copied_from": info.copied_from,
         },
-        "config": read_config(run_dir) if (run_dir / c.CONFIG).exists() else {},
+        "config": config,
+        "progress": epochs,
         "metrics": {
             k: {f: v for f, v in m.__dict__.items() if v is not None}
             for k, m in (run_card.metrics if run_card else {}).items()

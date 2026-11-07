@@ -17,5 +17,6 @@ Runs as rows: `line` hairlines between them, a light accent tint on hover, the s
 `Table` in `web/src/blocks/table.ts`.
 
 - Added: `.table-wrap` (scroll), sticky sorted headers, sparklines, and `.swatch-toggle`, the swatch's button that hides a run in charts.
+- Added: the `progress` column (`run.progress`, the planned epochs done): the percentage, and for a running run a thin accent bar (`.bar` in `td.progress`, `--fraction` 0 to 1) along the cell's bottom edge.
 - Cells are inset from the row's tint, and the wrap overhangs the column, so text still lines up down the page.
 - A caption's number comes from a CSS counter: write `<b></b>`, with class `table-caption` on the caption.

@@ -18,6 +18,7 @@ EVAL_PREFIXES = ("val", "valid", "eval", "test", "validation")
 TRAIN_PREFIXES = ("train", "training")
 # the SDK's system metrics: their own collapsed section, never a headline chart.
 SYSTEM = "sys/"
+CLOCKS = ("epoch", "global_step", "trainer/global_step")
 EMPTY = (
     "No runs here yet. Runs appear once a script calls beamtime.init() with this group as its dir."
 )
@@ -59,9 +60,11 @@ def group_body(ctx: Context, path: str) -> list[m.Block]:
         if varying:
             body.append(m.Config(id="hyperparameters", title="Hyperparameters"))
         code = ["run.code"] if keys.get("codes") else []
+        clock = ["run.progress"] if "epoch" in ordered_metrics(own_keys) else []
         columns = [
             "run.name",
             "run.status",
+            *clock,
             *varying,
             *code,
             *([f"metric.{main}.last"] if main else []),
@@ -185,7 +188,9 @@ def curves(metrics: list[str], seeds: str | None, own: bool) -> list[m.Block]:
     :param metrics: The metrics, ordered.
     :param seeds: ``config.seed`` to average over seeds, or ``None``.
     :param own: Whether to show only the runs directly in the group.
-    :return: The blocks: a grid, and sections with more."""
+    :return: The blocks: a grid, and sections with more. Clocks (``epoch``) get no chart: they
+        are an x axis and a progress fact."""
+    metrics = [k for k in metrics if k not in CLOCKS]
     first = essential(metrics)
     system = [k for k in metrics if k.startswith(SYSTEM)]
     rest = [k for k in metrics if k not in first and k not in system]
@@ -261,7 +266,8 @@ def main_metric(ctx: Context, path: str, keys: dict[str, Any]) -> str | None:
     points = metric_column(keys, "points")
     # a metric logged once (a final evaluation) leads only where no curve of its kind does.
     live = sorted(
-        (k for k in metrics if not constant.get(k)), key=lambda k: (points.get(k) or 2) <= 1
+        (k for k in metrics if k not in CLOCKS and not constant.get(k)),
+        key=lambda k: (points.get(k) or 2) <= 1,
     )
     return (essential(live) or live or metrics)[0]
 

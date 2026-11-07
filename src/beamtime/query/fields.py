@@ -48,7 +48,7 @@ RUN_INFO = {
     "dirty": "$.git.dirty",
 }
 # computed from several RUN_INFO fields, so it has no single JSON path of its own.
-RUN_COMPUTED = ("code",)
+RUN_COMPUTED = ("code", "epoch", "progress")
 # one comparable identity for a run's code: the short commit, plus the diff's short hash
 # when the checkout was dirty, so the same commit and the same changes compare equal.
 CODE_SQL = (
@@ -56,6 +56,17 @@ CODE_SQL = (
     "substr(json_extract(info, '$.git.commit'), 1, 7) || '+' || "
     "json_extract(info, '$.git.diff_sha') "
     "ELSE substr(json_extract(info, '$.git.commit'), 1, 7) END"
+)
+# the epoch (from 1 when the metric starts at 0) and the epochs done of ``max_epochs``, from the
+# card and the config alone: both are null without an ``epoch`` metric, the second also without a
+# positive ``max_epochs``.
+EPOCH_SQL = (
+    "(json_extract(card, '$.metrics.\"epoch\".last') "
+    "+ (json_extract(card, '$.metrics.\"epoch\".first') = 0))"
+)
+PROGRESS_SQL = (
+    f"MIN(1.0, ({EPOCH_SQL} - 1) / (SELECT t.value FROM json_tree(config) t "
+    "WHERE t.key = 'max_epochs' AND t.type IN ('integer', 'real') AND t.value > 0 LIMIT 1))"
 )
 PROPOSAL = ("status", "check", "progress", "verdict")
 
@@ -165,6 +176,10 @@ def sql(field: Field) -> str | None:
                 return f"json_extract(card, '{RUN_CARD[name]}')"
             if name == "code":
                 return CODE_SQL
+            if name == "epoch":
+                return EPOCH_SQL
+            if name == "progress":
+                return PROGRESS_SQL
             return f"json_extract(info, '{RUN_INFO[name]}')"
         case "config":
             return f"json_extract(config, '{json_path(field.path)}')"
