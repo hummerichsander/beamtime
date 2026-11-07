@@ -6,6 +6,7 @@ title: "{{swept}} sweep"
 finding: "TODO: the result in one sentence, e.g. which {{swept}} gives the best {{main}}, and by how much."
 metrics:
   "{{main}}": {higher_is_better: {{higher}}}
+main_metrics: ["{{main}}"]
 body:
   - row:
       - stat:

@@ -88,6 +88,7 @@ filters:
 metrics:
   val/acc: {label: Validation accuracy, unit: "%", higher_is_better: true}
   train/loss: {label: Training loss, scale: log}
+main_metrics: [val/acc]
 
 body:
   - row:
@@ -113,9 +114,13 @@ uses:                                    # written by view_save
   file with ordinary tools, where a nested tree reads better than a flat list plus a layout.
 - **`finding`** is the one-sentence key result, shown in the frame ([layer 7](07-web-ui.md#shell)).
 - **`filters`** narrow every query of the view; `metrics` gives labels, units, scales and
-  `higher_is_better`, so widgets, the kit and axes agree. Its first entry is the view's lead metric,
-  which the page header's best follows; the entries a viewer pinned come first when "Save as view"
-  writes them ([layer 7](07-web-ui.md#charts)), and nothing in a view is guessed.
+  `higher_is_better`, so widgets, the kit and axes agree. It says how a metric is shown and nothing
+  else.
+- **`main_metrics`** lists the view's main metrics in order: the first leads the page header's best
+  and the table's metric column. Left out, the proposal's predicted metrics are the main metrics;
+  `[]` means none. A view written before it has its first `metrics:` entry as the only main metric.
+  "Save as view" writes the viewer's pins here ([layer 7](07-web-ui.md#charts)); nothing in a view
+  is guessed.
 - **A page shows its own view.** A group or run shows its own newest view, else Beamtime's built-in
   default; views are not inherited by subgroups or runs, so a sweep's view never turns up as a
   one-row table on a run page.

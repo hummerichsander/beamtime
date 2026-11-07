@@ -10,6 +10,7 @@ import { groupUrl, isRunId, navigate, restoreScroll } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Section } from "../ui/primitives.ts";
 import * as calls from "./calls.ts";
+import { holdPlace, useCallKept } from "./kept.ts";
 import { usePageTitle } from "./favicon.ts";
 import { Header, ProposalSection } from "./header.ts";
 import { History, ViewBody, ViewSource } from "./views.ts";
@@ -30,10 +31,17 @@ export function GroupPage(props: { path: string; version?: string | null; draft?
 
 function ViewPage(props: { path: string; version: string | null; draft: string | null }) {
   const main = usePrefs(props.path).main;
-  const view = useCall(calls.view(props.path, props.version, props.draft, main));
+  const view = useCallKept(calls.view(props.path, props.version, props.draft, main), `${props.path}|${props.version}|${props.draft}`);
   useEffect(() => {
     if (view.status === "ready") requestAnimationFrame(restoreScroll);
   }, [view.status === "ready"]);
+  // a click on a chart can change the page above it (pins add the Main section, "Save as view"
+  // appears); the chart stays where it was on screen.
+  useEffect(() => {
+    const hold = (e: Event) => holdPlace((e.target as Element).closest?.(".chart-frame") ?? null);
+    addEventListener("click", hold, true);
+    return () => removeEventListener("click", hold, true);
+  }, []);
   const before = html`
     <${Section} label=${labelFor(props.path)}>
       <${Header} path=${props.path} finding=${view.data?.finding} />

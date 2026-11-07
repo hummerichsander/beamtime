@@ -126,7 +126,7 @@ These qualities are made concrete as budgets and rules, and checked like correct
   - the proposal's statement, with a symbol per prediction (effect and interval on hover), the
     plan's progress and the current verdict;
   - the facts: run counts by status, notes, the best value of the lead main metric (the first of the
-    viewer's pins, the view's first entry under `metrics:`, the proposal's predicted metrics, in its
+    viewer's pins, the view's `main_metrics`, the proposal's predicted metrics, in its
     direction; nothing is guessed, so without a pin there is no best), named by its `label` in the
     view, with the run that reached it, its distinguishing config in a tooltip; and the view's
     `finding`.
@@ -461,19 +461,25 @@ Decided while building the shell (milestone M5):
   evaluation (`val`, `test`, ...), training, the other prefixes alphabetically, `Other` (unprefixed metrics and prefixes of one metric)
   and `System` (`sys/*`). Titles carry the count (`validation (5)`); `Main` is open, so are the first
   two sections after it, the rest and `System` closed, and a group with a single section and no pins
-  is a plain grid. Every metric appears once; chart ids stay `line-<slug>`, so stored settings survive.
+  is a plain grid. Every metric has its chart in its prefix section, with the id `line-<slug>`, so
+  stored settings survive.
   **Main metrics are the viewer's choice**, never guessed from names: a chart's settings offer
   "Pin as main metric" (and "Unpin"), and a pinned chart shows a ↑/↓ button, "Higher is better" /
   "Lower is better", which starts from the name (`loss`, `err`, ...) and can be turned. Pins
   are kept per page like the other chart choices; without a choice of the viewer's the proposal's
   predicted metrics that the page logs are pinned (a run page takes its group's), and unpinning
-  them all leaves none (`null` and `[]` stay apart). Pinned charts move into the open first section
-  `Main (n)` and leave their prefix's section; dragging inside it orders the pins. The first pin
+  them all leaves none (`null` and `[]` stay apart). Pinned metrics are charted a second time in
+  the open first section `Main (n)` (`pin-<slug>`, with settings of their own), so a section keeps
+  its shape whether or not a metric is pinned; dragging inside Main orders the pins. The first pin
   is the table's metric column with its sparkline (the others are columns after it) and the header's
-  best. An authored view keeps its layout: pins there set the header's best and, saved, `metrics:`.
-  "Save as view" writes the pins as `metrics:` in order, `higher_is_better` where it differs from the
-  name's guess, and a saved default view keeps its `Main` section; the renderer and exports show the
-  saved view, never a viewer's pins. Clocks (`epoch` and the
+  best. An authored view keeps its layout: pins there set the header's best and, saved,
+  `main_metrics:`. "Save as view" writes the pins as `main_metrics:` in order, `higher_is_better`
+  under `metrics:` where it differs from the name's guess, and a saved default view keeps its
+  `Main` section; the renderer and exports show the saved view, never a viewer's pins.
+  **Pinning keeps the viewer's place.** The page keeps showing the old answer while the one for the
+  new pins loads (no skeleton, no scroll restore), and holds the chart clicked where it was on
+  screen while the Main section, "Save as view" and the header's best appear above it, until the
+  viewer scrolls. Clocks (`epoch` and the
   global step) are an x axis and a progress fact, so they get no chart. After the charts: the run
   table (name, status, a progress column when the group logs `epoch`, varying
   config, the pinned metrics, a sparkline of the first), its memory

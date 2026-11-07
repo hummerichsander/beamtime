@@ -62,7 +62,7 @@ What the remaining chunks build, so a session doesn't rediscover the design:
   an x axis and a progress fact, not charts.
 - **Main metrics** (B8): pinned by the viewer in the UI, never guessed; the proposal's predicted metrics are the
   default pins. Pins drive a Main section, the header's best and the table's metric column; "Save as view" writes them
-  as the view's `metrics:`.
+  as the view's `main_metrics:` (decision 12).
 - **Run lifecycle UI** (E5): attempts, time limits, checkpoints, copies and code versions shown from data E1 to E3
   already answer.
 - **Kit v2** (C): three tiers (YAML block, `bt.chart.*`, `bt.chart.Figure`); the app's vocabulary (`Sym`, `Tag`,
@@ -1140,7 +1140,7 @@ Done: `CHANGELOG.md` for 0.2.0 lists every row of Breaking changes; `scripts/rel
 | `series` with `by`/`seeds` and `x ≠ _step` | steps | real x values, bucket centres | none; the old answer was wrong |
 | `seeds` grouping | config minus top-level seed | distinguishing keys minus seed | curves may merge correctly |
 | Default view layout | essential grid + "More metrics" | sections by prefix | none; saved views untouched |
-| Main metric | guessed from names when no proposal | pinned in the UI; the proposal's metrics by default; none otherwise | pin one, or save a view with `metrics:` |
+| Main metric | guessed from names when no proposal | pinned in the UI; the proposal's metrics by default; none otherwise | pin one, or save a view with `main_metrics:` |
 | `init()` on a SLURM requeue | new run | continues the job's only run in that folder | give runs that must stay separate their own `key` or `name` |
 | Chart `added` pref | `added` only | plus `removed` | old prefs still read |
 | `colormap`, `colormap_diverging` settings, `beamtime set colormap` | project-wide | removed; one `colormap` per chart | old keys are ignored with one line; set it per chart or apply to the page |
@@ -1184,6 +1184,17 @@ Executors follow these unless told otherwise.
    column; "Save as view" writes them as `metrics:`. A5's `main_metric` heuristic goes (B8).
 11. **A prefix with one metric stays in Other** (your decision; review of B7), also for `training/*`: a one-chart section
    is noise, and a metric that matters gets pinned (decision 10). B7's Done line says so.
+12. **A view's main metrics are `main_metrics:`, apart from `metrics:`** (chosen in the review of B8, as you asked for the least hacky option). `metrics:` says how a
+   metric is shown (label, unit, scale, direction) and nothing else; `main_metrics: [y, ...]` is the ordered list whose first
+   entry leads the header's best and the table. Absent means the proposal's predicted metrics, `[]` none. A view from before
+   it has its first `metrics:` entry as its only main metric. "Save as view" writes `main_metrics:` and sets
+   `higher_is_better` under `metrics:` only where it differs from the name's guess; unpinning everything keeps every label.
+   Supersedes decision 10's "writes them as `metrics:`". The guide's examples and overview write `main_metrics:`.
+13. **A pinned metric is charted twice: in Main and in its own section** (your decision; review of B8). Sections keep their
+   shape, so pinning moves nothing and decision 11 holds for the section structure. The Main copy is `pin-<slug>` with
+   settings of its own; the original stays `line-<slug>`. Supersedes decision 3's "every metric once" for pinned metrics and
+   B8's risk that a pinned chart keeps its id. Pinning keeps the viewer's place: the page keeps the old answer while the new
+   one loads, and holds the clicked chart where it was on screen until the viewer scrolls.
 
 ## Not verified
 

@@ -605,13 +605,13 @@ def save_page(
     :param finding: The view's finding.
     :return: The new version."""
 
-    from beamtime.views.prefs import apply_prefs, pinned_metrics
+    from beamtime.views.prefs import apply_pins, apply_prefs
 
     pins = prefs.get("main")
     data = page_yaml(ctx, path, pins)
     data["body"] = apply_prefs(data.get("body") or [], prefs)
     if pins is not None:
-        data["metrics"] = pinned_metrics(data.get("metrics") or {}, pins)
+        apply_pins(data, pins)
     data["title"], data["finding"] = title or None, finding or None
     try:
         view = m.parse(data, source="the page")

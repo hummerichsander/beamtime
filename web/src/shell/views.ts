@@ -1,7 +1,7 @@
 // A page's view: its body, where it comes from (the default, a version, a draft), "Save as view",
 // and the version history with a YAML diff and two versions side by side.
 
-import type { ComponentChildren } from "preact";
+import { Fragment, type ComponentChildren } from "preact";
 import { html } from "htm/preact";
 import { useMemo, useState } from "preact/hooks";
 
@@ -49,8 +49,9 @@ export function ViewBody(props: { path: string; view: any; before?: ComponentChi
     <${ViewCtx.Provider} value=${value}>
       ${blocks.map((b, i) => {
         const label = labelOf(b);
-        return html`<${Section} key=${b.id} label=${label}><${LabelCtx.Provider} value=${label}><${Block} node=${b} /><//><//>
-          ${i === last ? html`<${AddCharts} root=${root} />` : null}`;
+        // keyed as a whole, so a section appearing above (Main) leaves the others mounted.
+        return html`<${Fragment} key=${b.id}><${Section} label=${label}><${LabelCtx.Provider} value=${label}><${Block} node=${b} /><//><//>
+          ${i === last ? html`<${AddCharts} root=${root} />` : null}<//>`;
       })}
       ${last === -1 ? html`<${AddCharts} root=${root} />` : null}
     <//>

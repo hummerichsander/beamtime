@@ -326,6 +326,13 @@ class View(msgspec.Struct, kw_only=True, forbid_unknown_fields=True, omit_defaul
     message: Annotated[str | None, msgspec.Meta(description="what this version changed")] = None
     filters: dict[str, Any] = msgspec.field(default_factory=dict)
     metrics: dict[str, MetricInfo] = msgspec.field(default_factory=dict)
+    main_metrics: Annotated[
+        list[str] | None,
+        msgspec.Meta(
+            description="the main metrics in order; the first leads the header's best and the "
+            "table; [] for none, left out for the proposal's predicted metrics"
+        ),
+    ] = None
     body: list[Block] = msgspec.field(default_factory=list)
     uses: dict[str, str] = msgspec.field(default_factory=dict)
 

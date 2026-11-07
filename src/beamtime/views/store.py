@@ -169,11 +169,11 @@ def shown(
     :param draft_name: A draft to show, for the renderer.
     :param metrics: The viewer's pins ``{y, higher}``; only the default view takes them.
     :return: ``{view, source, version, author, user, title, finding, metrics, pins, versions}``;
-        ``pins`` are the main metrics the page starts from: the default view's, else the view's
-        ``metrics:``, else the proposal's."""
+        ``pins`` are the main metrics the page starts from: the viewer's for the default view, else
+        the view's ``main_metrics``, else the proposal's."""
     from beamtime.format.ids import is_run_id
     from beamtime.views.compile import compile_view, walk_tree
-    from beamtime.views.defaults import default_view, lower_is_better, pins_of, record
+    from beamtime.views.defaults import default_view, pins_of, record
     from beamtime.views.library import Library
 
     files = saved(ctx, path)
@@ -210,18 +210,8 @@ def shown(
         b for b in record(run=is_run_id(path.rsplit("/", 1)[-1])) if m.block_of(b) not in blocks
     ]
     tree["children"] += compile_view(m.View(body=missing), path=path)["children"]
-    if view.metrics:
-        pins = [
-            {
-                "y": y,
-                "higher": not lower_is_better(y)
-                if i.higher_is_better is None
-                else i.higher_is_better,
-            }
-            for y, i in view.metrics.items()
-        ]
-    elif pins is None:
-        pins = pins_of(ctx, path)
+    if pins is None:
+        pins = pins_of(ctx, path, declared_of(view))
     return out | {
         "view": tree,
         "author": view.author,
@@ -275,21 +265,37 @@ def code_text(ctx: Context, ref: dict[str, Any]) -> dict[str, Any]:
     return {"kind": "code", "path": rel, "code": file.read_text()}
 
 
-def lead(ctx: Context, path: str) -> tuple[str, bool, str | None] | None:
-    """Find the lead metric of a page's newest view: the first under ``metrics:``.
+def declared_of(view: m.View) -> list[dict[str, Any]] | None:
+    """Read the main metrics a view declares: ``main_metrics``, in the direction ``metrics`` gives
+    or the name suggests. A view from before ``main_metrics`` has its first ``metrics:`` entry.
+
+    :param view: The view.
+    :return: ``{y, higher, label}`` per main metric; ``None`` when it declares none, so the
+        proposal's predicted metrics apply, and ``[]`` when it declares no main metric."""
+    from beamtime.views.defaults import lower_is_better
+
+    names = view.main_metrics
+    if names is None:
+        names = list(view.metrics)[:1] or None
+    if names is None:
+        return None
+    out = []
+    for y in names:
+        info = view.metrics.get(y) or m.MetricInfo()
+        higher = not lower_is_better(y) if info.higher_is_better is None else info.higher_is_better
+        out.append({"y": y, "higher": higher, "label": info.label})
+    return out
+
+
+def declared(ctx: Context, path: str) -> list[dict[str, Any]] | None:
+    """Read the main metrics of a page's newest saved view.
 
     :param ctx: The operation context.
     :param path: A group or run path.
-    :return: The metric, whether lower is better and its label, or ``None`` without one."""
-    from beamtime.views.defaults import lower_is_better
-
+    :return: As ``declared_of``; ``None`` also without a readable saved view."""
     if not (files := saved(ctx, path)):
         return None
     try:
-        view = read(files[-1], source=files[-1].name)
+        return declared_of(read(files[-1], source=files[-1].name))
     except SchemaError:
         return None
-    for metric, info in view.metrics.items():
-        given = info.higher_is_better
-        return metric, (lower_is_better(metric) if given is None else not given), info.label
-    return None

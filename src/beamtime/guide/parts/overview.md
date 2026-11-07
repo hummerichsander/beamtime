@@ -63,7 +63,9 @@ view like a built-in block (`- phase-map: {x: config.lr, y: config.wd, value: me
   `seeds: config.seed`.
 - **State the setup in captions**: what was varied, what was held fixed, how many runs. Charts
   need a caption.
-- **Units, labels, scales and direction** go into the view's `metrics:` once.
+- **Units, labels, scales and direction** go into the view's `metrics:` once. **Main metrics**
+  (the page header's best, the table's metric column) go into `main_metrics:`, the first one
+  leading; leave it out to take the proposal's predicted metrics, `[]` for none.
 - **Don't overclaim.** If the proposal's check is pending, provisional, insufficient or failed,
   the finding says so; verdicts belong in notes. An explanation not yet measured is a `theory`
   note, not an `observation`.
@@ -77,6 +79,7 @@ finding: val/acc peaks at lr 3e-4 (0.93) and drops on both sides.
 filters: {run.status: {ne: failed}}          # narrows every block
 metrics:
   val/acc: {label: Validation accuracy, higher_is_better: true}
+main_metrics: [val/acc]                       # the header's best follows the first
 body:
   - row:                                      # layouts: section, row, grid, tabs
       - stat: {field: metric.val/acc.max, aggregate: best, title: Best accuracy}

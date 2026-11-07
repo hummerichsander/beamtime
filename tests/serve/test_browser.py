@@ -585,7 +585,7 @@ def test_the_default_view_groups_charts_by_prefix_and_a_hidden_chart_comes_back(
     page.reload()
     page.wait_for_selector("button:has-text('1 hidden · show')")
     page.locator("button:has-text('1 hidden · show')").click()
-    page.wait_for_function(f"document.querySelectorAll('.chart-frame').length == {before}")
+    page.wait_for_function(f"() => document.querySelectorAll('.chart-frame').length == {before}")
     assert page.locator("button:has-text('hidden · show')").count() == 0
 
     frame = frames.first
@@ -596,7 +596,7 @@ def test_the_default_view_groups_charts_by_prefix_and_a_hidden_chart_comes_back(
     page.locator(".save-actions button[type=submit]").click()
     # the form closes once the save has landed; the chart count holds before it already.
     page.wait_for_selector(".save-actions", state="detached")
-    page.wait_for_function(f"document.querySelectorAll('.chart-frame').length == {before - 1}")
+    page.wait_for_function(f"() => document.querySelectorAll('.chart-frame').length == {before - 1}")
     page.reload()
     page.wait_for_selector(".chart canvas")
     assert frames.count() == before - 1 and page.locator("button:has-text('hidden · show')").count() == 0
@@ -623,23 +623,36 @@ def test_main_metrics_are_pinned_in_the_ui(server: str, page, project: Path) -> 
     assert "best" not in page.locator(".facts").inner_text()
     assert page.locator("table.runs td.spark").count() == 0
 
+    page.set_viewport_size({"width": 1200, "height": 500})
     page.locator("button.view-section-title[aria-label='Open Other (2)']").click()
     frame = page.locator(".chart-frame", has=page.locator(".chart-title:text-is('training/loss')"))
+    scroller = page.locator(".main")
+    scroller.evaluate("e => { e.scrollTop = e.scrollHeight; }")
     frame.locator("button[aria-label='Chart settings']").click()
-    frame.locator("button:has-text('Pin as main metric')").click()
+    pin = frame.locator("button:has-text('Pin as main metric')")
+    pin.hover()
+    own = frame.element_handle()
+    top, scrolled = own.bounding_box()["y"], scroller.evaluate("e => e.scrollTop")
+    assert scrolled > 0
+    pin.click()
     page.wait_for_function("() => document.querySelector('button.view-section-title')?.getAttribute('aria-label') == 'Close Main (1)'")
     page.wait_for_function("() => document.querySelector('.facts').innerText.includes('best')")
     page.wait_for_selector("table.runs td.spark")
-    assert page.locator(".chart-frame button[aria-label='Lower is better']").count() == 1
+    # the chart stays in its own section as well, and where the viewer was looking.
+    assert page.locator(".chart-title:text-is('training/loss')").count() == 2
+    assert page.locator("button.view-section-title[aria-label='Close Other (2)']").count() == 1
+    assert abs(own.bounding_box()["y"] - top) < 3
+    assert scroller.evaluate("e => e.scrollTop") > scrolled
+    assert page.locator(".chart-frame button[aria-label='Lower is better']").count() == 2
 
     page.reload()
     page.wait_for_selector(".chart canvas")
     page.wait_for_function("() => document.querySelector('.facts').innerText.includes('best')")
     assert "Main (1)" in titles()[0]
 
-    page.locator(".chart-frame button[aria-label='Lower is better']").click()
+    page.locator(".chart-frame button[aria-label='Lower is better']").first.click()
     page.wait_for_selector(".chart-frame button[aria-label='Higher is better']")
-    page.locator(".chart-frame button[aria-label='Higher is better']").click()
+    page.locator(".chart-frame button[aria-label='Higher is better']").first.click()
     page.locator(".save-view").click()
     page.locator(".save-actions button[type=submit]").click()
     page.wait_for_selector(".save-actions", state="detached")
@@ -648,12 +661,12 @@ def test_main_metrics_are_pinned_in_the_ui(server: str, page, project: Path) -> 
     assert "Main (1)" in titles()[0]
     assert page.locator(".save-view").count() == 0
     saved = sorted((project / "beamtime" / "realistic" / "egnn-bench" / "view").glob("*.yaml"))[-1]
-    assert "training/loss" in saved.read_text().split("body:")[0]
+    assert "main_metrics: [training/loss]" in saved.read_text().split("body:")[0]
 
     page.goto(f"{base}/f/local/scaling/lr-sweep?token={token}")
     page.wait_for_selector(".chart canvas")
     assert "Main (1)" in titles()[0]
-    frame = page.locator(".chart-frame", has=page.locator(".chart-title:text-is('val/acc')"))
+    frame = page.locator(".chart-frame", has=page.locator(".chart-title:text-is('val/acc')")).first
     frame.locator("button[aria-label='Chart settings']").click()
     frame.locator("button:has-text('Unpin')").click()
     page.wait_for_function("() => !document.querySelector('button.view-section-title')?.getAttribute('aria-label')?.includes('Main')")

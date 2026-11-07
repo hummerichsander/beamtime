@@ -325,18 +325,19 @@ def summary_of(
     :param ctx: The operation context.
     :param path: A group or run path.
     :param metrics: The viewer's pins ``{y, higher}``; ``[]`` is none. Without them the view's
-        first ``metrics:`` entry leads, else the proposal's first predicted metric.
+        first main metric leads, else the proposal's first predicted metric.
     :return: ``{kind, path, summary}``; ``summary`` is ``None`` without a lead."""
     from beamtime.views.defaults import pins_of, summary
-    from beamtime.views.store import lead
+    from beamtime.views.store import declared
 
     path = path.strip("/") or "."
-    found = None
-    if metrics is not None:
-        found = (metrics[0]["y"], not metrics[0]["higher"], None) if metrics else None
-    elif (ctx.logdir / path).is_dir() and (found := lead(ctx, path)) is None:
-        if pins := pins_of(ctx, path):
-            found = (pins[0]["y"], not pins[0]["higher"], None)
+    if metrics is None and (ctx.logdir / path).is_dir():
+        metrics = declared(ctx, path)
+    if metrics is None:
+        metrics = pins_of(ctx, path)
+    found = (
+        (metrics[0]["y"], not metrics[0]["higher"], metrics[0].get("label")) if metrics else None
+    )
     return {"kind": "summary", "path": path, "summary": summary(ctx, path, found)}
 
 

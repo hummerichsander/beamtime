@@ -6,6 +6,7 @@ title: "Ablation of {{change}}"
 finding: "TODO: what the change does to {{main}}, as strong as the check allows."
 metrics:
   "{{main}}": {higher_is_better: {{higher}}}
+main_metrics: ["{{main}}"]
 body:
   - proposal: {id: proposal, title: Predictions}
   - grid:

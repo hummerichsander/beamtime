@@ -421,16 +421,18 @@ def test_curves_sit_in_sections_by_prefix() -> None:
 
 
 def test_pins_make_the_main_section_and_one_prefix_is_a_plain_grid() -> None:
-    """Pinned metrics sit in an open Main section only; prefixes of one metric go to Other."""
+    """Pinned metrics sit in an open Main section and stay in their own section; prefixes of one
+    metric go to Other."""
     from beamtime.views.defaults import curves
 
     metrics = ["val/acc", "train/loss", "train/lr", "energy/e", "energy/m", "x/one"]
     out = curves(metrics, None, False, ["energy/e", "val/acc"])
     assert [(s.title, s.open) for s in out] == [
-        ("Main (2)", True), ("train (2)", True), ("Other (2)", True),
+        ("Main (2)", True), ("train (2)", True), ("energy (2)", True), ("Other (2)", False),
     ]  # fmt: skip
     assert [c.y for c in out[0].children[0].children] == ["energy/e", "val/acc"]
-    assert out[0].children[0].children[0].id == "line-energy-e"
+    assert out[0].children[0].children[0].id == "pin-energy-e"
+    assert out[2].children[0].children[0].id == "line-energy-e"
     (grid,) = curves(["loss", "acc", "epoch"], None, False, [])
     assert isinstance(grid, m.Grid) and [c.y for c in grid.children] == ["loss", "acc"]
 
@@ -492,9 +494,11 @@ def test_the_default_view_takes_the_pins(ctx: Context) -> None:
     view = default_view(ctx, SWEEP, pins)
     main = next(b for b in view.body if isinstance(b, m.Section))
     assert (main.title, main.open) == ("Main (2)", True)
-    assert [c.id for c in main.children[0].children] == ["line-train-loss", "line-val-acc"]
-    charts = [c.y for b in view.body if isinstance(b, m.Section) for c in b.children[0].children]
-    assert sorted(charts) == sorted(set(charts))
+    assert [c.id for c in main.children[0].children] == ["pin-train-loss", "pin-val-acc"]
+    # a pinned metric is charted in Main and again in its own section, under different ids.
+    charts = [c for b in view.body if isinstance(b, m.Section) for c in b.children[0].children]
+    assert [c.y for c in charts].count("train/loss") == 2
+    assert len({c.id for c in charts}) == len(charts)
     assert table(view).sparkline == "train/loss"
     assert table(view).columns[-2:] == ["metric.train/loss.last", "metric.val/acc.last"]
 
@@ -510,7 +514,7 @@ def test_a_prefix_named_main_does_not_collide_with_the_main_section() -> None:
 
     sections = curves(["main/a", "main/b", "val/x", "val/y"], None, False, ["val/x"])
     ids = [s.id for s in sections]
-    assert ids[:2] == ["main", "charts-main"] and len(set(ids)) == len(ids)
+    assert {"main", "charts-main"} <= set(ids) and len(set(ids)) == len(ids)
 
 
 def test_the_page_answers_with_its_pins(ctx: Context) -> None:
@@ -540,23 +544,56 @@ def test_the_header_follows_the_pins(ctx: Context) -> None:
 
 
 def test_save_as_view_writes_the_pins(ctx: Context) -> None:
-    """Pins become ``metrics:`` in order, the direction only where it differs; null leaves it."""
+    """Pins become ``main_metrics`` in order, the direction only where it differs; null leaves it."""
     from beamtime.ops.views import save_page
+
+    def newest() -> dict:
+        return yaml.safe_load(sorted((ctx.logdir / SWEEP / "view").glob("*.yaml"))[-1].read_text())
 
     ui = Context.make(caller="view")
     pins = [{"y": "train/loss", "higher": False}, {"y": "val/acc", "higher": False}]
     save_page(ui, SWEEP, {"main": pins}, "T", "F")
-    saved = yaml.safe_load(sorted((ctx.logdir / SWEEP / "view").glob("*.yaml"))[-1].read_text())
-    assert saved["metrics"] == {"train/loss": {}, "val/acc": {"higher_is_better": False}}
+    saved = newest()
+    assert saved["main_metrics"] == ["train/loss", "val/acc"]
+    assert saved["metrics"] == {"val/acc": {"higher_is_better": False}}
     main = next(n["section"] for n in saved["body"] if n["section"]["id"] == "main")
     assert main["title"] == "Main (2)"
 
     save_page(ui, SWEEP, {"main": None}, "T", "F")
-    kept = yaml.safe_load(sorted((ctx.logdir / SWEEP / "view").glob("*.yaml"))[-1].read_text())
-    assert kept["metrics"] == saved["metrics"]
-    save_page(ui, SWEEP, {"main": []}, "T", "F")
-    cleared = yaml.safe_load(sorted((ctx.logdir / SWEEP / "view").glob("*.yaml"))[-1].read_text())
-    assert "metrics" not in cleared
+    assert newest()["main_metrics"] == saved["main_metrics"]
+
+
+def test_unpinning_everything_keeps_the_labels(ctx: Context, project: Path) -> None:
+    """``metrics:`` only says how a metric is shown, so no main metric loses no label."""
+    from beamtime.ops.views import save_page
+
+    shown = {"val/acc": {"label": "Accuracy", "unit": "%"}, "train/loss": {"scale": "log"}}
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "mine"}, ctx)
+    file = project / ".beamtime" / "drafts" / "mine" / "view.yaml"
+    data = yaml.safe_load(file.read_text()) | {"finding": "x", "metrics": shown}
+    file.write_text(yaml.safe_dump(data | {"main_metrics": ["val/acc"]}))
+    call("view save", {"draft": "mine"}, ctx)
+
+    save_page(Context.make(caller="view"), SWEEP, {"main": []}, "T", "F")
+    saved = yaml.safe_load(sorted((ctx.logdir / SWEEP / "view").glob("*.yaml"))[-1].read_text())
+    assert saved["main_metrics"] == [] and saved["metrics"] == shown
+
+
+def test_a_saved_view_declares_its_main_metrics(ctx: Context) -> None:
+    """``main_metrics`` are the pins and the header's lead; ``[]`` is none; a view from before
+    it leads with its first ``metrics:`` entry; without either the proposal's metrics apply."""
+    from beamtime.views.store import declared_of
+
+    view = lambda **kw: m.View(**kw)  # noqa: E731
+    shown = {"val/acc": m.MetricInfo(label="Accuracy"), "train/loss": m.MetricInfo(unit="nats")}
+    assert declared_of(view()) is None
+    assert declared_of(view(main_metrics=[])) == []
+    assert declared_of(view(metrics=shown, main_metrics=["train/loss"])) == [
+        {"y": "train/loss", "higher": False, "label": None}
+    ]
+    assert declared_of(view(metrics=shown)) == [{"y": "val/acc", "higher": True, "label": "Accuracy"}]
+    flipped = {"x": m.MetricInfo(higher_is_better=False)}
+    assert declared_of(view(metrics=flipped))[0]["higher"] is False
 
 
 def test_constant_means_one_value_everywhere(ctx: Context) -> None:

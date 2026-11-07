@@ -15,6 +15,7 @@ import { IconButton, Popover, Section } from "../ui/primitives.ts";
 import { editStatement, renameRun } from "../bt/writes.ts";
 import { symbolFor } from "../ui/symbols.ts";
 import * as calls from "./calls.ts";
+import { useCallKept } from "./kept.ts";
 
 const ENDED = ["failed", "killed", "lost"];
 
@@ -167,7 +168,7 @@ function EpochFact({ run, progress }: { run: any; progress: any }) {
 // config goes in the tooltip, not inline, so a wide sweep doesn't crowd the facts line.
 function Best({ path }: { path: string }) {
   const main = usePrefs(path).main;
-  const best = useCall(calls.summary(path, main)).data?.summary;
+  const best = useCallKept(calls.summary(path, main), path).data?.summary;
   if (!best) return null;
   const config = Object.entries(best.config ?? {}).map(([k, v]) => `${label(k)} ${value(v)}`).join(", ");
   const isRun = isRunId(path.split("/").pop() ?? "");

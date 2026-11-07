@@ -8,22 +8,28 @@ from beamtime.views.defaults import lower_is_better
 from beamtime.views.model import yaml_walk
 
 
-def pinned_metrics(old: dict[str, Any], pins: list[dict[str, Any]]) -> dict[str, Any]:
-    """Write the viewer's pins as a view's ``metrics:``: the pins first, in order, then the
-    entries of other metrics, which only describe how they are shown.
+def apply_pins(data: dict[str, Any], pins: list[dict[str, Any]]) -> None:
+    """Write the viewer's pins into a view's YAML form: ``main_metrics`` in order, and the
+    direction under ``metrics`` where it differs from the name's guess. Other entries stay.
 
-    :param old: The view's ``metrics:`` in YAML form.
-    :param pins: ``{y, higher}`` per main metric, ``[]`` for none.
-    :return: The new ``metrics:``; empty without pins, since its first entry leads the header."""
-    out: dict[str, Any] = {}
+    :param data: The view in YAML form, changed in place.
+    :param pins: ``{y, higher}`` per main metric, ``[]`` for none."""
+    metrics = dict(data.get("metrics") or {})
     for pin in pins:
-        info = dict(old.get(pin["y"]) or {})
+        info = dict(metrics.get(pin["y"]) or {})
         if pin["higher"] == (not lower_is_better(pin["y"])):
             info.pop("higher_is_better", None)
         else:
             info["higher_is_better"] = pin["higher"]
-        out[pin["y"]] = info
-    return {**out, **{y: i for y, i in old.items() if y not in out}} if pins else {}
+        if info:
+            metrics[pin["y"]] = info
+        else:
+            metrics.pop(pin["y"], None)
+    data["main_metrics"] = [pin["y"] for pin in pins]
+    if metrics:
+        data["metrics"] = metrics
+    else:
+        data.pop("metrics", None)
 
 
 def apply_prefs(body: list[dict[str, Any]], prefs: dict[str, Any]) -> list[dict[str, Any]]:

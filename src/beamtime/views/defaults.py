@@ -223,16 +223,16 @@ def curves(metrics: list[str], seeds: str | None, own: bool, main: list[str]) ->
     :param seeds: ``config.seed`` to average over seeds, or ``None``.
     :param own: Whether to show only the runs directly in the group.
     :param main: The pinned metrics, in order.
-    :return: The sections: ``Main`` (the pinned metrics, open, and only there), evaluation,
-        training, the other prefixes, ``Other`` (unprefixed metrics and prefixes of one metric),
-        then ``System``; the first two of those open. A single section without pins is a plain
-        grid. Clocks (``epoch``) get no chart: they are an x axis and a progress fact."""
+    :return: The sections: ``Main`` (the pinned metrics again, open; their charts there are
+        ``pin-<metric>``), evaluation, training, the other prefixes, ``Other`` (unprefixed metrics
+        and prefixes of one metric), then ``System``; the first two of those open. A single
+        section without pins is a plain grid. Clocks (``epoch``) get no chart: they are an x
+        axis and a progress fact."""
     metrics = [k for k in metrics if k not in CLOCKS]
     pinned = [k for k in main if k in metrics]
-    rest = [k for k in metrics if k not in pinned]
-    sizes = Counter(prefix(k) for k in rest)
+    sizes = Counter(prefix(k) for k in metrics)
     groups: dict[str, list[str]] = {}
-    for k in rest:
+    for k in metrics:
         name = prefix(k) if sizes[prefix(k)] > 1 or prefix(k) == SYSTEM else ""
         groups.setdefault(name, []).append(k)
     order = sorted(groups, key=section_rank)
@@ -240,18 +240,24 @@ def curves(metrics: list[str], seeds: str | None, own: bool, main: list[str]) ->
     if len(order) == 1 and not pinned:
         by = None if order == [SYSTEM] else seeds
         return [m.Grid(id="curves", children=[line(k, by, own) for k in metrics])]
-    # Main's id has no ``charts-`` prefix, which no metric prefix can collide with.
-    sections = [("Main", "main", pinned, True, seeds)] if pinned else []
+    # Main's ids start with neither ``charts-`` nor ``line-``, so no metric or prefix can collide.
+    sections = []
+    if pinned:
+        charts = [
+            line(k, seeds if prefix(k) != SYSTEM else None, own, f"pin-{m.slug(k)}") for k in pinned
+        ]
+        sections.append(("Main", "main", charts, True))
     for i, name in enumerate(order):
         title = {"": "Other", SYSTEM: "System"}.get(name, name)
         by = None if name == SYSTEM else seeds
+        charts = [line(k, by, own) for k in groups[name]]
         opened = i < OPEN_SECTIONS and name != SYSTEM
-        sections.append((title, f"charts-{m.slug(name or 'unprefixed')}", groups[name], opened, by))
+        sections.append((title, f"charts-{m.slug(name or 'unprefixed')}", charts, opened))
     out: list[m.Block] = []
-    for title, id_, members, opened, by in sections:
-        grid = m.Grid(id=f"{id_}-curves", children=[line(k, by, own) for k in members])
+    for title, id_, charts, opened in sections:
+        grid = m.Grid(id=f"{id_}-curves", children=charts)
         out.append(
-            m.Section(id=id_, title=f"{title} ({len(members)})", open=opened, children=[grid])
+            m.Section(id=id_, title=f"{title} ({len(charts)})", open=opened, children=[grid])
         )
     return out
 
@@ -268,14 +274,17 @@ def section_rank(name: str) -> int:
     return 0 if name in EVAL_PREFIXES else 1 if name in TRAIN_PREFIXES else 2
 
 
-def line(metric: str, seeds: str | None, own: bool) -> m.Line:
+def line(metric: str, seeds: str | None, own: bool, id_: str | None = None) -> m.Line:
     """Make the line block of one metric.
 
     :param metric: The metric key.
     :param seeds: ``config.seed`` to average over seeds, or ``None`` for one curve per run.
     :param own: Whether to show only the runs directly in the group.
+    :param id_: The block's id; ``line-<metric>`` without.
     :return: The block."""
-    return m.Line(id=f"line-{m.slug(metric)}", y=metric, seeds=seeds, depth=1 if own else "all")
+    return m.Line(
+        id=id_ or f"line-{m.slug(metric)}", y=metric, seeds=seeds, depth=1 if own else "all"
+    )
 
 
 def ordered_metrics(keys: dict[str, Any]) -> list[str]:
