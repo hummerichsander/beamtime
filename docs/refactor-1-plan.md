@@ -1,6 +1,6 @@
 # Refactor 1: plan after the first human end-to-end tests
 
-Status: **in progress.** Done on branch `refactor-1`: F1 `88fc5b5`, A1 `e2a5cb6`, A2 `dada516`, A3 `6899788`, A4 `3942900`, A5 `0297ea2`, A6 `c0aa283`, A7 `9c286ec`, A8 `bd71c5b`, A9 `4d03f19`, D1 `b7244e1`, D2 `f9f1f40`, D3 `3761001`, D4 `18adc31` (D1 to D3 reviewed in `dc72616` and `33c4fff`), E1 `d9130b0`, E2 `6583a26`, E3 `2ae9cf5`, E4 `c46417e` (E1 to E3 reviewed in `a513e2b` and `5d7a83a`), B1 `0d11c23`, B2 `280f17f`, B3 `ac3ce44`.
+Status: **in progress.** Done on branch `refactor-1`: F1 `88fc5b5`, A1 `e2a5cb6`, A2 `dada516`, A3 `6899788`, A4 `3942900`, A5 `0297ea2`, A6 `c0aa283`, A7 `9c286ec`, A8 `bd71c5b`, A9 `4d03f19`, D1 `b7244e1`, D2 `f9f1f40`, D3 `3761001`, D4 `18adc31` (D1 to D3 reviewed in `dc72616` and `33c4fff`), E1 `d9130b0`, E2 `6583a26`, E3 `2ae9cf5`, E4 `c46417e` (E1 to E3 reviewed in `a513e2b` and `5d7a83a`), B1 `0d11c23`, B2 `280f17f`, B3 `ac3ce44`, B4 `310da29`.
 Proposed 2026-11-04, based on the findings in `todo`, the code at `8165346`, the real log
 dir at `au002a:/remote/gpu04/hummerich/projects/split-flows-public/beamtime` (78 runs, 12 groups, 10
 custom code files) and 65 agent sessions on that project. Breaking changes are allowed where they make
@@ -555,7 +555,7 @@ Files: `web/src/bt/uplot.ts`, `web/src/bt/curves.ts`, `web/src/bt/plot.ts`, `web
 Done: browser test: every chart kind on the `realistic` fixture has both axis labels, with labels in both
 themes; hover over `_elapsed` lists all runs.
 
-### B4. Chart settings panel (sonnet)
+### B4. Chart settings panel (sonnet) — **done `310da29`**
 
 Files: `web/src/ui/primitives.ts`, `web/src/blocks/line-settings.ts`, `web/src/ui/multiselect.ts`,
 `web/src/styles/blocks.css`, `web/src/bt/prefs.ts`, `design/components/Chart.md`.
