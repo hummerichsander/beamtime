@@ -196,25 +196,22 @@ class FakeColumns:
         return self.columns.get(key)
 
 
-def test_x_values_interpolate_a_monotone_metric() -> None:
-    """A stair-logged epoch is a ramp between its change points and after the last one."""
+def test_x_values_keep_a_stair_a_stair() -> None:
+    """A stair-logged epoch reads as its logged value, also after the last change."""
     epoch = FakeColumn([0, 50, 100, 150, 200], [0.0, 0.0, 1.0, 1.0, 2.0])
     cols = FakeColumns(epoch=epoch)
-    assert x_values(cols, "epoch", [0, 50, 75, 100, 150, 200, 250, 300]) == [
-        0.0,
-        0.5,
-        0.75,
-        1.0,
-        1.5,
-        2.0,
-        2.5,
-        3.0,
-    ]
-    assert x_values(cols, "epoch", [-1]) == [None]
+    assert x_values(cols, "epoch", [0, 75, 100, 150, 250, -1]) == [0.0, 0.0, 1.0, 1.0, 2.0, None]
 
 
-def test_x_values_hold_a_metric_with_one_change_point() -> None:
-    """A constant has no slope to follow."""
+def test_x_values_never_pass_a_logged_value() -> None:
+    """A warmup that plateaus stays at the plateau."""
+    steps = list(range(0, 2000, 10))
+    cols = FakeColumns(lr=FakeColumn(steps, [min(s, 100) * 1e-5 for s in steps]))
+    assert x_values(cols, "lr", [50, 100, 1990, 5000]) == [5e-4, 1e-3, 1e-3, 1e-3]
+
+
+def test_x_values_hold_a_constant() -> None:
+    """A constant holds its value; before its first point x is unknown."""
     cols = FakeColumns(c=FakeColumn([10, 20], [4.0, 4.0]))
     assert x_values(cols, "c", [5, 10, 15, 99]) == [None, 4.0, 4.0, 4.0]
 

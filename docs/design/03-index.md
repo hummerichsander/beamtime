@@ -317,11 +317,12 @@ series:
 - Each curve comes back either **raw** (when it has at most `points` points in the window) or
   **downsampled** as min, max and last per bucket, with the bucket edges. The answer always says
   which.
-- A metric as `x` (`read.x_values`) that never decreases is a ramp: linear in the step between the steps
-  where its value changes, so `epoch` at step 1750 of 100-step epochs from 1700 is 17.5, and past the last
-  change on the slope of the last segment; with a single change it holds that value. Any other metric
-  pairs each point with its most recent value at or before the step. Points before the axis' first value
-  are dropped, and each curve says whether its `x` is `monotone`.
+- A metric as `x` (`read.x_values`) pairs each point with that metric's most recent value at or before
+  the same step (none where it isn't finite), so x is always a value the run logged and a stair-logged
+  `epoch` stays a stair.
+  Interpolating a metric that never decreases was tried and dropped: it can't tell a stair from a
+  plateau, and continued a learning-rate warmup far past any logged value. Points before the axis'
+  first value are dropped, and each curve says whether its `x` is `monotone`.
 - With `by: [fields]`, the runs sharing the fields' values come back as one aggregated curve per
   bucket: mean, a band (`band: minmax | std | stderr | none`) and the number of contributing runs.
   `seeds: config.seed` is the shorthand for aggregating by the varying config, apart from the seed.

@@ -517,12 +517,8 @@ Files: `query/kinds.py`, `query/read.py`, `tests/query/test_series.py`, `docs/de
 
 1. `read.x_values(cols, x, steps) -> list[float | None]`, replacing `map_x`:
    - `_t` and `_elapsed` as today (E1 later removes attempt gaps from `_elapsed`);
-   - a metric: if non-decreasing, **interpolate linearly between its change points**, so `epoch` at step
-     1750 of a 100-step epoch from 1700 is `17.5` rather than a stair; if it isn't monotone, the raw value
-     at or before the step. **After the last change point**, extend with the slope of the last segment (the final
-     epoch of a stair-logged run is not a stair either); with fewer than two change points, hold the value. Before
-     the first logged point x is `None`. A constant metric is monotone (non-decreasing), with one x value;
-     the monotone check runs on the resulting x values.
+   - a metric: the raw value at or before the step; before the first logged point x is `None`. (Shipped first
+     with interpolation between change points of a non-decreasing metric; removed after review, decision 9.)
 2. `run_curve`: drop points with `x is None` (today `align` gets `null` in its sorted x). Add
    `monotone: bool` to the curve.
 3. `grouped_curve`: for `x != "_step"`, get `x_values` per run, drop `None`, and raise a `QueryError` for
@@ -534,7 +530,7 @@ Files: `query/kinds.py`, `query/read.py`, `tests/query/test_series.py`, `docs/de
 4. Pure Python, `math.fsum` through `spread`, as `read.py` promises.
 
 Tests: two runs with known times: `_elapsed` means equal hand-computed values and x stays in seconds; the
-`epoch` axis gives fractions, also after the last change point; non-monotone x raises for groups and returns
+`epoch` axis stays the logged stair; non-monotone x raises for groups and returns
 `monotone: false` per run; a constant x and single-point runs give one bucket; `x == hi` gives `points` buckets, not one more.
 
 ### B3. Axis labels, x-axis choices, hover (sonnet)
@@ -641,12 +637,12 @@ survives "Save as view" and reload. An old `beamtime.yaml` with the keys loads w
    - run header fact: `epoch 123 of 500 · 42 % through · about 2 h left` (ETA from `steps_per_s`);
    - a thin determinate bar in the run row of tables, for running runs only;
    - a `progress` column kind.
-5. Charts keep `step` as default. `epoch` is the second option in the x picker (B4) and, with B2, gives a
-   continuous axis.
+5. Charts keep `step` as default. `epoch` is the second option in the x picker (B4); it reads as the logged
+   stair (decision 9).
 6. Runs without an `epoch` metric show nothing new.
 
-Done: the `realistic` fixture has no epoch chart, shows the right fraction, and `x: epoch` draws continuous
-curves. Views that chart `epoch` explicitly still work.
+Done: the `realistic` fixture has no epoch chart, shows the right fraction, and `x: epoch` draws the logged
+stair. Views that chart `epoch` explicitly still work.
 
 ### B7. One kind of chart, grouped by prefix (sonnet + review)
 
@@ -1202,6 +1198,10 @@ Executors follow these unless told otherwise.
 8. **`view_render` gets no `shots` option** (A9). `view_validate` already renders once without an image and returns the findings
    plus the static checks, so the option would be a second, weaker way to do the same. If you want it anyway, it is 5 lines in
    `ops/views.py:render` and `ViewRenderParams`.
+9. **A metric as x is never interpolated** (your decision; review of B2). x is the logged value at or before the step,
+   so a stair-logged `epoch` stays a stair. B2 first drew a non-decreasing metric as a ramp between its change points,
+   continued on the last slope; that can't tell a stair from a plateau and put a learning-rate warmup at 20 times
+   any value the run logged.
 
 ## Not verified
 

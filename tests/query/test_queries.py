@@ -451,12 +451,12 @@ def clocked(tmp_path_factory: pytest.TempPathFactory):
     index.close()
 
 
-def test_series_epoch_axis_is_interpolated_and_extended(clocked) -> None:
-    """An epoch logged as a stair is a ramp: fractions between change points and after the last."""
+def test_series_epoch_axis_is_the_logged_stair(clocked) -> None:
+    """An epoch logged as a stair stays one, also past its last point."""
     curves = clocked({"series": {"from": "x", "y": ["m"], "x": "epoch", "points": 100}})["curves"]
     a, b = sorted(curves, key=lambda c: -len(c["x"]))
-    assert a["x"] == [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5] and a["monotone"]
-    assert b["x"] == [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0] and b["monotone"]
+    assert a["x"] == [0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0] and a["monotone"]
+    assert b["x"] == [0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0] and b["monotone"]
 
 
 def test_series_elapsed_axis_stays_in_seconds(clocked) -> None:

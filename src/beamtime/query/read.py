@@ -267,44 +267,22 @@ def elapsed_values(
 def x_values(cols: "Columns", x: str, steps: Sequence[int]) -> list[float | None]:
     """Map steps to another x axis: wall time, active elapsed time or a metric's value.
 
-    A metric that never decreases is a ramp: linear between the steps where its value changes,
-    and beyond the last change on the slope of the last segment. Any other metric is read as its
-    most recent value at or before the step.
+    A metric is read as its most recent value at or before the step, so x is only ever a value
+    the run logged.
 
     :param cols: The run's columns.
     :param x: ``_t``, ``_elapsed`` or a metric key.
     :param steps: The steps to map.
-    :return: The x values; ``None`` before the axis' first point or if the run lacks it."""
+    :return: The x values; ``None`` before the axis' first point, where it is not finite, or if
+        the run lacks it."""
     col = cols.get(TIME_KEY if x in (TIME_KEY, "_elapsed") else x)
     if col is None:
         return [None] * len(steps)
     if x == "_elapsed":
         gaps = [(a[1], a[2]) for a in cols.manifest.attempts if len(a) > 2]
         return elapsed_values(col.steps, col.values, steps, gaps)
-    if x == TIME_KEY:
-        return [value_at(col.steps, col.values, s) for s in steps]
-    at, vs = [], []
-    for s, v in zip(col.steps, col.values, strict=True):
-        if not math.isfinite(v):
-            continue
-        if at and s == at[-1]:
-            vs[-1] = v
-        elif not vs or v != vs[-1]:
-            at.append(s)
-            vs.append(v)
-    if not is_monotone(vs):
-        raw = (value_at(col.steps, col.values, s) for s in steps)
-        return [v if v is None or math.isfinite(v) else None for v in raw]
-    out: list[float | None] = []
-    for s in steps:
-        if (i := bisect_right(at, s) - 1) < 0:
-            out.append(None)
-        elif s == at[i] or len(at) == 1:
-            out.append(vs[i])
-        else:
-            j = min(i, len(at) - 2)
-            out.append(vs[j] + (vs[j + 1] - vs[j]) * (s - at[j]) / (at[j + 1] - at[j]))
-    return out
+    raw = (value_at(col.steps, col.values, s) for s in steps)
+    return [v if v is None or math.isfinite(v) else None for v in raw]
 
 
 def is_monotone(values: Sequence[float]) -> bool:
