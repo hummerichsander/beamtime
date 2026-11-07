@@ -196,7 +196,7 @@ starts a fresh session. Chunks tagged **+ review** get a review session afterwar
 
 ### C1
 
-- **Touches:** `web/src/kit/index.ts` (`makeKit` 46, `version` 78, `ui` 88–100, `theme` 152–175), `web/src/kit/protocol.ts`, `web/src/blocks/custom.ts`, `web/src/bt/frame.ts` (B1), `web/src/ui/symbols.ts` (`symbolFor` 53), `web/src/ui/icons.ts` (`Sym` 36), `web/src/ui/primitives.ts` (`Tag` 24), `guide/parts/kit.md`.
+- **Touches:** `web/src/kit/index.ts` (`makeKit` 46, `version` 78, `ui` 88–100, `theme` 152–175), `web/src/kit/protocol.ts`, `web/src/blocks/custom.ts`, `web/src/bt/frame.ts` (B1), `web/src/ui/symbols.ts` (`symbolFor` 53), `web/src/ui/icons.ts` (`Sym` 36), `web/src/ui/primitives.ts` (`Tag` 24), `web/src/bt/theme.ts` (`stopsOf`, read only), `guide/parts/kit.md`.
 - **Read:** `docs/design/05-views.md` § The `bt` kit API (l. 315), § Sandbox (l. 362), § Charts (l. 381).
 - **Done check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/views tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`.
 - **Note:** + review.
@@ -703,6 +703,12 @@ The tiers, documented in this order in the guide:
 Files: `web/src/kit/index.ts`, `web/src/kit/protocol.ts`, `web/src/blocks/custom.ts`. When a frame uses
 `Figure`, it sends `{ type: "chrome", own: true }`, and `Custom` hides its own head so there aren't two.
 
+`Figure` finishes B5 item 10, which B5 couldn't do before `Figure` existed (B5 only changed
+`bt.theme.scale(kind, name?)`). `"colormap"` in `settings` offers the Colors group's Colormap row, and `draw` gets
+`prefs.colormap` (chart prefs carry `colormap?: string | null` and `color?: string | null` since B5). Sample it with
+`stopsOf(name)` from `web/src/bt/theme.ts`; the samples reach the frame through `Init.colormaps`. Test it: changing
+a `Figure`'s colormap redraws that figure only.
+
 Also export Beamtime's visual vocabulary, so that custom blocks reuse it instead of retyping it:
 
 - `bt.ui.Sym({ kind, value, word? })`: the app's symbol for a value, through `ui/symbols.ts:symbolFor`, for every
@@ -1153,6 +1159,9 @@ Each tool gets its entry in `guide/parts/analysis.md`, a test on `synth`, and a 
 - `scripts/release.py`, then upgrade on the cluster. **Check the real data first**: all 12 groups and the 10 custom
   blocks render on 0.2.0 from a read-only `pull`.
 - Port the remote's `curves.js`, `scorecard.js` and `predictions.js` to built-ins as new view versions, after asking.
+- CHANGELOG: rewrite the 0.1.1 "Colormaps" entry's present-tense claim in the 0.2.0 notes: the `colormap` and
+  `colormap_diverging` settings are gone (B5); a colormap is chosen per chart, or for the page with "Apply to all
+  charts", and an old settings key loads with one problem line.
 - CHANGELOG: Lightning's SLURM auto-requeue never worked alongside `BeamtimeLogger` before 0.2.0 (E1); Lightning
   requeues now record no `requeue_requested` event.
 - Generate the favicon's colours (from the A5–A9 review): `scripts/build-tokens` writes the two accent fills of
