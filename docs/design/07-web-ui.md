@@ -383,10 +383,10 @@ Line charts behave like W&B's panels:
   - axes: linear, log or symlog (linear near zero, logarithmic beyond; for values that cross zero),
     a fixed y range, an outlier-robust auto range (1st to 99th percentile), the legend.
 - **Hiding and adding charts**: every chart has the same × ("Hide this chart"), per viewer; the grid
-  or section it sat in says "2 hidden · show". After the page's last chart, "Add a chart" lists every
-  metric the whole page shows no chart of (metrics an authored view leaves out, hidden charts: picking
-  one brings its chart back) and puts new charts in a grid of their own. Sections remember open or
-  closed per viewer and page.
+  or section it sat in says "2 hidden · show" (a chart outside a grid leaves that link in its place).
+  After the page's last chart, "Add a chart" lists every metric the whole page shows no chart of
+  (metrics an authored view leaves out, hidden charts: picking one brings its chart back) and puts new
+  charts in a grid of their own. Sections remember open or closed per viewer and page.
 - **Tools on hover**: settings, download, expand into a large dialog.
 - **Downloads** never use the viewer's theme: PNG in the light theme on a transparent or a white
   background, CSV of the shown curves, and a vector PDF drawn by the server with matplotlib, entirely
@@ -456,8 +456,8 @@ Decided while building the shell (milestone M5):
 - **The built-in default view** is built on the server as a view and compiled to a block tree
   (`{block, id, props, data, children}`, where `data` names API calls) like authored views. A
   group with runs of its own gets one chart per metric, in sections by metric prefix (averaged over
-  `config.seed` beyond eight runs): the proposal's prefix first, then evaluation (`val`, `test`, ...),
-  training, the other prefixes alphabetically, `Other` (unprefixed metrics and prefixes of one metric)
+  `config.seed` beyond eight runs, except the system metrics): the proposal's prefix first, then
+  evaluation (`val`, `test`, ...), training, the other prefixes alphabetically, `Other` (unprefixed metrics and prefixes of one metric)
   and `System` (`sys/*`). Titles carry the count (`validation (5)`); the first two sections are open,
   the rest and `System` closed, and a group with a single section is a plain grid. Every metric
   appears once; chart ids stay `line-<slug>`, so stored settings survive. Clocks (`epoch` and the

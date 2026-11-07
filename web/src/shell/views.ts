@@ -42,13 +42,16 @@ export function ViewBody(props: { path: string; view: any; before?: ComponentChi
   if (props.plain) return html`<div class=${shell}><${ViewCtx.Provider} value=${value}><${Block} node=${root} /><//></div>`;
   // every top-level block sits in its own Section; layouts below it stay inside.
   const blocks = root.block === "section" && !root.props.title ? root.children ?? [] : [root];
+  // "Add a chart" follows the page's last chart, where "Save as view" puts added charts too.
+  const last = blocks.map((b) => chartsOf(b).size > 0).lastIndexOf(true);
   return html`<div class=${shell}>${props.before}
     <${ViewCtx.Provider} value=${value}>
-      ${blocks.map((b) => {
+      ${blocks.map((b, i) => {
         const label = labelOf(b);
-        return html`<${Section} key=${b.id} label=${label}><${LabelCtx.Provider} value=${label}><${Block} node=${b} /><//><//>`;
+        return html`<${Section} key=${b.id} label=${label}><${LabelCtx.Provider} value=${label}><${Block} node=${b} /><//><//>
+          ${i === last ? html`<${AddCharts} root=${root} />` : null}`;
       })}
-      <${AddCharts} root=${root} />
+      ${last === -1 ? html`<${AddCharts} root=${root} />` : null}
     <//>
   </div>`;
 }

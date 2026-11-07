@@ -478,3 +478,12 @@ def test_constant_means_one_value_everywhere(ctx: Context) -> None:
     keys = call("keys", {"from": "realistic/egnn-bench"}, ctx)
     constant = {r[0]: r[3] for r in keys["metrics"]["rows"]}
     assert constant["energy/Aconst_w1"] and not constant["validation/first_eval"]
+
+
+def test_system_charts_are_not_averaged_over_seeds() -> None:
+    """System metrics are per machine; seed averaging applies to the others only."""
+    from beamtime.views.defaults import curves
+
+    out = curves(["val/acc", "val/loss", "sys/cpu"], "config.seed", False, "val/acc")
+    seeds = {c.y: c.seeds for s in out for c in s.children[0].children}
+    assert seeds == {"val/acc": "config.seed", "val/loss": "config.seed", "sys/cpu": None}

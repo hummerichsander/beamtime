@@ -203,13 +203,16 @@ def curves(
         name = prefix(k) if sizes[prefix(k)] > 1 or prefix(k) == SYSTEM else ""
         groups.setdefault(name, []).append(k)
     order = sorted(groups, key=lambda name: section_rank(name, prefix(lead or "")))
+    # system metrics are per machine, never averaged over seeds.
     if len(order) == 1:
-        return [m.Grid(id="curves", children=[line(k, seeds, own) for k in metrics])]
+        by = None if order == [SYSTEM] else seeds
+        return [m.Grid(id="curves", children=[line(k, by, own) for k in metrics])]
     out: list[m.Block] = []
     for i, name in enumerate(order):
         title = {"": "Other", SYSTEM: "System"}.get(name, name)
         id_ = f"charts-{m.slug(name or 'unprefixed')}"
-        grid = m.Grid(id=f"{id_}-curves", children=[line(k, seeds, own) for k in groups[name]])
+        by = None if name == SYSTEM else seeds
+        grid = m.Grid(id=f"{id_}-curves", children=[line(k, by, own) for k in groups[name]])
         opened = i < OPEN_SECTIONS and name != SYSTEM
         section = m.Section(
             id=id_, title=f"{title} ({len(groups[name])})", open=opened, children=[grid]

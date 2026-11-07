@@ -1,8 +1,10 @@
 // The block registry: block names to components, with the block's node in context.
 
 import { html } from "htm/preact";
+import { useContext } from "preact/hooks";
 
-import type { Node } from "../bt/index.ts";
+import { ViewCtx, type Node } from "../bt/index.ts";
+import { showCharts, usePrefs } from "../bt/prefs.ts";
 import { Box, type Registry } from "./box.ts";
 import { Groups, MarkdownBlock, Memory, NoteBlock, Notes, Output, Proposal } from "./context.ts";
 import { ConfigBlock } from "./config.ts";
@@ -41,6 +43,16 @@ const BLOCKS: Registry = {
   markdown: MarkdownBlock,
 };
 
+const CHARTS = new Set(["line", "scatter", "bar", "histogram"]);
+
 export function Block({ node }: { node: Node }) {
-  return html`<${Box} node=${node} blocks=${BLOCKS} />`;
+  return CHARTS.has(node.block) ? html`<${Hideable} node=${node} />` : html`<${Box} node=${node} blocks=${BLOCKS} />`;
+}
+
+// a chart the viewer hid outside a grid (grids filter their own): a link brings it back.
+function Hideable({ node }: { node: Node }) {
+  const view = useContext(ViewCtx);
+  const prefs = usePrefs(view.path);
+  if (!prefs.removed.includes(node.id)) return html`<${Box} node=${node} blocks=${BLOCKS} />`;
+  return html`<div class="grid-note"><button type="button" class="link small" onClick=${() => showCharts(view.path, [node.id])}>1 hidden · show</button></div>`;
 }

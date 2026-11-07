@@ -594,6 +594,8 @@ def test_the_default_view_groups_charts_by_prefix_and_a_hidden_chart_comes_back(
     frame.locator("button[aria-label='Hide this chart']").click()
     page.locator(".save-view").click()
     page.locator(".save-actions button[type=submit]").click()
+    # the form closes once the save has landed; the chart count holds before it already.
+    page.wait_for_selector(".save-actions", state="detached")
     page.wait_for_function(f"document.querySelectorAll('.chart-frame').length == {before - 1}")
     page.reload()
     page.wait_for_selector(".chart canvas")
@@ -604,3 +606,49 @@ def test_the_default_view_groups_charts_by_prefix_and_a_hidden_chart_comes_back(
     page.reload()
     page.wait_for_selector(".chart canvas")
     assert names()[1] == "Open energy (3)"
+
+
+def test_hiding_works_outside_grids_and_add_a_chart_follows_the_charts(
+    server: str, page, project: Path
+) -> None:
+    """The × hides a chart that sits directly in the body or a section, not only in a grid, and
+    "Add a chart" comes after the page's last chart, before the run table."""
+    import yaml
+
+    from beamtime.ops import call
+    from beamtime.ops.context import Context
+
+    group = "realistic/egnn-bench"
+    ctx = Context.make()
+    call("view new", {"group": group, "name": "loose"}, ctx)
+    draft = project / ".beamtime" / "drafts" / "loose"
+    view = {
+        "schema": 1,
+        "title": "loose charts",
+        "finding": "x",
+        "body": [
+            {"line": {"id": "alone", "y": "validation/loss"}},
+            {"section": {"id": "more", "title": "More", "children": [{"line": {"id": "inner", "y": "training/loss"}}]}},
+            {"table": {"id": "runs", "columns": ["run.name"]}},
+        ],
+    }
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    call("view save", {"draft": "loose"}, ctx)
+
+    page.goto(f"{server.split('/f/local')[0]}/f/local/{group}?token={server.split('token=')[1]}")
+    page.wait_for_selector(".chart canvas")
+    page.wait_for_selector(".add-chart")
+    before_table = page.evaluate(
+        "() => !!(document.querySelector('.add-chart').compareDocumentPosition("
+        "document.querySelector('table.runs')) & Node.DOCUMENT_POSITION_FOLLOWING)"
+    )
+    assert before_table, "Add a chart sits after the run table"
+    for title in ("validation/loss", "training/loss"):
+        frame = page.locator(f".chart-frame:has(.chart-title:text-is('{title}'))")
+        frame.hover()
+        frame.locator("button[aria-label='Hide this chart']").click()
+        page.wait_for_function(
+            f"![...document.querySelectorAll('.chart-title')].some(e => e.innerText === '{title}')"
+        )
+    page.locator("button:has-text('1 hidden · show')").first.click()
+    page.wait_for_selector(".chart-title:text-is('validation/loss')")
