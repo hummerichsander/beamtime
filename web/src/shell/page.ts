@@ -4,6 +4,7 @@ import { html } from "htm/preact";
 import { useEffect } from "preact/hooks";
 
 import { fetchCall, useCall } from "../api.ts";
+import { usePrefs } from "../bt/prefs.ts";
 import { Notice } from "../blocks/common.ts";
 import { groupUrl, isRunId, navigate, restoreScroll } from "../router.ts";
 import { useStore } from "../state.ts";
@@ -28,7 +29,8 @@ export function GroupPage(props: { path: string; version?: string | null; draft?
 }
 
 function ViewPage(props: { path: string; version: string | null; draft: string | null }) {
-  const view = useCall(calls.view(props.path, props.version, props.draft));
+  const main = usePrefs(props.path).main;
+  const view = useCall(calls.view(props.path, props.version, props.draft, main));
   useEffect(() => {
     if (view.status === "ready") requestAnimationFrame(restoreScroll);
   }, [view.status === "ready"]);

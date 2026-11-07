@@ -6,6 +6,7 @@ import { useContext, useEffect, useRef, useState } from "preact/hooks";
 import { type Call, type Result, useCall } from "../api.ts";
 import { recording } from "../router.ts";
 import { Store, stored, store, useStore } from "../state.ts";
+import type { Pin } from "./prefs.ts";
 import { assignColors, paint, palette, type Mode, type Pair, type Theme } from "./theme.ts";
 
 export type Node = {
@@ -67,8 +68,10 @@ export type ViewContext = {
   metrics: Record<string, MetricInfo>;
   // the metrics of each chart of the page, by chart id, hidden or not.
   charted: Map<string, string[]>;
+  // the main metrics: the viewer's pins, else the view's.
+  pins: Pin[];
 };
-export const ViewCtx = createContext<ViewContext>({ path: ".", colors: new Map(), names: new Map(), metrics: {}, charted: new Map() });
+export const ViewCtx = createContext<ViewContext>({ path: ".", colors: new Map(), names: new Map(), metrics: {}, charted: new Map(), pins: [] });
 export const BlockCtx = createContext<Node | null>(null);
 
 export function useData<T = any>(name: string): Result<T> {

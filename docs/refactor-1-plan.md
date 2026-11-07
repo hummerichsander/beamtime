@@ -547,7 +547,7 @@ So there are no two kinds of chart to tell apart.
 Done: `realistic` shows `validation`, `energy`, `Other`, `System` (its one `training/*` metric is in Other; decision 11);
 a hidden chart comes back; "Save as view" keeps the choice; a browser test covers it.
 
-### B8. Main metrics are pinned, not guessed (sonnet + review)
+### B8. Main metrics are pinned, not guessed (sonnet + review) — **done**
 
 - **Touches:** `src/beamtime/views/defaults.py` (`group_body` 39, `run_body` 91, `summary` 117, `curves` 186, `section_rank` 224, `leading` 259 and `main_metric` 271 removed), `src/beamtime/serve/api.py` (`view` 237, `summary_of` 308), `src/beamtime/views/store.py` (`lead` 254), `src/beamtime/views/prefs.py` (`apply_prefs` 10), `src/beamtime/guide/__init__.py` (`values_of` 152), `web/src/bt/prefs.ts` (`ViewPrefs`), `web/src/shell/calls.ts` (`view`, `summary`), `web/src/shell/header.ts` (`Best` 167), `web/src/blocks/line.ts` (the chart menu), `web/src/shell/views.ts` (`SaveView`); `design/components/Chart.md`, `design/gallery.html`; `docs/design/07-web-ui.md` § Group page (the facts), § Charts, the default-view paragraph; `docs/design/05-views.md` on `metrics:`.
 - **Read:** decision 10; `docs/design/07-web-ui.md` § Charts and the header's facts; `docs/design/04-remotes.md` on the `view` call through `serve --stdio`.

@@ -15,6 +15,7 @@ from beamtime.views.defaults import default_view
 from beamtime.views.prefs import apply_prefs
 
 SWEEP = "scaling/lr-sweep"
+BENCH = "realistic/egnn-bench"
 
 
 def parse(text: str) -> m.View:
@@ -98,7 +99,7 @@ body:
 def test_config_block_in_the_default_views(ctx: Context, roles: dict[str, str]) -> None:
     """A group shows its varying config after the curves; a run shows its config, closed."""
     blocks = [m.block_of(b) for b in default_view(ctx, SWEEP).body]
-    assert blocks.index("grid") < blocks.index("config") < blocks.index("table")
+    assert blocks.index("section") < blocks.index("config") < blocks.index("table")
     path = f"scaling/long-context/{roles['running']}"
     run = compile_view(default_view(ctx, path), path=path)
     config = next(c for c in run["children"] if c["block"] == "config")
@@ -127,7 +128,8 @@ def test_default_view_round_trips_with_prefs(ctx: Context) -> None:
     assert props["line-val-acc"].items() >= wanted.items()
     # a shown metric isn't added twice; a new one goes to a grid of added charts after the curves.
     assert [p for p in props if p.startswith("added-")] == ["added-x-new"]
-    assert folded[1]["grid"]["id"] == "added" and "added-x-new" in str(folded[1]["grid"])
+    added = next(n["grid"] for n in folded if n.get("grid", {}).get("id") == "added")
+    assert "added-x-new" in str(added)
     assert "seeds" not in props["line-val-acc"]
     assert props["line-train-loss"]["smooth"] == 0.5
     # the view-wide "each run" removes the default's seed averaging.
@@ -409,7 +411,7 @@ def test_curves_sit_in_sections_by_prefix() -> None:
     from beamtime.views.defaults import curves
 
     metrics = ["val/acc", "val/loss", "train/loss", "train/lr", "lr", "sys/cpu", "energy/a", "energy/b"]
-    out = curves(metrics, None, False, "val/acc")
+    out = curves(metrics, None, False, [])
     assert [(s.title, s.open) for s in out] == [
         ("val (2)", True), ("train (2)", True), ("energy (2)", False),
         ("Other (1)", False), ("System (1)", False),
@@ -418,14 +420,18 @@ def test_curves_sit_in_sections_by_prefix() -> None:
     assert sorted(charts) == sorted(metrics) and out[0].children[0].children[0].id == "line-val-acc"
 
 
-def test_the_lead_prefix_comes_first_and_one_prefix_is_a_plain_grid() -> None:
-    """The proposal's prefix leads; prefixes of one metric go to Other; one group has no section."""
+def test_pins_make_the_main_section_and_one_prefix_is_a_plain_grid() -> None:
+    """Pinned metrics sit in an open Main section only; prefixes of one metric go to Other."""
     from beamtime.views.defaults import curves
 
     metrics = ["val/acc", "train/loss", "train/lr", "energy/e", "energy/m", "x/one"]
-    out = curves(metrics, None, False, "energy/e")
-    assert [s.title for s in out] == ["energy (2)", "train (2)", "Other (2)"]
-    (grid,) = curves(["loss", "acc", "epoch"], None, False)
+    out = curves(metrics, None, False, ["energy/e", "val/acc"])
+    assert [(s.title, s.open) for s in out] == [
+        ("Main (2)", True), ("train (2)", True), ("Other (2)", True),
+    ]  # fmt: skip
+    assert [c.y for c in out[0].children[0].children] == ["energy/e", "val/acc"]
+    assert out[0].children[0].children[0].id == "line-energy-e"
+    (grid,) = curves(["loss", "acc", "epoch"], None, False, [])
     assert isinstance(grid, m.Grid) and [c.y for c in grid.children] == ["loss", "acc"]
 
 
@@ -460,17 +466,88 @@ def test_the_default_view_is_a_view(ctx: Context) -> None:
     assert m.parse(yaml.safe_load(text), source="t").body == view.body
 
 
-def test_a_final_evaluation_can_lead_but_a_curve_of_its_kind_goes_first(ctx: Context) -> None:
-    """A metric logged once per run isn't constant; among evals, a curve still leads it."""
-    from beamtime.views.defaults import main_metric
+def test_main_metrics_are_pinned_never_guessed(ctx: Context) -> None:
+    """The proposal's predicted metric is the default pin; a group without one has none."""
+    from beamtime.views.defaults import pins_of
 
-    columns = ["key", "runs", "last_step", "constant", "points"]
-    rows = [["eval/zero", 4, 100, True, 50], ["test/acc", 4, 100, False, 1],
-            ["train/loss", 4, 100, False, 50]]  # fmt: skip
-    keys = {"metrics": {"columns": columns, "rows": rows}}
-    assert main_metric(ctx, "nowhere", keys) == "test/acc"
-    rows.append(["test/loss", 4, 100, False, 50])
-    assert main_metric(ctx, "nowhere", keys) == "test/loss"
+    assert pins_of(ctx, SWEEP) == [{"y": "val/acc", "higher": True}]
+    assert pins_of(ctx, SWEEP, []) == []
+    given = [{"y": "nope", "higher": True}, {"y": "train/loss", "higher": False}]
+    assert pins_of(ctx, SWEEP, given) == [{"y": "train/loss", "higher": False}]
+    assert pins_of(ctx, BENCH) == []
+
+
+def test_the_default_view_takes_the_pins(ctx: Context) -> None:
+    """Pins make an open Main section, the table's metric columns and its sparkline."""
+    from beamtime.views.defaults import pins_of
+
+    titles = lambda v: [b.title for b in v.body if isinstance(b, m.Section)]  # noqa: E731
+    table = lambda v: next(b for b in v.body if isinstance(b, m.Table))  # noqa: E731
+    bench = default_view(ctx, BENCH)
+    assert not any(t.startswith("Main") for t in titles(bench))
+    assert table(bench).sparkline is None
+    assert not any(c.startswith("metric.") for c in table(bench).columns)
+
+    pins = [{"y": "train/loss", "higher": False}, {"y": "val/acc", "higher": True}]
+    view = default_view(ctx, SWEEP, pins)
+    main = next(b for b in view.body if isinstance(b, m.Section))
+    assert (main.title, main.open) == ("Main (2)", True)
+    assert [c.id for c in main.children[0].children] == ["line-train-loss", "line-val-acc"]
+    charts = [c.y for b in view.body if isinstance(b, m.Section) for c in b.children[0].children]
+    assert sorted(charts) == sorted(set(charts))
+    assert table(view).sparkline == "train/loss"
+    assert table(view).columns[-2:] == ["metric.train/loss.last", "metric.val/acc.last"]
+
+    default = default_view(ctx, SWEEP)
+    assert next(b for b in default.body if isinstance(b, m.Section)).title == "Main (1)"
+    none = default_view(ctx, SWEEP, pins_of(ctx, SWEEP, []))
+    assert not any(t.startswith("Main") for t in titles(none))
+
+
+def test_the_page_answers_with_its_pins(ctx: Context) -> None:
+    """The view answer says which metrics are pinned; the viewer's pins reach the default view."""
+    from beamtime.serve.api import view
+
+    assert view(ctx, SWEEP)["pins"] == [{"y": "val/acc", "higher": True}]
+    assert view(ctx, SWEEP, metrics=[])["pins"] == []
+    assert view(ctx, BENCH)["pins"] == []
+    mine = [{"y": "train/loss", "higher": False}]
+    answer = view(ctx, SWEEP, metrics=mine)
+    assert answer["pins"] == mine
+    assert answer["view"]["children"][0]["props"]["title"] == "Main (1)"
+
+
+def test_the_header_follows_the_pins(ctx: Context) -> None:
+    """No pin, no best; the viewer's first pin leads, else the view's, else the proposal's."""
+    from beamtime.serve.api import summary_of
+
+    assert summary_of(ctx, BENCH)["summary"] is None
+    assert summary_of(ctx, SWEEP, [])["summary"] is None
+    mine = [{"y": "train/loss", "higher": False}, {"y": "val/acc", "higher": True}]
+    best = summary_of(ctx, SWEEP, mine)["summary"]
+    assert (best["metric"], best["stat"]) == ("train/loss", "min")
+    best = summary_of(ctx, BENCH, [{"y": "training/loss", "higher": True}])["summary"]
+    assert (best["metric"], best["stat"]) == ("training/loss", "max")
+
+
+def test_save_as_view_writes_the_pins(ctx: Context) -> None:
+    """Pins become ``metrics:`` in order, the direction only where it differs; null leaves it."""
+    from beamtime.ops.views import save_page
+
+    ui = Context.make(caller="view")
+    pins = [{"y": "train/loss", "higher": False}, {"y": "val/acc", "higher": False}]
+    save_page(ui, SWEEP, {"main": pins}, "T", "F")
+    saved = yaml.safe_load(sorted((ctx.logdir / SWEEP / "view").glob("*.yaml"))[-1].read_text())
+    assert saved["metrics"] == {"train/loss": {}, "val/acc": {"higher_is_better": False}}
+    main = next(n["section"] for n in saved["body"] if n["section"]["id"] == "charts-main")
+    assert main["title"] == "Main (2)"
+
+    save_page(ui, SWEEP, {"main": None}, "T", "F")
+    kept = yaml.safe_load(sorted((ctx.logdir / SWEEP / "view").glob("*.yaml"))[-1].read_text())
+    assert kept["metrics"] == saved["metrics"]
+    save_page(ui, SWEEP, {"main": []}, "T", "F")
+    cleared = yaml.safe_load(sorted((ctx.logdir / SWEEP / "view").glob("*.yaml"))[-1].read_text())
+    assert "metrics" not in cleared
 
 
 def test_constant_means_one_value_everywhere(ctx: Context) -> None:
@@ -484,6 +561,6 @@ def test_system_charts_are_not_averaged_over_seeds() -> None:
     """System metrics are per machine; seed averaging applies to the others only."""
     from beamtime.views.defaults import curves
 
-    out = curves(["val/acc", "val/loss", "sys/cpu"], "config.seed", False, "val/acc")
+    out = curves(["val/acc", "val/loss", "sys/cpu"], "config.seed", False, [])
     seeds = {c.y: c.seeds for s in out for c in s.children[0].children}
     assert seeds == {"val/acc": "config.seed", "val/loss": "config.seed", "sys/cpu": None}

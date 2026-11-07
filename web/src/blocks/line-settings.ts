@@ -11,6 +11,7 @@ import { setChart, setView, type ChartPrefs, type Effective } from "../bt/prefs.
 import { colormaps, type Colormaps } from "../bt/theme.ts";
 import { useStore } from "../state.ts";
 import { MultiSelect } from "../ui/multiselect.ts";
+import { Icon } from "../ui/icons.ts";
 import { Popover } from "../ui/primitives.ts";
 
 export const X_AXES = [
@@ -154,7 +155,14 @@ const FIELDS: Record<Field, (c: Context) => unknown> = {
       onChange=${(e: Event) => set({ legend: (e.target as HTMLInputElement).checked })} /> legend</label>`,
 };
 
-export function Settings(props: { node: Node; path: string; prefs: Effective; y: string[]; fields: Field[] }) {
+export function Settings(props: {
+  node: Node;
+  path: string;
+  prefs: Effective;
+  y: string[];
+  fields: Field[];
+  pinning?: { pinned: boolean; toggle: () => void };
+}) {
   const { node, path, prefs } = props;
   const [opened, setOpened] = useState(false);
   const maps = useStore(colormaps);
@@ -177,6 +185,11 @@ export function Settings(props: { node: Node; path: string; prefs: Effective; y:
         return shown.length ? html`<h5>${name}</h5>${shown.map((f) => FIELDS[f](context))}` : null;
       })}
     </div>
+    ${props.pinning
+      ? html`<button type="button" class="link small pin" onClick=${props.pinning.toggle}>
+          <${Icon} name=${props.pinning.pinned ? "pin-off" : "pin"} size=${14} />
+          ${props.pinning.pinned ? "Unpin" : "Pin as main metric"}</button>`
+      : null}
     <button type="button" class="link small reset" onClick=${() => setChart(path, node.id, null)}>Reset this chart</button>
   <//>`;
 }

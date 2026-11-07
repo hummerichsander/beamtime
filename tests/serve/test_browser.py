@@ -608,6 +608,58 @@ def test_the_default_view_groups_charts_by_prefix_and_a_hidden_chart_comes_back(
     assert names()[1] == "Open energy (3)"
 
 
+def test_main_metrics_are_pinned_in_the_ui(server: str, page, project: Path) -> None:
+    """Without a proposal nothing is main; pinning a chart opens Main, sets the best and the
+    sparkline, survives a reload and "Save as view"; a proposal's metric starts pinned and can go."""
+    base = server.split("/f/local")[0]
+    token = server.split("token=")[1]
+    page.goto(f"{base}/f/local/realistic/egnn-bench?token={token}")
+    page.wait_for_selector(".chart canvas")
+    titles = lambda: page.locator("button.view-section-title").evaluate_all(  # noqa: E731
+        "els => els.map(e => e.getAttribute('aria-label') || e.innerText)"
+    )
+    page.wait_for_function("() => document.querySelector('.facts')?.innerText.includes('runs')")
+    assert not any("Main" in t for t in titles())
+    assert "best" not in page.locator(".facts").inner_text()
+    assert page.locator("table.runs td.spark").count() == 0
+
+    page.locator("button.view-section-title[aria-label='Open Other (2)']").click()
+    frame = page.locator(".chart-frame", has=page.locator(".chart-title:text-is('training/loss')"))
+    frame.locator("button[aria-label='Chart settings']").click()
+    frame.locator("button:has-text('Pin as main metric')").click()
+    page.wait_for_function("() => document.querySelector('button.view-section-title')?.getAttribute('aria-label') == 'Close Main (1)'")
+    page.wait_for_function("() => document.querySelector('.facts').innerText.includes('best')")
+    page.wait_for_selector("table.runs td.spark")
+    assert page.locator(".chart-frame button[aria-label='Lower is better']").count() == 1
+
+    page.reload()
+    page.wait_for_selector(".chart canvas")
+    page.wait_for_function("() => document.querySelector('.facts').innerText.includes('best')")
+    assert "Main (1)" in titles()[0]
+
+    page.locator(".chart-frame button[aria-label='Lower is better']").click()
+    page.wait_for_selector(".chart-frame button[aria-label='Higher is better']")
+    page.locator(".chart-frame button[aria-label='Higher is better']").click()
+    page.locator(".save-view").click()
+    page.locator(".save-actions button[type=submit]").click()
+    page.wait_for_selector(".save-actions", state="detached")
+    page.reload()
+    page.wait_for_selector(".chart canvas")
+    assert "Main (1)" in titles()[0]
+    assert page.locator(".save-view").count() == 0
+    saved = sorted((project / "beamtime" / "realistic" / "egnn-bench" / "view").glob("*.yaml"))[-1]
+    assert "training/loss" in saved.read_text().split("body:")[0]
+
+    page.goto(f"{base}/f/local/scaling/lr-sweep?token={token}")
+    page.wait_for_selector(".chart canvas")
+    assert "Main (1)" in titles()[0]
+    frame = page.locator(".chart-frame", has=page.locator(".chart-title:text-is('val/acc')"))
+    frame.locator("button[aria-label='Chart settings']").click()
+    frame.locator("button:has-text('Unpin')").click()
+    page.wait_for_function("() => !document.querySelector('button.view-section-title')?.getAttribute('aria-label')?.includes('Main')")
+    page.wait_for_function("() => !document.querySelector('.facts').innerText.includes('best')")
+
+
 def test_hiding_works_outside_grids_and_add_a_chart_follows_the_charts(
     server: str, page, project: Path
 ) -> None:

@@ -2,16 +2,22 @@
 
 import { type Call, fetchCall, prefetch } from "../api.ts";
 import type { Node } from "../bt/index.ts";
+import { prefsOf, type Pin } from "../bt/prefs.ts";
 import { sourcedRun } from "../router.ts";
 
 // the group tree covers every source; pages of this machine show only this machine.
 export const tree = (): Call => ({ method: "groups", params: { from: ".", everywhere: true }, scope: "." });
-export const view = (path: string, version: string | null = null, draft: string | null = null): Call => ({
+// the viewer's pins go along only when set, so a remote that doesn't know them answers as before.
+export const view = (path: string, version: string | null = null, draft: string | null = null, metrics: Pin[] | null = null): Call => ({
   method: "view",
-  params: { path, ...(version ? { version } : {}), ...(draft ? { draft } : {}) },
+  params: { path, ...(version ? { version } : {}), ...(draft ? { draft } : {}), ...(metrics ? { metrics } : {}) },
   scope: path,
 });
-export const summary = (path: string): Call => ({ method: "summary", params: { path }, scope: path });
+export const summary = (path: string, metrics: Pin[] | null = null): Call => ({
+  method: "summary",
+  params: { path, ...(metrics ? { metrics } : {}) },
+  scope: path,
+});
 export const group = (path: string): Call => ({ method: "groups", params: { from: path, depth: 0 }, scope: path });
 export const check = (path: string): Call => ({ method: "check", params: { group: path }, scope: path });
 export const proposal = (path: string): Call => ({ method: "proposal_show", params: { group: path }, scope: path });
@@ -34,8 +40,9 @@ export const allRuns = (): Call => ({
 // what a group page asks for, fetched while the pointer rests on a link to it: the page's own calls,
 // then, once its view is in, its blocks' calls (charts size theirs to the page, so not those).
 export function prefetchGroup(path: string): void {
-  for (const call of [view(path), group(path), runIds(path), summary(path)]) prefetch(call);
-  fetchCall<{ view?: Node }>(view(path))
+  const main = prefsOf(path).value.main;
+  for (const call of [view(path, null, null, main), group(path), runIds(path), summary(path, main)]) prefetch(call);
+  fetchCall<{ view?: Node }>(view(path, null, null, main))
     .then((answer) => {
       for (const call of blockCalls(answer.view)) prefetch(call);
     })

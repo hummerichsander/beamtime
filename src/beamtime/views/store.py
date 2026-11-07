@@ -154,7 +154,12 @@ def check_name(name: str, *, new: bool = False) -> str:
 
 
 def shown(
-    ctx: Context, path: str, *, version: str | None = None, draft_name: str | None = None
+    ctx: Context,
+    path: str,
+    *,
+    version: str | None = None,
+    draft_name: str | None = None,
+    metrics: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Pick and compile the view a page shows: a draft, a version, its newest, else the default.
 
@@ -162,13 +167,17 @@ def shown(
     :param path: A group below the log dir, or a run's path.
     :param version: A saved version to show instead of the newest.
     :param draft_name: A draft to show, for the renderer.
-    :return: ``{view, source, version, author, user, title, finding, metrics, versions}``."""
+    :param metrics: The viewer's pins ``{y, higher}``; only the default view takes them.
+    :return: ``{view, source, version, author, user, title, finding, metrics, pins, versions}``;
+        ``pins`` are the main metrics the page starts from: the default view's, else the view's
+        ``metrics:``, else the proposal's."""
     from beamtime.format.ids import is_run_id
     from beamtime.views.compile import compile_view, walk_tree
-    from beamtime.views.defaults import default_view, record
+    from beamtime.views.defaults import default_view, lower_is_better, pins_of, record
     from beamtime.views.library import Library
 
     files = saved(ctx, path)
+    pins: list[dict[str, Any]] | None = None
     out: dict[str, Any] = {"source": "default", "version": None, "versions": len(files)}
     library = Library(ctx=ctx, path=path)
     try:
@@ -184,11 +193,13 @@ def shown(
             view = read(file, source=f"{path}/view/{file.name}")
             out |= {"source": "view", "version": file.stem}
         else:
-            view = default_view(ctx, path)
+            pins = pins_of(ctx, path, metrics)
+            view = default_view(ctx, path, pins)
         tree = compile_view(view, path=path, draft=draft_name, library=library)
     except SchemaError as e:
         # a broken version never breaks the page: the default shows, with what is wrong.
-        view = default_view(ctx, path)
+        pins = pins_of(ctx, path, metrics)
+        view = default_view(ctx, path, pins)
         text = f"{e} Showing the default view."
         view.body.insert(0, m.Note(id="invalid-view", kind="warning", text=text))
         tree = compile_view(view, path=path)
@@ -199,6 +210,18 @@ def shown(
         b for b in record(run=is_run_id(path.rsplit("/", 1)[-1])) if m.block_of(b) not in blocks
     ]
     tree["children"] += compile_view(m.View(body=missing), path=path)["children"]
+    if view.metrics:
+        pins = [
+            {
+                "y": y,
+                "higher": not lower_is_better(y)
+                if i.higher_is_better is None
+                else i.higher_is_better,
+            }
+            for y, i in view.metrics.items()
+        ]
+    elif pins is None:
+        pins = pins_of(ctx, path)
     return out | {
         "view": tree,
         "author": view.author,
@@ -206,6 +229,7 @@ def shown(
         "title": view.title,
         "finding": view.finding,
         "metrics": msgspec.to_builtins(view.metrics),
+        "pins": pins,
         "outdated": outdated(view, library),
     }
 

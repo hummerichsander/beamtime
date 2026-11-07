@@ -125,10 +125,11 @@ These qualities are made concrete as budgets and rules, and checked like correct
     `running`, `evaluable`, `concluded`; [research record](09-research-record.md#group-status));
   - the proposal's statement, with a symbol per prediction (effect and interval on hover), the
     plan's progress and the current verdict;
-  - the facts: run counts by status, notes, the best value of the main metric (the view's first
-    entry under `metrics:` in its direction; else the group's proposed metric; else the best-ranked
-    metric that isn't constant, one logged as a single point only after those with a curve), named by its `label` in the view, with the run that reached it,
-    its distinguishing config in a tooltip; and the view's `finding`.
+  - the facts: run counts by status, notes, the best value of the lead main metric (the first of the
+    viewer's pins, the view's first entry under `metrics:`, the proposal's predicted metrics, in its
+    direction; nothing is guessed, so without a pin there is no best), named by its `label` in the
+    view, with the run that reached it, its distinguishing config in a tooltip; and the view's
+    `finding`.
 
   A run's header shows its name and status, steps, duration, how far it is through its epochs
   (`epoch 123 of 500 · 42 % through · about 2 h left`, only for a run that logged `epoch`; the
@@ -214,7 +215,7 @@ Nothing is reloaded when data changes, neither the page nor the view:
    unknown method is conservatively affected by every kind), at most once per second per query.
    `view` reads `status` too, since the default view's shape (an empty group, which metrics get a
    chart) follows run counts and metric keys, not only an authored view file; `summary` reads every
-   kind, since the header's best follows the view's and the proposal's lead metric. A metric tick no
+   kind, since the header's best follows the viewer's pins, the view's and the proposal's lead metric. A metric tick no
    longer refetches the view, notes or memory.
 3. **The page refetches those queries.** Answers come from previews, cards and the index and are small.
 4. **Only the affected blocks re-render.** `bt.useData` re-renders the one component that uses the
@@ -456,14 +457,26 @@ Decided while building the shell (milestone M5):
 - **The built-in default view** is built on the server as a view and compiled to a block tree
   (`{block, id, props, data, children}`, where `data` names API calls) like authored views. A
   group with runs of its own gets one chart per metric, in sections by metric prefix (averaged over
-  `config.seed` beyond eight runs, except the system metrics): the proposal's prefix first, then
+  `config.seed` beyond eight runs, except the system metrics): `Main` (the pinned metrics, below),
   evaluation (`val`, `test`, ...), training, the other prefixes alphabetically, `Other` (unprefixed metrics and prefixes of one metric)
-  and `System` (`sys/*`). Titles carry the count (`validation (5)`); the first two sections are open,
-  the rest and `System` closed, and a group with a single section is a plain grid. Every metric
-  appears once; chart ids stay `line-<slug>`, so stored settings survive. Clocks (`epoch` and the
+  and `System` (`sys/*`). Titles carry the count (`validation (5)`); `Main` is open, so are the first
+  two sections after it, the rest and `System` closed, and a group with a single section and no pins
+  is a plain grid. Every metric appears once; chart ids stay `line-<slug>`, so stored settings survive.
+  **Main metrics are the viewer's choice**, never guessed from names: a chart's settings offer
+  "Pin as main metric" (and "Unpin"), and a pinned chart shows a ↑/↓ button, "Higher is better" /
+  "Lower is better", which starts from the name (`loss`, `err`, ...) and can be turned. Pins
+  are kept per page like the other chart choices; without a choice of the viewer's the proposal's
+  predicted metrics that the page logs are pinned (a run page takes its group's), and unpinning
+  them all leaves none (`null` and `[]` stay apart). Pinned charts move into the open first section
+  `Main (n)` and leave their prefix's section; dragging inside it orders the pins. The first pin
+  is the table's metric column with its sparkline (the others are columns after it) and the header's
+  best. An authored view keeps its layout: pins there set the header's best and, saved, `metrics:`.
+  "Save as view" writes the pins as `metrics:` in order, `higher_is_better` where it differs from the
+  name's guess, and a saved default view keeps its `Main` section; the renderer and exports show the
+  saved view, never a viewer's pins. Clocks (`epoch` and the
   global step) are an x axis and a progress fact, so they get no chart. After the charts: the run
   table (name, status, a progress column when the group logs `epoch`, varying
-  config, the main metric, a sparkline), its memory
+  config, the pinned metrics, a sparkline of the first), its memory
   and its latest notes. A group whose runs all live in subgroups gets its groups and the recent runs
   (with group and start time) instead. A run gets its charts, logged images and text, and its output
   (open when it failed). The header covers the proposal, so there is no proposal block or stat
@@ -480,8 +493,11 @@ Decided while building the shell (milestone M5):
   committed, so installs from git need no Node; CI rebuilds it and fails when it differs. The shell
   is about 41 KB compressed; uPlot (about 25 KB), the Markdown renderer (15 KB) and KaTeX (77 KB,
   woff2 fonts only) are lazy chunks.
-- **API methods for the shell**: besides `meta`, `view` and `watch`, `summary` answers the main
-  metric's best run for the header, apart from the view so both load in parallel.
+- **API methods for the shell**: besides `meta`, `view` and `watch`, `summary` answers the lead main
+  metric's best run for the header, apart from the view so both load in parallel. `view` and
+  `summary` take the viewer's pins as `metrics: [{y, higher}]` (`[]` for none; left out when the
+  viewer has not pinned, so an older remote answers as before); `view` answers the pins it started
+  from as `pins`.
 - **Modern platform features**: the palette, help and expanded charts are `<dialog>`s
   (`closedby="any"` with a fallback for Safari); popover panels use the `popover` attribute and are
   placed from script, since anchor positioning isn't everywhere yet; one small tooltip serves every

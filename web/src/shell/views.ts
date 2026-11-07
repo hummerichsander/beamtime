@@ -29,6 +29,7 @@ export function ViewBody(props: { path: string; view: any; before?: ComponentChi
   const runs = rows(ids.data);
   const colors = useMemo(() => runColors(runs.map((r) => r["run.id"]), theme), [ids.data, theme]);
   const names = useMemo(() => new Map(runs.map((r) => [r["run.id"], r["run.name"] ?? r["run.id"]])), [ids.data]);
+  const prefs = usePrefs(props.path);
   const shell = props.plain ? "view plain" : "sections view";
   if (!props.view) {
     return html`<div class=${shell}>${props.before}
@@ -38,7 +39,7 @@ export function ViewBody(props: { path: string; view: any; before?: ComponentChi
     </div>`;
   }
   const root: Node = props.view.view;
-  const value = { path: props.path, colors, names, metrics: props.view.metrics ?? {}, charted: chartsOf(root) };
+  const value = { path: props.path, colors, names, metrics: props.view.metrics ?? {}, charted: chartsOf(root), pins: prefs.main ?? props.view.pins ?? [] };
   if (props.plain) return html`<div class=${shell}><${ViewCtx.Provider} value=${value}><${Block} node=${root} /><//></div>`;
   // every top-level block sits in its own Section; layouts below it stay inside.
   const blocks = root.block === "section" && !root.props.title ? root.children ?? [] : [root];
@@ -145,10 +146,10 @@ function SaveView(props: { path: string; view: any }) {
     setBusy(true);
     setError(null);
     try {
-      const keep = { charts: prefs.charts, view: prefs.view, added: prefs.added, removed: prefs.removed, order: prefs.order, spans: prefs.spans };
+      const keep = { charts: prefs.charts, view: prefs.view, added: prefs.added, removed: prefs.removed, order: prefs.order, spans: prefs.spans, main: prefs.main };
       await post("save_view", { path: props.path, prefs: keep, title, finding });
       // the saved view now shows what the viewer had set; their own settings would repeat it.
-      update(props.path, () => ({ view: {}, charts: {}, added: [], removed: [], order: {}, spans: {} }));
+      update(props.path, () => ({ view: {}, charts: {}, added: [], removed: [], order: {}, spans: {}, main: null }));
       invalidate((c) => ["view", "view_history", "summary"].includes(c.method) && c.scope === props.path);
       setOpen(false);
     } catch (err) {

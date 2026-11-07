@@ -70,7 +70,13 @@ def dispatch_here(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, 
         case "meta":
             return meta(ctx)
         case "view":
-            return view(ctx, body.get("path", "."), body.get("version"), body.get("draft"))
+            return view(
+                ctx,
+                body.get("path", "."),
+                body.get("version"),
+                body.get("draft"),
+                body.get("metrics"),
+            )
         case "save_view":
             return save_view(
                 ctx,
@@ -105,7 +111,7 @@ def dispatch_here(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, 
 
             return getattr(blocks, method)(ctx, body)
         case "summary":
-            return summary_of(ctx, body.get("path", "."))
+            return summary_of(ctx, body.get("path", "."), body.get("metrics"))
         case _ if (op := BY_TOOL.get(method)) is not None:
             return call(op.name, body, ctx)
         case _:
@@ -235,7 +241,11 @@ def meta(ctx: Context) -> dict[str, Any]:
 
 
 def view(
-    ctx: Context, path: str, version: str | None = None, draft: str | None = None
+    ctx: Context,
+    path: str,
+    version: str | None = None,
+    draft: str | None = None,
+    metrics: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Answer the view of a group or run: its own, else the built-in default.
 
@@ -243,6 +253,7 @@ def view(
     :param path: A group path, or a run id or path.
     :param version: A saved version to show instead of the newest.
     :param draft: A draft to show instead, for the renderer.
+    :param metrics: The viewer's pins ``{y, higher}`` for the default view; ``[]`` is none.
     :return: ``{kind, path, run, view, source, version, ...}`` with the run's path resolved."""
     from beamtime.views.store import shown
 
@@ -252,7 +263,7 @@ def view(
         return {"kind": "view", "path": path, "run": None} | draft_view(ctx, path, draft)
     path, run = page_of(ctx, path)
     return {"kind": "view", "path": path, "run": run} | shown(
-        ctx, path, version=version, draft_name=draft
+        ctx, path, version=version, draft_name=draft, metrics=metrics
     )
 
 
@@ -305,19 +316,27 @@ def save_view(
     return save_page(ctx, page_of(ctx, path)[0], prefs, title, finding)
 
 
-def summary_of(ctx: Context, path: str) -> dict[str, Any]:
-    """Answer the main metric's best run for the header, apart from the view so it loads in
+def summary_of(
+    ctx: Context, path: str, metrics: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    """Answer the lead metric's best run for the header, apart from the view so it loads in
     parallel.
 
     :param ctx: The operation context.
     :param path: A group or run path.
-    :return: ``{kind, path, summary}``; ``summary`` is ``None`` without metrics."""
-    from beamtime.views.defaults import summary
+    :param metrics: The viewer's pins ``{y, higher}``; ``[]`` is none. Without them the view's
+        first ``metrics:`` entry leads, else the proposal's first predicted metric.
+    :return: ``{kind, path, summary}``; ``summary`` is ``None`` without a lead."""
+    from beamtime.views.defaults import pins_of, summary
     from beamtime.views.store import lead
 
     path = path.strip("/") or "."
-    # the header follows the view: its lead metric, in its direction.
-    found = lead(ctx, path) if (ctx.logdir / path).is_dir() else None
+    found = None
+    if metrics is not None:
+        found = (metrics[0]["y"], not metrics[0]["higher"], None) if metrics else None
+    elif (ctx.logdir / path).is_dir() and (found := lead(ctx, path)) is None:
+        if pins := pins_of(ctx, path):
+            found = (pins[0]["y"], not pins[0]["higher"], None)
     return {"kind": "summary", "path": path, "summary": summary(ctx, path, found)}
 
 

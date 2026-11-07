@@ -14,7 +14,7 @@ import { ChartFrame, expandedHeight, HEIGHT, Legend, type LegendItem } from "../
 import { host } from "../bt/host.ts";
 import { duration, label, step, value } from "../bt/fmt.ts";
 import { lineChart, type LineSpec } from "../bt/plot.ts";
-import { effective, hideChart, toggleRun, update, usePrefs, type ChartPrefs, type Effective } from "../bt/prefs.ts";
+import { effective, hideChart, higherIsBetter, setMain, toggleRun, update, usePrefs, type ChartPrefs, type Effective } from "../bt/prefs.ts";
 import { chartStyle, dashOf, groupColors, palette as paletteOf, stopsOf, swatch, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate } from "../router.ts";
 import { IconButton } from "../ui/primitives.ts";
@@ -117,7 +117,7 @@ function Chart(props: {
   const hidden = new Set(all.hidden);
   const isShown = (c: Curve) => !hidden.has(c.key) && !(c.run && hidden.has(c.run));
 
-  const metrics = useContext(ViewCtx).metrics;
+  const { metrics, pins } = useContext(ViewCtx);
   const shownMetrics = prefs.y?.length ? prefs.y : metricsOf(node);
   // a title the view wrote stands until the viewer picks another x or other metrics.
   const xlabel = (prefs.x === (node.props.x ?? "_step") ? node.props.xlabel : undefined) ?? xTitle(prefs.x, metrics);
@@ -186,6 +186,16 @@ function Chart(props: {
     prefs.color ? `colored by ${label(prefs.color)}` : null,
   ].filter(Boolean);
   const empty = curves && !curves.curves.length;
+  // a chart of one metric can be pinned as a main metric, whose direction it then shows.
+  const [y] = shownMetrics.length === 1 ? shownMetrics : [null];
+  const pin = y === null ? undefined : pins.find((p) => p.y === y);
+  const pinning =
+    y === null || EXPORTED
+      ? undefined
+      : {
+          pinned: !!pin,
+          toggle: () => setMain(path, pin ? pins.filter((p) => p !== pin) : [...pins, { y, higher: higherIsBetter(y) }]),
+        };
 
   const exportPng = async (background: Background) => {
     const t = light();
@@ -239,8 +249,12 @@ function Chart(props: {
       onRemove=${() => hideChart(path, node.id)}
       downloads=${{ png: exportPng, pdf: exportPdf, csv: exportCsv }}
       status=${off ? html`<button type="button" class="link small" onClick=${() => update(path, () => ({ hidden: [] }))}>${off} hidden · show all</button>` : null}
-      tools=${html`${zoom ? html`<${IconButton} icon="reset" label="Reset zoom (double-click)" onClick=${() => setZoom(null)} />` : null}
-        <${Settings} node=${node} path=${path} prefs=${prefs} y=${shownMetrics} fields=${LINE_FIELDS} />`}
+      tools=${html`${pin && !EXPORTED
+          ? html`<${IconButton} icon=${pin.higher ? "arrow-up" : "arrow-down"} label=${pin.higher ? "Higher is better" : "Lower is better"}
+              onClick=${() => setMain(path, pins.map((p) => (p === pin ? { ...p, higher: !p.higher } : p)))} />`
+          : null}
+        ${zoom ? html`<${IconButton} icon="reset" label="Reset zoom (double-click)" onClick=${() => setZoom(null)} />` : null}
+        <${Settings} node=${node} path=${path} prefs=${prefs} y=${shownMetrics} fields=${LINE_FIELDS} pinning=${pinning} />`}
       legend=${items.length ? html`<${Legend} items=${items} label="Show or hide curves" role="group" />` : null}
       caption=${props.expanded ? undefined : node.props.caption}>
     ${problem ? html`<p class="block-error small">${problem}</p>` : null}

@@ -3,24 +3,24 @@
 import type { FunctionComponent } from "preact";
 import { html } from "htm/preact";
 import {
-  Activity, Atom, Bookmark, Check, ChevronDown, ChevronRight, Circle, CircleArrowUp, CircleCheck, CircleDashed, CircleDot,
+  Activity, ArrowDown, ArrowUp, Atom, Bookmark, Check, ChevronDown, ChevronRight, Circle, CircleArrowUp, CircleCheck, CircleDashed, CircleDot,
   CircleHelp, CircleMinus, CircleX, Clock, CloudOff, Copy, Download, Ellipsis, Eye, EyeOff, FileText,
   FolderTree, GitCommitHorizontal, GripVertical, History, Hourglass, Image, LayoutPanelTop, Keyboard, Lightbulb, Link, Maximize2, Minus,
-  Lock, Monitor, Moon, PanelLeft, PanelRight, Pause, Pencil, Play, Plus, RotateCcw, Scale, Search, Server, Settings,
+  Lock, Monitor, Moon, PanelLeft, PanelRight, Pause, Pencil, Pin, PinOff, Play, Plus, RotateCcw, Scale, Search, Server, Settings,
   Save, Signpost, SlidersHorizontal, Square, Sun, Target, Terminal, Trash2, TriangleAlert, X,
 } from "lucide-preact";
 
 import type { SymbolSpec } from "./symbols.ts";
 
 const ICONS: Record<string, FunctionComponent<any>> = {
-  activity: Activity, atom: Atom, bookmark: Bookmark, check: Check, "chevron-down": ChevronDown,
+  activity: Activity, "arrow-down": ArrowDown, "arrow-up": ArrowUp, atom: Atom, bookmark: Bookmark, check: Check, "chevron-down": ChevronDown,
   "chevron-right": ChevronRight, circle: Circle, "circle-check": CircleCheck, "circle-dashed": CircleDashed,
   "circle-dot": CircleDot, "circle-help": CircleHelp, "circle-minus": CircleMinus, "circle-x": CircleX,
   clock: Clock, "cloud-off": CloudOff, copy: Copy, download: Download, ellipsis: Ellipsis, eye: Eye,
   "eye-off": EyeOff, update: CircleArrowUp, "file-text": FileText, "folder-tree": FolderTree, "git-commit": GitCommitHorizontal, grip: GripVertical,
   history: History, hourglass: Hourglass, image: Image, layout: LayoutPanelTop, keyboard: Keyboard, lightbulb: Lightbulb, link: Link, lock: Lock,
   maximize: Maximize2, minus: Minus, monitor: Monitor, moon: Moon, "panel-left": PanelLeft,
-  "panel-right": PanelRight, pause: Pause, pencil: Pencil, play: Play, plus: Plus, reset: RotateCcw, scale: Scale,
+  "panel-right": PanelRight, pause: Pause, pencil: Pencil, pin: Pin, "pin-off": PinOff, play: Play, plus: Plus, reset: RotateCcw, scale: Scale,
   save: Save, search: Search, server: Server, settings: Settings, signpost: Signpost, sliders: SlidersHorizontal,
   square: Square, sun: Sun, target: Target, terminal: Terminal, trash: Trash2, "triangle-alert": TriangleAlert, x: X,
 };

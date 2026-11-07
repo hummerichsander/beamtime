@@ -6,6 +6,7 @@ import { html } from "htm/preact";
 import { useCall } from "../api.ts";
 import { describe, progressText } from "../blocks/context.ts";
 import { rows } from "../blocks/common.ts";
+import { usePrefs } from "../bt/prefs.ts";
 import { ago, duration, label, step, value, versionTime } from "../bt/fmt.ts";
 import { groupUrl, isRoot, isRunId, navigate, rootOf, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
@@ -165,7 +166,8 @@ function EpochFact({ run, progress }: { run: any; progress: any }) {
 // the main metric's best value, and for a group which run reached it; its distinguishing
 // config goes in the tooltip, not inline, so a wide sweep doesn't crowd the facts line.
 function Best({ path }: { path: string }) {
-  const best = useCall(calls.summary(path)).data?.summary;
+  const main = usePrefs(path).main;
+  const best = useCall(calls.summary(path, main)).data?.summary;
   if (!best) return null;
   const config = Object.entries(best.config ?? {}).map(([k, v]) => `${label(k)} ${value(v)}`).join(", ");
   const isRun = isRunId(path.split("/").pop() ?? "");

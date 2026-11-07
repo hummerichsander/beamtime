@@ -156,7 +156,8 @@ def values_of(ctx: Context, group: str) -> dict[str, str]:
     :param group: A group or run.
     :return: Placeholder values; empty where the group has nothing fitting."""
     from beamtime.views.defaults import (
-        leading,
+        CLOCKS,
+        EVAL_PREFIXES,
         lower_is_better,
         ordered_metrics,
         prefix,
@@ -165,7 +166,9 @@ def values_of(ctx: Context, group: str) -> dict[str, str]:
 
     keys = remote_answer("keys", {"from": group}, ctx)
     metrics = ordered_metrics(keys)
-    main = proposed(ctx, group, metrics) or (leading(metrics) or metrics or [""])[0]
+    plain = [k for k in metrics if k not in CLOCKS]
+    evals = [k for k in plain if prefix(k) in EVAL_PREFIXES]
+    main = proposed(ctx, group, metrics) or (evals or plain or [""])[0]
     lower = lower_is_better(main)
     stat = "min" if lower else "max"
     losses = [k for k in metrics if "loss" in k and k != main]
@@ -202,21 +205,31 @@ def values_of(ctx: Context, group: str) -> dict[str, str]:
 
 
 def proposed(ctx: Context, group: str, metrics: list[str]) -> str | None:
-    """Find the metric the group's proposal makes its predictions about.
+    """Find the metric the group's proposal makes its first prediction about.
 
     :param ctx: The operation context.
     :param group: The group.
     :param metrics: The metrics the group logs.
     :return: The first predicted metric that is logged, or ``None``."""
+    return next(iter(predicted(ctx, group, metrics)), None)
+
+
+def predicted(ctx: Context, group: str, metrics: list[str]) -> list[str]:
+    """List the metrics the group's proposal makes predictions about.
+
+    :param ctx: The operation context.
+    :param group: The group.
+    :param metrics: The metrics the group logs.
+    :return: The predicted metrics that are logged, in prediction order, without repeats."""
     try:
         shown = remote_answer("proposal show", {"group": group}, ctx)
     except OpError:
-        return None
-    for prediction in shown["proposal"].get("predictions") or []:
-        metric = (prediction.get("reduce") or {}).get("metric")
-        if metric in metrics:
-            return metric
-    return None
+        return []
+    found = (
+        (prediction.get("reduce") or {}).get("metric")
+        for prediction in shown["proposal"].get("predictions") or []
+    )
+    return list(dict.fromkeys(metric for metric in found if metric in metrics))
 
 
 def scale_of(values: Any) -> str:

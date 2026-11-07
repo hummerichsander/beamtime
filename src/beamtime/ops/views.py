@@ -142,16 +142,17 @@ def default_name(path: str) -> str:
     return m.slug(path.rsplit("/", 1)[-1]) if path != "." else "root"
 
 
-def page_yaml(ctx: Context, path: str) -> dict[str, Any]:
+def page_yaml(ctx: Context, path: str, pins: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Read the page's current view in YAML form, for a change made in the web UI.
 
     :param ctx: The operation context.
     :param path: The group or run path.
+    :param pins: The viewer's pins, which the default view takes into its Main section.
     :return: The view as a mapping.
     :raises OpError: If the saved version is broken; the UI then says how to repair it."""
     import yaml
 
-    text, origin = current_yaml(ctx, path)
+    text, origin = current_yaml(ctx, path, pins)
     try:
         data = yaml.safe_load(text)
     except yaml.YAMLError:
@@ -165,11 +166,14 @@ def page_yaml(ctx: Context, path: str) -> dict[str, Any]:
     return data
 
 
-def current_yaml(ctx: Context, path: str) -> tuple[str, str]:
+def current_yaml(
+    ctx: Context, path: str, pins: list[dict[str, Any]] | None = None
+) -> tuple[str, str]:
     """Write the page's current view as draft YAML: its newest version, else the default.
 
     :param ctx: The operation context.
     :param path: The group or run path.
+    :param pins: The viewer's pins for the default view; ``None`` for the default pins.
     :return: The YAML text, and where it came from."""
     from beamtime.views.defaults import default_view
 
@@ -183,7 +187,9 @@ def current_yaml(ctx: Context, path: str) -> tuple[str, str]:
         for k in ("author", "user", "message"):
             data.pop(k, None)
         return m.dump(data), f"version {files[-1].stem}"
-    data = {"schema": 1, "title": None, "finding": None} | m.to_yaml_form(default_view(ctx, path))
+    data = {"schema": 1, "title": None, "finding": None} | m.to_yaml_form(
+        default_view(ctx, path, pins)
+    )
     return m.dump(data), "the built-in default view"
 
 
@@ -594,15 +600,18 @@ def save_page(
 
     :param ctx: The operation context, with caller ``view``.
     :param path: The group or run path.
-    :param prefs: The viewer's ``{view, charts, added}`` for the page.
+    :param prefs: The viewer's ``{view, charts, added, main}`` for the page.
     :param title: The view's title.
     :param finding: The view's finding.
     :return: The new version."""
 
-    from beamtime.views.prefs import apply_prefs
+    from beamtime.views.prefs import apply_prefs, pinned_metrics
 
-    data = page_yaml(ctx, path)
+    pins = prefs.get("main")
+    data = page_yaml(ctx, path, pins)
     data["body"] = apply_prefs(data.get("body") or [], prefs)
+    if pins is not None:
+        data["metrics"] = pinned_metrics(data.get("metrics") or {}, pins)
     data["title"], data["finding"] = title or None, finding or None
     try:
         view = m.parse(data, source="the page")

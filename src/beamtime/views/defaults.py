@@ -25,22 +25,50 @@ EMPTY = (
 )
 
 
-def default_view(ctx: Context, path: str) -> m.View:
+def default_view(ctx: Context, path: str, pins: list[dict[str, Any]] | None = None) -> m.View:
     """Build the default view of a group or run.
 
     :param ctx: The operation context.
     :param path: The group below the log dir (``.`` for the log dir), or a run's path.
+    :param pins: The main metrics as resolved by ``pins_of``; the default pins without.
     :return: The view."""
+    if pins is None:
+        pins = pins_of(ctx, path)
     if is_run_id(path.rsplit("/", 1)[-1]):
-        return m.View(body=run_body(ctx, path))
-    return m.View(body=group_body(ctx, path))
+        return m.View(body=run_body(ctx, path, pins))
+    return m.View(body=group_body(ctx, path, pins))
 
 
-def group_body(ctx: Context, path: str) -> list[m.Block]:
+def pins_of(
+    ctx: Context, path: str, given: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
+    """Resolve a page's main metrics: the viewer's pins, else the proposal's predicted metrics.
+
+    :param ctx: The operation context.
+    :param path: A group or run path.
+    :param given: The viewer's pins ``{y, higher}`` (``[]`` for none); ``None`` for the defaults.
+    :return: The pins the page logs, in order, without clocks or repeats."""
+    from beamtime.guide import predicted
+
+    run_id = path.rsplit("/", 1)[-1]
+    keys = call("keys", {"from": run_id if is_run_id(run_id) else path}, ctx)
+    metrics = [k for k in ordered_metrics(keys) if k not in CLOCKS]
+    if given is None:
+        group = (path.rsplit("/", 1)[0] if "/" in path else ".") if is_run_id(run_id) else path
+        given = [{"y": y, "higher": not lower_is_better(y)} for y in predicted(ctx, group, metrics)]
+    out: dict[str, dict[str, Any]] = {}
+    for pin in given:
+        if pin["y"] in metrics:
+            out.setdefault(pin["y"], {"y": pin["y"], "higher": bool(pin["higher"])})
+    return list(out.values())
+
+
+def group_body(ctx: Context, path: str, pins: list[dict[str, Any]]) -> list[m.Block]:
     """Build the default view of a group: what it shows, concisely.
 
     :param ctx: The operation context.
     :param path: The group below the log dir.
+    :param pins: The main metrics.
     :return: The body."""
     runs, direct = counts(ctx, path)
     # the header states the proposal and its predictions; the body starts with the data.
@@ -51,26 +79,33 @@ def group_body(ctx: Context, path: str) -> list[m.Block]:
         body.append(m.Groups(id="subgroups", title="Groups"))
     keys = call("keys", {"from": path}, ctx)
     varying = varying_config(keys)
-    main = main_metric(ctx, path, keys)
     if direct:
         # curves show only the group's own runs; runs in subgroups belong to their groups.
         own = direct < runs
         own_keys = call("keys", {"from": path, "depth": 1}, ctx) if own else keys
         many = "config.seed" in varying and direct > SEED_GROUPING_ABOVE
-        body += curves(ordered_metrics(own_keys), "config.seed" if many else None, own, main)
+        metrics = ordered_metrics(own_keys)
+        main = [p["y"] for p in pins if p["y"] in metrics]
+        body += curves(metrics, "config.seed" if many else None, own, main)
         if varying:
             body.append(m.Config(id="hyperparameters", title="Hyperparameters"))
         code = ["run.code"] if keys.get("codes") else []
-        clock = ["run.progress"] if "epoch" in ordered_metrics(own_keys) else []
+        clock = ["run.progress"] if "epoch" in metrics else []
         columns = [
             "run.name",
             "run.status",
             *clock,
             *varying,
             *code,
-            *([f"metric.{main}.last"] if main else []),
+            *[f"metric.{y}.last" for y in main],
         ]
-        table = m.Table(id="runs", title="Runs", columns=columns, limit=TABLE_LIMIT, sparkline=main)
+        table = m.Table(
+            id="runs",
+            title="Runs",
+            columns=columns,
+            limit=TABLE_LIMIT,
+            sparkline=(main or [None])[0],
+        )
         body.append(table)
     else:
         # runs from different experiments share no config or metric: say where and when instead.
@@ -88,17 +123,18 @@ def record(*, run: bool) -> list[m.Block]:
     return [notes] if run else [m.Memory(id="memory", title="Memory"), notes]
 
 
-def run_body(ctx: Context, path: str) -> list[m.Block]:
+def run_body(ctx: Context, path: str, pins: list[dict[str, Any]]) -> list[m.Block]:
     """Build the default view of a run.
 
     :param ctx: The operation context.
     :param path: The run's path below the log dir.
+    :param pins: The main metrics.
     :return: The body."""
     run_id = path.rsplit("/", 1)[-1]
     keys = call("keys", {"from": run_id}, ctx)
     metrics = ordered_metrics(keys)
     status = next(iter(keys["status"]), None)
-    body = curves(metrics, None, False, main_metric(ctx, path, keys))
+    body = curves(metrics, None, False, [p["y"] for p in pins if p["y"] in metrics])
     for key, kind, _, _ in keys["data"]["rows"]:
         match kind:
             case "image":
@@ -115,28 +151,25 @@ def run_body(ctx: Context, path: str) -> list[m.Block]:
 
 
 def summary(
-    ctx: Context, path: str, lead: tuple[str, bool, str | None] | None = None
+    ctx: Context, path: str, lead: tuple[str, bool, str | None] | None
 ) -> dict[str, Any] | None:
-    """Find the main metric and its best run, for the header's facts line.
+    """Find the best run of the lead metric, for the header's facts line.
 
     :param ctx: The operation context.
     :param path: A group or run path.
-    :param lead: The shown view's lead metric, whether lower is better and its label; guessed
-        without.
-    :return: ``{metric, label, stat, value, run, name, config}``, or ``None`` without metrics or
-        for a group without runs of its own."""
+    :param lead: The lead metric, whether lower is better and its label; ``None`` for no pin.
+    :return: ``{metric, label, stat, value, run, name, config}``, or ``None`` without a lead or
+        metric, or for a group without runs of its own."""
+    if lead is None:
+        return None
     run_id = path.rsplit("/", 1)[-1]
     scope = run_id if is_run_id(run_id) else path
     # a group whose runs all sit in subgroups mixes experiments; no single best there.
     if scope == path and not counts(ctx, path)[1]:
         return None
     keys = call("keys", {"from": scope}, ctx)
-    if lead is not None and lead[0] in ordered_metrics(keys):
-        main, lower, label = lead
-    else:
-        main, label = main_metric(ctx, path, keys), None
-        lower = main is not None and lower_is_better(main)
-    if main is None:
+    main, lower, label = lead
+    if main not in ordered_metrics(keys):
         return None
     stat = "min" if lower else "max"
     field = f"metric.{main}.{stat}"
@@ -183,57 +216,63 @@ def count(ctx: Context, path: str, depth: Any) -> int:
     return call("runs", query, ctx)["meta"]["matched"]
 
 
-def curves(
-    metrics: list[str], seeds: str | None, own: bool, lead: str | None = None
-) -> list[m.Block]:
+def curves(metrics: list[str], seeds: str | None, own: bool, main: list[str]) -> list[m.Block]:
     """Make one chart per metric, in sections by metric prefix.
 
     :param metrics: The metrics, ordered.
     :param seeds: ``config.seed`` to average over seeds, or ``None``.
     :param own: Whether to show only the runs directly in the group.
-    :param lead: The main metric; its prefix comes first.
-    :return: The sections: the lead's prefix, evaluation, training, the other prefixes, ``Other``
-        (unprefixed metrics and prefixes of one metric), then ``System``; the first two open. A
-        single section is a plain grid. Clocks (``epoch``) get no chart: they are an x axis and a
-        progress fact."""
+    :param main: The pinned metrics, in order.
+    :return: The sections: ``Main`` (the pinned metrics, open, and only there), evaluation,
+        training, the other prefixes, ``Other`` (unprefixed metrics and prefixes of one metric),
+        then ``System``; the first two of those open. A single section without pins is a plain
+        grid. Clocks (``epoch``) get no chart: they are an x axis and a progress fact."""
     metrics = [k for k in metrics if k not in CLOCKS]
-    sizes = Counter(prefix(k) for k in metrics)
+    pinned = [k for k in main if k in metrics]
+    rest = [k for k in metrics if k not in pinned]
+    sizes = Counter(prefix(k) for k in rest)
     groups: dict[str, list[str]] = {}
-    for k in metrics:
+    for k in rest:
         name = prefix(k) if sizes[prefix(k)] > 1 or prefix(k) == SYSTEM else ""
         groups.setdefault(name, []).append(k)
-    order = sorted(groups, key=lambda name: section_rank(name, prefix(lead or "")))
+    order = sorted(groups, key=section_rank)
     # system metrics are per machine, never averaged over seeds.
-    if len(order) == 1:
+    if len(order) == 1 and not pinned:
         by = None if order == [SYSTEM] else seeds
         return [m.Grid(id="curves", children=[line(k, by, own) for k in metrics])]
-    out: list[m.Block] = []
+    sections = [("Main", "main", pinned, True)] if pinned else []
     for i, name in enumerate(order):
         title = {"": "Other", SYSTEM: "System"}.get(name, name)
-        id_ = f"charts-{m.slug(name or 'unprefixed')}"
-        by = None if name == SYSTEM else seeds
-        grid = m.Grid(id=f"{id_}-curves", children=[line(k, by, own) for k in groups[name]])
-        opened = i < OPEN_SECTIONS and name != SYSTEM
-        section = m.Section(
-            id=id_, title=f"{title} ({len(groups[name])})", open=opened, children=[grid]
+        sections.append(
+            (
+                title,
+                m.slug(name or "unprefixed"),
+                groups[name],
+                i < OPEN_SECTIONS and name != SYSTEM,
+            )
         )
-        out.append(section)
+    out: list[m.Block] = []
+    for title, slug, members, opened in sections:
+        by = None if slug == SYSTEM else seeds
+        grid = m.Grid(id=f"charts-{slug}-curves", children=[line(k, by, own) for k in members])
+        out.append(
+            m.Section(
+                id=f"charts-{slug}", title=f"{title} ({len(members)})", open=opened, children=[grid]
+            )
+        )
     return out
 
 
-def section_rank(name: str, lead: str) -> int:
-    """Rank a chart section: the lead's, evaluation, training, other prefixes, Other, System.
+def section_rank(name: str) -> int:
+    """Rank a chart section: evaluation, training, other prefixes, Other, System.
 
     :param name: The section's prefix; empty for ``Other``.
-    :param lead: The prefix of the main metric.
     :return: The rank; lower comes first."""
     if name == SYSTEM:
-        return 5
-    if not name:
         return 4
-    if name == lead:
-        return 0
-    return 1 if name in EVAL_PREFIXES else 2 if name in TRAIN_PREFIXES else 3
+    if not name:
+        return 3
+    return 0 if name in EVAL_PREFIXES else 1 if name in TRAIN_PREFIXES else 2
 
 
 def line(metric: str, seeds: str | None, own: bool) -> m.Line:
@@ -254,60 +293,6 @@ def ordered_metrics(keys: dict[str, Any]) -> list[str]:
     names = [r[0] for r in keys["metrics"]["rows"]]
     rank = {"val": 0, "valid": 0, "eval": 0, "validation": 0, "test": 1, "train": 2, "training": 2}
     return sorted(names, key=lambda k: (rank.get(k.split("/", 1)[0], 3) if "/" in k else 4, k))
-
-
-def leading(metrics: list[str]) -> list[str]:
-    """Pick the metrics fit to lead a page: evaluation metrics, training losses, plain losses.
-
-    :param metrics: The metrics, ordered.
-    :return: Those metrics in that order; system metrics never lead."""
-    metrics = [k for k in metrics if not k.startswith(f"{SYSTEM}/")]
-    evals = [k for k in metrics if prefix(k) in EVAL_PREFIXES]
-    losses = [k for k in metrics if prefix(k) in TRAIN_PREFIXES and "loss" in k]
-    plain = [k for k in metrics if not prefix(k) and lower_is_better(k) or k in ("acc", "accuracy")]
-    return list(dict.fromkeys([*evals, *losses, *plain]))
-
-
-def main_metric(ctx: Context, path: str, keys: dict[str, Any]) -> str | None:
-    """Pick the leading metric: the group's prediction, else the best-ranked non-constant one.
-
-    :param ctx: The operation context.
-    :param path: A group or run path.
-    :param keys: The ``keys`` answer for that path.
-    :return: The metric key, or ``None`` without metrics."""
-    from beamtime.guide import proposed
-
-    metrics = ordered_metrics(keys)
-    if not metrics:
-        return None
-    run_id = path.rsplit("/", 1)[-1]
-    if is_run_id(run_id):
-        group = path.rsplit("/", 1)[0] if "/" in path else "."
-    else:
-        group = path
-    if (main := proposed(ctx, group, metrics)) is not None:
-        return main
-    constant = metric_column(keys, "constant")
-    points = metric_column(keys, "points")
-    # a metric logged once (a final evaluation) leads only where no curve of its kind does.
-    live = sorted(
-        (k for k in metrics if k not in CLOCKS and not constant.get(k)),
-        key=lambda k: (points.get(k) or 2) <= 1,
-    )
-    return (leading(live) or live or metrics)[0]
-
-
-def metric_column(keys: dict[str, Any], column: str) -> dict[str, Any]:
-    """Read one column of the ``keys`` answer's metrics table by metric.
-
-    :param keys: The ``keys`` answer.
-    :param column: The column, e.g. ``constant``.
-    :return: Metric key to value; empty when the column is missing (an older remote)."""
-    table = keys["metrics"]
-    if column not in table["columns"]:
-        return {}
-    i = table["columns"].index(column)
-    return {row[0]: row[i] for row in table["rows"] if i < len(row)}
 
 
 def varying_config(keys: dict[str, Any]) -> list[str]:

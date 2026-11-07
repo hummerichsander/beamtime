@@ -78,17 +78,23 @@ def test_view_of_groups_and_runs(api, roles: dict[str, str]) -> None:
     """The default view fits the group: proposal, curves, table; subgroups at the top."""
     sweep = api("view", path="scaling/lr-sweep").json()
     blocks = [c["block"] for c in sweep["view"]["children"]]
-    assert blocks[0] == "grid" and {"table", "notes"} <= set(blocks) and "proposal" not in blocks
+    assert blocks[0] == "section" and {"table", "notes"} <= set(blocks) and "proposal" not in blocks
     walk = lambda n: [n["block"], *[b for c in n.get("children", []) for b in walk(c)]]  # noqa: E731
     assert "stat" not in walk(sweep["view"])
-    curves = next(c for c in sweep["view"]["children"] if c["block"] == "grid")
-    assert all(c["data"]["main"]["method"] == "series" for c in curves["children"])
-    # three metrics with different prefixes are one plain grid, not sections of one chart.
-    assert [c["props"]["y"] for c in curves["children"]] == ["val/acc", "train/loss", "lr"]
+    # the proposal's predicted metric is pinned: an open Main section, the rest in one.
+    main, other = (c for c in sweep["view"]["children"] if c["block"] == "section")
+    assert main["props"]["title"] == "Main (1)" and main["props"]["open"] is True
+    curves = [g for s in (main, other) for g in s["children"]]
+    assert all(c["data"]["main"]["method"] == "series" for g in curves for c in g["children"])
+    assert [c["props"]["y"] for g in curves for c in g["children"]] == ["val/acc", "train/loss", "lr"]
     table = next(c for c in sweep["view"]["children"] if c["block"] == "table")
     assert table["props"]["sparkline"] == "val/acc" and "spark" in table["data"]
     best = api("summary", path="scaling/lr-sweep").json()["summary"]
     assert best["metric"] == "val/acc" and best["config"]["lr"] == 3e-4
+    assert sweep["pins"] == [{"y": "val/acc", "higher": True}]
+    unpinned = api("view", path="scaling/lr-sweep", metrics=[]).json()
+    assert unpinned["pins"] == [] and unpinned["view"]["children"][0]["block"] == "grid"
+    assert api("summary", path="scaling/lr-sweep", metrics=[]).json()["summary"] is None
 
     top = api("view", path="").json()
     assert top["path"] == "." and top["view"]["children"][0]["block"] == "groups"

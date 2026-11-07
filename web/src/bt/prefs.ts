@@ -25,6 +25,16 @@ export type ChartPrefs = {
 
 export type Span = 1 | 2 | "full";
 
+// a main metric the viewer pinned, and which way is better.
+export type Pin = { y: string; higher: boolean };
+
+// the direction a metric's name suggests; the same words as views/defaults.py, for a new pin.
+const LOWER_IS_BETTER = ["loss", "err", "ppl", "perplexity", "nll", "mse", "mae", "wer", "cer"];
+export const higherIsBetter = (y: string): boolean => !LOWER_IS_BETTER.some((w) => (y.split("/").pop() ?? y).toLowerCase().includes(w));
+
+// the grid the default view puts the pinned charts in; its order is the pins' order.
+export const MAIN_GRID = "charts-main-curves";
+
 export type ViewPrefs = {
   charts: Record<string, ChartPrefs>;
   view: ChartPrefs;
@@ -35,9 +45,11 @@ export type ViewPrefs = {
   // a grid's children in the viewer's order, and blocks' widths, by id.
   order: Record<string, string[]>;
   spans: Record<string, Span>;
+  // the main metrics: null for the page's own (the proposal's predictions), [] for none.
+  main: Pin[] | null;
 };
 
-const empty = (): ViewPrefs => ({ charts: {}, view: {}, hidden: [], added: [], removed: [], order: {}, spans: {} });
+const empty = (): ViewPrefs => ({ charts: {}, view: {}, hidden: [], added: [], removed: [], order: {}, spans: {}, main: null });
 const cache = new Map<string, Store<ViewPrefs>>();
 
 export function prefsOf(path: string): Store<ViewPrefs> {
@@ -109,8 +121,13 @@ export function changed(prefs: ViewPrefs): boolean {
     prefs.added.length > 0 ||
     prefs.removed.length > 0 ||
     Object.keys(prefs.order).length > 0 ||
-    Object.keys(prefs.spans).length > 0
+    Object.keys(prefs.spans).length > 0 ||
+    prefs.main !== null
   );
+}
+
+export function setMain(path: string, main: Pin[] | null): void {
+  update(path, () => ({ main }));
 }
 
 export function hideChart(path: string, id: string): void {

@@ -6,7 +6,7 @@ import { useContext, useState } from "preact/hooks";
 
 import { useCall } from "../api.ts";
 import { ViewCtx, type Node } from "../bt/index.ts";
-import { ordered, setOrder, setSpan, showCharts, update, usePrefs, type Span } from "../bt/prefs.ts";
+import { MAIN_GRID, ordered, setMain, setOrder, setSpan, showCharts, update, usePrefs, type Pin, type Span } from "../bt/prefs.ts";
 import { recording } from "../router.ts";
 import { EXPORTED } from "../snapshot.ts";
 import { stored, store } from "../state.ts";
@@ -61,6 +61,12 @@ export function Grid({ node, after }: { node: Node; after?: ComponentChildren })
     const ids = cells.map((c) => c.id).filter((id) => id !== dragged);
     ids.splice(ids.indexOf(before), 0, dragged);
     setOrder(view.path, node.id, ids);
+    // dragging inside Main orders the pins, the first of which leads the header and the table.
+    if (node.id === MAIN_GRID) {
+      const yOf = (id: string) => (kids.find((c) => c.id === id)?.data?.main?.params?.y as string[] | undefined)?.[0];
+      const moved = ids.map((id) => view.pins.find((p) => p.y === yOf(id))).filter((p): p is Pin => !!p);
+      setMain(view.path, [...moved, ...view.pins.filter((p) => !moved.includes(p))]);
+    }
   };
   return html`<div class="grid" style=${style}>
     ${cells.map((c) => html`<${Cell} key=${c.id} node=${c} path=${view.path} span=${prefs.spans[c.id] ?? c.props.span ?? 1}
