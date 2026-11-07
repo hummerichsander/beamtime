@@ -240,25 +240,18 @@ def curves(metrics: list[str], seeds: str | None, own: bool, main: list[str]) ->
     if len(order) == 1 and not pinned:
         by = None if order == [SYSTEM] else seeds
         return [m.Grid(id="curves", children=[line(k, by, own) for k in metrics])]
-    sections = [("Main", "main", pinned, True)] if pinned else []
+    # Main's id has no ``charts-`` prefix, which no metric prefix can collide with.
+    sections = [("Main", "main", pinned, True, seeds)] if pinned else []
     for i, name in enumerate(order):
         title = {"": "Other", SYSTEM: "System"}.get(name, name)
-        sections.append(
-            (
-                title,
-                m.slug(name or "unprefixed"),
-                groups[name],
-                i < OPEN_SECTIONS and name != SYSTEM,
-            )
-        )
+        by = None if name == SYSTEM else seeds
+        opened = i < OPEN_SECTIONS and name != SYSTEM
+        sections.append((title, f"charts-{m.slug(name or 'unprefixed')}", groups[name], opened, by))
     out: list[m.Block] = []
-    for title, slug, members, opened in sections:
-        by = None if slug == SYSTEM else seeds
-        grid = m.Grid(id=f"charts-{slug}-curves", children=[line(k, by, own) for k in members])
+    for title, id_, members, opened, by in sections:
+        grid = m.Grid(id=f"{id_}-curves", children=[line(k, by, own) for k in members])
         out.append(
-            m.Section(
-                id=f"charts-{slug}", title=f"{title} ({len(members)})", open=opened, children=[grid]
-            )
+            m.Section(id=id_, title=f"{title} ({len(members)})", open=opened, children=[grid])
         )
     return out
 

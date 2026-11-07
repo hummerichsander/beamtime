@@ -33,7 +33,7 @@ const LOWER_IS_BETTER = ["loss", "err", "ppl", "perplexity", "nll", "mse", "mae"
 export const higherIsBetter = (y: string): boolean => !LOWER_IS_BETTER.some((w) => (y.split("/").pop() ?? y).toLowerCase().includes(w));
 
 // the grid the default view puts the pinned charts in; its order is the pins' order.
-export const MAIN_GRID = "charts-main-curves";
+export const MAIN_GRID = "main-curves";
 
 export type ViewPrefs = {
   charts: Record<string, ChartPrefs>;

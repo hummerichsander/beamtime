@@ -504,6 +504,15 @@ def test_the_default_view_takes_the_pins(ctx: Context) -> None:
     assert not any(t.startswith("Main") for t in titles(none))
 
 
+def test_a_prefix_named_main_does_not_collide_with_the_main_section() -> None:
+    """Main and a ``main/*`` prefix are two sections with their own ids."""
+    from beamtime.views.defaults import curves
+
+    sections = curves(["main/a", "main/b", "val/x", "val/y"], None, False, ["val/x"])
+    ids = [s.id for s in sections]
+    assert ids[:2] == ["main", "charts-main"] and len(set(ids)) == len(ids)
+
+
 def test_the_page_answers_with_its_pins(ctx: Context) -> None:
     """The view answer says which metrics are pinned; the viewer's pins reach the default view."""
     from beamtime.serve.api import view
@@ -539,7 +548,7 @@ def test_save_as_view_writes_the_pins(ctx: Context) -> None:
     save_page(ui, SWEEP, {"main": pins}, "T", "F")
     saved = yaml.safe_load(sorted((ctx.logdir / SWEEP / "view").glob("*.yaml"))[-1].read_text())
     assert saved["metrics"] == {"train/loss": {}, "val/acc": {"higher_is_better": False}}
-    main = next(n["section"] for n in saved["body"] if n["section"]["id"] == "charts-main")
+    main = next(n["section"] for n in saved["body"] if n["section"]["id"] == "main")
     assert main["title"] == "Main (2)"
 
     save_page(ui, SWEEP, {"main": None}, "T", "F")
