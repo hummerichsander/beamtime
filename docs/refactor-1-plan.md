@@ -513,7 +513,7 @@ survives "Save as view" and reload. An old `beamtime.yaml` with the keys loads w
 Done: the `realistic` fixture has no epoch chart, shows the right fraction, and `x: epoch` draws the logged
 stair. Views that chart `epoch` explicitly still work.
 
-### B7. One kind of chart, grouped by prefix (sonnet + review)
+### B7. One kind of chart, grouped by prefix (sonnet + review) — **done**
 
 - **Touches:** `src/beamtime/views/defaults.py` (`ESSENTIAL` 11, `group_body` 37, `curves` 182, `line` 208, `essential` 228 removed), `web/src/blocks/layout.ts` (`Section` 15, `Grid` 40), `web/src/bt/prefs.ts` (`ViewPrefs` 25), `src/beamtime/views/prefs.py` (`apply_prefs` 10), `src/beamtime/views/compile.py`, `web/src/bt/index.ts` (`ViewCtx`: `charted`), `guide/examples/*.yaml`.
 - **Read:** `docs/design/07-web-ui.md` § Charts; `design/components/Section.md`.

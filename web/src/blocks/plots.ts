@@ -10,7 +10,7 @@ import { host } from "../bt/host.ts";
 import { hovered, useData, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { label, step, value } from "../bt/fmt.ts";
 import { plotChart, type PlotSpec } from "../bt/plot.ts";
-import { effective, usePrefs } from "../bt/prefs.ts";
+import { effective, hideChart, usePrefs } from "../bt/prefs.ts";
 import { bars, extent, fit, histograms, logSplits, points, type Bar, type Point } from "../bt/shapes.ts";
 import { linthresh } from "../bt/curves.ts";
 import { fileName, light, paper, recolor, type Background } from "../bt/export.ts";
@@ -335,7 +335,7 @@ function PlotFrame(props: {
     }
   };
   return html`<${ChartFrame} id=${node.id} title=${title} notes=${props.note ? [props.note] : []} box=${box} class="block"
-      expanded=${node.props.expanded} onExpand=${() => host().expand(node, view)}
+      expanded=${node.props.expanded} onExpand=${() => host().expand(node, view)} onRemove=${() => hideChart(view.path, node.id)}
       downloads=${{ png: exportPng, pdf: props.figure ? exportPdf : undefined }}
       legend=${props.empty || result.status === "error" ? null : props.legend} caption=${node.props.caption}>
     ${problem ? html`<p class="block-error small">${problem}</p>` : null}

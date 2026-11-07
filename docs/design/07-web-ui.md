@@ -382,7 +382,11 @@ Line charts behave like W&B's panels:
     curve; the raw curve faint behind, optionally;
   - axes: linear, log or symlog (linear near zero, logarithmic beyond; for values that cross zero),
     a fixed y range, an outlier-robust auto range (1st to 99th percentile), the legend.
-- **Adding charts**: the last cell of a grid of curves picks a metric for a new chart.
+- **Hiding and adding charts**: every chart has the same × ("Hide this chart"), per viewer; the grid
+  or section it sat in says "2 hidden · show". After the page's last chart, "Add a chart" lists every
+  metric the whole page shows no chart of (metrics an authored view leaves out, hidden charts: picking
+  one brings its chart back) and puts new charts in a grid of their own. Sections remember open or
+  closed per viewer and page.
 - **Tools on hover**: settings, download, expand into a large dialog.
 - **Downloads** never use the viewer's theme: PNG in the light theme on a transparent or a white
   background, CSV of the shown curves, and a vector PDF drawn by the server with matplotlib, entirely
@@ -391,9 +395,10 @@ Line charts behave like W&B's panels:
   `no-latex` is added for `science`. PDF needs the `figures` extra; without it the menu says how to
   install it.
 
-Settings, added charts and hidden runs are kept per viewer in the browser, by group; a chart's settings
+Settings, added and hidden charts and hidden runs are kept per viewer in the browser, by group; a chart's settings
 are the view's defaults, then the page-wide ones, then its own. "Reset this chart" returns to the view's
-defaults, and "Save as view" writes them into the view.
+defaults, and "Save as view" writes them into the view: hidden charts leave it (and sections emptied
+by that), added charts join a grid `added` after the curves, and the rest keeps its order.
 
 The settings panel opens beside its chart, so a change can be seen as it happens: to the right of the
 chart if it fits, else to its left, else against the viewport's right edge; it stays on screen and
@@ -450,10 +455,14 @@ Decided while building the shell (milestone M5):
   `setData`. After a reconnect it refetches everything on screen.
 - **The built-in default view** is built on the server as a view and compiled to a block tree
   (`{block, id, props, data, children}`, where `data` names API calls) like authored views. A
-  group with runs of its own gets at most four essential charts (validation and test metrics, then
-  training losses; averaged over `config.seed` beyond eight runs) and the rest under a folded "More
-  metrics" (clocks, `epoch` and the global step, are an x axis and a progress fact, so they get no
-  chart), the run table (name, status, a progress column when the group logs `epoch`, varying
+  group with runs of its own gets one chart per metric, in sections by metric prefix (averaged over
+  `config.seed` beyond eight runs): the proposal's prefix first, then evaluation (`val`, `test`, ...),
+  training, the other prefixes alphabetically, `Other` (unprefixed metrics and prefixes of one metric)
+  and `System` (`sys/*`). Titles carry the count (`validation (5)`); the first two sections are open,
+  the rest and `System` closed, and a group with a single section is a plain grid. Every metric
+  appears once; chart ids stay `line-<slug>`, so stored settings survive. Clocks (`epoch` and the
+  global step) are an x axis and a progress fact, so they get no chart. After the charts: the run
+  table (name, status, a progress column when the group logs `epoch`, varying
   config, the main metric, a sparkline), its memory
   and its latest notes. A group whose runs all live in subgroups gets its groups and the recent runs
   (with group and start time) instead. A run gets its charts, logged images and text, and its output

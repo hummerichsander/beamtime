@@ -65,8 +65,10 @@ export type ViewContext = {
   colors: Map<string, string>;
   names: Map<string, string>;
   metrics: Record<string, MetricInfo>;
+  // the metrics of each chart of the page, by chart id, hidden or not.
+  charted: Map<string, string[]>;
 };
-export const ViewCtx = createContext<ViewContext>({ path: ".", colors: new Map(), names: new Map(), metrics: {} });
+export const ViewCtx = createContext<ViewContext>({ path: ".", colors: new Map(), names: new Map(), metrics: {}, charted: new Map() });
 export const BlockCtx = createContext<Node | null>(null);
 
 export function useData<T = any>(name: string): Result<T> {

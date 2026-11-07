@@ -97,7 +97,7 @@ export function ChartFrame(props: {
           : props.onExpand
             ? html`<${IconButton} icon="maximize" label="Expand" onClick=${props.onExpand} />`
             : null}
-        ${props.onRemove ? html`<${IconButton} icon="x" label="Remove this chart" onClick=${props.onRemove} />` : null}
+        ${props.onRemove && !props.expanded ? html`<${IconButton} icon="x" label="Hide this chart" onClick=${props.onRemove} />` : null}
       </span>
     </div>
     ${props.children}

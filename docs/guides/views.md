@@ -15,7 +15,8 @@ a new version; the page's history lists them, and older versions stay viewable.
 
 - Chart settings (smoothing, log scale, grouping by a config value, the x axis) are in the bar above
   each chart. **Save as view** keeps them for everyone.
-- **Add a chart** at the end of the curves picks any logged metric.
+- The **×** on a chart hides it (the section says "n hidden · show"); **Add a chart** at the end of
+  the charts picks any metric the page shows no chart of.
 - **Add text** puts a written panel at the top; click it to edit.
 
 ## Build one yourself

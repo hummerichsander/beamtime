@@ -14,7 +14,7 @@ import { ChartFrame, expandedHeight, HEIGHT, Legend, type LegendItem } from "../
 import { host } from "../bt/host.ts";
 import { duration, label, step, value } from "../bt/fmt.ts";
 import { lineChart, type LineSpec } from "../bt/plot.ts";
-import { effective, toggleRun, update, usePrefs, type ChartPrefs, type Effective } from "../bt/prefs.ts";
+import { effective, hideChart, toggleRun, update, usePrefs, type ChartPrefs, type Effective } from "../bt/prefs.ts";
 import { chartStyle, dashOf, groupColors, palette as paletteOf, stopsOf, swatch, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate } from "../router.ts";
 import { IconButton } from "../ui/primitives.ts";
@@ -236,7 +236,7 @@ function Chart(props: {
       : [];
   return html`<${ChartFrame} id=${node.id} title=${title} notes=${notes} box=${box} curves=${visibleCurves}
       expanded=${props.expanded} onExpand=${props.onExpand}
-      onRemove=${node.props.added ? () => update(path, (p) => ({ added: p.added.filter((m) => m !== node.props.y) })) : undefined}
+      onRemove=${() => hideChart(path, node.id)}
       downloads=${{ png: exportPng, pdf: exportPdf, csv: exportCsv }}
       status=${off ? html`<button type="button" class="link small" onClick=${() => update(path, () => ({ hidden: [] }))}>${off} hidden · show all</button>` : null}
       tools=${html`${zoom ? html`<${IconButton} icon="reset" label="Reset zoom (double-click)" onClick=${() => setZoom(null)} />` : null}

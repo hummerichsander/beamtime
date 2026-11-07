@@ -1,6 +1,7 @@
 """The built-in default view: an ``m.View`` made from what a group or run logged, compiled like any
 authored view, and written out as one when a draft starts from it."""
 
+from collections import Counter
 from typing import Any
 
 from beamtime.format.ids import is_run_id
@@ -8,7 +9,7 @@ from beamtime.ops import call
 from beamtime.ops.context import Context
 from beamtime.views import model as m
 
-ESSENTIAL = 4
+OPEN_SECTIONS = 2
 SEED_GROUPING_ABOVE = 8
 TABLE_LIMIT = 100
 RECENT = 10
@@ -16,8 +17,8 @@ NOTES = 3
 LOWER_IS_BETTER = ("loss", "err", "ppl", "perplexity", "nll", "mse", "mae", "wer", "cer")
 EVAL_PREFIXES = ("val", "valid", "eval", "test", "validation")
 TRAIN_PREFIXES = ("train", "training")
-# the SDK's system metrics: their own collapsed section, never a headline chart.
-SYSTEM = "sys/"
+# the SDK's system metrics: their own collapsed section, last.
+SYSTEM = "sys"
 CLOCKS = ("epoch", "global_step", "trainer/global_step")
 EMPTY = (
     "No runs here yet. Runs appear once a script calls beamtime.init() with this group as its dir."
@@ -56,7 +57,7 @@ def group_body(ctx: Context, path: str) -> list[m.Block]:
         own = direct < runs
         own_keys = call("keys", {"from": path, "depth": 1}, ctx) if own else keys
         many = "config.seed" in varying and direct > SEED_GROUPING_ABOVE
-        body += curves(ordered_metrics(own_keys), "config.seed" if many else None, own)
+        body += curves(ordered_metrics(own_keys), "config.seed" if many else None, own, main)
         if varying:
             body.append(m.Config(id="hyperparameters", title="Hyperparameters"))
         code = ["run.code"] if keys.get("codes") else []
@@ -97,7 +98,7 @@ def run_body(ctx: Context, path: str) -> list[m.Block]:
     keys = call("keys", {"from": run_id}, ctx)
     metrics = ordered_metrics(keys)
     status = next(iter(keys["status"]), None)
-    body = curves(metrics, None, False)
+    body = curves(metrics, None, False, main_metric(ctx, path, keys))
     for key, kind, _, _ in keys["data"]["rows"]:
         match kind:
             case "image":
@@ -182,32 +183,54 @@ def count(ctx: Context, path: str, depth: Any) -> int:
     return call("runs", query, ctx)["meta"]["matched"]
 
 
-def curves(metrics: list[str], seeds: str | None, own: bool) -> list[m.Block]:
-    """Make the essential charts, and the rest and the system metrics in collapsed sections.
+def curves(
+    metrics: list[str], seeds: str | None, own: bool, lead: str | None = None
+) -> list[m.Block]:
+    """Make one chart per metric, in sections by metric prefix.
 
     :param metrics: The metrics, ordered.
     :param seeds: ``config.seed`` to average over seeds, or ``None``.
     :param own: Whether to show only the runs directly in the group.
-    :return: The blocks: a grid, and sections with more. Clocks (``epoch``) get no chart: they
-        are an x axis and a progress fact."""
+    :param lead: The main metric; its prefix comes first.
+    :return: The sections: the lead's prefix, evaluation, training, the other prefixes, ``Other``
+        (unprefixed metrics and prefixes of one metric), then ``System``; the first two open. A
+        single section is a plain grid. Clocks (``epoch``) get no chart: they are an x axis and a
+        progress fact."""
     metrics = [k for k in metrics if k not in CLOCKS]
-    first = essential(metrics)
-    system = [k for k in metrics if k.startswith(SYSTEM)]
-    rest = [k for k in metrics if k not in first and k not in system]
+    sizes = Counter(prefix(k) for k in metrics)
+    groups: dict[str, list[str]] = {}
+    for k in metrics:
+        name = prefix(k) if sizes[prefix(k)] > 1 or prefix(k) == SYSTEM else ""
+        groups.setdefault(name, []).append(k)
+    order = sorted(groups, key=lambda name: section_rank(name, prefix(lead or "")))
+    if len(order) == 1:
+        return [m.Grid(id="curves", children=[line(k, seeds, own) for k in metrics])]
     out: list[m.Block] = []
-    if first:
-        # the first grid of curves is where viewers add charts.
-        out.append(m.Grid(id="curves", children=[line(k, seeds, own) for k in first]))
-    for id_, title, shown, by in (
-        ("more", "More metrics", rest, seeds),
-        ("system", "System", system, None),
-    ):
-        if shown:
-            grid = m.Grid(id=f"{id_}-curves", children=[line(k, by, own) for k in shown])
-            out.append(
-                m.Section(id=id_, title=f"{title} ({len(shown)})", open=False, children=[grid])
-            )
+    for i, name in enumerate(order):
+        title = {"": "Other", SYSTEM: "System"}.get(name, name)
+        id_ = f"charts-{m.slug(name or 'unprefixed')}"
+        grid = m.Grid(id=f"{id_}-curves", children=[line(k, seeds, own) for k in groups[name]])
+        opened = i < OPEN_SECTIONS and name != SYSTEM
+        section = m.Section(
+            id=id_, title=f"{title} ({len(groups[name])})", open=opened, children=[grid]
+        )
+        out.append(section)
     return out
+
+
+def section_rank(name: str, lead: str) -> int:
+    """Rank a chart section: the lead's, evaluation, training, other prefixes, Other, System.
+
+    :param name: The section's prefix; empty for ``Other``.
+    :param lead: The prefix of the main metric.
+    :return: The rank; lower comes first."""
+    if name == SYSTEM:
+        return 5
+    if not name:
+        return 4
+    if name == lead:
+        return 0
+    return 1 if name in EVAL_PREFIXES else 2 if name in TRAIN_PREFIXES else 3
 
 
 def line(metric: str, seeds: str | None, own: bool) -> m.Line:
@@ -230,17 +253,16 @@ def ordered_metrics(keys: dict[str, Any]) -> list[str]:
     return sorted(names, key=lambda k: (rank.get(k.split("/", 1)[0], 3) if "/" in k else 4, k))
 
 
-def essential(metrics: list[str]) -> list[str]:
-    """Pick the metrics worth a chart up front: evaluation metrics, then training losses.
+def leading(metrics: list[str]) -> list[str]:
+    """Pick the metrics fit to lead a page: evaluation metrics, training losses, plain losses.
 
     :param metrics: The metrics, ordered.
-    :return: At most four; schedules and diagnostics (lr, grad norms) are left for "more"."""
-    metrics = [k for k in metrics if not k.startswith(SYSTEM)]
+    :return: Those metrics in that order; system metrics never lead."""
+    metrics = [k for k in metrics if not k.startswith(f"{SYSTEM}/")]
     evals = [k for k in metrics if prefix(k) in EVAL_PREFIXES]
     losses = [k for k in metrics if prefix(k) in TRAIN_PREFIXES and "loss" in k]
     plain = [k for k in metrics if not prefix(k) and lower_is_better(k) or k in ("acc", "accuracy")]
-    picked = list(dict.fromkeys([*evals, *losses, *plain]))
-    return picked[:ESSENTIAL] or metrics[:ESSENTIAL]
+    return list(dict.fromkeys([*evals, *losses, *plain]))
 
 
 def main_metric(ctx: Context, path: str, keys: dict[str, Any]) -> str | None:
@@ -269,7 +291,7 @@ def main_metric(ctx: Context, path: str, keys: dict[str, Any]) -> str | None:
         (k for k in metrics if k not in CLOCKS and not constant.get(k)),
         key=lambda k: (points.get(k) or 2) <= 1,
     )
-    return (essential(live) or live or metrics)[0]
+    return (leading(live) or live or metrics)[0]
 
 
 def metric_column(keys: dict[str, Any], column: str) -> dict[str, Any]:

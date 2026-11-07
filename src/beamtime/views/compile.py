@@ -18,6 +18,16 @@ if TYPE_CHECKING:
 RUNS_LIMIT = 10000
 
 
+def first_line(tree: dict[str, Any]) -> dict[str, Any] | None:
+    """Find the first ``line`` node of a block tree.
+
+    :param tree: A node.
+    :return: The node, or ``None`` without a line chart below."""
+    if tree["block"] == "line":
+        return tree
+    return next((found for c in tree.get("children", []) if (found := first_line(c))), None)
+
+
 def node(block: str, id: str, *, children: list | None = None, data: dict | None = None,
          **props: Any) -> dict[str, Any]:  # fmt: skip
     """Make a block tree node.
@@ -64,13 +74,18 @@ class Compiler:
         self.library = library
         leaf = path.rsplit("/", 1)[-1]
         self.run = leaf if is_run_id(leaf) else None
-        self.addable = False
 
     def tree(self) -> dict[str, Any]:
         """Compile the whole view.
 
         :return: The root node."""
-        return node("section", "root", children=[self.compile(n) for n in self.view.body])
+        root = node("section", "root", children=[self.compile(n) for n in self.view.body])
+        # viewers add charts to the page; a new chart copies the call of the page's first one.
+        if first := first_line(root):
+            template = {**first["data"]["main"], "params": dict(first["data"]["main"]["params"])}
+            template["params"].pop("y")
+            root["props"]["template"] = template
+        return root
 
     def compile(self, n: m.Node) -> dict[str, Any]:
         """Compile one node and its children.
@@ -240,21 +255,9 @@ class Compiler:
                 return node("row", n.id, children=[self.compile(k) for k in n.children], **common)
             case m.Grid():
                 kids = [self.compile(k) for k in n.children]
-                out = node(
+                return node(
                     "grid", n.id, children=kids, columns=n.columns, min_width=n.min_width, **common
                 )
-                # viewers add charts to the first grid of curves; new charts copy its first call.
-                if not self.addable and (
-                    first := next((k for k in kids if k["block"] == "line"), None)
-                ):
-                    self.addable = True
-                    template = {
-                        **first["data"]["main"],
-                        "params": dict(first["data"]["main"]["params"]),
-                    }
-                    template["params"].pop("y")
-                    out["props"] |= {"addable": True, "template": template}
-                return out
             case m.Tabs():
                 return node("tabs", n.id, children=[self.compile(k) for k in n.children], **common)
             case _:

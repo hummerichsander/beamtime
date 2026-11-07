@@ -21,6 +21,8 @@ GENERIC = {
     "stat": "max",
     "sort": "-metric.val/acc.max",
     "loss": "train/loss",
+    "main_prefix": "val",
+    "loss_prefix": "train",
     "swept": "config.lr",
     "swept2": "config.weight_decay",
     "swept_scale": "log",
@@ -153,11 +155,17 @@ def values_of(ctx: Context, group: str) -> dict[str, str]:
     :param ctx: The operation context.
     :param group: A group or run.
     :return: Placeholder values; empty where the group has nothing fitting."""
-    from beamtime.views.defaults import essential, lower_is_better, ordered_metrics, varying_config
+    from beamtime.views.defaults import (
+        leading,
+        lower_is_better,
+        ordered_metrics,
+        prefix,
+        varying_config,
+    )
 
     keys = remote_answer("keys", {"from": group}, ctx)
     metrics = ordered_metrics(keys)
-    main = proposed(ctx, group, metrics) or (essential(metrics) or metrics or [""])[0]
+    main = proposed(ctx, group, metrics) or (leading(metrics) or metrics or [""])[0]
     lower = lower_is_better(main)
     stat = "min" if lower else "max"
     losses = [k for k in metrics if "loss" in k and k != main]
@@ -176,7 +184,9 @@ def values_of(ctx: Context, group: str) -> dict[str, str]:
         "higher": "false" if lower else "true",
         "stat": stat,
         "sort": f"{'' if lower else '-'}metric.{main}.{stat}" if main else "",
-        "loss": losses[0] if losses else (metrics[1] if len(metrics) > 1 else main),
+        "loss": (loss := losses[0] if losses else (metrics[1] if len(metrics) > 1 else main)),
+        "main_prefix": prefix(main),
+        "loss_prefix": prefix(loss),
         "swept": swept,
         # a second axis: another swept field, else the seed, else the first again.
         "swept2": varying[1]

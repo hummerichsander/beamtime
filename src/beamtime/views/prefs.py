@@ -1,5 +1,5 @@
-"""Folding a viewer's chart settings, added charts, order and spans into a view body, for "Save as
-view" in the web UI."""
+"""Folding a viewer's chart settings, added and removed charts, order and spans into a view body,
+for "Save as view" in the web UI."""
 
 from typing import Any
 
@@ -8,11 +8,13 @@ from beamtime.views.model import yaml_walk
 
 
 def apply_prefs(body: list[dict[str, Any]], prefs: dict[str, Any]) -> list[dict[str, Any]]:
-    """Fold a viewer's chart settings and added charts into a view body.
+    """Fold a viewer's chart settings and added and removed charts into a view body.
 
     :param body: The body in YAML form; changed in place.
-    :param prefs: ``{charts, added, order, spans}`` as the web UI keeps them per page.
+    :param prefs: ``{charts, added, removed, order, spans}`` as the web UI keeps them per page.
     :return: The body."""
+    removed = set(prefs.get("removed") or [])
+    body[:] = without(body, removed)
     for _, props in yaml_walk(body):
         if (order := (prefs.get("order") or {}).get(props.get("id"))) and props.get("children"):
             props["children"] = reorder(props["children"], order)
@@ -33,26 +35,52 @@ def apply_prefs(body: list[dict[str, Any]], prefs: dict[str, Any]) -> list[dict[
     shown = {
         y for props in lines for y in ([props["y"]] if isinstance(props["y"], str) else props["y"])
     }
-    added = [mt for mt in prefs.get("added") or [] if mt not in shown]
+    added = [
+        mt for mt in prefs.get("added") or [] if mt not in shown and f"added-{mt}" not in removed
+    ]
     if added:
-        grid = next(
-            (
-                props
-                for b, props in yaml_walk(body)
-                if b == "grid" and any("line" in k for k in props.get("children", []))
-            ),
-            None,
-        )
         new = []
         for mt in added:
             props = {"id": f"added-{m.slug(mt)}", "y": mt}
             settle(props, shared | clean(charts.get(f"added-{mt}", {})))
             new.append({"line": props})
+        grid = next((p for b, p in yaml_walk(body) if b == "grid" and p.get("id") == "added"), None)
         if grid is not None:
             grid.setdefault("children", []).extend(new)
         else:
-            body.append({"grid": {"id": "added", "children": new}})
+            # after the page's charts, where the web UI shows them.
+            charted = [
+                i for i, kid in enumerate(body) if any(b == "line" for b, _ in yaml_walk([kid]))
+            ]
+            body.insert(
+                (charted[-1] + 1) if charted else len(body),
+                {"grid": {"id": "added", "children": new}},
+            )
     return body
+
+
+def without(kids: list[dict[str, Any]], removed: set[str]) -> list[dict[str, Any]]:
+    """Drop the removed blocks, and layouts left empty by it.
+
+    :param kids: Nodes in YAML form.
+    :param removed: Ids of the blocks to drop.
+    :return: The nodes kept, in their order."""
+    out = []
+    for kid in kids:
+        ((name, props),) = kid.items()
+        if isinstance(props, dict) and props.get("id") in removed:
+            continue
+        if name in m.LAYOUTS:
+            inner = props if isinstance(props, list) else props.get("children") or []
+            kept = without(inner, removed)
+            if inner and not kept:
+                continue
+            if isinstance(props, list):
+                kid[name] = kept
+            else:
+                props["children"] = kept
+        out.append(kid)
+    return out
 
 
 def reorder(kids: list[dict[str, Any]], order: list[str]) -> list[dict[str, Any]]:

@@ -77,7 +77,8 @@ body:
     tree = compile_view(view, path="g")
     grid, stat, output = tree["children"]
     line, scatter = grid["children"]
-    assert grid["props"]["addable"] and "y" not in grid["props"]["template"]["params"]
+    template = tree["props"]["template"]
+    assert "y" not in template["params"] and template["method"] == "series"
     assert line["data"]["main"]["params"] == {
         "from": "g/sub", "where": {"run.status": {"ne": "failed"}}, "depth": 1, "y": ["val/loss"],
         "x": "_step", "points": 300, "band": "minmax", "by": ["config.lr"],
@@ -124,14 +125,30 @@ def test_default_view_round_trips_with_prefs(ctx: Context) -> None:
     props = {p["id"]: p for b, p in yaml_walk(folded) if b == "line"}
     wanted = {"by": ["config.lr"], "band": "std", "scale": "log", "smooth": 0.5}
     assert props["line-val-acc"].items() >= wanted.items()
-    # a shown metric isn't added twice; a new one joins the first grid of curves.
+    # a shown metric isn't added twice; a new one goes to a grid of added charts after the curves.
     assert [p for p in props if p.startswith("added-")] == ["added-x-new"]
-    assert any("added-x-new" in str(k) for k in folded[0]["grid"]["children"])
+    assert folded[1]["grid"]["id"] == "added" and "added-x-new" in str(folded[1]["grid"])
     assert "seeds" not in props["line-val-acc"]
     assert props["line-train-loss"]["smooth"] == 0.5
     # the view-wide "each run" removes the default's seed averaging.
     assert "seeds" not in props["line-train-loss"]
     assert "hidden" not in str(folded)
+
+
+def test_save_as_view_drops_removed_charts_and_keeps_the_order() -> None:
+    """Hidden charts leave the view, sections emptied by it too; the rest stays in its order."""
+    from beamtime.views.defaults import curves
+
+    metrics = ["val/acc", "val/loss", "train/loss", "train/lr", "lr"]
+    body = m.to_yaml_form(m.View(body=curves(metrics, None, False, "val/acc")))["body"]
+    removed = ["line-val-acc", "line-train-loss", "line-train-lr", "added-x/new"]
+    prefs = {"removed": removed, "added": ["x/new", "y/new"]}
+    folded = apply_prefs(body, prefs)
+    props = [p["id"] for b, p in yaml_walk(folded) if b in ("section", "grid", "line")]
+    assert props == [
+        "charts-val", "charts-val-curves", "line-val-loss",
+        "charts-unprefixed", "charts-unprefixed-curves", "line-lr", "added", "added-y-new",
+    ]  # fmt: skip
 
 
 def test_view_ops_and_the_page(ctx: Context, project: Path) -> None:
@@ -387,16 +404,29 @@ def test_authored_views_keep_notes_and_memory(ctx: Context) -> None:
     assert blocks == ["notes", "line", "memory"]
 
 
-def test_system_metrics_get_their_own_section() -> None:
-    """sys/* metrics never lead; they sit in a collapsed System section."""
-    from beamtime.views.defaults import curves, essential
+def test_curves_sit_in_sections_by_prefix() -> None:
+    """Every metric has one chart, in the section of its prefix; sys/* is last and closed."""
+    from beamtime.views.defaults import curves
 
-    metrics = ["val/acc", "train/loss", "lr", "sys/cpu", "sys/gpu0/util"]
-    assert essential(["sys/cpu", "sys/memory"]) == []
-    nodes = {n.id: n for n in curves(metrics, None, False)}
-    assert [c.y for c in nodes["curves"].children] == ["val/acc", "train/loss"]
-    assert nodes["system"].title == "System (2)" and nodes["system"].open is False
-    assert [c.y for c in nodes["more"].children[0].children] == ["lr"]
+    metrics = ["val/acc", "val/loss", "train/loss", "train/lr", "lr", "sys/cpu", "energy/a", "energy/b"]
+    out = curves(metrics, None, False, "val/acc")
+    assert [(s.title, s.open) for s in out] == [
+        ("val (2)", True), ("train (2)", True), ("energy (2)", False),
+        ("Other (1)", False), ("System (1)", False),
+    ]  # fmt: skip
+    charts = [c.y for s in out for c in s.children[0].children]
+    assert sorted(charts) == sorted(metrics) and out[0].children[0].children[0].id == "line-val-acc"
+
+
+def test_the_lead_prefix_comes_first_and_one_prefix_is_a_plain_grid() -> None:
+    """The proposal's prefix leads; prefixes of one metric go to Other; one group has no section."""
+    from beamtime.views.defaults import curves
+
+    metrics = ["val/acc", "train/loss", "train/lr", "energy/e", "energy/m", "x/one"]
+    out = curves(metrics, None, False, "energy/e")
+    assert [s.title for s in out] == ["energy (2)", "train (2)", "Other (2)"]
+    (grid,) = curves(["loss", "acc", "epoch"], None, False)
+    assert isinstance(grid, m.Grid) and [c.y for c in grid.children] == ["loss", "acc"]
 
 
 def test_ui_changes_on_a_broken_view_say_how_to_repair(ctx: Context, project: Path) -> None:

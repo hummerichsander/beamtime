@@ -7,6 +7,7 @@ import { useMemo, useState } from "preact/hooks";
 
 import { invalidate, post, useCall } from "../api.ts";
 import { Block } from "../blocks/index.ts";
+import { AddCharts } from "../blocks/layout.ts";
 import { LabelCtx, Notice, rows } from "../blocks/common.ts";
 import { diffLines, fold } from "../bt/diff.ts";
 import { ago, versionTime } from "../bt/fmt.ts";
@@ -36,8 +37,8 @@ export function ViewBody(props: { path: string; view: any; before?: ComponentChi
         : html`<${Section} label="view"><div class="skeleton late" style="block-size: 320px"></div><//>`}
     </div>`;
   }
-  const value = { path: props.path, colors, names, metrics: props.view.metrics ?? {} };
   const root: Node = props.view.view;
+  const value = { path: props.path, colors, names, metrics: props.view.metrics ?? {}, charted: chartsOf(root) };
   if (props.plain) return html`<div class=${shell}><${ViewCtx.Provider} value=${value}><${Block} node=${root} /><//></div>`;
   // every top-level block sits in its own Section; layouts below it stay inside.
   const blocks = root.block === "section" && !root.props.title ? root.children ?? [] : [root];
@@ -47,8 +48,16 @@ export function ViewBody(props: { path: string; view: any; before?: ComponentChi
         const label = labelOf(b);
         return html`<${Section} key=${b.id} label=${label}><${LabelCtx.Provider} value=${label}><${Block} node=${b} /><//><//>`;
       })}
+      <${AddCharts} root=${root} />
     <//>
   </div>`;
+}
+
+// the metrics of every line chart of a tree, by chart id.
+function chartsOf(n: Node, out = new Map<string, string[]>()): Map<string, string[]> {
+  if (n.block === "line") out.set(n.id, (n.data?.main?.params?.y as string[] | undefined) ?? []);
+  for (const c of n.children ?? []) chartsOf(c, out);
+  return out;
 }
 
 // where the shown view comes from, its history, and saving the viewer's charts as a version.
@@ -133,10 +142,10 @@ function SaveView(props: { path: string; view: any }) {
     setBusy(true);
     setError(null);
     try {
-      const keep = { charts: prefs.charts, view: prefs.view, added: prefs.added, order: prefs.order, spans: prefs.spans };
+      const keep = { charts: prefs.charts, view: prefs.view, added: prefs.added, removed: prefs.removed, order: prefs.order, spans: prefs.spans };
       await post("save_view", { path: props.path, prefs: keep, title, finding });
       // the saved view now shows what the viewer had set; their own settings would repeat it.
-      update(props.path, () => ({ view: {}, charts: {}, added: [], order: {}, spans: {} }));
+      update(props.path, () => ({ view: {}, charts: {}, added: [], removed: [], order: {}, spans: {} }));
       invalidate((c) => ["view", "view_history", "summary"].includes(c.method) && c.scope === props.path);
       setOpen(false);
     } catch (err) {

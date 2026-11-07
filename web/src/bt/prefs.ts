@@ -1,5 +1,5 @@
 // Chart preferences per viewer, kept in the browser by group: each chart's own settings, hidden
-// runs and added charts. "Save as view" writes them into the view as block props.
+// runs, and added and removed charts. "Save as view" writes them into the view as block props.
 
 import { Store, stored, store, useStore } from "../state.ts";
 
@@ -30,12 +30,14 @@ export type ViewPrefs = {
   view: ChartPrefs;
   hidden: string[];
   added: string[];
+  // ids of charts the viewer hid.
+  removed: string[];
   // a grid's children in the viewer's order, and blocks' widths, by id.
   order: Record<string, string[]>;
   spans: Record<string, Span>;
 };
 
-const empty = (): ViewPrefs => ({ charts: {}, view: {}, hidden: [], added: [], order: {}, spans: {} });
+const empty = (): ViewPrefs => ({ charts: {}, view: {}, hidden: [], added: [], removed: [], order: {}, spans: {} });
 const cache = new Map<string, Store<ViewPrefs>>();
 
 export function prefsOf(path: string): Store<ViewPrefs> {
@@ -105,9 +107,18 @@ export function changed(prefs: ViewPrefs): boolean {
     Object.keys(strip(prefs.view)).length > 0 ||
     Object.values(prefs.charts).some((c) => Object.keys(strip(c)).length > 0) ||
     prefs.added.length > 0 ||
+    prefs.removed.length > 0 ||
     Object.keys(prefs.order).length > 0 ||
     Object.keys(prefs.spans).length > 0
   );
+}
+
+export function hideChart(path: string, id: string): void {
+  update(path, (p) => ({ removed: [...p.removed, id] }));
+}
+
+export function showCharts(path: string, ids: string[]): void {
+  update(path, (p) => ({ removed: p.removed.filter((id) => !ids.includes(id)) }));
 }
 
 export function setOrder(path: string, grid: string, ids: string[]): void {

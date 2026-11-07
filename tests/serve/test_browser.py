@@ -554,3 +554,53 @@ def test_epochs_are_a_fact_and_a_column_not_a_chart(server: str, page, project: 
     page.wait_for_selector("table.runs th:has-text('progress')")
     cells = page.locator("table.runs td.progress").all_inner_texts()
     assert {c.strip() for c in cells} == {"80 %", "20 %"}, cells
+
+
+def test_the_default_view_groups_charts_by_prefix_and_a_hidden_chart_comes_back(
+    server: str, page, project: Path
+) -> None:
+    """Sections by prefix with the first two open; a hidden chart can be shown again, the choice
+    survives a reload, "Save as view" keeps it, and a section remembers being closed."""
+    base = server.split("/f/local")[0]
+    token = server.split("token=")[1]
+    page.goto(f"{base}/f/local/realistic/egnn-bench?token={token}")
+    page.wait_for_selector(".chart canvas")
+    toggles = "button.view-section-title"
+    names = lambda: page.locator(toggles).evaluate_all(  # noqa: E731
+        "els => els.map(e => e.getAttribute('aria-label') || e.innerText)"
+    )
+    assert names() == [
+        "Close validation (4)", "Close energy (3)", "Open Other (2)", "Open System (2)",
+    ]  # fmt: skip
+    assert page.locator(".chart-title:text-is('validation/loss')").count() == 1
+    assert page.locator(".chart-title:text-is('sys/gpu_mem')").count() == 0
+
+    frames = page.locator(".chart-frame")
+    before = frames.count()
+    frame = frames.first
+    frame.hover()
+    frame.locator("button[aria-label='Hide this chart']").click()
+    page.wait_for_selector("button:has-text('1 hidden · show')")
+    assert frames.count() == before - 1
+    page.reload()
+    page.wait_for_selector("button:has-text('1 hidden · show')")
+    page.locator("button:has-text('1 hidden · show')").click()
+    page.wait_for_function(f"document.querySelectorAll('.chart-frame').length == {before}")
+    assert page.locator("button:has-text('hidden · show')").count() == 0
+
+    frame = frames.first
+    gone = frame.locator(".chart-title").inner_text()
+    frame.hover()
+    frame.locator("button[aria-label='Hide this chart']").click()
+    page.locator(".save-view").click()
+    page.locator(".save-actions button[type=submit]").click()
+    page.wait_for_function(f"document.querySelectorAll('.chart-frame').length == {before - 1}")
+    page.reload()
+    page.wait_for_selector(".chart canvas")
+    assert frames.count() == before - 1 and page.locator("button:has-text('hidden · show')").count() == 0
+    assert page.locator(f".chart-title:text-is('{gone}')").count() == 0
+
+    page.locator(toggles).nth(1).click()
+    page.reload()
+    page.wait_for_selector(".chart canvas")
+    assert names()[1] == "Open energy (3)"

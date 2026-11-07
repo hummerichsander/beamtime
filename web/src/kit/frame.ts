@@ -23,7 +23,7 @@ const LIBS: Record<string, () => Promise<unknown>> = {
 
 let started = false;
 // the page's run names, colors and metrics; updated when the page's change.
-const view = new Store<ViewContext>({ path: ".", colors: new Map(), names: new Map(), metrics: {} });
+const view = new Store<ViewContext>({ path: ".", colors: new Map(), names: new Map(), metrics: {}, charted: new Map() });
 
 function send(msg: ToPage): void {
   parent.postMessage(msg, "*");
@@ -55,7 +55,7 @@ async function start(init: Init): Promise<void> {
     if (!load) throw new Error(`no library '${name}'; the kit offers ${Object.keys(LIBS).join(", ")}`);
     libs[name] = await load();
   }
-  view.set({ path: init.path, colors: new Map(init.colors), names: new Map(init.names), metrics: init.metrics });
+  view.set({ path: init.path, colors: new Map(init.colors), names: new Map(init.names), metrics: init.metrics, charted: new Map() });
   if (init.pair) pair.set(init.pair);
   colormaps.set(init.colormaps);
   name = init.id;

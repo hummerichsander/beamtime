@@ -83,9 +83,8 @@ def test_view_of_groups_and_runs(api, roles: dict[str, str]) -> None:
     assert "stat" not in walk(sweep["view"])
     curves = next(c for c in sweep["view"]["children"] if c["block"] == "grid")
     assert all(c["data"]["main"]["method"] == "series" for c in curves["children"])
-    assert [c["props"]["y"] for c in curves["children"]] == ["val/acc", "train/loss"]
-    more = next(c for c in sweep["view"]["children"] if c["id"] == "more")
-    assert more["props"]["open"] is False and "lr" in str(more)
+    # three metrics with different prefixes are one plain grid, not sections of one chart.
+    assert [c["props"]["y"] for c in curves["children"]] == ["val/acc", "train/loss", "lr"]
     table = next(c for c in sweep["view"]["children"] if c["block"] == "table")
     assert table["props"]["sparkline"] == "val/acc" and "spark" in table["data"]
     best = api("summary", path="scaling/lr-sweep").json()["summary"]

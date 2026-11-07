@@ -1,13 +1,26 @@
 # Example "run": the page of one run. Its curves first, then what it logged, then its output.
 # Save it on the run (view new <run-id>); runs without their own view show the built-in default.
+# Charts sit in sections by metric prefix (val/..., train/...), as in the built-in default: the
+# first sections open, the others `open: false`.
 schema: 1
 title: "{{group}}"
 body:
-  - grid:
-      id: curves
+  - section:
+      id: main-metrics
+      title: "{{main_prefix}}"
       children:
-        - line: {id: main, y: "{{main}}", caption: "{{main}} over steps."}
-        - line: {id: loss, y: "{{loss}}", caption: "Training loss over steps."}
+        - grid:
+            id: main-curves
+            children:
+              - line: {id: main, y: "{{main}}", caption: "{{main}} over steps."}
+  - section:
+      id: loss-metrics
+      title: "{{loss_prefix}}"
+      children:
+        - grid:
+            id: loss-curves
+            children:
+              - line: {id: loss, y: "{{loss}}", caption: "Training loss over steps."}
   - histogram:
       id: distribution
       key: "{{hist}}"

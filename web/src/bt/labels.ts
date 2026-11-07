@@ -11,7 +11,6 @@ const KINDS: Record<string, string> = {
 export function labelOf(node: LabelNode): string {
   if (KINDS[node.block]) return KINDS[node.block];
   if (node.block === "row" || node.block === "grid") {
-    if (node.props.addable) return "charts";
     const kinds = new Set((node.children ?? []).map((c) => KINDS[c.block]));
     const [only] = kinds;
     if (kinds.size === 1 && only) return only;
