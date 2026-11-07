@@ -1,13 +1,17 @@
 # Refactor 1: plan after the first human end-to-end tests
 
-Status: **in progress.** Done on branch `refactor-1`: F1 `88fc5b5`, A1 `e2a5cb6`, A2 `dada516`, A3 `6899788`, A4 `3942900`, A5 `0297ea2`, A6 `c0aa283`, A7 `9c286ec`, A8 `bd71c5b`, A9 `4d03f19`, D1 `b7244e1`, D2 `f9f1f40`, D3 `3761001`, D4 `18adc31` (D1 to D3 reviewed in `dc72616` and `33c4fff`), E1 `d9130b0`, E2 `6583a26`, E3 `2ae9cf5`, E4 `c46417e` (E1 to E3 reviewed in `a513e2b` and `5d7a83a`), B1 `0d11c23`, B2 `280f17f`, B3 `ac3ce44`, B4 `310da29`, B5 `51d97fa`.
+Status: **in progress** on branch `refactor-1`; `python3 ~/.claude/skills/run-chunk/scripts/chunk.py status
+docs/refactor-1-plan.md` lists every chunk with its commit and prints the command for the next one. Reviews so far:
+B1 `0434cd6`, B2 `108d2be` and `e24b632`, A5 to A9 `f8a978d`, D1 to D3 `dc72616` and `33c4fff`, E1 to E3 `a513e2b`
+and `5d7a83a`.
 Proposed 2026-11-04, based on the findings in `todo`, the code at `8165346`, the real log
 dir at `au002a:/remote/gpu04/hummerich/projects/split-flows-public/beamtime` (78 runs, 12 groups, 10
 custom code files) and 65 agent sessions on that project. Breaking changes are allowed where they make
 the code leaner; they are listed in [Breaking changes](#breaking-changes).
 
-Every chunk below is written to be executed on its own by a cheaper model. Read
-[Brief](#brief), [How to execute](#how-to-execute) and your chunk's [manifest](#manifests) first.
+Every chunk below is executed on its own by a cheaper model, in a fresh session:
+`/run-chunk docs/refactor-1-plan.md <ID>`. Chunks marked **+ review** then get `/review-chunk docs/refactor-1-plan.md
+<ID>` on a stronger model. Both sessions receive the Brief, How to execute, the Decisions and their chunk, nothing else.
 
 ## The findings, in one table
 
@@ -64,198 +68,55 @@ What the remaining chunks build, so a session doesn't rediscover the design:
 - **Agents** (G): the guide by topic (`beamtime guide <topic>`), skills generated from it, a harness in
   `bench/agents/` with scores, and new tools through `ops/registry.py`.
 
-Done, for every chunk: its **Done** line holds; the checks in How to execute pass; `docs/design/` says what the
-code does; its heading in this plan and the status line carry the commit hash.
+Done, for every chunk: its **Done** line holds; its **Check** passes; `docs/design/` says what the code does; its
+heading is marked done in the chunk's own commit.
 
 ## How to execute
 
-For the agent running a chunk:
+The project's rules for every chunk; `/run-chunk` brings the general protocol (bearings, baseline, failing test
+first for **code** findings, stop conditions, report).
 
-1. Read `CLAUDE.md`, this section and your chunk. Read the design sections it names. Don't read the rest.
-2. Where the evidence tag is **code**, reproduce first with a failing test. If the cause turns out to be
-   different, stop and report instead of patching around it.
-3. Follow the style in `CLAUDE.md`: lean, flat, no private dict-bundling helpers, docstrings with
-   `:param:`, comments only for a non-obvious why.
-4. Write deviations and new behaviour back into `docs/design/` in the same commit, including the
-   "Later" entries a chunk completes.
-5. Checks before every commit: your manifest's **Done check**, which names the tests to run; run only those
-   (`-x` on a subset while working). Touching a file outside your manifest's **Touches** adds the tests of
-   that area. The full suite (`uv run pytest -q`) runs where a done check says so and in every review session.
-   Under the default 4 workers `tests/test_budgets.py` checks the bundle sizes and imports but skips its two
-   wall-clock budgets; done checks that need those add `uv run pytest -q -n0 tests/test_budgets.py`.
-   After any change in `web/`: `cd web && npm ci && npm test && npm run build`, and commit the rebuilt
-   `src/beamtime/serve/static/` (the shell stays under 120 KB compressed). SDK changes also run the 3.10
-   command in `CLAUDE.md`.
-6. UI rules: values only in `design/tokens.json`, type sizes only from type classes, new components get
-   rules in `design/components/` and a place in `gallery.html`.
-7. Keep NumPy, PyYAML and `importlib.metadata` off the `beamtime runs` import path
-   (`tests/test_budgets.py`). `sdk/`, `format/`, `synth/` stay on Python 3.10, stdlib and PyYAML.
-8. Never touch `tests/golden/schema1/`. Readers keep accepting every file already on disk; new fields in
+1. Style as in `CLAUDE.md`: lean, flat, no private dict-bundling helpers, docstrings with `:param:`, comments only
+   for a non-obvious why.
+2. Write deviations and new behaviour back into `docs/design/` in the same commit, including the "Later" entries a
+   chunk completes.
+3. Checks: your chunk's **Check**, which names the tests to run (`-x` on a subset while working). Touching a file
+   outside **Touches** adds the tests of that area. The full suite (`uv run pytest -q`) runs where a check says so
+   and in every review. Under the default 4 workers `tests/test_budgets.py` checks the bundle sizes and imports
+   but skips its two wall-clock budgets; checks that need those add `uv run pytest -q -n0 tests/test_budgets.py`.
+   SDK changes also run the 3.10 command in `CLAUDE.md`.
+4. After any change in `web/`: `cd web && npm ci && npm test && npm run build`, and commit the rebuilt
+   `src/beamtime/serve/static/` (the shell stays under 120 KB compressed). Never print a bundle file or anything
+   in `src/beamtime/serve/static/`.
+5. UI rules: values only in `design/tokens.json`, type sizes only from type classes, new components get rules in
+   `design/components/` and a place in `gallery.html`.
+6. Keep NumPy, PyYAML and `importlib.metadata` off the `beamtime runs` import path (`tests/test_budgets.py`).
+   `sdk/`, `format/`, `synth/` stay on Python 3.10, stdlib and PyYAML.
+7. Never touch `tests/golden/schema1/`. Readers keep accepting every file already on disk; new fields in
    `_run.json` and notes are optional and need no schema bump.
-9. One commit per chunk (G4: one per tool). Then record its hash in the chunk's heading
-   (`— **done `abc1234`**`) and in the status line at the top, as a separate commit. Ask before making a worktree. **Web chunks run one at a time**, since the
-   committed bundle conflicts otherwise; A-web, B and C are therefore sequential. D and E backend parts
-   can run in parallel.
+8. Line ranges in **Touches** are from `e476dbf`; search the symbol if a range has moved.
+9. One commit per chunk (G4: one per tool), subject `<ID>: <what changed>`. In that same commit, append
+   ` — **done**` to the chunk's heading; the hash stays in git, where `chunk.py status` finds it. No separate plan
+   commit. Ask before making a worktree. **Web chunks run one at a time**, since the committed bundle conflicts
+   otherwise; B, C and E5 are therefore sequential.
 
-Model tiers: **haiku** for mechanical chunks, **sonnet** for the default, **sonnet + review** where a
-mistake is expensive: have a stronger model read the diff afterwards.
-
-### Running a chunk cheaply
-
-- A fresh session per chunk, started with the chunk's prompt from [Manifests](#manifests). Read what the manifest
-  names, at the line ranges it gives (they are from `e476dbf`; search the symbol if a range has moved).
-- Mechanical changes with tools: `git mv` for moves, `ruff check --fix` for imports, `sed` for renames. Then let
-  the tests find what's left instead of reading every caller.
-- Small output: `pytest -q` (`-q -x` on a subset while working, the done check's tests before the commit),
-  `git diff --stat`, `grep -n` with a path. Never print a bundle file or `src/beamtime/serve/static/`.
-- A subagent only for a search that would flood the context (every caller across `web/src`, say), asked for
-  the conclusion, not the hits.
-- Questions go at the end of the session, not along the way.
+Model tiers: **haiku** for mechanical chunks, **sonnet** for the default, **+ review** where a mistake is
+expensive: a stronger model reads the diff afterwards.
 
 ## Order
 
 ```
 F1 ─┬─ A1 A2 A3 A4 A5 A6 A7 A8 A9     bugs, independent (all done)
-    ├─ B1 ─ B2 ─ B3 ─ B4 ─ B5 ─ B6 ─ B7    charts, in this order
+    ├─ B1 ─ B2 ─ B3 ─ B4 ─ B5 ─ B6 ─ B7    charts, in this order (B1 to B5 done)
     │              └─ C1 ─ C2 ─ C3         agent chart parity
     ├─ D1 ─ D2 ─ D3 ─ D4                   sources and remote writes (done)
     ├─ E1   E2   E3 ─ E4 ··· E5           run lifecycle (E1 to E4 done); E5, its UI, after B7
     └─ G1 ─ G2 ─ G3 ─ G4                   guides, harness, tools (G1 after C3; G3 after D2)
-                              Z            docs, changelog, release
+                              Z1           docs, changelog, release
 ```
 
-If time is short: B1 to B3 remove most of the remaining daily friction. What's left runs in this order, one
-session at a time in the main checkout (every chunk touches `web/` or the guide): B1 B2 B3 B4 B5 B6 B7 E5 C1 C2 C3
-G1 G2 G3 G4 Z.
-
-## Manifests
-
-Per remaining chunk: what it touches (line ranges at `e476dbf`), what to read, the done check, and the prompt that
-starts a fresh session. Chunks tagged **+ review** get a review session afterwards, on a stronger model:
-
-- **Review prompt** (replace `<X>`): `Review chunk <X> of docs/refactor-1-plan.md (its commit is in the chunk heading). Read the plan's Brief, How to execute, <X>'s manifest and chunk, Breaking changes and Decisions. Report bugs, departures from the plan and CLAUDE.md or design/ violations, ranked, with file:line and a failure case. Run the done check, then the full suite `uv run pytest -q`. Fix confirmed defects in one commit "Review fixes for <X>"; list departures that need a decision for me. Don't push.`
-
-### B1
-
-- **Touches:** `web/src/blocks/line.ts` (`Chart` 83–249, `Settings` 250–326, `LEGEND_MAX` 25), `web/src/blocks/plots.ts` (`PlotFrame` 280–339, `ValueLegend` 340–352); new `web/src/bt/frame.ts`, `web/src/blocks/line-settings.ts`; `design/gallery.html` and `design/components/Note.md` for `NoteType` (`web/src/blocks/context.ts:230`).
-- **Read:** `docs/design/07-web-ui.md` § Charts (l. 350); `design/components/Chart.md`.
-- **Done check:** `cd web && npm ci && npm test && npm run build`, then the Python checks; bundle committed; `uv run pytest -q tests/serve/test_browser.py tests/test_design.py`; `bench/web/timing.py` within budget.
-- **Note:** No behaviour change. + review.
-- **Prompt:** `Implement chunk B1 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B1's manifest and chunk B1; read other files only as the manifest or the code leads you. Commit when B1's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### B2
-
-- **Touches:** `src/beamtime/query/read.py` (new `x_values`; `elapsed_values` 226, `bucket_means` 263), `src/beamtime/query/kinds.py` (`run_curve` 272–315, `map_x` 316 removed, `grouped_curve` 332); tests in `tests/query/test_read.py` and `tests/query/test_queries.py` (the plan's `test_series.py` doesn't exist).
-- **Read:** `docs/design/03-index.md` § Query kinds (l. 272), § Answers (l. 373).
-- **Done check:** `uv run pytest -q tests/query` while working, then `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`.
-- **Note:** Tagged code: failing test first. + review.
-- **Prompt:** `Implement chunk B2 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B2's manifest and chunk B2; read other files only as the manifest or the code leads you. Commit when B2's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### B3
-
-- **Touches:** `web/src/bt/uplot.ts` (`lineChart` 46, axes 121–124, `plotChart` 383, axes 406–407), `web/src/bt/curves.ts` (`align` 104), `web/src/bt/plot.ts`, `web/src/blocks/line.ts` (`X_AXES` 26, `formatterFor` 327), `web/src/blocks/plots.ts`, `web/src/bt/shapes.ts` (time ticks), `src/beamtime/views/model.py` (`Line` 40, `Scatter` 67, `Bar` 79, `Histogram` 91), `views/compile.py`, `views/prefs.py` (`settle` 68).
-- **Read:** `docs/design/07-web-ui.md` § Charts; `docs/design/05-views.md` § Catalog (l. 168), § Charts (l. 381).
-- **Done check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/views tests/serve/test_app.py tests/remote/test_views.py tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`.
-- **Prompt:** `Implement chunk B3 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B3's manifest and chunk B3; read other files only as the manifest or the code leads you. Commit when B3's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### B4
-
-- **Touches:** `web/src/ui/primitives.ts` (`Popover` 71), `web/src/blocks/line-settings.ts` (from B1), `web/src/ui/multiselect.ts`, `web/src/styles/blocks.css`, `web/src/bt/prefs.ts` (`ChartPrefs` 8, `effective` 83), `views/prefs.py` (`settle` 68), `design/components/Chart.md`.
-- **Read:** `docs/design/07-web-ui.md` § Charts; `design/components/Chart.md`.
-- **Done check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/views/test_views.py tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`.
-- **Prompt:** `Implement chunk B4 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B4's manifest and chunk B4; read other files only as the manifest or the code leads you. Commit when B4's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### B5
-
-- **Touches:** `src/beamtime/settings.py` (`DEFAULTS` 10–22, `SETTABLE` 23, unknown keys 91, `load` 162), `ops/registry.py` (`SetParams` 447), `ops/admin.py` (`set_setting` 95), `serve/api.py` (meta 209–238), `web/src/shell/settings.ts` (17, 80–81), `web/src/bt/writes.ts`, `views/theme.py` (`DEFAULT_COLORMAPS` 16, `colormaps` 40), `web/src/bt/theme.ts` (`groupColors` 75), `web/src/kit/protocol.ts` (`Init` 9), `web/src/bt/prefs.ts`, `views/model.py`, `views/prefs.py`, `line-settings.ts`; tests `tests/ops/test_ops.py`, `tests/views/test_theme.py`; docs `guide/parts/kit.md`, `guide/examples/code/phase-map.js`, `docs/guides/settings.md`, `design/README.md`, `design/components/Chart.md`.
-- **Read:** `docs/design/05-views.md` § Theme (l. 400), § Colors for runs and groups (l. 443); `07-web-ui.md` § Theme in the UI (l. 229).
-- **Done check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q` (the full suite: settings, the registry and the API reach every frontend); `grep -rn colormap_diverging src web/src` finds only the migration line.
-- **Prompt:** `Implement chunk B5 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B5's manifest and chunk B5; read other files only as the manifest or the code leads you. Commit when B5's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### B6
-
-- **Touches:** `views/defaults.py` (new `CLOCKS`; `curves` 182, `ordered_metrics` 218), new `src/beamtime/query/progress.py`, `ops/reading.py` (`card` 193), `query/fields.py` (`run.epoch`), `web/src/shell/header.ts`, `web/src/blocks/table.ts`.
-- **Read:** `docs/design/03-index.md` § Fields (l. 211); `07-web-ui.md` § Pages and URLs (l. 152).
-- **Done check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/query tests/views tests/ops tests/cli tests/mcp tests/serve/test_app.py tests/remote/test_federation.py tests/test_docs.py tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`.
-- **Prompt:** `Implement chunk B6 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B6's manifest and chunk B6; read other files only as the manifest or the code leads you. Commit when B6's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### B7
-
-- **Touches:** `views/defaults.py` (`ESSENTIAL` 11, `group_body` 37, `curves` 182, `line` 208, `essential` 228 removed), `web/src/blocks/layout.ts` (`Section` 15, `Grid` 40), `web/src/bt/prefs.ts` (`ViewPrefs` 25), `views/prefs.py` (`apply_prefs` 10), `views/compile.py`, `web/src/bt/index.ts` (`ViewCtx`: `charted`), `guide/examples/*.yaml`.
-- **Read:** `docs/design/07-web-ui.md` § Charts; `design/components/Section.md`.
-- **Done check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/views tests/ops/test_ops.py tests/serve/test_app.py tests/remote/test_views.py tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`.
-- **Note:** + review.
-- **Prompt:** `Implement chunk B7 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, B7's manifest and chunk B7; read other files only as the manifest or the code leads you. Commit when B7's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### E5
-
-- **Touches:** `web/src/bt/uplot.ts` (`LineSpec.marks`), `web/src/ui/symbols.ts` (time limit), `web/src/shell/header.ts` (code versions fact), the run page's details (`web/src/shell/page.ts`, `drawer.ts`), `web/src/blocks/table.ts` (column picker); `design/components/` and `design/gallery.html` for new components.
-- **Read:** `docs/design/07-web-ui.md` § Pages and URLs, § Charts; `docs/design/01-storage.md` on `attempts`, `copied_from`, `origin`.
-- **Done check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`.
-- **Prompt:** `Implement chunk E5 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, E5's manifest and chunk E5; read other files only as the manifest or the code leads you. Commit when E5's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### C1
-
-- **Touches:** `web/src/kit/index.ts` (`makeKit` 46, `version` 78, `ui` 88–100, `theme` 152–175), `web/src/kit/protocol.ts`, `web/src/blocks/custom.ts`, `web/src/bt/frame.ts` (B1), `web/src/ui/symbols.ts` (`symbolFor` 53), `web/src/ui/icons.ts` (`Sym` 36), `web/src/ui/primitives.ts` (`Tag` 24), `web/src/bt/theme.ts` (`stopsOf`, read only), `guide/parts/kit.md`.
-- **Read:** `docs/design/05-views.md` § The `bt` kit API (l. 315), § Sandbox (l. 362), § Charts (l. 381).
-- **Done check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/views tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`.
-- **Note:** + review.
-- **Prompt:** `Implement chunk C1 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, C1's manifest and chunk C1; read other files only as the manifest or the code leads you. Commit when C1's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### C2
-
-- **Touches:** `views/model.py` (new `Scorecard`), `views/compile.py`, new `web/src/blocks/scorecard.ts`, `web/src/blocks/index.ts`, `guide/examples/sweep.yaml`.
-- **Read:** `docs/design/05-views.md` § Catalog (l. 168).
-- **Done check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/views tests/ops/test_ops.py tests/serve/test_app.py tests/remote/test_views.py tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`.
-- **Prompt:** `Implement chunk C2 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, C2's manifest and chunk C2; read other files only as the manifest or the code leads you. Commit when C2's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### C3
-
-- **Touches:** `views/validate.py` (`structure` 87, `custom_checks` 169), `views/code.py` (`problems` 32), `tests/views/test_views.py`.
-- **Read:** `docs/design/05-views.md` § Validation (l. 577).
-- **Done check:** `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/views tests/serve/test_render.py tests/remote/test_views.py tests/remote/test_no_local.py`.
-- **Note:** Run the lints on the real views only through a read-only `pull`.
-- **Prompt:** `Implement chunk C3 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, C3's manifest and chunk C3; read other files only as the manifest or the code leads you. Commit when C3's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### G1
-
-- **Touches:** `src/beamtime/guide/parts/` (new topic files), `src/beamtime/guide/__init__.py` (`guide` 35, `read` 57), `guide/examples/*.yaml`, new `tests/guide/`.
-- **Read:** `docs/design/05-views.md` § The agent guide (l. 603), § Agent instructions (l. 710).
-- **Done check:** `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/guide tests/views tests/ops/test_ops.py tests/mcp tests/cli tests/test_cli.py tests/test_docs.py tests/serve/test_render.py`.
-- **Prompt:** `Implement chunk G1 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, G1's manifest and chunk G1; read other files only as the manifest or the code leads you. Commit when G1's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### G2
-
-- **Touches:** `src/beamtime/mcp/server.py` (`prompts` 182), the `mcp install` op, new `scripts/build-plugin`.
-- **Read:** `docs/design/08-cli-mcp.md` § Prompts (l. 163); Claude Code's current plugin docs before step 2.
-- **Done check:** `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/mcp tests/ops/test_ops.py tests/cli tests/test_cli.py tests/test_docs.py`; `uv run pytest -q -n0 tests/test_budgets.py`.
-- **Prompt:** `Implement chunk G2 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, G2's manifest and chunk G2; read other files only as the manifest or the code leads you. Commit when G2's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### G3
-
-- **Touches:** `git mv bench/views bench/agents`; `run.py`, `score.py`, `report.py`, `tasks/`, new `mine.py`, `README.md`, `MISTAKES.md`.
-- **Read:** `bench/views/README.md`; G3's chunk.
-- **Done check:** `uv run ruff check . && uv run ruff format --check .`; no test covers `bench/`, so `grep -rn bench/views --exclude-dir=.git .` finds no stale path (CLAUDE.md included); one smoke task with one rep.
-- **Note:** Ask before any harness run beyond the smoke test; they cost tokens. + review.
-- **Prompt:** `Implement chunk G3 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, G3's manifest and chunk G3; read other files only as the manifest or the code leads you. Commit when G3's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### G4
-
-- **Touches:** `ops/registry.py`, `ops/reading.py`, `ops/budget.py`, `query/distinguish.py` (for `compare`), `mcp/server.py` (JSON-string tolerance), `guide/parts/analysis.md`; one test per tool on `synth`.
-- **Read:** `docs/design/08-cli-mcp.md` § Operations (l. 24), § Token budgets (l. 178).
-- **Done check:** `uv run ruff check . && uv run ruff format --check .`; per tool `uv run pytest -q tests/ops tests/query tests/mcp tests/cli tests/test_cli.py tests/test_docs.py tests/test_budgets.py tests/serve/test_app.py tests/remote` (`docs/reference/cli.md` regenerated, `tests/test_docs.py` checks it); after the last tool, the full suite `uv run pytest -q` once, and `uv run pytest -q -n0 tests/test_budgets.py`.
-- **Note:** One commit per tool.
-- **Prompt:** `Implement chunk G4 of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, G4's manifest and chunk G4; read other files only as the manifest or the code leads you. Commit when G4's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
-### Z
-
-- **Touches:** `CHANGELOG.md`, `docs/`, `CLAUDE.md`, `todo`, `scripts/build-tokens`, `design/favicon.svg`, `web/src/shell/favicon.ts`, `tests/test_design.py`.
-- **Read:** Breaking changes, Decisions and Not verified in this plan.
-- **Done check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; the full suite `uv run pytest -q`, and `uv run pytest -q -n0 tests/test_budgets.py`; `scripts/release.py` passes.
-- **Note:** Don't publish, tag or push; hand over the publish command. The cluster pull, the upgrade and porting the remote's blocks are the user's; prepare the steps.
-- **Prompt:** `Implement chunk Z of docs/refactor-1-plan.md on branch refactor-1, in the main checkout (no worktree). Read CLAUDE.md, the plan's Brief and How to execute, Z's manifest and chunk Z; read other files only as the manifest or the code leads you. Commit when Z's done check passes, then record the hash in the plan as How to execute says. Don't push. Questions at the end.`
-
----
+What's left runs in this order, one session at a time in the main checkout (every chunk touches `web/` or the
+guide): B6 B7 E5 C1 C2 C3 G1 G2 G3 G4 Z1.
 
 ## F. Foundation
 
@@ -629,7 +490,12 @@ survives "Save as view" and reload. An old `beamtime.yaml` with the keys loads w
 
 ### B6. Epochs are a clock (sonnet) — real data
 
-1. `views/defaults.py`: `CLOCKS = ("epoch", "global_step", "trainer/global_step")`. These metrics get no
+- **Touches:** `src/beamtime/views/defaults.py` (new `CLOCKS`; `curves` 182, `ordered_metrics` 218), new `src/beamtime/query/progress.py`, `src/beamtime/ops/reading.py` (`card` 193), `src/beamtime/query/fields.py` (`run.epoch`), `web/src/shell/header.ts`, `web/src/blocks/table.ts`.
+- **Read:** `docs/design/03-index.md` § Fields (l. 211); `07-web-ui.md` § Pages and URLs (l. 152).
+- **Check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/query tests/views tests/ops tests/cli tests/mcp tests/serve/test_app.py tests/remote/test_federation.py tests/test_docs.py tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`.
+- **Risks:** a run without `epoch` shows nothing new (no fact, bar or column); `epoch` logged every 50 steps with 100 steps per epoch gives `steps_per_epoch` 100, from change points, not from the count of points; a running run without `steps_per_s` gets no ETA and no error; a view that charts `epoch` explicitly still draws it.
+
+1. `src/beamtime/views/defaults.py`: `CLOCKS = ("epoch", "global_step", "trainer/global_step")`. These metrics get no
    chart in the default view.
 2. `query/progress.py`, pure Python: `progress(cols, config) -> {epoch, in_epoch, steps_per_epoch, total, fraction}`
    from the epoch column's change points (exact), with `total` from a flat config key whose leaf is
@@ -649,7 +515,11 @@ stair. Views that chart `epoch` explicitly still work.
 
 ### B7. One kind of chart, grouped by prefix (sonnet + review)
 
-Files: `views/defaults.py`, `web/src/blocks/layout.ts`, `web/src/bt/prefs.ts`, `views/prefs.py`, `views/compile.py`.
+- **Touches:** `src/beamtime/views/defaults.py` (`ESSENTIAL` 11, `group_body` 37, `curves` 182, `line` 208, `essential` 228 removed), `web/src/blocks/layout.ts` (`Section` 15, `Grid` 40), `web/src/bt/prefs.ts` (`ViewPrefs` 25), `src/beamtime/views/prefs.py` (`apply_prefs` 10), `src/beamtime/views/compile.py`, `web/src/bt/index.ts` (`ViewCtx`: `charted`), `guide/examples/*.yaml`.
+- **Read:** `docs/design/07-web-ui.md` § Charts; `design/components/Section.md`.
+- **Check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/views tests/ops/test_ops.py tests/serve/test_app.py tests/remote/test_views.py tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`.
+- **Risks:** stored chart settings survive (ids stay `line-<slug>`); a group with one prefix gets a plain grid; "Add a chart" sees charts in an authored section elsewhere on the page (`charted` is page-wide); "Save as view" drops removed charts and keeps the order of the rest.
+- **Stop if:** an authored (saved) view's layout would change; B7 changes only the default view.
 
 Decision: **no "essential" section at all.** Each metric appears exactly once, in the section of its prefix.
 So there are no two kinds of chart to tell apart.
@@ -663,7 +533,7 @@ So there are no two kinds of chart to tell apart.
 2. Remove `essential()` from chart building; `main_metric` (A5) replaces it for the header and table.
 3. `layout.ts:Section` remembers open and closed per viewer, like `Collapsible` (`stored`/`store`).
 4. Every chart gets the same × ("Hide this chart"), adding to `prefs.removed`. `Grid` filters them out; a
-   section shows "2 hidden · show". Remove `node.props.added` from the tools. `views/prefs.py`: "Save as
+   section shows "2 hidden · show". Remove `node.props.added` from the tools. `src/beamtime/views/prefs.py`: "Save as
    view" drops removed nodes.
 5. "Add a chart" is offered when a metric has no chart anywhere on the page (authored views, removed
    charts). The list must look at the **whole page**, not the one grid; give `ViewCtx` a `charted` set, and
@@ -683,6 +553,12 @@ remove the first two. C makes the built-in route the easy one, and gives real cu
 
 ### C1. Three tiers, one frame (sonnet + review)
 
+- **Touches:** `web/src/kit/index.ts` (`makeKit` 46, `version` 78, `ui` 88–100, `theme` 152–175), `web/src/kit/protocol.ts`, `web/src/blocks/custom.ts`, `web/src/bt/frame.ts` (B1), `web/src/ui/symbols.ts` (`symbolFor` 53), `web/src/ui/icons.ts` (`Sym` 36), `web/src/ui/primitives.ts` (`Tag` 24), `web/src/bt/theme.ts` (`stopsOf`, read only), `src/beamtime/guide/parts/kit.md`.
+- **Read:** `docs/design/05-views.md` § The `bt` kit API (l. 315), § Sandbox (l. 362), § Charts (l. 381).
+- **Check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/views tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`.
+- **Risks:** a custom block using `Figure` shows one head, not two (`chrome own`); kit v1 blocks keep working unchanged; `draw` on a resize or hover doesn't refetch; `bt.ui.Sym` with an unknown value falls back to the neutral symbol.
+- **Stop if:** `Figure` needs a protocol change that v1 frames can't ignore.
+
 The tiers, documented in this order in the guide:
 
 1. **YAML blocks** (`line`, `scatter`, `scorecard`, ...): everything included.
@@ -700,8 +576,7 @@ The tiers, documented in this order in the guide:
    (SVG or PNG from `el`, CSV from `csv`) and persisted preferences. `draw` runs again on a change of data,
    prefs, hover or size.
 
-Files: `web/src/kit/index.ts`, `web/src/kit/protocol.ts`, `web/src/blocks/custom.ts`. When a frame uses
-`Figure`, it sends `{ type: "chrome", own: true }`, and `Custom` hides its own head so there aren't two.
+When a frame uses `Figure`, it sends `{ type: "chrome", own: true }`, and `Custom` hides its own head so there aren't two.
 
 `Figure` finishes B5 item 10, which B5 couldn't do before `Figure` existed (B5 only changed
 `bt.theme.scale(kind, name?)`). `"colormap"` in `settings` offers the Colors group's Colormap row, and `draw` gets
@@ -726,6 +601,11 @@ follows the theme and live data. Port `curves.js` from the remote as the test's 
 
 ### C2. Built-in `scorecard` (sonnet)
 
+- **Touches:** `src/beamtime/views/model.py` (new `Scorecard`), `src/beamtime/views/compile.py`, new `web/src/blocks/scorecard.ts`, `web/src/blocks/index.ts`, `src/beamtime/guide/examples/sweep.yaml`.
+- **Read:** `docs/design/05-views.md` § Catalog (l. 168).
+- **Check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/views tests/ops/test_ops.py tests/serve/test_app.py tests/remote/test_views.py tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`.
+- **Risks:** an `expected` row without runs stays visible as queued; one seed shows the mean without ± (no std of 0); a lower-is-better metric shades the other way; a new run appears in its row live.
+
 The block agents wrote by hand on the real project: one row per value of a field, one column per metric,
 mean ± std over seeds, shaded per column by direction.
 
@@ -739,7 +619,13 @@ Done: reproduces the remote's `scorecard.js` from a 10-line YAML; the guide's `s
 
 ### C3. Validator lints (haiku)
 
-`views/validate.py`, `views/code.py`. All warnings, each with its fix:
+- **Touches:** `src/beamtime/views/validate.py` (`structure` 87, `custom_checks` 169), `src/beamtime/views/code.py` (`problems` 32), `tests/views/test_views.py`.
+- **Read:** `docs/design/05-views.md` § Validation (l. 577).
+- **Check:** `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/views tests/serve/test_render.py tests/remote/test_views.py tests/remote/test_no_local.py`.
+- **Risks:** lints are warnings, never errors, so every existing view still validates; code drawing inside `bt.chart.Figure`'s `draw` gets no d3 warning; the remote's views are linted only through a read-only `pull`.
+- **Note:** Run the lints on the real views only through a read-only `pull`.
+
+`src/beamtime/views/validate.py`, `src/beamtime/views/code.py`. All warnings, each with its fix:
 
 - a caption that starts with `x:` or is longer than 140 characters → "the axes say that now; say what the
   chart shows";
@@ -1014,6 +900,11 @@ One commit for 2. The user merges afterwards.
 
 ### E5. The run lifecycle in the UI (sonnet)
 
+- **Touches:** `web/src/bt/uplot.ts` (`LineSpec.marks`), `web/src/ui/symbols.ts` (time limit), `web/src/shell/header.ts` (code versions fact), the run page's details (`web/src/shell/page.ts`, `drawer.ts`), `web/src/blocks/table.ts` (column picker); `design/components/` and `design/gallery.html` for new components.
+- **Read:** `docs/design/07-web-ui.md` § Pages and URLs, § Charts; `docs/design/01-storage.md` on `attempts`, `copied_from`, `origin`.
+- **Check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`.
+- **Risks:** a run with one attempt draws no marks; a missing checkpoint shows its reason, not a broken link; an ssh remote that is neither GitHub nor GitLab shows no link; a 376 KB `_env/git.diff` stays collapsed and is fetched only when opened.
+
 After B7, since the attempt lines go through the chart frame B1 splits. Everything E1 to E3 left out of `web/`; the
 data is already in the answers:
 
@@ -1028,8 +919,9 @@ data is already in the answers:
    (the default table already adds it when codes differ).
 
 Design rules apply: new components get rules in `design/components/` and a place in `gallery.html`.
-`docs/design/07-web-ui.md` gets all three, since E1 to E3 didn't touch it. Done: a browser test on a fixture with a
-resumed, a time-limited, a copied and a dirty run.
+`docs/design/07-web-ui.md` gets all three, since E1 to E3 didn't touch it.
+
+Done: a browser test on a fixture with a resumed, a time-limited, a copied and a dirty run.
 
 ---
 
@@ -1053,6 +945,11 @@ they needed.
 
 ### G1. Guide by topic, with chart best practices (sonnet)
 
+- **Touches:** `src/beamtime/guide/parts/` (new topic files), `src/beamtime/guide/__init__.py` (`guide` 35, `read` 57), `guide/examples/*.yaml`, new `tests/guide/`.
+- **Read:** `docs/design/05-views.md` § The agent guide (l. 603), § Agent instructions (l. 710).
+- **Check:** `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/guide tests/views tests/ops/test_ops.py tests/mcp tests/cli tests/test_cli.py tests/test_docs.py tests/serve/test_render.py`.
+- **Risks:** a field, block or op the guide names that doesn't exist (the test catches it); a topic over about 100 lines; an example view whose top-level blocks get no margin label.
+
 Runs after C3, so that it describes what exists.
 
 `src/beamtime/guide/parts/`, reachable as `beamtime guide <topic>`, each under about 100 lines with an index in
@@ -1071,35 +968,49 @@ Runs after C3, so that it describes what exists.
   `bt.theme.tone`; runs and groups → `bt.theme.runColor`, `groupColor`, `scale`. Never hex colours, emoji or
   glyphs for status, nor a typed-in result. The C3 lints point here.
 - **Section titles go in the left column**, in `overview.md` (where views are introduced), `kit.md` and
-  `checklist.md`. How it works (`shell/views.ts`, `bt/labels.ts:labelOf`): every top-level block of a view gets
+  `checklist.md`. How it works (`web/src/shell/views.ts`, `bt/labels.ts:labelOf`): every top-level block of a view gets
   its own page Section, and a top-level `section` (or custom block) titled with **one or two words** shows that
   title in the margin. A longer title, a nested section, a Markdown `##` in a `text` block and `bt.ui.Section`
   inside custom code (an `<h3>` in the iframe) all stay in the content column. So the guide says: structure a
   view as top-level `section`s with one- or two-word titles (`validation`, `energy`, `phase space`) and put
   the blocks, custom ones included, inside them; split one big custom block into several, one per section;
   `bt.ui.Section` only for subheadings within one block; longer explanations go in the caption. All five
-  example views in `guide/examples/` follow it, and B7's prefix sections show the pattern.
+  example views in `src/beamtime/guide/examples/` follow it, and B7's prefix sections show the pattern.
 - `proposals.md`, `predictions.md` (`each`, `compare`, `reduce`, windows, thresholds; worked examples from real
   proposals, anonymised: "2.7x cost per step" style reasoning), `notes.md` (all types with when to use each,
   including `theory`), `verdicts.md` (per-prediction verdicts, stating what the check says and no more), `memory.md`,
   `remote.md`, `analysis.md` (which tool for which question; G4).
 - `anti-patterns.md` grows with the ledger from G3.
 
-Tests: `tests/guide` checks that every field, block and op the guide names exists, that example views validate,
+Done: `tests/guide` checks that every field, block and op the guide names exists, that example views validate,
 and that every example view's top-level blocks get a margin label (C3's section lints give no warning).
 
 ### G2. Delivery (haiku)
+
+- **Touches:** `src/beamtime/mcp/server.py` (`prompts` 182), the `mcp install` op, new `scripts/build-plugin`.
+- **Read:** `docs/design/08-cli-mcp.md` § Prompts (l. 163); Claude Code's current plugin docs before step 2.
+- **Check:** `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/mcp tests/ops/test_ops.py tests/cli tests/test_cli.py tests/test_docs.py`; `uv run pytest -q -n0 tests/test_budgets.py`.
+- **Risks:** generated skills that copy guide text go stale; they only name the topic to run.
+- **Stop if:** Claude Code's current plugin docs describe a format other than the one assumed here.
 
 1. `beamtime mcp install --skills` writes `.claude/skills/beamtime-{views,record,analysis}/SKILL.md`: a trigger
    description and "run `beamtime guide <topic>`", no copied content, so they can't go stale.
 2. `scripts/build-plugin` generates a plugin directory from the same templates plus the MCP config. Generated and
    not committed; publish later, by hand.
-3. MCP prompts (`mcp/server.py`) expose the same topics.
+3. MCP prompts (`src/beamtime/mcp/server.py`) expose the same topics.
 
 Before building 2, check with Claude Code's docs how plugins and `claude plugin eval` work today; they weren't
 evaluated for this plan.
 
+Done: `beamtime mcp install --skills` writes the three `SKILL.md` files, which name topics and copy no guide text (a test checks it); `scripts/build-plugin` writes a directory in the format Claude Code's docs describe; the MCP prompts list the same topics as `beamtime guide`.
+
 ### G3. The agent harness (sonnet + review)
+
+- **Touches:** `git mv bench/views bench/agents`; `run.py`, `score.py`, `report.py`, `tasks/`, new `mine.py`, `README.md`, `MISTAKES.md`.
+- **Read:** `bench/views/README.md`; G3's chunk.
+- **Check:** `uv run ruff check . && uv run ruff format --check .`; no test covers `bench/`, so `grep -rn bench/views --exclude-dir=.git .` finds no stale path (CLAUDE.md included); one smoke task with one rep.
+- **Stop if:** a run beyond the smoke task is needed; say what it costs in runs first.
+- **Note:** Ask before any harness run beyond the smoke test; they cost tokens.
 
 Move `bench/views/` to `bench/agents/`; the view tasks keep working.
 
@@ -1127,7 +1038,13 @@ Done: a baseline run of all kinds is in `RESULTS.md`, and at least one refine cy
 
 ### G4. Agent tools (sonnet, one commit per tool)
 
-All through `ops/registry.py`, so CLI and MCP come together. Answers respect `ops/budget.py`. Ordered by evidence.
+- **Touches:** `src/beamtime/ops/registry.py`, `src/beamtime/ops/reading.py`, `src/beamtime/ops/budget.py`, `src/beamtime/query/distinguish.py` (for `compare`), `src/beamtime/mcp/server.py` (JSON-string tolerance), `src/beamtime/guide/parts/analysis.md` (written in G1); one test per tool on `synth`.
+- **Read:** `docs/design/08-cli-mcp.md` § Operations (l. 24), § Token budgets (l. 178).
+- **Check:** `uv run ruff check . && uv run ruff format --check .`; per tool `uv run pytest -q tests/ops tests/query tests/mcp tests/cli tests/test_cli.py tests/test_docs.py tests/test_budgets.py tests/serve/test_app.py tests/remote` (`docs/reference/cli.md` regenerated, `tests/test_docs.py` checks it); after the last tool, the full suite `uv run pytest -q` once, and `uv run pytest -q -n0 tests/test_budgets.py`.
+- **Risks:** `wait` over MCP never blocks past its cap; `--to FILE` writes only under `.beamtime/exports/`; `compare` across two sources; an answer over `src/beamtime/ops/budget.py` is cut, not dropped.
+- **Note:** One commit per tool.
+
+All through `src/beamtime/ops/registry.py`, so CLI and MCP come together. Answers respect `src/beamtime/ops/budget.py`. Ordered by evidence.
 
 | Tool | Answers | Why (real sessions) |
 |---|---|---|
@@ -1147,11 +1064,18 @@ Small ones:
 - Field errors list close matches for run fields as they already do for metrics (`run.started` → `run.created_at`).
 - `no group 'cln'` lists the top-level groups.
 
-Each tool gets its entry in `guide/parts/analysis.md`, a test on `synth`, and a harness task (G3).
+Each tool gets its entry in `src/beamtime/guide/parts/analysis.md` (written in G1), a test on `synth`, and a harness task (G3).
+
+Done: per tool, CLI and MCP both come from the registry; a test on `synth`; its entry in `src/beamtime/guide/parts/analysis.md` (written in G1); a harness task (G3); answers within `src/beamtime/ops/budget.py`.
 
 ---
 
-## Z. Close
+## Z1. Close (sonnet)
+
+- **Touches:** `CHANGELOG.md`, `docs/`, `CLAUDE.md`, `todo`, `scripts/build-tokens`, `design/favicon.svg`, `web/src/shell/favicon.ts`, `tests/test_design.py`.
+- **Read:** Breaking changes, Decisions and Not verified in this plan.
+- **Check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; the full suite `uv run pytest -q`, and `uv run pytest -q -n0 tests/test_budgets.py`; `scripts/release.py` passes.
+- **Note:** Don't publish, tag or push; hand over the publish command. The cluster pull, the upgrade and porting the remote's blocks are the user's; prepare the steps.
 
 - `CHANGELOG.md` for 0.2.0 with the breaking changes below; `docs/design/*`, `docs/reference/cli.md` (generated),
   `docs/guides/`; `CLAUDE.md`'s "Project specifics".
@@ -1169,6 +1093,8 @@ Each tool gets its entry in `guide/parts/analysis.md`, a test on `synth`, and a 
   `#86a8e8`) and `tests/test_design.py` only checks that they match `tokens.css`. Drop the hardcoded
   `"#2f5aa8"` fallback for the live dot in `web/src/shell/favicon.ts`. A design change, so it lands through
   `design/`.
+
+Done: `CHANGELOG.md` for 0.2.0 lists every row of Breaking changes; `scripts/release.py` passes; the publish command and the cluster steps are handed over, not run.
 
 ## Breaking changes
 
