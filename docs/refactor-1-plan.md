@@ -60,6 +60,9 @@ What the remaining chunks build, so a session doesn't rediscover the design:
   applied page-wide through `prefs.view`; Beamtime's settings hold no colormap.
 - **Default view** (B6, B7): one kind of chart, in sections by metric prefix; no essential grid. Clocks (`epoch`) are
   an x axis and a progress fact, not charts.
+- **Main metrics** (B8): pinned by the viewer in the UI, never guessed; the proposal's predicted metrics are the
+  default pins. Pins drive a Main section, the header's best and the table's metric column; "Save as view" writes them
+  as the view's `metrics:`.
 - **Run lifecycle UI** (E5): attempts, time limits, checkpoints, copies and code versions shown from data E1 to E3
   already answer.
 - **Kit v2** (C): three tiers (YAML block, `bt.chart.*`, `bt.chart.Figure`); the app's vocabulary (`Sym`, `Tag`,
@@ -107,16 +110,16 @@ expensive: a stronger model reads the diff afterwards.
 
 ```
 F1 ─┬─ A1 A2 A3 A4 A5 A6 A7 A8 A9     bugs, independent (all done)
-    ├─ B1 ─ B2 ─ B3 ─ B4 ─ B5 ─ B6 ─ B7    charts, in this order (B1 to B5 done)
+    ├─ B1 ─ B2 ─ B3 ─ B4 ─ B5 ─ B6 ─ B7 ─ B8    charts, in this order (B1 to B7 done)
     │              └─ C1 ─ C2 ─ C3         agent chart parity
     ├─ D1 ─ D2 ─ D3 ─ D4                   sources and remote writes (done)
-    ├─ E1   E2   E3 ─ E4 ··· E5           run lifecycle (E1 to E4 done); E5, its UI, after B7
+    ├─ E1   E2   E3 ─ E4 ··· E5           run lifecycle (E1 to E4 done); E5, its UI, after B8
     └─ G1 ─ G2 ─ G3 ─ G4                   guides, harness, tools (G1 after C3; G3 after D2)
                               Z1           docs, changelog, release
 ```
 
 What's left runs in this order, one session at a time in the main checkout (every chunk touches `web/` or the
-guide): B6 B7 E5 C1 C2 C3 G1 G2 G3 G4 Z1.
+guide): B8 E5 C1 C2 C3 G1 G2 G3 G4 Z1.
 
 ## F. Foundation
 
@@ -541,8 +544,42 @@ So there are no two kinds of chart to tell apart.
 6. Section titles with shared prefixes are ordinary sections. Show them in the guide's examples, so agents
    copy the pattern.
 
-Done: `realistic` shows `validation`, `training`, `energy`, `Other`, `System`; a hidden chart comes back;
-"Save as view" keeps the choice; a browser test covers it.
+Done: `realistic` shows `validation`, `energy`, `Other`, `System` (its one `training/*` metric is in Other; decision 11);
+a hidden chart comes back; "Save as view" keeps the choice; a browser test covers it.
+
+### B8. Main metrics are pinned, not guessed (sonnet + review)
+
+- **Touches:** `src/beamtime/views/defaults.py` (`group_body` 39, `run_body` 91, `summary` 117, `curves` 186, `section_rank` 224, `leading` 259 and `main_metric` 271 removed), `src/beamtime/serve/api.py` (`view` 237, `summary_of` 308), `src/beamtime/views/store.py` (`lead` 254), `src/beamtime/views/prefs.py` (`apply_prefs` 10), `src/beamtime/guide/__init__.py` (`values_of` 152), `web/src/bt/prefs.ts` (`ViewPrefs`), `web/src/shell/calls.ts` (`view`, `summary`), `web/src/shell/header.ts` (`Best` 167), `web/src/blocks/line.ts` (the chart menu), `web/src/shell/views.ts` (`SaveView`); `design/components/Chart.md`, `design/gallery.html`; `docs/design/07-web-ui.md` § Group page (the facts), § Charts, the default-view paragraph; `docs/design/05-views.md` on `metrics:`.
+- **Read:** decision 10; `docs/design/07-web-ui.md` § Charts and the header's facts; `docs/design/04-remotes.md` on the `view` call through `serve --stdio`.
+- **Check:** `cd web && npm ci && npm test && npm run build`, bundle committed; `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/views tests/ops/test_ops.py tests/serve/test_app.py tests/remote/test_views.py tests/serve/test_browser.py tests/serve/test_render.py tests/serve/test_export.py tests/test_design.py tests/test_budgets.py`, then the full suite.
+- **Risks:** a pinned chart keeps its id `line-<slug>`, so its settings follow it into Main; an old remote answers `view` and `summary` without pins, not with an error (send `metrics` only when set); prefetching (`calls.ts`) uses the same params as the page, or the cache misses; `metrics: null` (default pins) and `[]` (none) stay apart through storage and "Save as view"; the renderer and exports show the saved view, never a viewer's pins.
+- **Stop if:** an authored view's layout would change; pins there set the header and the saved `metrics:` only.
+
+Line numbers here are from `c6ee6f9`.
+
+1. **Prefs.** `ViewPrefs.main: {y: string; higher: boolean}[] | null`. `null` means the defaults: the proposal's
+   predicted metrics that the page logs, in prediction order (a run page takes its group's proposal); `[]` means
+   none. `changed()` counts a non-null `main`.
+2. **Pinning in the UI.** The chart menu gets "Pin as main metric" / "Unpin". A pinned chart's head shows a ↑/↓
+   toggle, "Higher is better" / "Lower is better"; it starts from `lower_is_better(y)`, shown, never hidden.
+   Pins are ordered by dragging inside Main, through the grid's existing order pref.
+3. **The default view takes the pins.** `view` and `summary` take an optional `metrics: [{y, higher}]`, passed from
+   `calls.ts`. `defaults.curves` puts pinned metrics in a first section `Main (n)`, open, and leaves them out of
+   their prefix sections; each metric still has one chart. The first pin is the table's metric column and its
+   sparkline; the others are columns after it. Without pins: no Main section, no metric column, no sparkline.
+4. **The header's best** follows the first of: the viewer's first pin, the saved view's first `metrics:` entry
+   (`store.lead`), the default pins. Nothing else: no pin, no best.
+5. **No guessing.** Remove `main_metric`, `leading` and the lead rank from `section_rank`; sections order evaluation,
+   training, other prefixes, Other, System. `lower_is_better` stays, as the toggle's starting value. The guide
+   keeps a pick for filling its example views (`values_of`: the proposal's metric, else the first evaluation metric,
+   else the first metric), written in `guide/__init__.py`, since it serves agents, not the page.
+6. **Save as view** writes the pins as the view's `metrics:` in order, `higher_is_better` only where it differs
+   from `lower_is_better`'s, and resets `main` to `null`. A saved default view also keeps its Main section.
+7. **Authored views**: pins change the header's best and, on save, `metrics:`; their layout and tables stay.
+
+Done: `realistic/egnn-bench` (no proposal) opens with no Main section and no best; pinning `training/loss` moves its
+chart into an open `Main (1)`, sets the header's best and the table's sparkline, and survives a reload and "Save as
+view"; a group with a proposal opens with its predicted metric pinned and can unpin it; a browser test covers it.
 
 ---
 
@@ -1103,6 +1140,7 @@ Done: `CHANGELOG.md` for 0.2.0 lists every row of Breaking changes; `scripts/rel
 | `series` with `by`/`seeds` and `x ≠ _step` | steps | real x values, bucket centres | none; the old answer was wrong |
 | `seeds` grouping | config minus top-level seed | distinguishing keys minus seed | curves may merge correctly |
 | Default view layout | essential grid + "More metrics" | sections by prefix | none; saved views untouched |
+| Main metric | guessed from names when no proposal | pinned in the UI; the proposal's metrics by default; none otherwise | pin one, or save a view with `metrics:` |
 | `init()` on a SLURM requeue | new run | continues the job's only run in that folder | give runs that must stay separate their own `key` or `name` |
 | Chart `added` pref | `added` only | plus `removed` | old prefs still read |
 | `colormap`, `colormap_diverging` settings, `beamtime set colormap` | project-wide | removed; one `colormap` per chart | old keys are ignored with one line; set it per chart or apply to the page |
@@ -1122,8 +1160,8 @@ Executors follow these unless told otherwise.
    was rejected: timestamped `default_root_dir` values differ on a requeue.
 2. **A copy joins the destination's proposal** and leaves the old group's, since reuse in another group is its purpose.
    Checkpoints stay where they are by default, because they're large, and the copy references them (your decision; E2).
-3. **No "key metrics" section**: every metric once, by prefix, with the first two sections open. If you'd rather have a
-   pinned row of 4 on top, B7 gets one extra step.
+3. **No "key metrics" section**: every metric once, by prefix, with the first two sections open. Decision 10 adds a
+   Main section the viewer composes.
 4. **`_elapsed` excludes queue gaps** between attempts.
 5. **All colormap choices are in the chart settings, none in Beamtime's** (your decision; B5). Without a choice,
    categorical groups use the theme palette and numeric ones viridis; a chosen colormap applies to both. Open to
@@ -1140,6 +1178,12 @@ Executors follow these unless told otherwise.
    so a stair-logged `epoch` stays a stair. B2 first drew a non-decreasing metric as a ramp between its change points,
    continued on the last slope; that can't tell a stair from a plateau and put a learning-rate warmup at 20 times
    any value the run logged.
+10. **Main metrics are the viewer's choice, made in the UI** (your decision; review of B7). No guessing from names,
+   no settings key, nothing in the SDK. A viewer pins charts as main metrics; the proposal's predicted metrics are
+   the default pins, which can be removed. Pins make a Main section on top, the header's best and the table's metric
+   column; "Save as view" writes them as `metrics:`. A5's `main_metric` heuristic goes (B8).
+11. **A prefix with one metric stays in Other** (your decision; review of B7), also for `training/*`: a one-chart section
+   is noise, and a metric that matters gets pinned (decision 10). B7's Done line says so.
 
 ## Not verified
 
