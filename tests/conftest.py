@@ -1,12 +1,18 @@
+import ctypes
 import json
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
+import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
+from beamtime.format.constants import RUN
 from beamtime.ops.context import Context
 from beamtime.synth import Manifest, generate
 
@@ -35,17 +41,59 @@ def synth(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Manifest]:
     return logdir, generate(logdir, seed=0, now=NOW)
 
 
+def clone(src: Path, dest: Path) -> None:
+    """Copy a directory tree, on macOS as one copy-on-write clone.
+
+    :param src: The tree to copy.
+    :param dest: Where the copy goes; must not exist."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    # parallel workers contend on file creation; one clonefile call creates no files.
+    if sys.platform == "darwin":
+        libc = ctypes.CDLL(None, use_errno=True)
+        if libc.clonefile(os.fsencode(src), os.fsencode(dest), 0) == 0:
+            return
+    shutil.copytree(src, dest)
+
+
+@pytest.fixture(scope="session")
+def fresh_logdir(tmp_path_factory: pytest.TempPathFactory) -> Callable[[Path, int], None]:
+    """Generated log dirs judged against the current time, cloned from one generation per seed.
+
+    :param tmp_path_factory: Pytest's temporary directory factory.
+    :return: ``fresh_logdir(dest, seed)`` writes the log dir of ``seed`` to ``dest``."""
+    made: dict[int, tuple[float, Path]] = {}
+
+    def copy(dest: Path, seed: int) -> None:
+        if seed not in made:
+            src = tmp_path_factory.mktemp(f"seed{seed}") / "beamtime"
+            now = datetime.now(timezone.utc)
+            generate(src, seed=seed, now=now)
+            made[seed] = (now.timestamp(), src)
+        stamp, src = made[seed]
+        clone(src, dest)
+        # heartbeats are _run.json mtimes; shift them so the copy reads as generated now.
+        shift = time.time() - stamp
+        for run in dest.rglob(RUN):
+            st = run.stat()
+            os.utime(run, (st.st_atime + shift, st.st_mtime + shift))
+
+    return copy
+
+
 @pytest.fixture
-def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fresh_logdir: Callable[[Path, int], None]
+) -> Path:
     """A git project with a generated log dir, as the working directory.
 
     :param tmp_path: Pytest's temporary directory.
     :param monkeypatch: Pytest's monkeypatch.
+    :param fresh_logdir: Writes a generated log dir.
     :return: The project root."""
     root = tmp_path / "proj"
     root.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-    generate(root / "beamtime", seed=0, now=datetime.now(timezone.utc))
+    fresh_logdir(root / "beamtime", 0)
     monkeypatch.chdir(root)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("BEAMTIME_CACHE", str(tmp_path / "cache"))

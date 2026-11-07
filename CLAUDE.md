@@ -317,7 +317,7 @@ sync.
 - Releases: `scripts/release.py` checks the tree, the bundle and the wheel and smoke-installs it, then
   prints the publish command (it publishes nothing); `.github/workflows/release.yml` publishes a
   `v*` tag with trusted publishing; `pages.yml` deploys the docs site; `CHANGELOG.md` per version
-- Run checks with `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`
+- Run checks with `uv run ruff check . && uv run ruff format --check . && uv run pytest -q` (4 xdist workers; `-n0` runs serially); the timing budgets need an idle machine: `uv run pytest -q -n0 tests/test_budgets.py`
 - SDK side on 3.10, without touching `.venv`:
   `UV_PROJECT_ENVIRONMENT=/tmp/bt-venv310 uv run --python 3.10 pytest -q tests/sdk tests/format tests/synth tests/test_boundaries.py tests/test_cli.py`
 - Lightning tests, in a throwaway env (downloads PyTorch):

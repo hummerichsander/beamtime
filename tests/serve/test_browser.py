@@ -220,8 +220,10 @@ def test_live_page_fixture_follows_a_running_writer(live_page) -> None:
     live_page.page.wait_for_selector(".chart canvas")
     metrics = next((live_page.project / "beamtime" / "live").glob("*/_metrics.jsonl"))
     before = len(metrics.read_text().splitlines())
-    live_page.page.wait_for_timeout(1000)
-    assert len(metrics.read_text().splitlines()) > before
+    deadline = time.time() + 10
+    while len(metrics.read_text().splitlines()) <= before:
+        assert time.time() < deadline, "no metrics arrived after the page opened"
+        live_page.page.wait_for_timeout(200)
     live_page.stop_writer()
     assert live_page.writer.returncode == 0
 

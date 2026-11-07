@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -49,13 +50,14 @@ def empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 @pytest.fixture
-def remote_logdir(tmp_path: Path) -> Path:
+def remote_logdir(tmp_path: Path, fresh_logdir: Callable[[Path, int], None]) -> Path:
     """A remote's log dir, with runs, reached over a plain command.
 
     :param tmp_path: Pytest's temporary directory.
+    :param fresh_logdir: Writes a generated log dir.
     :return: Its log dir."""
     logdir = tmp_path / "remote" / "beamtime"
-    generate(logdir, seed=3, now=datetime.now(timezone.utc))
+    fresh_logdir(logdir, 3)
     return logdir
 
 

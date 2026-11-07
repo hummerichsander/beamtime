@@ -1,7 +1,6 @@
 import dataclasses
 import sys
-from collections.abc import Iterator
-from datetime import datetime, timezone
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
@@ -9,20 +8,20 @@ import pytest
 from beamtime.ops.context import Context
 from beamtime.remote.client import Spec
 from beamtime.remote.sources import Sources
-from beamtime.synth import generate
 
 COMMAND = f"{sys.executable} -m beamtime.cli"
 
 
 @pytest.fixture
-def box(project: Path, tmp_path: Path) -> Path:
+def box(project: Path, tmp_path: Path, fresh_logdir: Callable[[Path, int], None]) -> Path:
     """A second log dir, the remote ``box``.
 
     :param project: The local project.
     :param tmp_path: Pytest's temporary directory.
+    :param fresh_logdir: Writes a generated log dir.
     :return: The remote's log dir."""
     logdir = tmp_path / "box" / "beamtime"
-    generate(logdir, seed=7, now=datetime.now(timezone.utc))
+    fresh_logdir(logdir, 7)
     return logdir
 
 

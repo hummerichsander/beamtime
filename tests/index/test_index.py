@@ -3,6 +3,7 @@ import math
 import os
 import shutil
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -14,17 +15,17 @@ from beamtime.index.cache import SERVE_LOCK, FileLock, cache_dir, daemon_status
 from beamtime.index.columns import Column, ColumnWriter, open_columns
 from beamtime.index.daemon import Daemon
 from beamtime.index.index import Freshness, Index
-from beamtime.synth import generate
 
 
 @pytest.fixture
-def logdir(tmp_path: Path) -> Path:
+def logdir(tmp_path: Path, fresh_logdir: Callable[[Path, int], None]) -> Path:
     """A fresh synthetic log dir per test, since tests change files.
 
     :param tmp_path: Pytest's temporary directory.
+    :param fresh_logdir: Writes a generated log dir.
     :return: The log dir."""
     out = tmp_path / "beamtime"
-    generate(out, seed=1)
+    fresh_logdir(out, 1)
     return out
 
 

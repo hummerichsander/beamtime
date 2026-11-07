@@ -9,6 +9,12 @@ import pytest
 
 HEAVY = {"numpy", "pandas", "starlette", "uvicorn", "mcp", "playwright", "pyarrow"}
 
+# wall-clock budgets mean nothing while other xdist workers load the machine.
+timed = pytest.mark.skipif(
+    os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1") != "1",
+    reason="timing budgets run serially: pytest -n0 tests/test_budgets.py",
+)
+
 
 @pytest.mark.parametrize(
     "module", ["beamtime", "beamtime.cli", "beamtime.format.run", "beamtime.query"]
@@ -23,6 +29,7 @@ def test_no_heavy_imports(module: str) -> None:
     assert not loaded & HEAVY
 
 
+@timed
 @pytest.mark.skipif(sys.version_info < (3, 11), reason="the CLI needs Python 3.11")
 def test_cli_startup_budget() -> None:
     """The installed ``beamtime`` command answers within 150 ms (best of 5)."""
@@ -35,6 +42,7 @@ def test_cli_startup_budget() -> None:
     assert best < 0.150, f"beamtime --help took {best * 1000:.0f} ms"
 
 
+@timed
 def test_one_shot_runs_budget(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """``beamtime runs`` answers a sorted run table within 150 ms (best of 5)."""
     from beamtime.query import run

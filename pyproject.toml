@@ -44,7 +44,8 @@ dev = [
     "httpx>=0.28.1",
     "matplotlib>=3.10.9",
     "numpy>=2.2.6",
-    "pytest>=9.1.1",
+    "pytest>=9.2.0",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.17.2",
     "scienceplots>=2.2.2",
 ]
@@ -59,5 +60,8 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# four workers, one test at a time: more workers run slower, since browsers and file writes
+# contend. -n0 runs serially (pdb, timing budgets).
+addopts = "-n 4 --maxschedchunk=1"
 # scienceplots registers its styles with functions matplotlib 3.11 deprecates; not ours to fix.
 filterwarnings = ["ignore::DeprecationWarning:scienceplots"]
