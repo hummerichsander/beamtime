@@ -655,7 +655,7 @@ mean ± std over seeds, shaded per column by direction.
 
 Done: reproduces the remote's `scorecard.js` from a 10-line YAML; the guide's `sweep` example uses it.
 
-### C3. Validator lints (haiku)
+### C3. Validator lints (haiku) — **done**
 
 - **Touches:** `src/beamtime/views/validate.py` (`structure` 87, `custom_checks` 169), `src/beamtime/views/code.py` (`problems` 32), `tests/views/test_views.py`.
 - **Read:** `docs/design/05-views.md` § Validation (l. 577).

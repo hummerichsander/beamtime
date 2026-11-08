@@ -653,6 +653,16 @@ library block is checked and saved on the source whose group it is checked again
    placeholder queries exercised once with example values. In the same render, layout is measured
    without a model: content overflowing its block, clipped text, overlapping elements, charts with
    more than about eight curves.
+3. **Lints, warnings only.** Findings that never stop saving, each with its fix: a caption starting with
+   `x:` or longer than 140 characters (the axes say that; say what the chart shows); a top-level section or
+   custom block whose title has more than two words (titles of one or two words go in the left column); a
+   top-level Markdown block starting with a heading, or custom code whose render opens with an `h1`–`h3` or a
+   `bt.ui.Section` (make it a top-level section); custom code drawing its own chart (`d3.line`,
+   `createElementNS`, `<svg`) without `bt.chart.` (use `bt.chart.Figure`); custom code reading no live data
+   (no `useData` or `subscribe`); a status glyph or a status word in a pill-like element (use `bt.ui.Sym`); a
+   custom block without queries whose caption says snapshot (use a query, or a `predictions` block). The
+   colour-literal rule stays an error of the static stage. Lints are lexical: a heading "as first element"
+   means the first `html` template of the render.
 
 The renderer uses a browser that is already installed: Playwright's Chromium, else Chrome, else
 Edge. Beamtime never downloads one. Without a browser (e.g. on a login node with mode 2), validation

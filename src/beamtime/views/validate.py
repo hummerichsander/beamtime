@@ -111,9 +111,11 @@ def structure(view: m.View, data_dir: Path | None) -> list[Finding]:
                 )
             )
     known = [name for maps in colormaps().values() for name in maps]
+    top = {id(n) for n in view.body}
     for n in m.walk(view.body):
         block = m.block_of(n)
         at = {"id": n.id, "block": block}
+        out += wording(n, at, top=id(n) in top)
         if (name := getattr(n, "colormap", None)) is not None and name not in known:
             out.append(
                 Finding(
@@ -148,9 +150,56 @@ def structure(view: m.View, data_dir: Path | None) -> list[Finding]:
                         )
                     )
             case m.Custom():
-                out += custom_checks(n, at, data_dir)
+                out += custom_checks(n, at, data_dir, top=id(n) in top)
             case m.Line() if n.by and n.seeds:
                 out.append(Finding(level="error", **at, message="use by or seeds, not both"))
+    return out
+
+
+def wording(n: m.Node, at: dict[str, Any], *, top: bool) -> list[Finding]:
+    """Warn about captions, titles and headings that the layout already says.
+
+    :param n: The node.
+    :param at: Its id and block, for findings.
+    :param top: Whether it sits at the top level of the view.
+    :return: The warnings."""
+    out = []
+    if n.caption and n.caption.startswith("x:"):
+        out.append(
+            Finding(
+                level="warning",
+                **at,
+                message="a caption that starts with x:",
+                fix="the axes say that now; say what the chart shows",
+            )
+        )
+    elif n.caption and len(n.caption) > 140:
+        out.append(
+            Finding(
+                level="warning",
+                **at,
+                message="a caption over 140 characters",
+                fix="one or two sentences; say what the chart shows",
+            )
+        )
+    if top and isinstance(n, (m.Section, m.Custom)) and n.title and len(n.title.split()) > 2:
+        out.append(
+            Finding(
+                level="warning",
+                **at,
+                message=f"title {n.title!r} has more than two words",
+                fix="titles of one or two words go in the left column; move the rest to a caption",
+            )
+        )
+    if top and isinstance(n, m.Markdown) and n.text.lstrip().startswith("#"):
+        out.append(
+            Finding(
+                level="warning",
+                **at,
+                message="a top-level text block starts with a heading",
+                fix="make it a top-level section so the title goes in the left column",
+            )
+        )
     return out
 
 
@@ -177,12 +226,15 @@ def uses(view: m.View, library: Any) -> list[Finding]:
     return out
 
 
-def custom_checks(n: m.Custom, at: dict[str, Any], data_dir: Path | None) -> list[Finding]:
+def custom_checks(
+    n: m.Custom, at: dict[str, Any], data_dir: Path | None, *, top: bool = False
+) -> list[Finding]:
     """Check a custom block: its kit, libraries, declared queries and code.
 
     :param n: The node.
     :param at: Its id and block, for findings.
     :param data_dir: Where its code file is, if known.
+    :param top: Whether it sits at the top level of the view.
     :return: The findings."""
     from beamtime.views import code
 
@@ -209,6 +261,15 @@ def custom_checks(n: m.Custom, at: dict[str, Any], data_dir: Path | None) -> lis
                     fix=f"{name}: {{runs: {{...}}}}; kinds: {', '.join(code.KINDS)}",
                 )
             )
+    if n.caption and "snapshot" in n.caption.lower() and not n.queries:
+        out.append(
+            Finding(
+                level="warning",
+                **at,
+                message="a typed-in result: no query, and the caption says snapshot",
+                fix="use a query, or a `predictions` block",
+            )
+        )
     if data_dir is None:
         return out
     if not inside(data_dir, n.code):
@@ -218,8 +279,20 @@ def custom_checks(n: m.Custom, at: dict[str, Any], data_dir: Path | None) -> lis
             level="error", **at, message=f"no code file {n.code!r}", fix=f"put it in {data_dir}"
         )
         return [*out, missing]
-    for message, fix in code.problems(file.read_text()):
+    text = file.read_text()
+    for message, fix in code.problems(text):
         out.append(Finding(level="error", **at, message=f"{n.code}: {message}", fix=fix))
+    for message, fix in code.lints(text):
+        out.append(Finding(level="warning", **at, message=f"{n.code}: {message}", fix=fix))
+    if top and code.opens_with_heading(text):
+        out.append(
+            Finding(
+                level="warning",
+                **at,
+                message=f"{n.code}: its render opens with a heading",
+                fix="make it a top-level section so the title goes in the left column",
+            )
+        )
     return out
 
 

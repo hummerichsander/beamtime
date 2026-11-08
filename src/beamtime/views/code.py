@@ -22,6 +22,13 @@ NETWORK = (
     "SharedWorker",
 )
 PLACEHOLDER = re.compile(r"^\$([A-Za-z_]\w*)$")
+OWN_SVG = re.compile(r"\bd3\.line\b|createElementNS|<svg")
+GLYPH = re.compile("[✓✔✗✘❌✅⚠]")
+STATUS_PILL = re.compile(
+    r"class(?:Name)?=[\"'`][^\"'`\n]*\b(?:pill|badge|status)\b[^\n]*\b(?:passed|failed|ok|error|warning|success|done)\b",
+    re.I,
+)
+HEADING = re.compile(r"html`\s*<(?:h[1-3]\b|\$\{\s*bt\.ui\.Section\b)")
 
 COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
 STRING = re.compile(r"'(?:\\.|[^'\\\n])*'|\"(?:\\.|[^\"\\\n])*\"")
@@ -45,7 +52,12 @@ def problems(code: str) -> list[tuple[str, str]]:
     bare = COMMENT.sub(" ", code)
     # colors are looked for in strings too, where they live; the rest ignores string contents.
     for m in COLOR.finditer(bare):
-        out.append((f"color literal {m.group(0)!r}", "take colors from bt.theme"))
+        out.append(
+            (
+                f"color literal {m.group(0)!r}",
+                "use bt.theme (tone, runColor, scale), so colours follow the theme",
+            )
+        )
         break
     bare = STRING.sub('""', bare)
     if not re.search(r"export\s+default\b", bare):
@@ -60,6 +72,34 @@ def problems(code: str) -> list[tuple[str, str]]:
             (f"more than {MAX_NUMBERS} numbers inline", "put data in a data file or a query")
         )
     return out
+
+
+def lints(code: str) -> list[tuple[str, str]]:
+    """Find custom code that works but has a better way to do it.
+
+    :param code: The ES module's text.
+    :return: ``(message, fix)`` for every warning; they never stop saving."""
+    bare = COMMENT.sub(" ", code)
+    out = []
+    if OWN_SVG.search(bare) and "bt.chart." not in bare:
+        out.append(
+            ("draws its own chart", "use bt.chart.Figure to keep hover, settings and downloads")
+        )
+    if not re.search(r"\b(useData|subscribe)\b", bare):
+        out.append(("reads no live data", "this block won't follow live data; use bt.useData"))
+    if (glyph := GLYPH.search(bare)) is not None:
+        out.append((f"status glyph {glyph.group(0)!r}", "use bt.ui.Sym with the matching kind"))
+    if STATUS_PILL.search(bare):
+        out.append(("status word in a pill", "use bt.ui.Sym with the matching kind"))
+    return out
+
+
+def opens_with_heading(code: str) -> bool:
+    """Tell whether custom code starts its page with a heading of its own.
+
+    :param code: The ES module's text.
+    :return: Whether its render opens with an ``h1``-``h3`` or a titled ``bt.ui.Section``."""
+    return HEADING.search(COMMENT.sub(" ", code)) is not None
 
 
 def placeholders(value: Any, out: set[str] | None = None) -> set[str]:

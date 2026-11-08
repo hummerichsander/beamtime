@@ -104,7 +104,9 @@ def test_config_block_in_the_default_views(ctx: Context, roles: dict[str, str]) 
     run = compile_view(default_view(ctx, path), path=path)
     config = next(c for c in run["children"] if c["block"] == "config")
     assert config["props"]["mode"] == "run" and config["props"]["open"] is False
-    assert config["data"]["main"]["method"] == "card" and config["data"]["keys"]["params"] == {"from": "scaling/long-context"}
+    assert config["data"]["main"]["method"] == "card" and config["data"]["keys"]["params"] == {
+        "from": "scaling/long-context"
+    }
 
 
 def test_default_view_round_trips_with_prefs(ctx: Context) -> None:
@@ -222,7 +224,11 @@ def test_data_files_are_hashed_on_save(ctx: Context, project: Path) -> None:
     shown = page_view(ctx, SWEEP)
     table = next(n for n in walk(shown["view"]) if n["id"] == "fit")
     ref = table["data"]["main"]["params"]["path"]
-    assert ref.startswith("data/") and ref.endswith("-fit.csv") and len(ref) == len("data/12345678-fit.csv")
+    assert (
+        ref.startswith("data/")
+        and ref.endswith("-fit.csv")
+        and len(ref) == len("data/12345678-fit.csv")
+    )
     assert call("file", {"view": SWEEP, "path": ref}, ctx)["rows"][1] == [0.01, 0.8]
     # a new draft from the saved view brings its data files along.
     call("view new", {"group": SWEEP, "name": "fit2"}, ctx)
@@ -246,9 +252,20 @@ body:
     scorecard, predictions = compile_view(view, path="g")["children"]
     params = scorecard["data"]["main"]["params"]
     assert scorecard["data"]["main"]["method"] == "runs" and len(scorecard["data"]) == 1
-    assert params["select"] == ["config.opt", "metric.val/acc.last", "metric.val/loss.min", "run.status"]
-    assert scorecard["props"]["lower"] == {"metric.val/acc.last": False, "metric.val/loss.min": True}
-    assert (scorecard["props"]["baseline"], scorecard["props"]["expected"]) == ("sgd", ["sgd", "adam", "lion"])
+    assert params["select"] == [
+        "config.opt",
+        "metric.val/acc.last",
+        "metric.val/loss.min",
+        "run.status",
+    ]
+    assert scorecard["props"]["lower"] == {
+        "metric.val/acc.last": False,
+        "metric.val/loss.min": True,
+    }
+    assert (scorecard["props"]["baseline"], scorecard["props"]["expected"]) == (
+        "sgd",
+        ["sgd", "adam", "lion"],
+    )
     assert predictions["block"] == "proposal" and set(predictions["data"]) == {"proposal", "check"}
 
 
@@ -301,7 +318,9 @@ def test_guide_parts(ctx: Context) -> None:
     """The guide answers every part; blocks list the union; a group adds its keys."""
     assert "view_new" in call("guide", {}, ctx)["text"]
     assert "**scatter**" in call("guide", {"part": "blocks"}, ctx)["text"]
-    assert "- x: text (required" in call("guide", {"part": "blocks", "name": "scatter"}, ctx)["text"]
+    assert (
+        "- x: text (required" in call("guide", {"part": "blocks", "name": "scatter"}, ctx)["text"]
+    )
     assert "This group" in call("guide", {"group": SWEEP}, ctx)["text"]
     for part in ("queries", "checklist", "anti-patterns", "kit", "examples"):
         assert call("guide", {"part": part}, ctx)["text"]
@@ -399,14 +418,19 @@ def test_a_charts_colormap_and_color_fold_into_its_block() -> None:
         {"scatter": {"id": "s", "x": "config.lr", "y": "val/loss"}},
         {"bar": {"id": "r", "x": "config.arm", "y": "val/loss", "colormap": "magma"}},
     ]
-    prefs = {"view": {"colormap": "RdBu"}, "charts": {"a": {"color": None}, "b": {"colormap": None}}}
+    prefs = {
+        "view": {"colormap": "RdBu"},
+        "charts": {"a": {"color": None}, "b": {"colormap": None}},
+    }
     folded = apply_prefs(deepcopy(body), prefs)
     assert "color" not in folded[0]["line"] and folded[0]["line"]["colormap"] == "RdBu"
     assert "colormap" not in folded[1]["line"]
     assert folded[2]["scatter"]["colormap"] == "RdBu" and folded[3]["bar"]["colormap"] == "RdBu"
     tree = compile_view(m.parse({"body": folded}, source="t"), path="g")
     assert [k["props"].get("colormap") for k in tree["children"]] == ["RdBu", None, "RdBu", "RdBu"]
-    bad = m.parse({"body": [{"line": {"id": "c", "y": "val/loss", "colormap": "nope"}}]}, source="t")
+    bad = m.parse(
+        {"body": [{"line": {"id": "c", "y": "val/loss", "colormap": "nope"}}]}, source="t"
+    )
     assert any("no colormap 'nope'" in f.message for f in structure(bad, None))
 
 
@@ -442,7 +466,9 @@ def test_authored_views_keep_notes_and_memory(ctx: Context) -> None:
     """A view without notes or memory blocks still shows them, after its own blocks."""
     from beamtime.ops.views import write_version
 
-    write_version(ctx, SWEEP, m.parse({"body": [{"line": {"y": "val/acc"}}]}, source="t"), None, None)
+    write_version(
+        ctx, SWEEP, m.parse({"body": [{"line": {"y": "val/acc"}}]}, source="t"), None, None
+    )
     blocks = [n["block"] for n in page_view(ctx, SWEEP)["view"]["children"]]
     assert blocks == ["line", "memory", "notes"]
     placed = {"body": [{"notes": {"id": "mine", "limit": 9}}, {"line": {"y": "val/acc"}}]}
@@ -455,7 +481,16 @@ def test_curves_sit_in_sections_by_prefix() -> None:
     """Every metric has one chart, in the section of its prefix; sys/* is last and closed."""
     from beamtime.views.defaults import curves
 
-    metrics = ["val/acc", "val/loss", "train/loss", "train/lr", "lr", "sys/cpu", "energy/a", "energy/b"]
+    metrics = [
+        "val/acc",
+        "val/loss",
+        "train/loss",
+        "train/lr",
+        "lr",
+        "sys/cpu",
+        "energy/a",
+        "energy/b",
+    ]
     out = curves(metrics, None, False, [])
     assert [(s.title, s.open) for s in out] == [
         ("val (2)", True), ("train (2)", True), ("energy (2)", False),
@@ -636,7 +671,9 @@ def test_a_saved_view_declares_its_main_metrics(ctx: Context) -> None:
     assert declared_of(view(metrics=shown, main_metrics=["train/loss"])) == [
         {"y": "train/loss", "higher": False, "label": None}
     ]
-    assert declared_of(view(metrics=shown)) == [{"y": "val/acc", "higher": True, "label": "Accuracy"}]
+    assert declared_of(view(metrics=shown)) == [
+        {"y": "val/acc", "higher": True, "label": "Accuracy"}
+    ]
     flipped = {"x": m.MetricInfo(higher_is_better=False)}
     assert declared_of(view(metrics=flipped))[0]["higher"] is False
 
@@ -655,3 +692,96 @@ def test_system_charts_are_not_averaged_over_seeds() -> None:
     out = curves(["val/acc", "val/loss", "sys/cpu"], "config.seed", False, [])
     seeds = {c.y: c.seeds for s in out for c in s.children[0].children}
     assert seeds == {"val/acc": "config.seed", "val/loss": "config.seed", "sys/cpu": None}
+
+
+def lint(ctx: Context, body: str, data_dir: Path | None = None) -> list:
+    """Validate a view body and return its findings.
+
+    :param ctx: The operation context.
+    :param body: The view's ``body`` as YAML.
+    :param data_dir: Where the view's code files are.
+    :return: The findings."""
+    from beamtime.views import validate
+
+    data = {"title": "t", "finding": "a result", "body": yaml.safe_load(body)}
+    return validate.static(ctx, SWEEP, data, source="test", data_dir=data_dir)[1]
+
+
+@pytest.mark.parametrize(
+    ("body", "message", "level"),
+    [
+        ("[{line: {id: a, y: val/acc, caption: 'x: step, one line per run'}}]", "x:", "warning"),
+        ("[{line: {id: a, y: val/acc, caption: '%s'}}]" % ("word " * 40), "over 140", "warning"),
+        (
+            "[{section: {id: s, title: 'Three word title', children: []}}]",
+            "more than two",
+            "warning",
+        ),
+        ("[{markdown: {id: m, text: '# Heading'}}]", "starts with a heading", "warning"),
+        (
+            "[{section: {id: s, title: 'Two words', children: [{markdown: {id: m, text: '# H'}}]}}]",
+            "",
+            None,
+        ),
+    ],
+)
+def test_wording_lints_warn_and_never_error(
+    ctx: Context, body: str, message: str, level: str | None
+) -> None:
+    """Captions, titles and headings get a warning with its fix; no wording lint stops saving."""
+    findings = lint(ctx, body)
+    assert not [f for f in findings if f.level == "error"], findings
+    matching = [f for f in findings if message and message in f.message]
+    if level is None:
+        assert matching == []
+    else:
+        assert matching and matching[0].level == level and matching[0].fix
+
+
+def test_a_nested_section_title_is_not_checked(ctx: Context) -> None:
+    """Only top-level sections and custom blocks have their titles checked."""
+    body = "[{section: {id: s, title: 'Two words', children: [{section: {id: t, title: 'A long nested title here', children: []}}]}}]"
+    assert [
+        f for f in lint(ctx, body) if "two words" in f.message or "more than" in f.message
+    ] == []
+
+
+def test_a_typed_in_snapshot_warns(ctx: Context) -> None:
+    """A custom block without queries whose caption says snapshot is a warning, not an error."""
+    body = "[{custom: {id: c, code: code/c.js, caption: 'Snapshot of the best run.'}}]"
+    findings = lint(ctx, body)
+    assert any("snapshot" in f.message and f.level == "warning" for f in findings), findings
+
+
+CUSTOM_LINTS = [
+    ("d3.line().x(0)(data);", "draws its own chart"),
+    ("const c = html`<svg width=${w}></svg>`;", "draws its own chart"),
+    ("const s = '✓';", "status glyph"),
+    ('html`<span class="pill">passed ok</span>`;', "status word in a pill"),
+    ("const r = 1;", "reads no live data"),
+    ("html`<h2>Title</h2>`;", "opens with a heading"),
+]
+
+
+@pytest.mark.parametrize(("code_text", "message"), CUSTOM_LINTS)
+def test_custom_code_lints_warn(ctx: Context, tmp_path: Path, code_text: str, message: str) -> None:
+    """Each custom-code lint fires as a warning on its own; the code still validates."""
+    (tmp_path / "code").mkdir()
+    module = "export default function render(root) { " + code_text + " }\n"
+    (tmp_path / "code/c.js").write_text(module)
+    body = "[{custom: {id: c, code: code/c.js, libs: [d3], queries: {runs: {runs: {select: [run.id]}}}}}]"
+    findings = lint(ctx, body, data_dir=tmp_path)
+    assert not [f for f in findings if f.level == "error"], findings
+    assert any(message in f.message and f.level == "warning" for f in findings), findings
+
+
+def test_chart_frames_and_live_data_pass_the_code_lints() -> None:
+    """Code on bt.chart.Figure, and the guide's phase map, get no code lints."""
+    from importlib.resources import files
+
+    from beamtime.views import code
+
+    figure = "export default function render(root) { bt.useData('runs'); bt.chart.Figure(root, { svg: '<svg/>' }); }"
+    assert code.lints(figure) == [] and code.opens_with_heading(figure) is False
+    phase = files("beamtime.guide").joinpath("examples/code/phase-map.js").read_text()
+    assert code.lints(phase) == []

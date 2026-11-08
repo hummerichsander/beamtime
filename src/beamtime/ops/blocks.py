@@ -4,6 +4,7 @@ A block draft is ``.beamtime/drafts/blocks/<name>/`` with ``block.yaml`` and ``c
 saving writes a new version into ``blocks/<name>/`` of the log dir root or a group, its code under
 a content hash, and never changes an existing file."""
 
+import dataclasses
 import json
 import re
 import time
@@ -449,7 +450,7 @@ def check(
     custom = m.Custom(code=block.code, kit=block.kit, libs=block.libs, queries=block.queries)
     from beamtime.views.validate import custom_checks
 
-    out += [msgspec.structs.replace(f, block=block.name) for f in custom_checks(custom, {}, folder)]
+    out += [dataclasses.replace(f, block=block.name) for f in custom_checks(custom, {}, folder)]
     if (file := folder / block.code).is_file():
         out += hard_coded(ctx, group, file.read_text(), block, at)
     out += duplicates(ctx, group, block, at)
