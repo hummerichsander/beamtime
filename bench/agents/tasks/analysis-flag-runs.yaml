@@ -1,0 +1,9 @@
+kind: analysis
+category: analysis
+page: scaling/lr-sweep
+prompt: >
+  Before I average scaling/lr-sweep: which runs in it look wrong or unfinished, and what is wrong
+  with each? Give run ids.
+facts:
+  answer: ["{run:diverging}", "{run:killed}", "inf|non-?finite|diverg|nan", "kill"]
+  tools: [diagnose, runs, card, digest, logs, series]

@@ -147,6 +147,15 @@ class WaitParams(Selection, kw_only=True):
     ] = 300.0
 
 
+class DiagnoseParams(Selection, kw_only=True):
+    """Parameters of ``diagnose``."""
+
+    metrics: Annotated[
+        list[str] | None,
+        msgspec.Meta(description="metrics a run must have; default: those most runs have"),
+    ] = None
+
+
 class ResumeParams(Params, kw_only=True):
     """Parameters of ``resume``."""
 
@@ -756,6 +765,13 @@ OPS = [
         impl=f"{R}:wait",
         positional=("from_",),
         summary="Block until the runs finished or a condition holds, then say what changed.",
+    ),
+    Op(
+        name="diagnose",
+        params=DiagnoseParams,
+        impl=f"{R}:diagnose",
+        positional=("from_",),
+        summary="Flag runs: non-finite, diverging, stalled, restarted, short, missing metrics.",
     ),
     Op(
         name="resume",

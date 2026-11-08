@@ -9,6 +9,7 @@ Ask with the tools; never parse run files. Start with `keys` (what exists), then
 | What differs between these runs or groups, and did the metrics move? | `compare` |
 | Where does a group stand: statuses, check, best per setting, failures, notes? | `digest` (first, then the narrower tools) |
 | Have the runs finished (or reached a value) yet? | `wait` (never a sleep loop or `squeue`; over MCP it returns after 45 s, call it again) |
+| Which runs look wrong (non-finite, diverging, stalled, restarted, short, missing a metric)? | `diagnose`, before any mean |
 | What happened in one run? | `card`, then `output` (tail, grep) |
 | What did the runs print, or why did they fail? | `logs` (one run or a group; `grep`, `context`; tracebacks grouped by signature) |
 | How did a metric evolve? | `series` (downsampled; aggregated with `by` or `seeds`) |

@@ -161,6 +161,20 @@ beamtime wait [from]
 | `--until` | `finished` | finished: no run is running; or a condition such as 'metric.val/acc.max>0.9' that one run meets |
 | `--timeout` | `300.0` | seconds; over MCP at most 45, then call again |
 
+### `beamtime diagnose`
+
+Flag runs: non-finite, diverging, stalled, restarted, short, missing metrics.
+
+```sh
+beamtime diagnose [from]
+```
+
+| Option | Default | |
+|---|---|---|
+| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
+| `--depth` | `all` | all, a number |
+| `--metrics` |  | metrics a run must have; default: those most runs have |
+
 ### `beamtime resume`
 
 What's needed to resume a killed run by hand: command, cwd, step, checkpoint.

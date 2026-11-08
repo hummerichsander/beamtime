@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 import time
 
@@ -158,3 +159,33 @@ def test_wait_over_mcp_never_blocks_past_its_cap(
     a = call("wait", {"from": roles["running"], "timeout": 600}, ctx)
     assert time.monotonic() - start < 10
     assert a["timed_out"] and a["capped"]
+
+
+def test_diagnose_flags_what_went_wrong(ctx: Context, roles: dict[str, str]) -> None:
+    """Non-finite and diverging metrics, a restart, a short run and a missing metric are flagged."""
+    a = call("diagnose", {"from": "scaling/lr-sweep"}, ctx)
+    flagged = {e["run"]: e["flags"] for e in a["entries"]}
+    assert flagged[roles["diverging"]]["nonfinite"] == ["train/loss"]
+    assert flagged[roles["diverging"]]["diverging"] == ["train/loss"]
+    assert "stopped_early" in flagged[roles["killed"]]
+    assert a["meta"]["matched"] == 17 and a["meta"]["by_flag"]["nonfinite"] == 1
+    # healthy runs of the sweep carry no flag.
+    assert len(flagged) == 2
+    resumed = call("diagnose", {"from": roles["resumed"]}, ctx)
+    assert resumed["entries"][0]["flags"]["restarts"] >= 1
+    lacking = call("diagnose", {"from": "tokenizer", "metrics": ["nope/metric"]}, ctx)
+    assert all(e["flags"]["missing"] == ["nope/metric"] for e in lacking["entries"])
+    assert lacking["meta"]["flagged"] == 6
+
+
+def test_diagnose_flags_a_running_run_that_stopped_logging(
+    ctx: Context, roles: dict[str, str]
+) -> None:
+    """A running run whose metrics file has not changed for a long time is stalled."""
+    run = next(p for p in ctx.logdir.rglob(roles["running"]) if p.is_dir())
+    before = call("diagnose", {"from": roles["running"]}, ctx)["entries"]
+    assert not any("stalled" in e["flags"] for e in before)
+    old = time.time() - 3600
+    os.utime(run / "_metrics.jsonl", (old, old))
+    [entry] = call("diagnose", {"from": roles["running"]}, ctx)["entries"]
+    assert entry["flags"]["stalled"].startswith("no new metrics for 60 min")

@@ -206,6 +206,8 @@ def render(answer: dict[str, Any]) -> str:
             return render_logs(answer)
         case "wait":
             return render_wait(answer)
+        case "diagnose":
+            return render_diagnose(answer)
         case "data":
             lines = [render_entry(e) for e in answer["entries"]]
             answer["meta"]["matched"] = answer["meta"].get("entries")
@@ -453,6 +455,24 @@ def render_wait(answer: dict[str, Any]) -> str:
     lines += [
         f"  {c['name']}  {c['run']}  {c['from'] or 'new'} -> {c['to']}" for c in answer["changed"]
     ]
+    return "\n".join(lines)
+
+
+def render_diagnose(answer: dict[str, Any]) -> str:
+    """Render a ``diagnose`` answer: one line per flagged run.
+
+    :param answer: The answer.
+    :return: The text."""
+    lines = []
+    for e in answer["entries"]:
+        flags = "; ".join(
+            f"{flag}: {', '.join(v) if isinstance(v, list) else v}"
+            for flag, v in e["flags"].items()
+        )
+        lines.append(f"{e['name']}  {e['run']}  {e['status']}  {flags}")
+    meta = answer["meta"]
+    summary = ", ".join(f"{n} {flag}" for flag, n in meta["by_flag"].items()) or "nothing flagged"
+    lines.append(f"{meta['flagged']} of {meta['matched']} runs flagged: {summary}")
     return "\n".join(lines)
 
 

@@ -5,6 +5,7 @@ import re
 import time
 from collections import Counter
 from pathlib import Path
+from statistics import median
 from typing import Any
 
 from beamtime.format import constants as c
@@ -40,6 +41,8 @@ DIGEST_VALUES = 8
 DIGEST_KEYS = 3
 LOG_WIDTH = 300
 WAIT_POLL_S = 2.0
+STALLED_S = 600
+SHORT_RUN = 0.9
 # MCP clients give up on a call after a minute or so; an agent calls wait again.
 MCP_WAIT_S = 45.0
 
@@ -211,12 +214,19 @@ def members(
     :param target: A group below the log dir, or a run id.
     :param where: A condition the runs must meet.
     :param depth: How many group levels below the target to look into.
-    :return: Per run: ``id``, ``name``, ``status``, ``code`` and ``dir``."""
-    fields = ["run.name", "run.status", "run.code", "run.path"]
+    :return: Per run: ``id``, ``name``, ``status``, ``code``, ``dir`` and ``group``."""
+    fields = ["run.name", "run.status", "run.code", "run.path", "run.group"]
     query = {"from": target, "select": fields, "limit": 10**6, "where": where or {}, "depth": depth}
     table = evaluate(ctx, {"runs": query})
     return [
-        {"id": row[0], "name": row[1], "status": row[2], "code": row[3], "dir": ctx.logdir / row[4]}
+        {
+            "id": row[0],
+            "name": row[1],
+            "status": row[2],
+            "code": row[3],
+            "dir": ctx.logdir / row[4],
+            "group": row[5],
+        }
         for row in table["rows"]
     ]
 
@@ -624,6 +634,77 @@ def conjunction(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
     if not a or not b:
         return a or b
     return {"not": {"any": [{"not": a}, {"not": b}]}}
+
+
+def diagnose(ctx: Context, p: r.DiagnoseParams) -> dict[str, Any]:
+    """Flag runs that went wrong or look odd: non-finite values, diverging metrics, stalls,
+    restarts, a short run among longer ones, missing metrics.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: Per flagged run its ``flags``, and in ``meta`` how many runs each flag hit."""
+    runs_ = members(ctx, p.from_, p.where, p.depth)
+    cards = {m["id"]: read_card(m["dir"]) if (m["dir"] / c.CARD).exists() else None for m in runs_}
+    peers: dict[str, list[dict[str, Any]]] = {}
+    for m in runs_:
+        peers.setdefault(m["group"], []).append(m)
+    now = ctx.now or time.time()
+    entries = []
+    for group in peers.values():
+        # runs are judged against their own group: other experiments run for other lengths.
+        done = [cards[m["id"]].steps for m in group if m["status"] == "finished" and cards[m["id"]]]
+        typical = median([n for n in done if n]) if len(done) >= 3 else None
+        counts = Counter(k for m in group if cards[m["id"]] for k in cards[m["id"]].metrics)
+        wanted = p.metrics or [k for k, n in counts.items() if n > len(group) / 2]
+        for m in group:
+            card = cards[m["id"]]
+            flags: dict[str, Any] = {}
+            metrics = card.metrics if card else {}
+            if bad := [k for k, s in metrics.items() if s.nonfinite]:
+                flags["nonfinite"] = bad
+            if bad := [k for k, s in metrics.items() if diverges(s)]:
+                flags["diverging"] = bad
+            if m["status"] == "running" and (age := now - mtime(m["dir"] / c.METRICS)) > STALLED_S:
+                flags["stalled"] = f"no new metrics for {age / 60:.0f} min"
+            if (restarts := len(read_run_info(m["dir"]).attempts) - 1) > 0:
+                flags["restarts"] = restarts
+            if card and typical and card.steps and card.steps < SHORT_RUN * typical:
+                flags["stopped_early"] = f"{card.steps} of about {typical:.0f} steps"
+            if card and (gone := [k for k in wanted if k not in metrics]):
+                flags["missing"] = gone
+            if flags:
+                entries.append(
+                    {"run": m["id"], "name": m["name"], "status": m["status"], "flags": flags}
+                )
+    hit = Counter(flag for e in entries for flag in e["flags"])
+    answer = {
+        "kind": "diagnose",
+        "entries": entries,
+        "meta": {"matched": len(runs_), "flagged": len(entries), "by_flag": dict(hit)},
+    }
+    return page(ctx, answer, p.cursor)
+
+
+def diverges(stats: Any) -> bool:
+    """Tell whether a metric grew away from zero over its last tenth by more than its mean level.
+
+    :param stats: The metric's ``MetricSummary``.
+    :return: Whether it diverges; ``False`` without the numbers to tell."""
+    if None in (stats.slope_last10pct, stats.last, stats.mean, stats.last_step):
+        return False
+    change = stats.slope_last10pct * 0.1 * stats.last_step
+    return change * stats.last > 0 and abs(change) > abs(stats.mean)
+
+
+def mtime(path: Path) -> float:
+    """Give a file's modification time.
+
+    :param path: The file.
+    :return: Unix seconds; 0 if it doesn't exist."""
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
 
 
 def find_run(ctx: Context, run_id: str) -> Path:
