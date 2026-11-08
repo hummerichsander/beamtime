@@ -1,0 +1,9 @@
+kind: analysis
+category: analysis
+page: tokenizer/bpe-vs-unigram
+prompt: >
+  By how much does unigram lower the final validation perplexity compared with BPE in
+  tokenizer/bpe-vs-unigram? Give a number and say how sure you are.
+facts:
+  answer: ["0\\.[345]\\d*"]
+  tools: [runs, query, series, check, data]

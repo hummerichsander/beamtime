@@ -1,0 +1,9 @@
+kind: notes
+category: notes
+smoke: true
+page: scaling/lr-sweep
+prompt: >
+  I suspect the lr 1e-2 runs in scaling/lr-sweep diverge because the sweep has no warmup, but I
+  haven't tested that. Write it down in the group so we don't forget.
+facts:
+  type: theory

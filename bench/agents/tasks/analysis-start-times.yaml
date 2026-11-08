@@ -1,0 +1,8 @@
+kind: analysis
+category: analysis
+page: scaling/long-context
+prompt: >
+  List the runs of scaling/long-context with the time each started, and tell me which started last.
+facts:
+  answer: ["{run:resumed}", "{run:lost}", "{run:running}"]
+  tools: [runs, query, card]

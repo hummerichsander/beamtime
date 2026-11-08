@@ -1,0 +1,8 @@
+kind: analysis
+category: analysis
+page: scaling/lr-sweep
+prompt: >
+  Give the mean final val/acc per learning rate in scaling/lr-sweep, over the seeds, as a short table.
+facts:
+  answer: ["3e-4|3\\.0e-4|0\\.0003", "0\\.9[23]"]
+  tools: [runs, query, series, check, data]

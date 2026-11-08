@@ -1,0 +1,10 @@
+kind: lifecycle
+category: lifecycle
+smoke: true
+page: scaling/lr-sweep
+prompt: >
+  Run {run:killed} was killed. What do I run to resume it? Tell me the command and the step it
+  continues from.
+facts:
+  tool: resume
+  run: killed

@@ -1,0 +1,11 @@
+kind: verdict
+category: verdict
+smoke: true
+page: tokenizer/bpe-vs-unigram
+prompt: >
+  The runs of tokenizer/bpe-vs-unigram are done. Judge the group's proposal against its runs and
+  write the verdict.
+facts:
+  verdicts: {unigram-wins: confirmed}
+  overall: confirmed
+  overclaims: ["larger vocab\\w*[^.]*(also|too|hold)", "\\bprov(es|en)\\b", "\\balways\\b", "for all (tokenizers|languages)"]

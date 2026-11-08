@@ -1,0 +1,9 @@
+kind: analysis
+category: analysis
+heldout: true
+page: scaling/lr-sweep
+prompt: >
+  One run in scaling/lr-sweep diverged. Which one, and at what learning rate? Give the run id.
+facts:
+  answer: ["{run:diverging}", "1e-2|0\\.01|1\\.0e-2"]
+  tools: [runs, query, card, series, check, data]

@@ -8,5 +8,5 @@ build/
 .ruff_cache/
 .beamtime/
 web/node_modules/
-bench/views/runs/
+bench/agents/runs/
 /site/

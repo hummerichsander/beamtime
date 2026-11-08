@@ -1,0 +1,10 @@
+kind: notes
+category: notes
+heldout: true
+page: scaling/lr-sweep
+prompt: >
+  The note in scaling/lr-sweep about lr 1e-2 diverging says it happens after about 30 % of
+  training. I re-measured: the loss turns upward after about 25 %. Correct the record.
+facts:
+  type: observation
+  supersedes: diverges after about 30

@@ -1,4 +1,5 @@
 category: sweep
+heldout: true
 smoke: false
 page: scaling/lr-sweep
 prompt: >

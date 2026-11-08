@@ -1,0 +1,12 @@
+kind: proposal
+category: proposal
+heldout: true
+page: scaling/warmup-length
+prompt: >
+  I expect a 500-step warmup to make training stable: no loss spike after step 100, and the final
+  val/acc should reach 0.9. Three seeds. Write the proposal for the new group scaling/warmup-length.
+facts:
+  metrics: [val/acc, train/loss]
+  test: each
+  plan: true
+  window: true

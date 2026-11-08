@@ -1,0 +1,11 @@
+kind: lifecycle
+category: lifecycle
+heldout: true
+page: scaling/baselines
+prompt: >
+  Use run {run:resumed} as a baseline: copy it into the group scaling/baselines, without its
+  checkpoints.
+facts:
+  tool: cp
+  run: resumed
+  dest: scaling/baselines

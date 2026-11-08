@@ -807,7 +807,7 @@ to them can solve that then.
 ## Evaluation harness
 
 A harness measures how well agents build views with the guide, the kit and the tools, and catches
-regressions when any of them changes. It lives in `bench/views/` and follows the query-form
+regressions when any of them changes. It lives in `bench/agents/` and follows the query-form
 experiment and ArtifactsBench (render, screenshot, judge against a per-task checklist).
 
 - **Synthetic log dirs with planted truth.** A generator builds realistic log dirs from a seed:
@@ -832,6 +832,18 @@ on overall aesthetics. The harness answers design questions empirically (do exam
 second screenshot round worth it, how models compare, do custom blocks pay off) and guards releases:
 about ten tasks run on every change to the guide, kit or built-in blocks, the full suite before
 releases. The generator and task definitions are built early; scoring follows the first renderer.
+
+Since the research record (G3) the harness covers the whole agent surface, not only views. Tasks have
+a kind (`proposal`, `verdict`, `notes`, `view`, `analysis`, `lifecycle`), each with ground truth from
+the generator (`synth`): a proposal needs falsifiable predictions on the right metric, a verdict must
+match the planted effect without overclaiming, a correction supersedes instead of duplicating, an
+analysis answers from the tools and not from raw files, a lifecycle task resumes or copies the right
+run. Scores are deterministic first (correct, rounds to valid, tool errors, tokens, turns, and
+violations: raw reads of the log dir, edits of it, user-only commands; for views also the validator's
+lints); a model judges only prose. `report.py --base --new` gives per-task deltas, `--guide <dir>`
+tests guide text before a release, a third of the tasks are held out of refinement, and `mine.py`
+seeds tasks from real session transcripts. The loop and the failure log are in
+`bench/agents/README.md` and `MISTAKES.md`.
 
 ## Implementation notes
 
@@ -892,7 +904,7 @@ Decided while building views (milestone M6):
   to at most `SHOT_HEIGHT` (2,520 px) tall, since height is what costs an agent's visual tokens, and
   the answer's `cut` names the blocks that fall below it, so an agent never judges what it never
   saw. A block shot is never cut. `beamtime view render <draft> --block <id>` shows one block that
-  was cut off. `render_page` (the view-task harness's judge) stays full height and uncapped.
+  was cut off. `render_page` (the agent-task harness's judge) stays full height and uncapped.
 - **Drawn charts**: `scatter`, `bar` and `histogram` draw their marks on uPlot's axes and grid
   (a draw hook), with the same tooltips, hover highlight and PNG export as `line`.
 

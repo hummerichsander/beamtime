@@ -1,0 +1,10 @@
+kind: analysis
+category: analysis
+smoke: true
+page: scaling/lr-sweep
+prompt: >
+  Which learning rate in scaling/lr-sweep gives the best final val/acc? Answer in two sentences.
+facts:
+  answer: ["3e-4|3\\.0e-4|0\\.0003|3 ?x ?10\\^?-4"]
+  overclaims: ["(0\\.01|1e-2) (is|gives) (the )?best", "statistically significant"]
+  tools: [runs, query, series, check, data]

@@ -1,0 +1,11 @@
+kind: proposal
+category: proposal
+smoke: true
+page: scaling/weight-decay
+prompt: >
+  I want to test whether weight decay 0.1 gives a higher final val/acc than no weight decay. I'll
+  run three seeds of each at lr 3e-4. Write the proposal for the new group scaling/weight-decay.
+facts:
+  metrics: [val/acc]
+  test: compare
+  plan: true
