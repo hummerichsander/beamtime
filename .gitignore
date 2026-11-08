@@ -10,3 +10,4 @@ build/
 web/node_modules/
 bench/agents/runs/
 /site/
+.DS_Store

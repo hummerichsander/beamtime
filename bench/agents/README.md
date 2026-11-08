@@ -58,7 +58,7 @@ facts: ...                       # the truth, by kind
 | `notes` | `type`, `supersedes` | exactly one new note of the type; a correction supersedes the note it names |
 | `view` | `metrics`, `runs`, `finding`, `overclaims`, `checklist` | saved, valid, its queries ask for the metrics and select the runs, and the finding is judged true |
 | `analysis` | `answer`, `overclaims`, `tools` | the answer matches every pattern and no overclaim, a listed tool was used, no raw file was read |
-| `lifecycle` | `tool`, `run`, `dest` | the tool succeeded on the run (and the copy exists) |
+| `lifecycle` | `tool`, `run`, `dest` | the tool succeeded on the run (and the copy exists; for `resume`, the answer names the run) |
 
 A view task with `remote: box` also generates a second log dir that the project reaches as the remote
 `box` over the command transport; the agent works on `@box/<group>`, and the saved view is scored on

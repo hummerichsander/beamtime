@@ -14,6 +14,8 @@ from beamtime.format.ids import is_run_id
 from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import BY_TOOL
+from beamtime.query.models import closest
+from beamtime.sdk.paths import find_run
 
 STATIC = Path(__file__).parent / "static"
 STARTED = time.time()
@@ -288,7 +290,8 @@ def page_of(ctx: Context, path: str) -> tuple[str, str | None]:
             if (found := index.run_path(run)) is None:
                 index.catch_up(".", budget_s=0)
                 found = index.run_path(run)
-        if found is None:
+        # a run created after the daemon's last walk is not indexed yet.
+        if found is None and (found := find_run(ctx.logdir, run)) is None:
             raise OpError(f"no run {run!r} below the log dir", code=4)
         path = found.relative_to(ctx.logdir).as_posix()
     elif ".." in path.split("/"):
@@ -298,7 +301,9 @@ def page_of(ctx: Context, path: str) -> tuple[str, str | None]:
 
         # an old link to a moved group shows the group where it is now.
         if not (ctx.logdir / (moved := current(ctx.logdir, path))).is_dir():
-            raise OpError(f"no group {path!r} below the log dir", code=4)
+            parent = (ctx.logdir / path).parent
+            options = [p.name for p in parent.iterdir() if p.is_dir()] if parent.is_dir() else []
+            raise OpError(f"no group {path!r} below the log dir.{closest(name, options)}", code=4)
         path = moved
     return path, run
 

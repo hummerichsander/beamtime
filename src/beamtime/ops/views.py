@@ -89,7 +89,8 @@ def write_draft_files(
     folder = store.drafts(ctx) / name
     if folder.exists():
         raise OpError(
-            f"draft {name!r} exists at {folder}; edit its view.yaml, or start another with --name",
+            f"draft {name!r} exists at {folder}; continue it by editing its view.yaml, "
+            "or start another with --name",
             code=1,
         )
     (folder / "data").mkdir(parents=True)

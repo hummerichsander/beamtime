@@ -161,7 +161,7 @@ def test_view_ops_and_the_page(ctx: Context, project: Path) -> None:
     draft = Path(answer["file"])
     assert draft == project / ".beamtime" / "drafts" / "lr-sweep" / "view.yaml"
     assert (project / ".beamtime" / ".gitignore").read_text().strip().endswith("*")
-    with pytest.raises(OpError, match="exists"):
+    with pytest.raises(OpError, match="exists.*continue it"):
         call("view new", {"group": SWEEP, "from": "sweep"}, ctx)
     text = draft.read_text()
     assert "metric.val/acc.max" in text and "config.lr" in text

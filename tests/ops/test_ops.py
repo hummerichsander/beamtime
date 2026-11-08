@@ -1,10 +1,12 @@
 import json
+import shutil
 from pathlib import Path
 
 import pytest
 
 from beamtime.cli.conditions import parse_where
 from beamtime.cli.format import num, render, spark, table
+from beamtime.format.ids import new_run_id
 from beamtime.ops import call
 from beamtime.ops.budget import cut
 from beamtime.ops.context import Context, OpError
@@ -422,3 +424,21 @@ def test_init_and_mcp_install_work_without_a_local_log_dir(
     config = json.loads((root / ".cursor" / "mcp.json").read_text())
     assert config["mcpServers"]["beamtime"]["args"][:2] == ["--root", str(root.resolve())]
     assert not any("error" in line.lower() for line in installed["lines"])
+
+
+def test_page_of_finds_an_unindexed_copy_and_suggests_a_group(
+    ctx: Context, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A run copied after the last index walk resolves by id; a typo'd group names the close one."""
+    from beamtime.index.index import Index
+    from beamtime.serve.api import page_of
+
+    # a running daemon or a held lock makes the budgeted catch-up a no-op.
+    monkeypatch.setattr(Index, "catch_up", lambda *a, **k: None)
+    run = next(ctx.logdir.rglob("_run.json")).parent
+    copy = ctx.logdir / "scaling" / "fresh" / new_run_id()
+    copy.parent.mkdir(parents=True)
+    shutil.copytree(run, copy)
+    assert page_of(ctx, copy.name) == (copy.relative_to(ctx.logdir).as_posix(), copy.name)
+    with pytest.raises(OpError, match=r"Did you mean 'lr-sweep'\?"):
+        page_of(ctx, "scaling/lr-sweeps")

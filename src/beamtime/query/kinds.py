@@ -465,7 +465,7 @@ def band_stats(per_bucket: list[list[float]], band: str) -> dict[str, list[Any]]
             case "none":
                 lo_v = hi_v = None
             case _:
-                raise QueryError(f"unknown band {band!r}")
+                raise QueryError(f"unknown band {band!r}; bands: minmax, std, stderr, none")
         mean.append(mu)
         lo.append(lo_v)
         hi.append(hi_v)

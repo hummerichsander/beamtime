@@ -235,6 +235,14 @@ def test_series_x_axes_and_smoothing(ask, roles) -> None:
     assert all(x is None or x <= 0.01 for c in by_lr["curves"] for x in c["x"])
 
 
+def test_an_unknown_band_lists_the_valid_ones() -> None:
+    """A band that isn't one names the valid values."""
+    from beamtime.query.kinds import band_stats
+
+    with pytest.raises(QueryError, match="bands: minmax, std, stderr, none"):
+        band_stats([[1.0, 2.0]], "sd")
+
+
 def test_a_resumed_runs_curve_names_where_the_attempts_meet(ask, roles) -> None:
     """A run with a second attempt carries the resume step, also mapped to another x axis; a
     run with one attempt carries none."""

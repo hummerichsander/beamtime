@@ -1141,7 +1141,7 @@ Done: `CHANGELOG.md` for 0.2.0 lists every row of Breaking changes; `scripts/rel
 Loose ends the earlier chunks surfaced, gathered after Z1. Independent of the release: none of this blocks publishing
 0.2.0, and the chunk can land before or after the tag.
 
-## H1. Follow-ups: resolve a copied run by id, nearer error messages, bench calibration (sonnet)
+## H1. Follow-ups: resolve a copied run by id, nearer error messages, bench calibration (sonnet) — **done**
 
 - **Touches:** `src/beamtime/serve/api.py` (`page_of` 282, the group dead end 294–301), `src/beamtime/query/fields.py` (the unknown-field error 179), `src/beamtime/query/kinds.py` (`band_stats` 468), `src/beamtime/ops/views.py` (the draft-exists message 92), `bench/agents/tasks/` and `bench/agents/score.py` (the `lifecycle-resume` task), `bench/agents/MISTAKES.md`, `.gitignore`; tests `tests/serve/test_app.py`, `tests/query/test_queries.py`, `tests/ops/test_ops.py`.
 - **Read:** the E5 and G3 entries below; `docs/design/03-index.md` on discovery and the daemon; `src/beamtime/query/models.py` (`closest`).

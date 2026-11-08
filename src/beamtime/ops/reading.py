@@ -33,6 +33,7 @@ from beamtime.query.progress import progress
 from beamtime.query.select import Columns
 from beamtime.record.check import rounded
 from beamtime.record.stats import mean
+from beamtime.sdk.paths import find_run as walk_for_run
 
 RECENT_EVENTS = 10
 COMPARE_METRICS = 20
@@ -856,7 +857,7 @@ def find_run(ctx: Context, run_id: str) -> Path:
             ).fetchall()
             if len(hits) > 1:
                 raise OpError(f"{run_id!r} matches {len(hits)} runs; give the full run id", code=2)
-            path = ctx.logdir / hits[0][0] if hits else None
+            path = ctx.logdir / hits[0][0] if hits else walk_for_run(ctx.logdir, run_id)
     if path is None:
         raise OpError(f"no run {run_id!r} below {ctx.logdir}; `beamtime runs` lists them", code=4)
     return path

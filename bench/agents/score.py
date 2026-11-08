@@ -218,7 +218,7 @@ def filled(pattern: str, roles: dict[str, str]) -> str:
 
 
 def score_lifecycle(ctx: Any, task: Task, record: dict[str, Any]) -> dict[str, Any]:
-    """Check that an agent resumed or copied the right run.
+    """Check that an agent looked up a resume or copied the right run, and for a resume told the user.
 
     :param ctx: The operation context.
     :param task: The task.
@@ -229,6 +229,9 @@ def score_lifecycle(ctx: Any, task: Task, record: dict[str, Any]) -> dict[str, A
     run = record["roles"][task.facts["run"]]
     calls = [c for c in record["calls"] if c["name"] == task.facts["tool"] and not c.get("error")]
     checks = {"called": any(run in json.dumps(c["input"]) for c in calls)}
+    if task.facts["tool"] == "resume":
+        # the prompt asks to be told the command, which names the run.
+        checks["told"] = run in record["answer"]
     if dest := task.facts.get("dest"):
         checks["copied"] = next(iter_runs(ctx.logdir / dest), None) is not None
     return {"correct": all(checks.values()), "checks": checks}
