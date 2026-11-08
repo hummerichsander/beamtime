@@ -23,11 +23,12 @@ async function withDot(): Promise<string> {
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext("2d");
   if (!ctx) return PLAIN;
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+  if (!accent) return PLAIN;
   ctx.drawImage(img, 0, 0, size, size);
   ctx.beginPath();
   ctx.arc(size - 6, size - 6, 6, 0, Math.PI * 2);
-  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
-  ctx.fillStyle = accent || "#2f5aa8";
+  ctx.fillStyle = accent;
   ctx.fill();
   dotted = canvas.toDataURL("image/png");
   return dotted;

@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Generate design/tokens.css from design/tokens.json.
+"""Generate design/tokens.css and the favicon's accent fills from design/tokens.json.
 
-``scripts/build-tokens`` writes the file; ``--check`` fails instead when the committed one is stale."""
+``scripts/build-tokens`` writes the files; ``--check`` fails instead when a committed one is stale."""
 
 from pathlib import Path
 import json
+import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "design" / "tokens.json"
 OUT = ROOT / "design" / "tokens.css"
+FAVICON = ROOT / "design" / "favicon.svg"
 HEADER = "/* Beamtime: generated from design/tokens.json by scripts/build-tokens. Do not edit by hand. */"
 
 
@@ -68,13 +70,26 @@ def css(t: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def favicon(t: dict, svg: str) -> str:
+    """Fill the favicon's light and dark accent from the tokens.
+
+    :param t: The contents of ``tokens.json``.
+    :param svg: The favicon's current source.
+    :return: The source with the accent's light value in the first fill and the dark one in the second."""
+    accent = next(c["value"] for c in t["color"]["tokens"] if c["name"] == "accent")
+    fills = iter((accent["light"], accent["dark"]))
+    return re.sub(r"fill: #\w+;", lambda _: f"fill: {next(fills)};", svg)
+
+
 def main() -> None:
-    """Write the file, or with ``--check`` compare it."""
-    wanted = css(json.loads(SOURCE.read_text(encoding="utf-8")))
-    if "--check" not in sys.argv:
-        OUT.write_text(wanted, encoding="utf-8")
-    elif OUT.read_text(encoding="utf-8") != wanted:
-        sys.exit("design/tokens.css is stale: run scripts/build-tokens")
+    """Write the files, or with ``--check`` compare them."""
+    tokens = json.loads(SOURCE.read_text(encoding="utf-8"))
+    wanted = {OUT: css(tokens), FAVICON: favicon(tokens, FAVICON.read_text(encoding="utf-8"))}
+    for path, text in wanted.items():
+        if "--check" not in sys.argv:
+            path.write_text(text, encoding="utf-8")
+        elif path.read_text(encoding="utf-8") != text:
+            sys.exit(f"design/{path.name} is stale: run scripts/build-tokens")
 
 
 if __name__ == "__main__":

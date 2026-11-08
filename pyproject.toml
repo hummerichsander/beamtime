@@ -1,6 +1,6 @@
 [project]
 name = "beamtime"
-version = "0.1.1"
+version = "0.2.0"
 description = "Experiment tracking for numerical experiments, shared by people and agents: runs with proposals and verdicts, and views built by agents."
 readme = "README.md"
 license = "Apache-2.0"

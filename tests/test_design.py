@@ -36,6 +36,7 @@ def test_favicon_follows_the_system_theme_and_is_bundled() -> None:
     tokens = (ROOT / "design" / "tokens.css").read_text()
     light, dark = re.findall(r"--accent: (#\w+)", tokens)[:2]
     assert light in svg and dark in svg
+    assert script("build-tokens", "--check").returncode == 0
     bundled = ROOT / "src" / "beamtime" / "serve" / "static" / "favicon.svg"
     assert bundled.is_file() and bundled.read_bytes() == (ROOT / "design" / "favicon.svg").read_bytes()
     index = (ROOT / "src" / "beamtime" / "serve" / "static" / "index.html").read_text()

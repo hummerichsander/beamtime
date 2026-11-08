@@ -153,7 +153,7 @@ These qualities are made concrete as budgets and rules, and checked like correct
 - **The browser tab**: every page sets `document.title` to its name (a group's, a run's, "Timeline"
   or "Settings") followed by " · Beamtime", with a `(N)` prefix while `N` runs are live in it (a run
   page counts only itself). The favicon (`design/favicon.svg`, a beam mark that recolors itself for
-  `prefers-color-scheme: dark`) gets a small accent dot added while `N > 0`, so a live tab stands out
+  `prefers-color-scheme: dark`; `scripts/build-tokens` writes its two fills from the `accent` token) gets a small accent dot added while `N > 0`, so a live tab stands out
   among several (`shell/favicon.ts`). An exported page keeps its own, data-URI favicon and never
   touches it: nothing in a static snapshot is ever live, and `/static/favicon.svg` doesn't resolve
   next to a page opened from disk.

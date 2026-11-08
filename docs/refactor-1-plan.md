@@ -1108,7 +1108,7 @@ Done: per tool, CLI and MCP both come from the registry; a test on `synth`; its 
 
 ---
 
-## Z1. Close (sonnet)
+## Z1. Close (sonnet) — **done**
 
 - **Touches:** `CHANGELOG.md`, `docs/`, `CLAUDE.md`, `todo`, `scripts/build-tokens`, `design/favicon.svg`, `web/src/shell/favicon.ts`, `tests/test_design.py`.
 - **Read:** Breaking changes, Decisions and Not verified in this plan.
