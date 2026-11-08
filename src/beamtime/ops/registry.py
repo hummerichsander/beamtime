@@ -132,6 +132,21 @@ class LogsParams(Selection, kw_only=True):
     rank: int = 0
 
 
+class WaitParams(Selection, kw_only=True):
+    """Parameters of ``wait``."""
+
+    until: Annotated[
+        str,
+        msgspec.Meta(
+            description="finished: no run is running; or a condition such as "
+            "'metric.val/acc.max>0.9' that one run meets"
+        ),
+    ] = "finished"
+    timeout: Annotated[
+        float, msgspec.Meta(description="seconds; over MCP at most 45, then call again")
+    ] = 300.0
+
+
 class ResumeParams(Params, kw_only=True):
     """Parameters of ``resume``."""
 
@@ -734,6 +749,13 @@ OPS = [
         impl=f"{R}:logs",
         positional=("from_",),
         summary="Output of a run or a group's runs; failed runs' tracebacks by signature.",
+    ),
+    Op(
+        name="wait",
+        params=WaitParams,
+        impl=f"{R}:wait",
+        positional=("from_",),
+        summary="Block until the runs finished or a condition holds, then say what changed.",
     ),
     Op(
         name="resume",

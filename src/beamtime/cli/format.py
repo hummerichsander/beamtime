@@ -204,6 +204,8 @@ def render(answer: dict[str, Any]) -> str:
             return render_digest(answer)
         case "logs":
             return render_logs(answer)
+        case "wait":
+            return render_wait(answer)
         case "data":
             lines = [render_entry(e) for e in answer["entries"]]
             answer["meta"]["matched"] = answer["meta"].get("entries")
@@ -432,6 +434,25 @@ def render_logs(answer: dict[str, Any]) -> str:
     for e in answer["entries"]:
         lines += ["", f"== {e['name']}  {e['run']}  {e['status']}", *e["lines"]]
     lines.append(meta_line(answer, "runs", answer["meta"]["with_lines"]))
+    return "\n".join(lines)
+
+
+def render_wait(answer: dict[str, Any]) -> str:
+    """Render a ``wait`` answer: whether it ended, what changed, where the runs stand.
+
+    :param answer: The answer.
+    :return: The text."""
+    if answer["met"]:
+        head = f"done after {answer['waited_s']} s"
+    else:
+        head = f"not yet after {answer['waited_s']} s"
+        head += " (capped; call wait again)" if answer["capped"] else " (timeout)"
+    lines = [head + "  " + ", ".join(f"{n} {s}" for s, n in answer["runs"].items())]
+    if answer["matching"]:
+        lines.append(f"meeting the condition: {', '.join(answer['matching'])}")
+    lines += [
+        f"  {c['name']}  {c['run']}  {c['from'] or 'new'} -> {c['to']}" for c in answer["changed"]
+    ]
     return "\n".join(lines)
 
 

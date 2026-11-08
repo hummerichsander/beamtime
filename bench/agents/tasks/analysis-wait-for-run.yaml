@@ -1,0 +1,9 @@
+kind: analysis
+category: analysis
+page: run:running
+prompt: >
+  Run {run:running} is still going. Wait for it for up to 30 seconds and tell me whether it
+  finished, without polling by hand.
+facts:
+  answer: ["still running|not (yet )?finished|has not finished|did not finish|timed out"]
+  tools: [wait]

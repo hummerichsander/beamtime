@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 
 import pytest
 
@@ -104,3 +106,55 @@ def test_logs_is_cut_at_the_budget_not_dropped(ctx: Context) -> None:
     assert first["meta"]["cut"] and len(json.dumps(first)) < MAX_CHARS + 2000
     second = call("logs", {"tail": 0, "cursor": first["meta"]["next"]}, ctx)
     assert second["entries"][0]["run"] != first["entries"][0]["run"]
+
+
+def test_wait_returns_at_once_when_nothing_runs(ctx: Context) -> None:
+    """A group with no running run is done, and no run changed."""
+    a = call("wait", {"from": "tokenizer"}, ctx)
+    assert a["met"] and a["waited_s"] < 1 and a["changed"] == []
+    assert a["runs"] == {"finished": 6}
+
+
+def test_wait_condition_names_the_matching_runs(ctx: Context) -> None:
+    """A condition ends the wait as soon as one run meets it, together with ``where``."""
+    a = call("wait", {"from": "scaling/lr-sweep", "until": "metric.val/acc.max>0.93"}, ctx)
+    assert a["met"] and a["matching"]
+    b = call(
+        "wait",
+        {"from": "scaling/lr-sweep", "where": {"config.lr": 0.001}, "until": "metric.val/acc.max>0.9"},
+        ctx,
+    )
+    assert len(b["matching"]) == 3
+    with pytest.raises(OpError, match="until"):
+        call("wait", {"until": "val/acc"}, ctx)
+
+
+def test_wait_times_out_and_reports_what_changed(ctx: Context, roles: dict[str, str]) -> None:
+    """A run that finishes during the wait ends it and shows as changed; otherwise it times out."""
+    running = next(p for p in ctx.logdir.rglob(roles["running"]) if p.is_dir())
+    stuck = call("wait", {"from": roles["running"], "timeout": 0.3}, ctx)
+    assert stuck["timed_out"] and not stuck["met"] and not stuck["capped"]
+
+    def finish() -> None:
+        time.sleep(0.5)
+        info = json.loads((running / "_run.json").read_text())
+        (running / "_run.json").write_text(json.dumps(info | {"status": "finished"}))
+
+    thread = threading.Thread(target=finish)
+    thread.start()
+    done = call("wait", {"from": roles["running"], "timeout": 20}, ctx)
+    thread.join()
+    assert done["met"] and done["changed"][0]["from"] == "running"
+    assert done["changed"][0]["to"] == "finished"
+
+
+def test_wait_over_mcp_never_blocks_past_its_cap(
+    ctx: Context, roles: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Over MCP the wait ends at the cap, says so, and the agent calls again."""
+    monkeypatch.setattr("beamtime.ops.reading.MCP_WAIT_S", 0.3)
+    ctx.caller = "mcp"
+    start = time.monotonic()
+    a = call("wait", {"from": roles["running"], "timeout": 600}, ctx)
+    assert time.monotonic() - start < 10
+    assert a["timed_out"] and a["capped"]

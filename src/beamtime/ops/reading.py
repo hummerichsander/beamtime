@@ -39,6 +39,9 @@ DIGEST_NOTES = 5
 DIGEST_VALUES = 8
 DIGEST_KEYS = 3
 LOG_WIDTH = 300
+WAIT_POLL_S = 2.0
+# MCP clients give up on a call after a minute or so; an agent calls wait again.
+MCP_WAIT_S = 45.0
 
 
 def ask(ctx: Context, query: dict[str, Any], cursor: str | None = None) -> dict[str, Any]:
@@ -557,6 +560,70 @@ def last_traceback(lines: list[str]) -> list[str]:
     block = lines[starts[-1] :]
     end = next((i for i, line in enumerate(block[1:], 1) if line and not line[0].isspace()), None)
     return block if end is None else block[: end + 1]
+
+
+def wait(ctx: Context, p: r.WaitParams) -> dict[str, Any]:
+    """Block until no selected run is running, or a condition holds for one of them, then say
+    what changed since the call began.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: ``met``, ``timed_out``, the seconds waited, the runs whose status changed or that
+        appeared, the status counts now and, for a condition, the runs meeting it."""
+    from beamtime.cli.conditions import parse_where
+
+    limit = p.timeout if ctx.caller == "cli" else min(p.timeout, MCP_WAIT_S)
+    try:
+        condition = None if p.until == "finished" else parse_where([p.until])
+    except ValueError as e:
+        raise OpError(f"until: {e}", code=2) from None
+    before = {m["id"]: m for m in members(ctx, p.from_, p.where, p.depth)}
+    start = time.monotonic()
+    while True:
+        now = {m["id"]: m for m in members(ctx, p.from_, p.where, p.depth)}
+        if condition is None:
+            hits = []
+            met = not any(m["status"] == "running" for m in now.values())
+        else:
+            both = conjunction(p.where, condition)
+            hits = [m["id"] for m in members(ctx, p.from_, both, p.depth)]
+            met = bool(hits)
+        waited = time.monotonic() - start
+        if met or waited >= limit:
+            break
+        time.sleep(min(WAIT_POLL_S, limit - waited))
+    changed = [
+        {
+            "run": m["id"],
+            "name": m["name"],
+            "from": before.get(i, {}).get("status"),
+            "to": m["status"],
+        }
+        for i, m in now.items()
+        if before.get(i, {}).get("status") != m["status"]
+    ]
+    return {
+        "kind": "wait",
+        "met": met,
+        "timed_out": not met,
+        "waited_s": round(waited, 1),
+        "capped": not met and limit < p.timeout,
+        "changed": changed,
+        "runs": dict(Counter(m["status"] for m in now.values())),
+        "matching": hits,
+        "meta": {},
+    }
+
+
+def conjunction(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
+    """Combine two conditions in the object form: both must hold.
+
+    :param a: A condition, possibly empty.
+    :param b: Another.
+    :return: The condition for both; fields given in both stay valid."""
+    if not a or not b:
+        return a or b
+    return {"not": {"any": [{"not": a}, {"not": b}]}}
 
 
 def find_run(ctx: Context, run_id: str) -> Path:
