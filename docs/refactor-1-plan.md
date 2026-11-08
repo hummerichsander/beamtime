@@ -1023,7 +1023,7 @@ Runs after C3, so that it describes what exists.
 Done: `tests/guide` checks that every field, block and op the guide names exists, that example views validate,
 and that every example view's top-level blocks get a margin label (C3's section lints give no warning).
 
-### G2. Delivery (haiku)
+### G2. Delivery (haiku) — **done**
 
 - **Touches:** `src/beamtime/mcp/server.py` (`prompts` 182), the `mcp install` op, new `scripts/build-plugin`.
 - **Read:** `docs/design/08-cli-mcp.md` § Prompts (l. 163); Claude Code's current plugin docs before step 2.

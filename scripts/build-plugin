@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""Write the Beamtime plugin directory: the skills and the MCP server config, in the layout of
+Claude Code's plugin docs (``.claude-plugin/plugin.json``, ``skills/<name>/SKILL.md``, ``.mcp.json``).
+
+``scripts/build-plugin [OUT]`` writes into ``OUT`` (default ``build/plugin``); the output is generated, not committed."""
+
+import json
+import shutil
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def build(out: Path) -> None:
+    """Write the plugin directory, replacing an older one.
+
+    :param out: The directory to write."""
+    sys.path.insert(0, str(ROOT / "src"))
+    from beamtime import __version__
+    from beamtime.mcp.skills import SKILLS, skill_text
+
+    if out.exists():
+        shutil.rmtree(out)
+    manifest = out / ".claude-plugin" / "plugin.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        json.dumps(
+            {
+                "name": "beamtime",
+                "version": __version__,
+                "description": "Beamtime: runs, proposals, notes and views for agents.",
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    for name in SKILLS:
+        (out / "skills" / name).mkdir(parents=True)
+        (out / "skills" / name / "SKILL.md").write_text(skill_text(name))
+    config = {"mcpServers": {"beamtime": {"command": "beamtime", "args": ["mcp"]}}}
+    (out / ".mcp.json").write_text(json.dumps(config, indent=2) + "\n")
+
+
+if __name__ == "__main__":
+    build(Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "build" / "plugin")
+    print(f"wrote {sys.argv[1] if len(sys.argv) > 1 else 'build/plugin'}")

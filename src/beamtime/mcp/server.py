@@ -70,7 +70,8 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
         ],
         text(
             """Build the Beamtime view of group {group}. Aim: {idea}. Read `guide` first
-            (and `guide examples`), then look at the group: `keys`, `memory_show`,
+            (and `guide examples`, `guide charts`, `guide kit`), then look at the group:
+            `keys`, `memory_show`,
             `proposal_show`, `check`, `notes`, `view_show` and `block_list`. Decide the one question
             the view answers and the finding the data supports, no stronger than the
             check. Start a draft with `view_new` (group, and `from` an example when the
@@ -102,7 +103,8 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
         "Find out why a run failed, from its output, card and curves.",
         [("run", "the run id", True)],
         text(
-            """Find out why Beamtime run {run} failed or misbehaved. Read its `card`
+            """Find out why Beamtime run {run} failed or misbehaved. Read `guide analysis`
+            first, then its `card`
             (status, error, warnings, recent events), its `output` (tail 80, then grep
             for Error|Traceback|nan if needed) and the `series` of its loss near the
             end. Name the cause, the evidence and a fix. If the run is still running,
@@ -113,7 +115,8 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
         "Compare two runs or groups: config differences and metric deltas.",
         [("a", "a run id or group", True), ("b", "a run id or group", True)],
         text(
-            """Compare {a} and {b} in Beamtime. For runs, read both `card`s and list
+            """Compare {a} and {b} in Beamtime. Read `guide queries` for the query forms.
+            For runs, read both `card`s and list
             config differences and metric deltas (last, max, min). For groups, use
             `keys` and `runs` with the shared metrics (seeds: config.seed when there
             are seeds) and `series` with `by` the differing config key. Say which is
@@ -128,7 +131,8 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
         ],
         text(
             """Write the Beamtime proposal for group {group} before any run starts, so
-            every run records it. Idea: {idea}. First read `memory_show` {group} and the
+            every run records it. Idea: {idea}. Read `guide proposals` and
+            `guide predictions` first, then read `memory_show` {group} and the
             open questions (`notes`, open) it points to, and `keys` of related groups for
             the exact metric and config names. The proposal has a one-sentence
             `statement`, a `rationale`, an optional `confidence` (0 to 1, your belief
@@ -148,7 +152,8 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
         "Judge a proposal against its check and write a verdict note.",
         [("group", "the group whose proposal is judged", True)],
         text(
-            """Write the verdict on the Beamtime proposal of {group}. Read `proposal_show`
+            """Write the verdict on the Beamtime proposal of {group}. Read `guide verdicts`
+            first, then `proposal_show`
             and `check` {group}: each prediction's result, effect, interval and points, and
             whether the result is provisional (plan not complete). Look at the evidence:
             `runs` with the predicted metrics, `series` of the key curves, and `card` plus
@@ -166,7 +171,8 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
         "Update and compact a group's memory from the notes since its last update.",
         [("group", "the group; . for the project", False)],
         text(
-            """Update the Beamtime memory of {group}. Read `memory_show` {group} (the
+            """Update the Beamtime memory of {group}. Read `guide memory` and `guide notes`
+            first, then `memory_show` {group} (the
             current memory and how many notes came since) and `notes` {group} with full
             bodies for the new ones. Rewrite the memory, don't append: keep the sections
             Current understanding, Decisions and conventions, Dead ends, Open questions and

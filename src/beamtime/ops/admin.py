@@ -628,13 +628,18 @@ def gc(ctx: Context, p: r.GcParams) -> dict[str, Any]:
 
 
 def mcp_install(ctx: Context, p: r.McpInstallParams) -> dict[str, Any]:
-    """Register ``beamtime mcp`` with an agent client, and with ``--instructions`` add Beamtime's
-    agent rules to its instruction file.
+    """Register ``beamtime mcp`` with an agent client, with ``--skills`` write the Beamtime skills,
+    and with ``--instructions`` add Beamtime's agent rules to its instruction file.
 
     :param ctx: The operation context.
     :param p: The parameters.
     :return: What was changed, or the command to run."""
     answered = register(ctx, p)
+    if p.skills:
+        from beamtime.mcp.skills import write_skills
+
+        names = [str(f.relative_to(ctx.root)) for f in write_skills(ctx.root)]
+        answered["lines"].append(f"wrote {', '.join(names)}")
     if p.instructions:
         answered["lines"].append(instructions(ctx.root, instruction_file(ctx.root, p.client)))
     else:

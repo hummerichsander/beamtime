@@ -175,6 +175,15 @@ MCP prompts appear as slash commands in clients such as Claude Code (`/beamtime:
 | `report` | summarize a group for others: findings, verdicts, open questions, as a view or an export |
 | `memory` | update and compact a group's memory from the notes added since it was last written |
 
+### Skills and plugin
+
+`beamtime mcp install --skills` writes three skills to `.claude/skills/`: `beamtime-views`,
+`beamtime-record` and `beamtime-analysis`. Each has a trigger description and names the guide
+topics to run (`beamtime guide <topic>`); none copies guide text, so none goes stale (a test
+checks it). `scripts/build-plugin [OUT]` writes the same skills with an MCP config in the layout
+Claude Code's plugin docs describe (`.claude-plugin/plugin.json`, `skills/<name>/SKILL.md`,
+`.mcp.json`). The output is generated and not committed.
+
 ### Token budgets
 
 | Answer | Default | Override |

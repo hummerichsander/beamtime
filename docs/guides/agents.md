@@ -11,6 +11,9 @@ beamtime mcp install --client cursor
 beamtime mcp install --client codex
 ```
 
+Add `--skills` to write three Beamtime skills into `.claude/skills/`, one per task (views, the
+research record, analysis).
+
 Add `--instructions` to also write Beamtime's working rules into `CLAUDE.md` (or `AGENTS.md`), in
 a marked block you can edit around. Running it again updates the block.
 

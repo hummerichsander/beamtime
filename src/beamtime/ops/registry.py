@@ -587,6 +587,9 @@ class McpInstallParams(Params, kw_only=True):
 
     client: Literal["claude-code", "cursor", "codex"] = "claude-code"
     instructions: Instructions = False
+    skills: Annotated[
+        bool, msgspec.Meta(description="write the Beamtime skills to .claude/skills")
+    ] = False
 
 
 @dataclass(frozen=True, kw_only=True)

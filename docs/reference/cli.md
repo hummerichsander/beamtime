@@ -531,6 +531,7 @@ beamtime mcp install
 |---|---|---|
 | `--client` | `claude-code` | claude-code, cursor, codex |
 | `--instructions` | `False` | add Beamtime's agent rules to AGENTS.md (CLAUDE.md for Claude Code) |
+| `--skills` | `False` | write the Beamtime skills to .claude/skills |
 
 ### `beamtime settings` *(you)*
 
