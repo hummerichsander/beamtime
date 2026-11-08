@@ -50,6 +50,7 @@ wherever a group does.
 | `beamtime timeline <group>` | `timeline` | notes and events in time order: `--types`, `--since` |
 | `beamtime notes <group>` | `notes` | notes with descriptions; `--open` for open questions, `--current` without superseded notes, `--full` for bodies |
 | `beamtime proposal show <group>` | `proposal_show` | the current proposal version, its earlier versions and their checks |
+| `beamtime plan missing <group>` | `plan_missing` | what the current proposal's plan still lacks: for a grid the points with neither a finished nor a running run, each as the config to launch with the status counts of earlier (failed) runs there; for `runs: N` how many are left |
 | `beamtime check <group>` | `check` | the predictions of the current proposal and their results |
 | `beamtime importance <group> --target <field>` | `importance` | hyperparameter importance (v1.1) |
 | `beamtime query <file or {…}>` | `query` | any query in its object form ([layer 3](03-index.md#query-language)) |
@@ -117,7 +118,7 @@ MCP server, started by an agent client).
 - **Writes take `--author`** (a person or model id; default: the local account) and record `user`, the
   local account ([research record](09-research-record.md#fields)).
 - **Tool schemas are slimmed** (`mcp/server.py:slim`): `null` and empty defaults, the `null` member of a
-  nullable type and an empty `required` are dropped, so the definitions of all tools stay under
+  nullable type, an empty `required` and `additionalProperties: false` are dropped, so the definitions of all tools stay under
   6000 tokens (a test checks it) as the tool set grows.
 - **Exit codes**: `0` success, `1` error, `2` wrong usage, `3` validation found errors, `4` not found.
 - **Conditions** (`--where`, repeatable, combined with AND): field, operator, value, e.g.

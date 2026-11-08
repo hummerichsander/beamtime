@@ -22,6 +22,7 @@ GROUPS = {
     "mcp": "the MCP server over stdio (for agent clients)",
     "note": "add a note to a group or run, or remove one",
     "proposal": "show or save a group's proposal",
+    "plan": "what a proposal's plan still lacks",
     "memory": "show or update a group's memory",
     "view": "build, check and save a group's view",
     "block": "library blocks: list, show, promote, fork, check and save",

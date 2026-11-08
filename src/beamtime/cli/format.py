@@ -208,6 +208,8 @@ def render(answer: dict[str, Any]) -> str:
             return render_wait(answer)
         case "diagnose":
             return render_diagnose(answer)
+        case "plan missing":
+            return render_plan_missing(answer)
         case "data":
             lines = [render_entry(e) for e in answer["entries"]]
             answer["meta"]["matched"] = answer["meta"].get("entries")
@@ -473,6 +475,20 @@ def render_diagnose(answer: dict[str, Any]) -> str:
     meta = answer["meta"]
     summary = ", ".join(f"{n} {flag}" for flag, n in meta["by_flag"].items()) or "nothing flagged"
     lines.append(f"{meta['flagged']} of {meta['matched']} runs flagged: {summary}")
+    return "\n".join(lines)
+
+
+def render_plan_missing(answer: dict[str, Any]) -> str:
+    """Render a ``plan missing`` answer: the points still to launch.
+
+    :param answer: The answer.
+    :return: The text."""
+    lines = [f"{answer['group']}  plan {answer['form']}: {num(answer['missing'])} missing"]
+    for e in answer["entries"]:
+        config = "  ".join(f"{k}={num(v)}" for k, v in e["config"].items())
+        lines.append(config + (f"  (earlier runs: {num(e['runs'])})" if e["runs"] else ""))
+    if hint := answer["meta"].get("hint"):
+        lines.append(hint)
     return "\n".join(lines)
 
 

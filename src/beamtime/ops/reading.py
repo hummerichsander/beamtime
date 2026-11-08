@@ -470,8 +470,8 @@ def plan_points(target: Any, version: str, proposal: Any) -> dict[str, Any]:
     :param target: The group or run.
     :param version: The version id.
     :param proposal: The version.
-    :return: ``form``, ``missing`` (how many) and, for a grid, the ``points`` without a finished
-        run with the status counts of the runs at them."""
+    :return: ``form``, ``missing`` (how many) and, for a grid, the ``points`` with neither a
+        finished nor a running run, with the status counts of the runs at them."""
     import itertools
 
     from beamtime.query.where import compare as equal
@@ -489,7 +489,7 @@ def plan_points(target: Any, version: str, proposal: Any) -> dict[str, Any]:
                     for row in rows
                     if all(equal("eq", row[f], v) for f, v in zip(fields, point, strict=True))
                 ]
-                if not any(row["run.status"] == "finished" for row in at):
+                if not any(row["run.status"] in ("finished", "running") for row in at):
                     runs_at = dict(Counter(row["run.status"] for row in at))
                     points.append({"point": dict(zip(fields, point, strict=True)), "runs": runs_at})
             return {"form": "grid", "missing": len(points), "points": points}
@@ -705,6 +705,46 @@ def mtime(path: Path) -> float:
         return path.stat().st_mtime
     except OSError:
         return 0.0
+
+
+def plan_missing(ctx: Context, p: r.GroupParams) -> dict[str, Any]:
+    """List the grid points of a group's plan that no run covers yet, for launching.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The plan's ``form``, how many are ``missing`` and, for a grid, ``entries``: each
+        point's ``config`` and the status counts of earlier runs there (failed ones)."""
+    from beamtime.ops.authored import target_of
+    from beamtime.record.proposals import current, load
+
+    with target_of(ctx, p.group) as target:
+        if (version := current(target.dir)) is None:
+            raise OpError(
+                f"{target.rel} has no proposal; `beamtime proposal set` writes one", code=4
+            )
+        found = plan_points(target, version, load(target.dir, version))
+        group = target.rel
+    entries = [
+        {
+            "config": {k.removeprefix("config."): v for k, v in point["point"].items()},
+            "runs": point["runs"],
+        }
+        for point in found.get("points", [])
+    ]
+    answer = {
+        "kind": "plan missing",
+        "group": group,
+        "version": version,
+        "form": found["form"],
+        "missing": found["missing"],
+        "entries": entries,
+        "meta": {"matched": len(entries)},
+    }
+    if found["form"] == "none":
+        answer["meta"]["hint"] = (
+            "the proposal has no plan; `proposal set` with a plan names the runs"
+        )
+    return page(ctx, answer, None)
 
 
 def find_run(ctx: Context, run_id: str) -> Path:

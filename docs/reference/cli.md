@@ -224,6 +224,14 @@ beamtime digest [group]
 |---|---|---|
 | `--metric` |  | metric for the best-per-setting table; default: the proposal's |
 
+### `beamtime plan missing`
+
+The plan's grid points without a run, with their config, for launching.
+
+```sh
+beamtime plan missing [group]
+```
+
 ### `beamtime query`
 
 Any query in its object form, e.g. {runs: {from: ., limit: 5}}.

@@ -825,6 +825,13 @@ OPS = [
         summary="One page on a group: statuses, check, best per setting, failures, notes, gaps.",
     ),
     Op(
+        name="plan missing",
+        params=GroupParams,
+        impl=f"{R}:plan_missing",
+        positional=("group",),
+        summary="The plan's grid points without a run, with their config, for launching.",
+    ),
+    Op(
         name="memory show",
         params=GroupParams,
         impl=f"{W}:memory_show",

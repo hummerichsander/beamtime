@@ -1,0 +1,9 @@
+kind: analysis
+category: analysis
+page: scaling/lr-sweep
+prompt: >
+  Which grid points of the scaling/lr-sweep plan have no finished run yet, and what config would
+  I launch for them? Say so if none.
+facts:
+  answer: ["none|no (grid )?points|all (15|fifteen)|every (grid )?point|nothing (is )?missing|complete"]
+  tools: [plan_missing, check, runs, digest]

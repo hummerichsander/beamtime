@@ -15,6 +15,7 @@ Ask with the tools; never parse run files. Start with `keys` (what exists), then
 | How did a metric evolve? | `series` (downsampled; aggregated with `by` or `seeds`) |
 | What is the best, mean or last value, per setting? | `runs` or `query` with `metric.<key>.<stat>` columns and `by` |
 | What did the runs log besides metrics? | `data` (tables, images, text) |
+| Which planned runs are still to launch? | `plan_missing` (CLI: `plan missing`): the config of each grid point without a run |
 | Does the data support the prediction? | `check` (never re-derive it by hand) |
 | What was decided, seen, left open? | `timeline`, `notes --open`, `memory_show` |
 | How does the research stand? | `groups`, `proposal_show` |

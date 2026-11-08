@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import threading
 import time
 
@@ -189,3 +190,40 @@ def test_diagnose_flags_a_running_run_that_stopped_logging(
     os.utime(run / "_metrics.jsonl", (old, old))
     [entry] = call("diagnose", {"from": roles["running"]}, ctx)["entries"]
     assert entry["flags"]["stalled"].startswith("no new metrics for 60 min")
+
+
+def test_plan_missing_lists_grid_points_without_a_run(ctx: Context) -> None:
+    """A grid point whose only run vanished is missing, with the config to launch."""
+    assert call("plan missing", {"group": "scaling/lr-sweep"}, ctx)["missing"] == 0
+    found = call(
+        "runs",
+        {"from": "scaling/lr-sweep", "select": ["run.path", "config.lr", "config.seed"],
+         "where": {"config.lr": 0.001, "config.seed": 0}},
+        ctx,
+    )  # fmt: skip
+    [[_, path, lr, seed]] = found["rows"]
+    shutil.rmtree(ctx.logdir / path)
+    a = call("plan missing", {"group": "scaling/lr-sweep"}, ctx)
+    assert a["form"] == "grid" and a["missing"] == 1
+    assert a["entries"] == [{"config": {"lr": lr, "seed": seed}, "runs": {}}]
+
+
+def test_plan_missing_without_a_plan_or_proposal(ctx: Context) -> None:
+    """A proposal without a plan says so; a group without a proposal is an error."""
+    a = call("plan missing", {"group": "scaling/long-context"}, ctx)
+    assert a["form"] == "none" and a["entries"] == [] and "no plan" in a["meta"]["hint"]
+    with pytest.raises(OpError, match="no proposal"):
+        call("plan missing", {"group": "tokenizer"}, ctx)
+
+
+def test_plan_missing_of_a_group_not_yet_launched(ctx: Context) -> None:
+    """Every grid point of a fresh proposal is missing; a runs plan counts the runs left."""
+    grid = {"statement": "s", "plan": {"grid": {"config.lr": [0.1, 0.01], "config.seed": [0]}}}
+    call("proposal set", {"group": "new/grid", "proposal": grid, "author": "t"}, ctx)
+    a = call("plan missing", {"group": "new/grid"}, ctx)
+    assert a["missing"] == 2
+    assert [e["config"] for e in a["entries"]] == [{"lr": 0.1, "seed": 0}, {"lr": 0.01, "seed": 0}]
+    call("proposal set", {"group": "new/runs", "proposal": {"statement": "s", "plan": {"runs": 4}},
+                          "author": "t"}, ctx)  # fmt: skip
+    b = call("plan missing", {"group": "new/runs"}, ctx)
+    assert b["form"] == "runs" and b["missing"] == 4 and b["entries"] == []

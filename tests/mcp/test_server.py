@@ -40,6 +40,7 @@ def test_slim_drops_null_members_and_empty_defaults() -> None:
             "c": {"anyOf": [{"enum": ["all"]}, {"type": "integer"}], "default": "all"},
         },
         "required": [],
+        "additionalProperties": False,
     }
     assert slim(node) == {
         "properties": {

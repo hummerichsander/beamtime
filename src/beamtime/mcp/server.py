@@ -45,7 +45,8 @@ def schema(op: Op) -> dict[str, Any]:
 
 def slim(node: Any) -> Any:
     """Drop what costs agents tokens and tells them nothing: ``null`` and empty defaults, the
-    ``null`` member of a nullable type (an optional parameter is left out) and empty ``required``.
+    ``null`` member of a nullable type (an optional parameter is left out), empty ``required`` and
+    ``additionalProperties: false``.
 
     :param node: A JSON schema node.
     :return: The node, slimmed."""
@@ -56,6 +57,9 @@ def slim(node: Any) -> Any:
     out = {k: slim(v) for k, v in node.items() if not (k == "default" and v in (None, [], {}))}
     if out.get("required") == []:
         del out["required"]
+    # the server rejects unknown parameters anyway; the schema need not say so 40 times.
+    if out.get("additionalProperties") is False:
+        del out["additionalProperties"]
     if len(members := out.get("anyOf", [])) == 2 and {"type": "null"} in members:
         rest = next(m for m in members if m != {"type": "null"})
         del out["anyOf"]
