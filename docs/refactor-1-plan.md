@@ -1074,7 +1074,7 @@ Move `bench/views/` to `bench/agents/`; the view tasks keep working.
 
 Done: a baseline run of all kinds is in `RESULTS.md`, and at least one refine cycle shows a measured improvement.
 
-### G4. Agent tools (sonnet, one commit per tool)
+### G4. Agent tools (sonnet, one commit per tool) — **done**
 
 - **Touches:** `src/beamtime/ops/registry.py`, `src/beamtime/ops/reading.py`, `src/beamtime/ops/budget.py`, `src/beamtime/query/distinguish.py` (for `compare`), `src/beamtime/mcp/server.py` (JSON-string tolerance), `src/beamtime/guide/parts/analysis.md` (written in G1); one test per tool on `synth`.
 - **Read:** `docs/design/08-cli-mcp.md` § Operations (l. 24), § Token budgets (l. 178).

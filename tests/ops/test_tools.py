@@ -281,3 +281,21 @@ def test_to_stays_under_the_exports_folder_and_never_overwrites(ctx: Context) ->
     with pytest.raises(OpError, match="exports go under"):
         call("runs", {"to": "out/escaped.csv"}, ctx)
     assert not (ctx.root.parent / "escaped.csv").exists()
+
+
+def test_field_errors_suggest_the_right_run_field(ctx: Context) -> None:
+    """A guessed run field names the field that exists; close spellings are suggested."""
+    with pytest.raises(OpError, match=r"Did you mean 'run.created_at'\?") as e:
+        call("runs", {"select": ["run.started"]}, ctx)
+    assert e.value.code == 2
+    with pytest.raises(OpError, match="Did you mean 'run.status'"):
+        call("runs", {"where": {"run.statu": "finished"}}, ctx)
+
+
+def test_unknown_group_lists_the_top_level_groups(ctx: Context) -> None:
+    """A mistyped group names its siblings and the groups at the top."""
+    with pytest.raises(OpError, match="Top-level groups: realistic, scaling, tokenizer") as e:
+        call("runs", {"from": "cln"}, ctx)
+    assert e.value.code == 4
+    with pytest.raises(OpError, match=r"Did you mean 'lr-sweep'\?.*Top-level groups"):
+        call("runs", {"from": "scaling/lr-swep"}, ctx)

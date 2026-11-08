@@ -120,6 +120,11 @@ MCP server, started by an agent client).
 - **Tool schemas are slimmed** (`mcp/server.py:slim`): `null` and empty defaults, the `null` member of a
   nullable type, an empty `required` and `additionalProperties: false` are dropped, so the definitions of all tools stay under
   6000 tokens (a test checks it) as the tool set grows.
+- **Arguments sent as JSON text** (`"\"all\""` for `all`, `"[1, 2]"` for a list; seen once in
+  `series.points`) are decoded once (`mcp/server.py:decoded`), unless the parameter is a plain string.
+- **Errors name the way out**: an unknown run field suggests the field that exists (`run.started` ->
+  `run.created_at`, `run.statu` -> `run.status`), and an unknown group lists its siblings' closest
+  matches and the top-level groups.
 - **Exit codes**: `0` success, `1` error, `2` wrong usage, `3` validation found errors, `4` not found.
 - **Conditions** (`--where`, repeatable, combined with AND): field, operator, value, e.g.
   `config.lr<1e-3`, `run.status!=failed`, `run.name~lr-*`, `config.seed in 0,1,2`. Operators are

@@ -44,6 +44,9 @@ class Context:
         return DEFAULTS[self.caller]
 
 
+TOP_GROUPS = 12
+
+
 def resolve_from(index: Index, base: str, target: str) -> tuple[str, str | None]:
     """Resolve ``from`` to a group relative to the log dir, or to one run.
 
@@ -82,8 +85,16 @@ def resolve_from(index: Index, base: str, target: str) -> tuple[str, str | None]
     if not index.folder_path(rel).is_dir():
         parent = index.folder_path(posixpath.dirname(rel) or ".")
         options = [p.name for p in parent.iterdir() if p.is_dir()] if parent.is_dir() else []
+        top = sorted(
+            p.name
+            for p in index.logdir.iterdir()
+            if p.is_dir() and not p.name.startswith(".") and not is_reserved(p.name)
+        )
+        more = ", ..." if len(top) > TOP_GROUPS else ""
         raise QueryError(
-            f"no group {rel!r} below the log dir." + closest(posixpath.basename(rel), options),
+            f"no group {rel!r} below the log dir."
+            + closest(posixpath.basename(rel), options)
+            + f" Top-level groups: {', '.join(top[:TOP_GROUPS])}{more}.",
             code="not_found",
         )
     return rel, None

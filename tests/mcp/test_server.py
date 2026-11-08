@@ -113,6 +113,28 @@ def test_calls_answer_and_errors_return_to_the_agent(project: Path) -> None:
     assert "scaling" in prompt.messages[0].content.text
 
 
+def test_analysis_tools_answer_over_mcp(project: Path) -> None:
+    """compare, digest, logs, diagnose, plan_missing and wait answer through the server; a
+    wait never blocks past its cap, and a quoted argument is decoded."""
+
+    async def work(s):
+        names = ["scaling/lr-sweep", "tokenizer/bpe-vs-unigram"]
+        return [
+            await s.call_tool("compare", {"targets": names}),
+            await s.call_tool("digest", {"group": names[0]}),
+            await s.call_tool("logs", {"from": names[0], "tail": 1}),
+            await s.call_tool("diagnose", {"from": names[0]}),
+            await s.call_tool("plan_missing", {"group": names[0]}),
+            await s.call_tool("wait", {"from": names[1], "timeout": '"5"'}),
+        ]
+
+    answers = [json.loads(r.content[0].text) for r in session(project, work)]
+    assert [a["kind"] for a in answers] == [
+        "compare", "digest", "logs", "diagnose", "plan missing", "wait"
+    ]  # fmt: skip
+    assert answers[-1]["met"]
+
+
 def test_record_writes_and_prompts(project: Path) -> None:
     """Agents write proposals, notes and memory through tools; the prompts name them."""
     proposal = {
@@ -158,3 +180,19 @@ def test_record_writes_and_prompts(project: Path) -> None:
     texts = [p.messages[0].content.text for p in prompts]
     assert "proposal_set" in texts[0] and "note_add" in texts[1] and "memory_update" in texts[2]
     assert all("agent/dropout" in t for t in texts)
+
+
+def test_arguments_sent_as_json_text_are_decoded_once() -> None:
+    """``"all"`` sent as ``"\\"all\\""`` and a list as text decode; plain strings stay as they are."""
+    from beamtime.mcp.server import decoded
+    from beamtime.ops.registry import BY_NAME
+
+    series = BY_NAME["series"]
+    got = decoded(
+        series,
+        {"points": '"all"', "y": '["val/acc"]', "x": "_step", "band": '"std"', "from": "scaling"},
+    )
+    assert got == {"points": "all", "y": ["val/acc"], "x": "_step", "band": "std", "from": "scaling"}
+    assert decoded(series, {"points": "500"}) == {"points": 500}
+    note = BY_NAME["note add"]
+    assert decoded(note, {"body": '"quoted"', "group": "[1]"}) == {"body": '"quoted"', "group": "[1]"}

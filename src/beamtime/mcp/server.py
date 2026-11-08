@@ -43,6 +43,25 @@ def schema(op: Op) -> dict[str, Any]:
     return slim(root)
 
 
+def decoded(op: Op, arguments: dict[str, Any]) -> dict[str, Any]:
+    """Decode arguments that arrive as JSON text where the parameter is no plain string: some
+    clients send ``"all"`` as ``"\\"all\\""`` or a list as ``"[1, 2]"``.
+
+    :param op: The operation called.
+    :param arguments: The arguments as received.
+    :return: The arguments, each such value decoded once."""
+    properties = schema(op).get("properties", {})
+    out = {}
+    for key, value in arguments.items():
+        if isinstance(value, str) and properties.get(key, {}).get("type") != "string":
+            try:
+                value = json.loads(value)
+            except ValueError:
+                pass
+        out[key] = value
+    return out
+
+
 def slim(node: Any) -> Any:
     """Drop what costs agents tokens and tells them nothing: ``null`` and empty defaults, the
     ``null`` member of a nullable type (an optional parameter is left out), empty ``required`` and
@@ -240,7 +259,7 @@ def build(root: str | Path | None = None) -> Server:
 
         def run() -> dict[str, Any]:
             context = Context.make(root=root, caller="mcp")
-            return remote.answer(op.name, params.arguments or {}, context)
+            return remote.answer(op.name, decoded(op, params.arguments or {}), context)
 
         try:
             answer = await anyio.to_thread.run_sync(run)

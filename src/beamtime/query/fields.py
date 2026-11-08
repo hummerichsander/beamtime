@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from beamtime.query.models import QueryError
+from beamtime.query.models import QueryError, closest
 
 STATS = (
     "first",
@@ -69,6 +69,20 @@ PROGRESS_SQL = (
     "WHERE t.key = 'max_epochs' AND t.type IN ('integer', 'real') AND t.value > 0 LIMIT 1))"
 )
 PROPOSAL = ("status", "check", "progress", "verdict")
+# what people try for a run field that has another name.
+RUN_ALIASES = {
+    "started": "created_at",
+    "start": "created_at",
+    "created": "created_at",
+    "finished": "ended_at",
+    "end": "ended_at",
+    "ended": "ended_at",
+    "duration": "duration_s",
+    "time": "duration_s",
+    "state": "status",
+    "folder": "group",
+    "dir": "path",
+}
 
 _WINDOW = re.compile(r"\[(-?\d*):(-?\d*)\]$")
 _CONFIG_PART = re.compile(r'\.([^.\[\]"]+)|\["([^"]+)"\]')
@@ -117,9 +131,14 @@ def parse_field(text: str) -> Field:
             name = rest[1:]
             known = [*RUN_COLUMNS, *RUN_CARD, *RUN_INFO, *RUN_COMPUTED]
             if name not in known:
+                fields = [f"run.{k}" for k in known]
+                hint = (
+                    f" Did you mean 'run.{alias}'?"
+                    if (alias := RUN_ALIASES.get(name))
+                    else closest(text, fields)
+                )
                 raise QueryError(
-                    f"unknown run field {text!r}. Run fields: "
-                    + ", ".join(f"run.{k}" for k in known)
+                    f"unknown run field {text!r}.{hint} Run fields: {', '.join(fields)}"
                 )
             return Field(text=text, ns="run", path=(name,))
         case "config":
