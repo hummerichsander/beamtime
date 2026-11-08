@@ -52,13 +52,16 @@ def runs_kind(ctx: Context, q: m.Runs) -> dict[str, Any]:
     :param ctx: The query context.
     :param q: The query.
     :return: ``{columns, rows, meta}``."""
-    select = q.select or default_columns(ctx)
-    sort = q.sort or ([] if q.seeds else ["-run.created_at"])
+    by = list(q.by or [])
+    select = q.select or [f for f in default_columns(ctx) if not (by and f == "run.name")]
+    select = [*by, *[s for s in select if s not in by]]
+    sort = q.sort or ([] if q.seeds or by else ["-run.created_at"])
     sorted_by = [s.lstrip("-") for s in sort]
     runs, _ = select_runs(ctx, q, [*select, *sorted_by])
-    if q.seeds:
+    if q.seeds or by:
+        groups = group_by(runs, by) if by else seed_groups(runs, q.seeds)
         rows = []
-        for _, group in seed_groups(runs, q.seeds):
+        for _, group in groups:
             row = {"runs": [r["_id"] for r in group]}
             for f in dict.fromkeys([*select, *sorted_by]):
                 row[f] = aggregate([r.get(f) for r in group])
@@ -78,7 +81,8 @@ def runs_kind(ctx: Context, q: m.Runs) -> dict[str, Any]:
         "meta": meta(
             ctx,
             matched=len(runs),
-            means=len(rows) if q.seeds else None,
+            means=len(rows) if q.seeds and not by else None,
+            groups=len(rows) if by else None,
             shown=len(shown),
             cut=cut,
             hint="raise limit to see more" if cut else None,

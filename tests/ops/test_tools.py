@@ -227,3 +227,16 @@ def test_plan_missing_of_a_group_not_yet_launched(ctx: Context) -> None:
                           "author": "t"}, ctx)  # fmt: skip
     b = call("plan missing", {"group": "new/runs"}, ctx)
     assert b["form"] == "runs" and b["missing"] == 4 and b["entries"] == []
+
+
+def test_runs_by_aggregates_one_row_per_value(ctx: Context) -> None:
+    """``runs --by`` groups like ``series --by``: mean, std and count per value."""
+    a = call("runs", {"from": "scaling/lr-sweep", "by": ["config.lr"],
+                      "select": ["metric.val/acc.last"]}, ctx)  # fmt: skip
+    assert a["columns"] == ["runs", "config.lr", "metric.val/acc.last"]
+    assert a["meta"]["groups"] == 6 and a["meta"]["matched"] == 17
+    row = next(r for r in a["rows"] if r[1] == 0.001)
+    assert len(row[0]) == 3 and row[2]["n"] == 3
+    assert row[2]["mean"] == pytest.approx(0.92, abs=0.002)
+    plain = call("runs", {"from": "scaling/lr-sweep", "by": ["config.lr"]}, ctx)
+    assert "run.name" not in plain["columns"]

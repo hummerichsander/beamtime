@@ -29,6 +29,8 @@ where: {config.model: resnet18, metric.val/acc.max: {gt: 0.8}, run.status: {ne: 
 
 - `seeds: config.seed` averages over seeds: one curve, point or row per combination of the other
   config keys.
+- `by: [config.lr]` on `runs` gives one row per value, with `metric.<key>.<stat>` columns as mean,
+  std and count: `runs --by config.lr --select metric.val/acc.last`.
 - `by: [config.lr]` (line) draws the mean per value with a band (`band: minmax | std | stderr |
   none`).
 

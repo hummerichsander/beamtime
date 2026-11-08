@@ -35,7 +35,7 @@ wherever a group does.
 | `beamtime memory show <group>` | `memory_show` | the memory of the group and every group above it, with a staleness hint |
 | `beamtime keys <group>` | `keys` | metrics, config keys, data keys and tags |
 | `beamtime groups <group>` | `groups` | the group tree with status, proposal, check, verdict and run counts |
-| `beamtime runs <group>` | `runs` | a run table: `--where`, `--select`, `--sort`, `--limit` |
+| `beamtime runs <group>` | `runs` | a run table: `--where`, `--select`, `--sort`, `--limit`, `--seeds`, `--by` (one aggregated row per value) |
 | `beamtime card <run>` | `card` | one run's card with its proposals' checks, verdicts and latest notes |
 | `beamtime series <group> -y <key>` | `series` | curves: `--steps`, `--points`, `--by`, `--seeds` |
 | `beamtime data <group> <key>` | `data` | logged tables, images (as references) and text |

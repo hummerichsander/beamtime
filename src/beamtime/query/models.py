@@ -55,6 +55,7 @@ class Runs(Selection, kw_only=True):
     select: list[str] | None = None
     sort: list[str] = msgspec.field(default_factory=list)
     limit: int | None = None
+    by: list[str] | None = None
 
 
 class Smooth(Struct, kw_only=True):

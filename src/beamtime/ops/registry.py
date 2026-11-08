@@ -68,6 +68,10 @@ class RunsParams(Selection, kw_only=True):
     seeds: Annotated[
         str | None, msgspec.Meta(description="e.g. config.seed: average over seeds")
     ] = None
+    by: Annotated[
+        list[str] | None,
+        msgspec.Meta(description="one row per value of these fields, e.g. config.lr"),
+    ] = None
 
 
 class CardParams(Params, kw_only=True):

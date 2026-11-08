@@ -125,6 +125,7 @@ def runs(ctx: Context, p: r.RunsParams) -> dict[str, Any]:
         "sort": p.sort,
         "limit": p.limit,
         "seeds": p.seeds,
+        "by": p.by,
     }
     return ask(ctx, {"runs": q}, p.cursor)
 

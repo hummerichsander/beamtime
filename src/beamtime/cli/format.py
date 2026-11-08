@@ -156,7 +156,7 @@ def meta_line(answer: dict[str, Any], noun: str, shown: int) -> str:
     meta = answer.get("meta", {})
     parts = []
     matched = meta.get("matched")
-    if noun in ("seed means", "curves"):
+    if noun in ("seed means", "curves", "groups"):
         parts.append(f"{shown} {noun} from {matched} runs")
     elif matched is not None and matched != shown:
         parts.append(f"{shown} of {matched} {noun}")
@@ -183,6 +183,8 @@ def render(answer: dict[str, Any]) -> str:
             noun = {"runs": "runs", "groups": "groups"}.get(kind, "rows")
             if kind == "runs" and answer["meta"].get("means") is not None:
                 noun = "seed means"
+            if kind == "runs" and answer["meta"].get("groups") is not None:
+                noun = "groups"
             if kind in ("runs", "groups", "file"):
                 lines.append(meta_line(answer, noun, len(answer["rows"])))
             for problem in answer.get("problems", []):

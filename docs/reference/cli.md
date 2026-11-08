@@ -58,6 +58,7 @@ beamtime runs [from]
 | `--sort` |  | fields; a leading - sorts descending |
 | `--limit` |  | a number |
 | `--seeds` |  | e.g. config.seed: average over seeds |
+| `--by` |  | one row per value of these fields, e.g. config.lr |
 
 ### `beamtime card`
 
