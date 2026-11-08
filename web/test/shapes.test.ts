@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { diffLines, fold } from "../src/bt/diff.ts";
-import { bars, extent, fit, histograms, logSplits, points, tableOf } from "../src/bt/shapes.ts";
+import { bars, extent, fit, histograms, logSplits, points, scorecard, tableOf } from "../src/bt/shapes.ts";
 
 const runs = {
   columns: ["run.id", "config.lr", "metric.acc.max", "config.opt"],
@@ -77,4 +77,31 @@ test("time ticks pick a round step", async () => {
   assert.equal(step, 1800);
   assert.ok(at.every((t) => t % 1800 === 0) && at.length >= 5 && at.length <= 7);
   assert.equal(timeTicks(0, 30 * 86400).step, 7 * 86400);
+});
+
+test("a scorecard gives mean and std per row, shades by direction and keeps expected rows", () => {
+  const answer = {
+    columns: ["run.id", "config.opt", "metric.acc.last", "metric.loss.last", "run.status"],
+    rows: [
+      ["a", "sgd", 0.5, 2.0, "finished"],
+      ["b", "sgd", 0.7, 1.0, "running"],
+      ["c", "adam", 0.9, 0.5, "finished"],
+    ],
+  };
+  const rows = scorecard(answer, "config.opt", ["metric.acc.last", "metric.loss.last"], { "metric.loss.last": true }, ["sgd", "adam", "lion"]);
+  assert.deepEqual(rows.map((r) => [r.label, r.queued, r.live]), [["sgd", false, true], ["adam", false, false], ["lion", true, false]]);
+  const [sgd, adam, lion] = rows;
+  assert.ok(Math.abs(sgd.scores[0]!.mean - 0.6) < 1e-9);
+  assert.ok(Math.abs(sgd.scores[0]!.std! - Math.sqrt(0.02)) < 1e-9);
+  assert.equal(adam.scores[0]!.std, null);
+  assert.deepEqual(lion.scores, [null, null]);
+  assert.deepEqual([sgd.scores[0]!.shade, adam.scores[0]!.shade], [0, 1]);
+  assert.deepEqual([sgd.scores[1]!.shade, adam.scores[1]!.shade], [0, 1]);
+  assert.ok(adam.scores[1]!.best);
+});
+
+test("a scorecard column with one row or equal means is not shaded", () => {
+  const answer = { columns: ["run.id", "config.opt", "metric.acc.last"], rows: [["a", "sgd", 0.5], ["b", "adam", 0.5]] };
+  const rows = scorecard(answer, "config.opt", ["metric.acc.last"], {});
+  assert.deepEqual(rows.map((r) => r.scores[0]!.shade), [null, null]);
 });

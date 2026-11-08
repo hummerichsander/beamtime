@@ -195,6 +195,7 @@ of a field or per subgroup, each narrowed to its runs; `$value` names the value 
 | `bar` | 1 | a field per category | `x`, `y`, `by`, `error` (`std`, `stderr`, `minmax`), `sort`, `xlabel`, `ylabel` |
 | `stat` | 1 | one number | `field`, `aggregate` (`best`, `mean`, `last`, `count`); wave 2: `delta` against the baseline |
 | `table` | 1 | runs as rows, fields as columns | `columns` (`run.progress` draws the planned epochs done, with a thin bar on running runs), `sort`, `limit`, `highlight_best`, `sparkline` (a metric per row, from previews) |
+| `scorecard` | 1 | one row per value of a field, one column per metric: mean ± std over the row's runs, shaded per column by the metric's direction | `rows`, `columns`, `baseline` (its row is marked and the others' tooltips give the difference), `expected` (rows planned; one without runs stays, queued) |
 | `heatmap` | 2 | a value over two config axes | `x`, `y`, `value`, `aggregate` (`mean`, `max`, `min`) |
 | `parallel` | 2 | many config fields and one or two metrics | `fields`, `color` |
 | `compare` | 2 | two runs or groups: config diff and metric deltas | `a`, `b` (run ids or `where` filters), `fields` |
@@ -208,7 +209,7 @@ wave 1.
 
 | Block | Purpose | Key props |
 |---|---|---|
-| `proposal` | the group's proposal: statement, each prediction with result, effect and interval, plan progress, research status, verdict, superseded versions | `of` (default `.`) |
+| `proposal` (alias `predictions`) | the group's proposal: statement, each prediction with result, effect and interval, plan progress, research status, verdict, superseded versions | `of` (default `.`) |
 | `memory` | the group's memory, with its links | `of` |
 | `groups` | the child groups with status, check, verdict, run counts and a chosen field | `depth` |
 | `timeline` | notes and run events in time order | `types`, `limit` |
@@ -220,6 +221,17 @@ wave 1.
 
 **Code** (wave 1): `custom`. There is no free chart-spec block: charts beyond the widgets are custom
 blocks on `bt.chart` (uPlot) or D3 ([Charts](#charts)).
+
+### `scorecard`
+
+Compiles to one `runs` query selecting the row field, the metric fields and `run.status`; the web
+block groups the runs by the row field and computes the mean and the sample standard deviation as the
+server's seed aggregate does (one run shows the mean without ±, never a std of 0). A column is shaded by
+the position of a row's mean between the column's lowest and highest mean, flipped for a
+lower-is-better metric (the view's `metrics`, else the name's guess); equal means or a single row are
+not shaded. Hover and click act on the row's first run as in `table`; a running run in a row makes its
+cells italic, and the runs query refetches as runs appear. `expected` rows come first in the given
+order and stay visible as queued until a run exists.
 
 ### `importance` (wave 2)
 
@@ -690,6 +702,7 @@ research shows work better than long rule lists.
   |---|---|
   | How did a run evolve? | `line` over steps |
   | Which setting is best? | `table` sorted by the metric, `stat` for the best |
+  | Which setting is best, over seeds? | `scorecard`: a row per setting, mean ± std per metric |
   | How does a metric depend on one parameter? | `scatter`, with `seeds` and a fit if it helps |
   | How do two parameters interact? | `heatmap` (wave 2), or `scatter` colored by one |
   | Which hyperparameters matter? | `importance`, then `parallel` (wave 2) |

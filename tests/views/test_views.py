@@ -5,7 +5,7 @@ import pytest
 import yaml
 
 from beamtime.format.schema import SchemaError
-from beamtime.guide import EXAMPLES
+from beamtime.guide import EXAMPLES, example
 from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
 from beamtime.serve.api import view as page_view
@@ -227,6 +227,51 @@ def test_data_files_are_hashed_on_save(ctx: Context, project: Path) -> None:
     # a new draft from the saved view brings its data files along.
     call("view new", {"group": SWEEP, "name": "fit2"}, ctx)
     assert (project / ".beamtime" / "drafts" / "fit2" / ref).is_file()
+
+
+def test_scorecard_is_one_runs_query_and_predictions_is_the_proposal() -> None:
+    """A scorecard asks for its row field, its metrics and the status once; the direction of each
+    column comes along; ``predictions`` compiles to the proposal block."""
+    view = parse("""
+metrics: {val/acc: {higher_is_better: true}}
+body:
+  - scorecard:
+      id: s
+      rows: config.opt
+      columns: [metric.val/acc.last, metric.val/loss.min]
+      baseline: sgd
+      expected: [sgd, adam, lion]
+  - predictions: {id: p}
+""")
+    scorecard, predictions = compile_view(view, path="g")["children"]
+    params = scorecard["data"]["main"]["params"]
+    assert scorecard["data"]["main"]["method"] == "runs" and len(scorecard["data"]) == 1
+    assert params["select"] == ["config.opt", "metric.val/acc.last", "metric.val/loss.min", "run.status"]
+    assert scorecard["props"]["lower"] == {"metric.val/acc.last": False, "metric.val/loss.min": True}
+    assert (scorecard["props"]["baseline"], scorecard["props"]["expected"]) == ("sgd", ["sgd", "adam", "lion"])
+    assert predictions["block"] == "proposal" and set(predictions["data"]) == {"proposal", "check"}
+
+
+def test_the_sweep_example_has_a_scorecard_and_queued_rows_are_not_empty(
+    ctx: Context, project: Path
+) -> None:
+    """The sweep example compares settings in a scorecard; a scorecard with only expected rows
+    validates without the warning about no runs."""
+    assert "scorecard:" in example("sweep", ctx, SWEEP)
+    text = """
+schema: 1
+title: t
+finding: f
+body:
+  - scorecard: {id: s, rows: config.lr, columns: [metric.val/acc.last], where: {config.lr: 12345}, %s}
+"""
+    call("view new", {"group": SWEEP, "name": "queued"}, ctx)
+    draft = project / ".beamtime" / "drafts" / "queued" / "view.yaml"
+    for extra, warns in (("expected: [sgd]", False), ("baseline: sgd", True)):
+        draft.write_text(text % extra)
+        result = call("view validate", {"draft": "queued", "render": False}, ctx)
+        assert result["ok"], result["findings"]
+        assert any("no runs in scope" in f["message"] for f in result["findings"]) is warns
 
 
 @pytest.mark.parametrize("name", EXAMPLES)

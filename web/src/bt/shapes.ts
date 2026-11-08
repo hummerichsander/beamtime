@@ -97,6 +97,56 @@ export function bars(
   return out.sort((a, b) => dir * (best.get(a.label)! - best.get(b.label)!) || byLabel(a, b));
 }
 
+export type Score = { mean: number; std: number | null; n: number; shade: number | null; best: boolean };
+export type ScoreRow = { label: string; runs: string[]; live: boolean; queued: boolean; scores: (Score | null)[] };
+
+// one row per value of a field, one column per metric: the mean and sample std over the row's runs (as the
+// server's seed aggregate). A shade of 0 to 1 per column says how good a mean is by the column's direction;
+// expected rows come first in their order and stay, queued, while they have no runs.
+export function scorecard(answer: Answer | null, field: string, columns: string[], lower: Record<string, boolean>, expected: unknown[] = []): ScoreRow[] {
+  const at = (c: string) => answer?.columns.indexOf(c) ?? -1;
+  const [ir, id, istatus] = [at(field), at("run.id"), at("run.status")];
+  const cells = columns.map(at);
+  const found = new Map<string, { runs: string[]; live: boolean; values: number[][] }>();
+  for (const label of expected.map(text)) found.set(label, { runs: [], live: false, values: columns.map(() => []) });
+  for (const r of answer?.rows ?? []) {
+    const label = text(r[ir]);
+    const row = found.get(label) ?? { runs: [], live: false, values: columns.map(() => []) };
+    if (id >= 0) row.runs.push(String(r[id]));
+    row.live ||= istatus >= 0 && r[istatus] === "running";
+    cells.forEach((c, i) => {
+      const v = num(r[c]);
+      if (v !== null) row.values[i].push(v);
+    });
+    found.set(label, row);
+  }
+  const order = expected.map(text);
+  const labels = [...found.keys()].sort((a, b) => {
+    const [ia, ib] = [order.indexOf(a), order.indexOf(b)];
+    return ia >= 0 && ib >= 0 ? ia - ib : ia >= 0 ? -1 : ib >= 0 ? 1 : natural(a, b);
+  });
+  const out = labels.map((label) => {
+    const f = found.get(label)!;
+    const scores = f.values.map((vs): Score | null => {
+      if (!vs.length) return null;
+      const m = mean(vs);
+      const std = vs.length > 1 ? Math.sqrt(vs.reduce((t, v) => t + (v - m) ** 2, 0) / (vs.length - 1)) : null;
+      return { mean: m, std, n: vs.length, shade: null, best: false };
+    });
+    return { label, runs: f.runs, live: f.live, queued: !f.runs.length, scores };
+  });
+  columns.forEach((c, i) => {
+    const got = out.map((r) => r.scores[i]).filter((s): s is Score => s !== null);
+    const [lo, hi] = [Math.min(...got.map((s) => s.mean)), Math.max(...got.map((s) => s.mean))];
+    if (got.length < 2 || lo === hi) return;
+    for (const s of got) {
+      s.shade = ((lower[c] ? hi - s.mean : s.mean - lo) / (hi - lo));
+      s.best = s.shade === 1;
+    }
+  });
+  return out;
+}
+
 export type Histogram = { run: string; step: number | null; start: number[]; end: number[]; count: number[] };
 
 // the logged tables with bin_start, bin_end and count, one per run; others are left out.

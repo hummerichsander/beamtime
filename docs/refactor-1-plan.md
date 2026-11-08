@@ -637,7 +637,7 @@ Done: browser test: a `Figure` with a d3 line gets settings, hover to a table ro
 follows the theme and live data. The test's content is a d3 line chart standing in for the remote's `curves.js`
 (decision 15).
 
-### C2. Built-in `scorecard` (sonnet)
+### C2. Built-in `scorecard` (sonnet) — **done**
 
 - **Touches:** `src/beamtime/views/model.py` (new `Scorecard`), `src/beamtime/views/compile.py`, new `web/src/blocks/scorecard.ts`, `web/src/blocks/index.ts`, `src/beamtime/guide/examples/sweep.yaml`.
 - **Read:** `docs/design/05-views.md` § Catalog (l. 168).

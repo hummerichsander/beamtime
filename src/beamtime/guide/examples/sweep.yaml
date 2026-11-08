@@ -1,6 +1,6 @@
 # Example "sweep": one hyperparameter swept over several seeds.
 # The finding comes first; the stat and the scatter carry it, the curves show how training went,
-# the table gives every run. Seeds are merged where one point per setting is wanted.
+# the scorecard gives mean ± std per setting, the table every run. Seeds are merged where one point per setting is wanted.
 schema: 1
 title: "{{swept}} sweep"
 finding: "TODO: the result in one sentence, e.g. which {{swept}} gives the best {{main}}, and by how much."
@@ -34,6 +34,12 @@ body:
             by: ["{{swept}}"]
             band: std
             caption: "Mean and standard deviation over seeds per {{swept}}."
+  - scorecard:
+      id: scores
+      title: "Per {{swept}}"
+      rows: "{{swept}}"
+      columns: ["metric.{{main}}.{{stat}}", "metric.{{loss}}.last"]
+      caption: "Mean ± std over seeds per {{swept}}, shaded by direction."
   - line:
       id: loss
       y: "{{loss}}"

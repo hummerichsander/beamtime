@@ -65,6 +65,8 @@ table.runs {
   & td.best { color: var(--ink); }
   & td.spark { padding-block: 0; line-height: 0; }
   & td.live { font-style: italic; }
+  & td.score { background: color-mix(in srgb, var(--accent) calc(var(--shade, 0) * 28%), transparent); & .spread { color: var(--muted); } }
+  & tr.queued td { color: var(--muted); }
   & td.progress { position: relative; }
   & td.progress .bar { position: absolute; inset-inline-start: 0; inset-block-end: 0; inline-size: calc(var(--fraction) * 100%); block-size: var(--stroke-data); background: var(--accent); }
 }

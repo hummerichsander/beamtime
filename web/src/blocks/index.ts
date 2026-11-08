@@ -14,6 +14,7 @@ import { DataTable, Timeline } from "./data.ts";
 import { Grid, Row, Section, Tabs } from "./layout.ts";
 import { Line } from "./line.ts";
 import { BarBlock, HistogramBlock, Scatter } from "./plots.ts";
+import { Scorecard } from "./scorecard.ts";
 import { Stat } from "./stat.ts";
 import { Table } from "./table.ts";
 
@@ -23,6 +24,7 @@ const BLOCKS: Registry = {
   grid: Grid,
   line: Line,
   table: Table,
+  scorecard: Scorecard,
   stat: Stat,
   images: Images,
   text: Text,

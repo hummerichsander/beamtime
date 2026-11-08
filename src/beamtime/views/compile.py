@@ -182,6 +182,20 @@ class Compiler:
                     highlight_best=n.highlight_best,
                     **common,
                 )
+            case m.Scorecard():
+                select = list(dict.fromkeys([n.rows, *n.columns, "run.status"]))
+                call = api("runs", sel | {"select": select, "limit": RUNS_LIMIT}, scope)
+                return node(
+                    "scorecard",
+                    n.id,
+                    data={"main": call},
+                    rows=n.rows,
+                    columns=n.columns,
+                    baseline=n.baseline,
+                    expected=n.expected,
+                    lower={c: self.lower(c) for c in n.columns},
+                    **common,
+                )
             case m.DataTable():
                 if n.file is not None:
                     params = {"view": self.path, "path": n.file}
@@ -196,7 +210,7 @@ class Compiler:
             case m.Images() | m.Text():
                 call = api("data", sel | {"key": n.key, "step": n.step}, scope)
                 return node(m.block_of(n), n.id, data={"main": call}, **common)
-            case m.Proposal():
+            case m.Proposal() | m.Predictions():
                 group = self.scope_of(n.of)
                 data = {
                     "proposal": api("proposal_show", {"group": group}, group),

@@ -53,6 +53,7 @@ view like a built-in block (`- phase-map: {x: config.lr, y: config.wd, value: me
   |---|---|
   | How did a run evolve? | `line` over steps |
   | Which setting is best? | `table` sorted by the metric, `stat` for the best |
+  | Which setting is best, over seeds? | `scorecard`: a row per setting, mean ± std per metric |
   | How does a metric depend on one parameter? | `scatter` with `seeds` and a `fit` if it helps |
   | How do two parameters interact? | `scatter` colored by one |
   | Does a change help? | `bar` grouped by the change, with error bars |

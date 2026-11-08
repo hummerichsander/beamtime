@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import subprocess
 import sys
@@ -345,6 +346,44 @@ def test_custom_blocks_follow_live_data(live_page) -> None:
     live_page.stop_writer()
     page.wait_for_timeout(20_000)
     assert page.locator(".custom-error").count() == 0
+
+
+def test_a_scorecard_keeps_queued_rows_and_a_new_run_appears_in_its_row(live_page) -> None:
+    """An expected row without runs is shown as queued; the run that arrives takes its place in the
+    row, live."""
+    import yaml
+
+    from beamtime.ops import call
+    from beamtime.ops.context import Context
+
+    project, page = live_page.project, live_page.page
+    ctx = Context.make()
+    call("view new", {"group": "live", "name": "score"}, ctx)
+    draft = project / ".beamtime" / "drafts" / "score"
+    scorecard = {
+        "id": "s",
+        "rows": "run.name",
+        "columns": ["metric.live/loss.last"],
+        "expected": ["live", "other"],
+        "baseline": "live",
+    }
+    view = {"schema": 1, "title": "live", "finding": "x", "body": [{"scorecard": scorecard}]}
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    call("view save", {"draft": "score"}, ctx)
+
+    live_page.goto("/f/local/live")
+    other = page.locator("table.scorecard tbody tr", has_text="other")
+    other.wait_for()
+    assert "queued" in other.inner_text() and other.locator("td.score").count() == 0
+    mine = page.locator("table.scorecard tbody tr", has_text="live")
+    assert "baseline" in mine.inner_text()
+
+    script = 'import beamtime; r = beamtime.init(dir="live", name="other", system_metrics=False); r.log({"live/loss": 0.5}, step=0); r.finish()'
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("BEAMTIME_", "SLURM_"))}
+    env["BEAMTIME_LOGDIR"] = str(project / "beamtime")
+    subprocess.run([sys.executable, "-c", script], cwd=project, env=env, check=True)
+    wait_until(lambda: other.locator("td.score").count() == 1)
+    assert "queued" not in other.inner_text() and "0.5" in other.inner_text()
 
 
 def test_live_ticks_refetch_only_what_changed(live_page) -> None:

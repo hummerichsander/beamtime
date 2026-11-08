@@ -18,5 +18,6 @@ Runs as rows: `line` hairlines between them, a light accent tint on hover, the s
 
 - Added: `.table-wrap` (scroll), sticky sorted headers, sparklines, and `.swatch-toggle`, the swatch's button that hides a run in charts.
 - Added: the `progress` column (`run.progress`, the planned epochs done): the percentage, and for a running run a thin accent bar (`.bar` in `td.progress`, `--fraction` 0 to 1) along the cell's bottom edge.
+- `scorecard` (`web/src/blocks/scorecard.ts`) is the same table with one row per value of a field: `td.score` cells show mean and a muted `± std`, tinted by `--shade` (0 to 1, the accent at up to 28 %) by the column's direction, the best bold; a row without runs is muted with a `queued` tag.
 - Cells are inset from the row's tint, and the wrap overhangs the column, so text still lines up down the page.
 - A caption's number comes from a CSS counter: write `<b></b>`, with class `table-caption` on the caption.

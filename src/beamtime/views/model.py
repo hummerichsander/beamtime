@@ -131,6 +131,24 @@ class Table(Node, tag="table"):
     sparkline: Metric | None = None
 
 
+class Scorecard(Node, tag="scorecard"):
+    """One row per value of a field, one column per metric: mean ± std over the seeds."""
+
+    rows: Annotated[
+        Field, msgspec.Meta(description="the field a row is made of, e.g. config.optimizer")
+    ]
+    columns: Annotated[
+        list[Field], msgspec.Meta(description="one metric field each, e.g. metric.val/acc.last")
+    ]
+    baseline: Annotated[
+        str | int | float | None, msgspec.Meta(description="the row to compare the others against")
+    ] = None
+    expected: Annotated[
+        list[str | int | float] | None,
+        msgspec.Meta(description="row values planned, shown as queued until a run exists"),
+    ] = None
+
+
 class DataTable(Node, tag="data_table"):
     """A logged table (key) or a data file stored with the view (file)."""
 
@@ -158,6 +176,10 @@ class Proposal(Node, tag="proposal"):
     """A group's proposal: predictions with results, effects and intervals."""
 
     of: str = "."
+
+
+class Predictions(Proposal, tag="predictions"):
+    """The group's predictions with the live check; an alias of ``proposal``."""
 
 
 class Memory(Node, tag="memory"):
@@ -263,10 +285,12 @@ Block = (
     | Histogram
     | Stat
     | Table
+    | Scorecard
     | DataTable
     | Images
     | Text
     | Proposal
+    | Predictions
     | Memory
     | Groups
     | Timeline

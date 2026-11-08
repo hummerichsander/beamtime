@@ -317,6 +317,8 @@ def answer_checks(
             out.append(Finding(level="warning", **at, message="fewer than two runs to compare"))
         case m.Table() | m.Stat() if not answer.get("rows"):
             out.append(Finding(level="warning", **at, message="no runs in scope"))
+        case m.Scorecard() if not answer.get("rows") and not n.expected:
+            out.append(Finding(level="warning", **at, message="no runs in scope"))
         case m.Histogram() | m.Images() | m.Text() | m.DataTable():
             if not answer.get("entries") and not answer.get("rows"):
                 out.append(Finding(level="warning", **at, message="no data in scope"))
