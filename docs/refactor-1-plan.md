@@ -116,10 +116,11 @@ F1 ─┬─ A1 A2 A3 A4 A5 A6 A7 A8 A9     bugs, independent (all done)
     ├─ E1   E2   E3 ─ E4 ··· E5           run lifecycle (E1 to E4 done); E5, its UI, after B8
     └─ G1 ─ G2 ─ G3 ─ G4                   guides, harness, tools (G1 after C3; G3 after D2)
                               Z1           docs, changelog, release
+    H1                                       follow-ups (after the above; release-independent)
 ```
 
 What's left runs in this order, one session at a time in the main checkout (every chunk touches `web/` or the
-guide): B8 E5 C1 C2 C3 G1 G2 G3 G4 Z1.
+guide): B8 E5 C1 C2 C3 G1 G2 G3 G4 Z1 H1.
 
 ## F. Foundation
 
@@ -1134,6 +1135,50 @@ Done: per tool, CLI and MCP both come from the registry; a test on `synth`; its 
   `design/`.
 
 Done: `CHANGELOG.md` for 0.2.0 lists every row of Breaking changes; `scripts/release.py` passes; the publish command and the cluster steps are handed over, not run.
+
+## H. Follow-ups
+
+Loose ends the earlier chunks surfaced, gathered after Z1. Independent of the release: none of this blocks publishing
+0.2.0, and the chunk can land before or after the tag.
+
+## H1. Follow-ups: resolve a copied run by id, nearer error messages, bench calibration (sonnet)
+
+- **Touches:** `src/beamtime/serve/api.py` (`page_of` 282, the group dead end 294–301), `src/beamtime/query/fields.py` (the unknown-field error 179), `src/beamtime/query/kinds.py` (`band_stats` 468), `src/beamtime/ops/views.py` (the draft-exists message 92), `bench/agents/tasks/` and `bench/agents/score.py` (the `lifecycle-resume` task), `bench/agents/MISTAKES.md`, `.gitignore`; tests `tests/serve/test_app.py`, `tests/query/test_queries.py`, `tests/ops/test_ops.py`.
+- **Read:** the E5 and G3 entries below; `docs/design/03-index.md` on discovery and the daemon; `src/beamtime/query/models.py` (`closest`).
+- **Check:** `uv run ruff check . && uv run ruff format --check .`; `uv run pytest -q tests/serve/test_app.py tests/query tests/ops tests/record tests/test_cli.py tests/test_docs.py`; then the full suite `uv run pytest -q` once.
+- **Risks:** the filesystem fallback walks only on an index miss, so a hit stays as cheap as today; an ambiguous id suffix still errors rather than guessing; `closest` returns nothing when the miss is far, and the message must still read well then; the bench task change must keep its ground truth decidable from the transcript.
+- **Note:** several small independent fixes, one commit. If a step turns out larger than a line or two of message text (the id fallback aside), stop and report it rather than growing the chunk.
+
+1. **A copied run resolves by id at once (E5's observed bug).** A group page checks the filesystem directly, but a
+   run-id page (`page_of`) goes only through the index, and its `catch_up(".", budget_s=0)` is a no-op when the daemon
+   is up or the lock is held (`lock.acquire(timeout=0)`). So a run `beamtime cp` created after `serve` started does not
+   resolve by `/r/<id>` until the daemon's own 2 s walk reaches it, while its group URL works immediately. Fall back to a
+   filesystem walk on an index miss: after the budgeted `catch_up`, call `find_run(ctx.logdir, run)` from
+   `sdk.paths` (which walks `iter_runs`) before raising. Apply the same fallback to `find_run` in `ops/reading.py`
+   (its `LIKE` fallback also misses an unindexed run). Test in `tests/serve/test_app.py`: copy a run, then resolve it by
+   id through `page_of` with no daemon and no prior catch-up, and assert the path comes back.
+2. **Nearer field names.** `fields.py:179` lists the field families but not the near miss. Use `closest(word, known)`
+   (already used by `proposals.py` and `notes.py`) so `run.started` suggests `run.created_at`. Test in
+   `tests/query/test_queries.py`.
+3. **Valid band values.** `band_stats` raises `unknown band {band!r}` with no list; say `minmax`, `std`, `stderr` or
+   `none`. Test the message.
+4. **Nearest group on a typo.** The group dead end in `page_of` (and wherever the CLI raises "no group") suggests the
+   closest existing group with `closest`, so `lr-sweeps` points to `lr-sweep`. Test in `tests/serve/test_app.py`.
+5. **The draft-exists message** (`views.py:92`) already names `--name`; make it also say to continue the existing
+   draft (edit its `view.yaml`). One line.
+6. **Bench: the `lifecycle-resume` task vs its score** (G3 review). The prompt asks the agent to *tell the user* the
+   resume command, but `score_lifecycle` credits only a successful `resume` tool call. Pick one and make them agree:
+   either reword the prompt to ask the agent to resume, or score the command read from the transcript. Keep the ground
+   truth decidable offline.
+7. **Close the MISTAKES rows and ignore `.DS_Store`.** Mark the `band`, `run.started`, typo-group and draft-exists rows
+   in `bench/agents/MISTAKES.md` as fixed, naming the guarding test; the `runs --by` row is already resolved by G4, so
+   mark it with G4. Add `.DS_Store` to `.gitignore` and `git rm --cached` the tracked `docs/.DS_Store`,
+   `tests/.DS_Store` and `web/.DS_Store`.
+
+Done: a run copied after `serve` started resolves by id without waiting for the daemon (tested); `run.started`,
+a bad `band`, a typo'd group and a re-used draft name each get a message that names the near option or the valid set;
+the `lifecycle-resume` task and its scorer agree; the open MISTAKES rows are closed and `.DS_Store` is ignored.
+Not done here (reserved, as before): the full G3 harness baseline, the release, and the cluster steps.
 
 ## Breaking changes
 
