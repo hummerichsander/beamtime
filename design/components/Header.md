@@ -15,5 +15,7 @@ The top of every page: where you are, the name with its status, one line of fact
 
 `Header` in `web/src/shell/header.ts`.
 
+- A group's facts add "N code versions" (git-commit icon, tooltip: versions by run count) only when its runs ran on different code.
+- A run's details popover is a `table.kv` of what is known (code, copied from, checkpoints) with a collapsed "Uncommitted changes" disclosure below; a missing checkpoint gets a warn `Tag` "missing" and its reason, never a link.
 - Run pages use `div.facts`: the line holds a popover, which a `p` can't.
 - The view's source and links follow below the facts, in `.view-source small`.

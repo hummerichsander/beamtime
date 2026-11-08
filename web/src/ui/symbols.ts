@@ -56,6 +56,12 @@ export function symbolFor(kind: Kind, value: string | null | undefined): SymbolS
   return TABLE[kind]?.[key] ?? { icon: "circle-dashed", tone: "muted", label: value ?? "unknown" };
 }
 
+// a run's state, with how it ended where that changes what to do: a time limit is a requeue, not a crash.
+export function runSymbol(status: string, exit?: { reason?: string } | null): SymbolSpec {
+  const spec = symbolFor("run", status);
+  return status === "killed" && exit?.reason === "time_limit" ? { ...spec, label: `${spec.label} · time limit` } : spec;
+}
+
 // the icon of a run event in timelines.
 export function eventIcon(type: string | null | undefined): string {
   switch (type) {

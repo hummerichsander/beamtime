@@ -8,7 +8,7 @@ A line chart without a frame: a title with a short note, the curves, a legend, a
 - Hover finds each curve's own nearest point, so curves logged at different times still answer together; the tooltip's first row names the x axis.
 - A curve whose x goes back on itself (a metric as x) is a path: polylines in step order with an arrow at the end, no bands; the tooltip gives the step, x and y.
 - Beyond six runs, group them (seeds, a config value) rather than adding colors.
-- A curve with 30 finite points or fewer marks each of them with a dot of its color, so a single point or a sparse metric shows; denser curves draw the line only. Band layers never get dots. On a log axis a band clips at a floor just under the smallest positive curve value, as matplotlib's `nonpositive="clip"` does, so mean − std ≤ 0 fills down to the bottom instead of leaving holes; the axis range follows the curves and the band edges above the floor, never the clipped part. A sparkline of one value is its end dot.
+- A curve with 30 finite points or fewer marks each of them with a dot of its color, so a single point or a sparse metric shows; denser curves draw the line only. Band layers never get dots. On a log axis a band clips at a floor just under the smallest positive curve value, as matplotlib's `nonpositive="clip"` does, so mean − std ≤ 0 fills down to the bottom instead of leaving holes; the axis range follows the curves and the band edges above the floor, never the clipped part. A sparkline of one value is its end dot. A resumed run's curve has a thin dashed vertical line in its color at each attempt boundary (`LineSpec.marks`), clipped to the plot and under the cursor's tooltip; the head note says where ("resumed at 1,000"). A run with one attempt draws none.
 
 ## Markup
 

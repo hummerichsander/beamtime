@@ -1,6 +1,7 @@
 // The page header, the same on every view: where you are, the name with its status, one line of
 // facts; and the proposal, in its own Section right after it.
 
+import type { ComponentChildren } from "preact";
 import { html } from "htm/preact";
 
 import { useCall } from "../api.ts";
@@ -14,9 +15,10 @@ import { Icon, Sym } from "../ui/icons.ts";
 import { Editable } from "../ui/editable.ts";
 import { IconButton, Popover, Section } from "../ui/primitives.ts";
 import { editStatement, renameRun } from "../bt/writes.ts";
-import { symbolFor } from "../ui/symbols.ts";
+import { runSymbol, symbolFor } from "../ui/symbols.ts";
 import * as calls from "./calls.ts";
 import { useCallKept } from "./kept.ts";
+import { DiffViewer, lifecycleRows } from "./lifecycle.ts";
 
 const ENDED = ["failed", "killed", "lost"];
 
@@ -44,6 +46,7 @@ function GroupHeader({ path }: { path: string }) {
   if (!row) {
     return html`<h1 class="page-title title" tabindex="-1">${name}</h1><div class="skeleton late" style="block-size: 24px"></div>`;
   }
+  const codes = Object.entries(useCall({ method: "keys", params: { from: path }, scope: path }).data?.codes ?? {});
   const ended = ENDED.reduce((n, k) => n + (row[k] ?? 0), 0);
   return html`
     <h1 class="page-title title" tabindex="-1">${name} <${Sym} spec=${symbolFor("research", row.status)} word /></h1>
@@ -54,6 +57,10 @@ function GroupHeader({ path }: { path: string }) {
       ${ended
         ? html`<span class="tone-bad" data-tip=${ENDED.filter((k) => row[k]).map((k) => `${row[k]} ${k}`).join(", ")}>
             <${Icon} name="circle-x" size=${15} /> <b>${ended}</b> ${ended === 1 ? ENDED.find((k) => row[k]) : "ended early"}</span>`
+        : null}
+      ${codes.length
+        ? html`<span data-tip=${codes.map(([code, n]) => `${code}: ${n} run${n === 1 ? "" : "s"}`).join(", ")}>
+            <${Icon} name="git-commit" size=${15} /> <b>${codes.length}</b> code versions</span>`
         : null}
       ${row.notes ? html`<span><b>${row.notes}</b> note${row.notes === 1 ? "" : "s"}</span>` : null}
       <${Best} path=${path} />
@@ -122,7 +129,7 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
   return html`
     <h1 class="page-title title" tabindex="-1"><${Editable} value=${r.name ?? r.id} label="the run's name" class="title-edit"
         onSave=${(next: string) => renameRun(r.id, scope, next.trim())} />
-      <${Sym} spec=${symbolFor("run", r.status)} word /></h1>
+      <${Sym} spec=${runSymbol(r.status, r.exit)} word /></h1>
     ${r.error ? html`<p class="bad-text" data-tip=${r.error}>${r.error.split("\n")[0].slice(0, 160)}</p>` : null}
     <div class="facts">
       <span><b>${step(r.steps)}</b> steps</span>
@@ -132,7 +139,8 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
       <${Best} path=${scope} />
       <${IconButton} icon="copy" label=${`Copy the run id ${r.id}`} onClick=${copy} />
       <${Popover} icon="ellipsis" label="Details" title="Run details" class="run-details">
-        <table class="kv small">${details(r).map(([k, v]) => html`<tr><td class="muted">${k}</td><td>${v}</td></tr>`)}</table>
+        <table class="kv small">${[...details(r), ...lifecycleRows(card)].map(([k, v]) => html`<tr><td class="muted">${k}</td><td>${v}</td></tr>`)}</table>
+        ${r.git?.dirty ? html`<${DiffViewer} run=${r.id} scope=${scope} />` : null}
         <div class="menu-list">
           <button type="button" onClick=${() => navigate(groupUrl(scope, { run: r.id }), { replace: true })}>
             <${Icon} name="panel-right" size=${15} /> Open in the side panel</button>
@@ -181,12 +189,10 @@ function Best({ path }: { path: string }) {
 }
 
 // what a run's details popover lists: only what is known.
-function details(r: any): [string, string][] {
+function details(r: any): [string, ComponentChildren][] {
   const rows: [string, unknown][] = [
     ["id", r.id],
     ["host", r.host],
-    ["commit", r.git?.commit && `${r.git.commit.slice(0, 10)}${r.git.dirty ? " (dirty)" : ""}`],
-    ["branch", r.git?.branch],
     ["job", r.scheduler?.job_id && `${r.scheduler.kind} ${r.scheduler.job_id}`],
     ["attempts", r.attempts > 1 ? String(r.attempts) : null],
     ["started", r.created_at],

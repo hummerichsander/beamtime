@@ -28,6 +28,7 @@ from beamtime.query.read import (
     finite_range,
     from_preview,
     is_monotone,
+    resume_marks,
     width_for,
     x_values,
 )
@@ -242,6 +243,8 @@ def series_kind(ctx: Context, q: m.Series) -> dict[str, Any]:
             cols = Columns(index=ctx.index, run_id=r["_id"])
             for y in q.y:
                 if (curve := run_curve(ctx, r, cols, y, window, per_curve, q)) is not None:
+                    if marks := resume_marks(cols, q.x):
+                        curve["resumes"] = marks
                     curves.append(curve)
             cols.close()
     return {

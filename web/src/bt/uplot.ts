@@ -36,6 +36,8 @@ export type LineSpec = {
   formatX: (v: number) => string;
   formatY: (v: number) => string;
   formatStep: (v: number) => string;
+  // dashed vertical lines where a resumed run's attempts meet; `curve` indexes curves and colors.
+  marks?: { x: number; curve: number }[];
   onFocus?: (curve: Curve | null) => void;
   onZoom?: (window: [number, number] | null) => void;
   onClick?: (curve: Curve) => void;
@@ -155,6 +157,7 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       },
       hooks: {
         setCursor: [(self) => cursorMoved(self)],
+        draw: [(self) => drawMarks(self, current)],
         setSelect: [
           (self) => {
             if (applying || self.select.width < 4) return;
@@ -317,6 +320,30 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       u.destroy();
     },
   };
+}
+
+// a thin dashed line in the curve's color at each attempt boundary.
+function drawMarks(u: uPlot, s: LineSpec): void {
+  if (!s.marks?.length) return;
+  const { ctx, bbox } = u;
+  const px = uPlot.pxRatio;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bbox.left, bbox.top, bbox.width, bbox.height);
+  ctx.clip();
+  ctx.lineWidth = px;
+  ctx.setLineDash([4 * px, 3 * px]);
+  for (const { x, curve } of s.marks) {
+    const c = s.curves[curve];
+    if (!c || s.hidden.has(c.key) || (c.run !== null && s.hidden.has(c.run))) continue;
+    const at = Math.round(u.valToPos(x, "x", true)) + 0.5 * px;
+    ctx.strokeStyle = alpha(s.colors[curve], 0.7);
+    ctx.beginPath();
+    ctx.moveTo(at, bbox.top);
+    ctx.lineTo(at, bbox.top + bbox.height);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 // curves whose x goes back on itself, as paths in step order with an arrow at the end, on plotChart.

@@ -23,6 +23,7 @@ export const check = (path: string): Call => ({ method: "check", params: { group
 export const proposal = (path: string): Call => ({ method: "proposal_show", params: { group: path }, scope: path });
 export const card = (run: string, scope: string): Call => ({ method: "card", params: { run: sourcedRun(run, scope) }, scope });
 export const output = (run: string, scope: string): Call => ({ method: "output", params: { run: sourcedRun(run, scope), tail: 30 }, scope });
+export const diff = (run: string, scope: string): Call => ({ method: "run_diff", params: { run: sourcedRun(run, scope) }, scope });
 export const runIds = (path: string): Call => ({
   method: "runs",
   params: { from: path, select: ["run.name", "run.status"], limit: 10000 },

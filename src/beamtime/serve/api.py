@@ -9,6 +9,7 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
+from beamtime.format.constants import ENV_DIR
 from beamtime.format.ids import is_run_id
 from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
@@ -19,7 +20,7 @@ STARTED = time.time()
 PROTOCOL = 1
 READ_LIMIT = 4 << 20
 # page methods with a target; with the operations, what the API routes to remote sources.
-PAGES = ("view", "summary", "save_view", "view_text", "code")
+PAGES = ("view", "summary", "save_view", "view_text", "code", "run_diff")
 ROUTED = (*PAGES, *(op.tool for op in BY_TOOL.values() if not op.local))
 
 
@@ -110,6 +111,8 @@ def dispatch_here(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, 
             from beamtime.ops import blocks
 
             return getattr(blocks, method)(ctx, body)
+        case "run_diff":
+            return run_diff(ctx, str(body.get("run", "")))
         case "summary":
             return summary_of(ctx, body.get("path", "."), body.get("metrics"))
         case _ if (op := BY_TOOL.get(method)) is not None:
@@ -339,6 +342,21 @@ def summary_of(
         (metrics[0]["y"], not metrics[0]["higher"], metrics[0].get("label")) if metrics else None
     )
     return {"kind": "summary", "path": path, "summary": summary(ctx, path, found)}
+
+
+def run_diff(ctx: Context, run_id: str) -> dict[str, Any]:
+    """Read the uncommitted changes a run recorded, for the run page's code viewer.
+
+    :param ctx: The operation context.
+    :param run_id: The run id.
+    :return: ``{kind, run, text}``.
+    :raises OpError: If the run recorded no diff."""
+    from beamtime.ops.reading import find_run
+
+    path = find_run(ctx, run_id) / ENV_DIR / "git.diff"
+    if not path.is_file():
+        raise OpError(f"run {run_id!r} recorded no git diff", code=4)
+    return {"kind": "diff", "run": run_id, "text": path.read_text(errors="replace")}
 
 
 def locate(ctx: Context, run_id: str, rel: str) -> Path | None:

@@ -125,7 +125,8 @@ These qualities are made concrete as budgets and rules, and checked like correct
     `running`, `evaluable`, `concluded`; [research record](09-research-record.md#group-status));
   - the proposal's statement, with a symbol per prediction (effect and interval on hover), the
     plan's progress and the current verdict;
-  - the facts: run counts by status, notes, the best value of the lead main metric (the first of the
+  - the facts: run counts by status, "N code versions" when the group's runs ran on different code
+    (`keys.codes`; the tooltip lists the versions by run count), notes, the best value of the lead main metric (the first of the
     viewer's pins, the view's `main_metrics`, the proposal's predicted metrics, in its
     direction; nothing is guessed, so without a pin there is no best), named by its `label` in the
     view, with the run that reached it, its distinguishing config in a tooltip; and the view's
@@ -134,7 +135,15 @@ These qualities are made concrete as budgets and rules, and checked like correct
   A run's header shows its name and status, steps, duration, how far it is through its epochs
   (`epoch 123 of 500 · 42 % through · about 2 h left`, only for a run that logged `epoch`; the
   total is its config's `max_epochs`, the time left comes from the card's `steps_per_s` and only
-  for a running run), start, its best value, and the proposals it belongs to; id, host, commit and job are in a tooltip.
+  for a running run), start, its best value, and the proposals it belongs to. A run killed at its scheduler's time limit
+  reads "killed · time limit" (`exit.reason`), in the header and the drawer. Its details popover
+  (and the drawer) list what is known of its life: id, host, job, attempts, start and end; its
+  **code** (short commit, branch, a "dirty" tag, and a link to the commit when the recorded ssh or https
+  remote is on GitHub or GitLab, no link for any other host); **copied from** the source run
+  (`copied_from`, linking to it); and its **checkpoints** (`checkpoints` of the card: a copy button for
+  the location, and a missing file marked "missing" with the reason, never a link). A dirty run
+  also has "Uncommitted changes" there, collapsed: `_env/git.diff` is fetched (page method `run_diff`,
+  also served by `serve --stdio`) only when it is opened, since it can be large.
 - **View body**: the page's own view, else the built-in default.
 - **Context drawer**, opened on demand: for selected runs their run card, config, latest notes and
   output tail; with no selection, the group's notes and timeline.
@@ -367,6 +376,10 @@ Line charts behave like W&B's panels:
 - **Paths**: when a run's x goes back on itself (a metric as x), the chart draws each run as a path in
   step order with an arrow at its end and no bands; aggregating over such an x is refused by the
   server ([layer 3](03-index.md#query-kinds)).
+- **Attempts**: a curve of a run that was resumed carries a thin dashed line in its color where each
+  later attempt took over (`LineSpec.marks`, from the series answer's `resumes` on the chart's x axis,
+  so also on elapsed time or a metric), and the chart's note says "resumed at 1,000" (or "N resumes").
+  Aggregated curves and runs with one attempt have none.
 - **Click**: clicking a curve (or a point) opens its run in the side panel.
 - **Legend**: click hides or shows a curve, double-click shows only it (again: all). The run table's
   color dots do the same for runs. Hidden runs apply to every chart of the view; a chart with hidden

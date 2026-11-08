@@ -153,6 +153,7 @@ function Chart(props: {
       formatX: formatterFor(prefs.x),
       formatY: (v) => value(v),
       formatStep: step,
+      marks: smoothed.curves.flatMap((c, curve) => c.resumes.map((x) => ({ x, curve }))),
     };
   };
   const palette = curves && theme ? colorsFor(curves, theme, colors, stops) : [];
@@ -184,6 +185,7 @@ function Chart(props: {
     prefs.scale !== "linear" ? prefs.scale : null,
     node.props.note && !prefs.by && !node.props.note.startsWith("seed") ? node.props.note : null,
     prefs.color ? `colored by ${label(prefs.color)}` : null,
+    resumed(smoothed?.curves.filter(isShown) ?? [], formatterFor(prefs.x)),
   ].filter(Boolean);
   const empty = curves && !curves.curves.length;
   // a chart of one metric can be pinned as a main metric, whose direction it then shows.
@@ -265,6 +267,13 @@ function Chart(props: {
             style=${`min-block-size:${props.height}px`}></div>`}
     <//>
   <//>`;
+}
+
+// the head note that explains the dashed lines: where resumed runs took over.
+function resumed(curves: Curve[], format: (v: number) => string): string | null {
+  const at = [...new Set(curves.flatMap((c) => c.resumes))];
+  if (!at.length) return null;
+  return at.length === 1 ? `resumed at ${format(at[0])}` : `${at.length} resumes`;
 }
 
 function formatterFor(x: string): (v: number) => string {

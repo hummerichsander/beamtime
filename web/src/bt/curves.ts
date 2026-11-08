@@ -19,6 +19,8 @@ export type Curve = {
   // aggregated curves: the group's label and its runs, so hover can match them across charts.
   group: string | null;
   runs: string[];
+  // where later attempts of a resumed run took over, on x.
+  resumes: number[];
 };
 
 export type Curves = { curves: Curve[]; aggregated: boolean };
@@ -44,6 +46,7 @@ export function reshape(answer: { curves: any[] }, opts: { log?: boolean } = {})
       step: c.step ?? null,
       group: aggregated ? labels[i] : null,
       runs: aggregated ? (c.runs ?? []) : [c.run],
+      resumes: c.resumes ?? [],
     };
     if (aggregated) {
       out.y = c.mean ?? [];

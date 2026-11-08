@@ -160,3 +160,13 @@ test("a curve is a path when x goes back, and keeps the steps its points were lo
   assert.deepEqual(out.curves.map((c) => c.monotone), [false, true]);
   assert.deepEqual(out.curves.map((c) => c.step), [[0, 10, 20], null]);
 });
+
+test("where a resumed run's attempts meet comes with its curve", () => {
+  const out = reshape({
+    curves: [
+      { run: "r1", name: "a", metric: "loss", raw: true, x: [0, 1], y: [2, 1], resumes: [1] },
+      { run: "r2", name: "b", metric: "loss", raw: true, x: [0, 1], y: [2, 1] },
+    ],
+  });
+  assert.deepEqual(out.curves.map((c) => c.resumes), [[1], []]);
+});

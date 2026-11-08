@@ -1053,3 +1053,81 @@ export default function render(root) {
     assert opened.locator(".chart-head [aria-label='Expand']").count() == 0
     opened.locator(".chart-head [aria-label^='Close']").click()
     page.wait_for_selector("dialog.chart-dialog[open]", state="detached", timeout=5_000)
+
+
+def test_the_run_lifecycle_is_shown(server: str, page, project: Path, roles: dict, tmp_path) -> None:
+    """Attempts, a time limit, checkpoints, a copy and the code a run ran on are on its pages: a
+    resumed run's charts say where it resumed, a missing checkpoint says why, and the diff of a
+    dirty checkout is fetched only when opened."""
+    from beamtime.ops import call
+    from beamtime.ops.context import Context
+
+    def edit(run_id: str, change) -> Path:
+        path = next((project / "beamtime").glob(f"**/{run_id}/_run.json"))
+        info = json.loads(path.read_text())
+        change(info)
+        path.write_text(json.dumps(info))
+        return path.parent
+
+    killed, dirty = roles["realistic_killed"], roles["realistic_dirty"]
+    edit(killed, lambda info: info["exit"].update(reason="time_limit"))
+    remote = {"remote": "git@github.com:acme/egnn.git"}
+    run_dir = edit(dirty, lambda info: info["git"].update(remote | {"diff_sha": "a1b2c3d4"}))
+    other = next(
+        p.parent.name
+        for p in (project / "beamtime" / "realistic" / "egnn-bench").glob("*/_run.json")
+        if json.loads(p.read_text())["git"]["dirty"] and p.parent.name != dirty
+    )
+    edit(other, lambda info: info["git"].update(diff_sha="e5f6a7b8"))
+    kept = tmp_path / "best.ckpt"
+    kept.write_bytes(b"weights")
+    artifacts = [
+        {"name": "best.ckpt", "uri": str(kept), "size": 7, "kind": "checkpoint"},
+        {"name": "lost.ckpt", "uri": str(tmp_path / "lost.ckpt"), "size": 7, "kind": "checkpoint"},
+    ]
+    (run_dir / "_artifacts.jsonl").write_text("".join(json.dumps(a) + "\n" for a in artifacts))
+    copy = call("cp", {"source": dirty, "dest": "realistic/copies"}, Context.make())["id"]
+
+    base = server.split("/f/local")[0]
+    token = server.split("token=")[1]
+    asked: list[str] = []
+    page.on("request", lambda r: "/api/run_diff" in r.url and asked.append(r.url))
+
+    page.goto(f"{base}/r/{killed}?token={token}")
+    page.wait_for_selector(".page h1 .sym")
+    assert "killed · time limit" in page.locator(".page h1").inner_text()
+
+    page.goto(f"{base}/r/{dirty}?token={token}")
+    page.wait_for_selector(".facts")
+    page.click("button[aria-label='Details']")
+    details = page.locator(".run-details")
+    details.get_by_text("Uncommitted changes").wait_for()
+    text = details.inner_text()
+    assert "feature/egnn" in text and "dirty" in text
+    assert details.get_by_role("link", name="GitHub").get_attribute("href") == (
+        "https://github.com/acme/egnn/commit/9e41c2a"
+    )
+    assert "best.ckpt" in text and "lost.ckpt" in text
+    assert details.locator(".checkpoint", has_text="lost.ckpt").inner_text().count("missing") == 1
+    assert "not found at its recorded location" in text
+    assert details.locator(".checkpoint", has_text="best.ckpt").inner_text().count("missing") == 0
+    assert asked == [], "the diff is fetched when opened"
+    details.get_by_text("Uncommitted changes").click()
+    page.wait_for_selector(".run-details pre.diff")
+    assert "+dropout" in page.locator("pre.diff").inner_text() and len(asked) == 1
+
+    page.goto(f"{base}/f/local/realistic/copies/{copy}?token={token}")
+    page.wait_for_selector(".facts")
+    page.click("button[aria-label='Details']")
+    link = page.locator(".run-details").get_by_role("link", name="realistic/egnn-bench")
+    assert link.get_attribute("href").endswith(f"/r/{dirty}")
+
+    page.goto(f"{base}/f/local/realistic/egnn-bench?token={token}")
+    page.locator(".facts", has_text="code versions").wait_for()
+    assert "3 code versions" in page.locator(".facts").inner_text()
+    page.wait_for_selector(".chart canvas")
+    assert "resumed" not in page.locator(".chart-frame").first.inner_text()
+
+    page.goto(f"{base}/f/local/scaling/long-context?token={token}")
+    page.wait_for_selector(".chart canvas")
+    page.locator(".chart-frame", has_text="resumed at").first.wait_for()

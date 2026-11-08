@@ -333,6 +333,9 @@ series:
   plateau, and continued a learning-rate warmup far past any logged value. Points before the axis'
   first value are dropped. Each curve says whether its `x` is `monotone` and, when `x` is not the
   step, keeps the `step` of each point.
+- A per-run curve of a run with later attempts carries `resumes`: where each of them took over, on
+  the curve's x axis (the resume steps for `_step`, `read.resume_marks` otherwise, none where the axis
+  has no value). The web UI draws them ([layer 7](07-web-ui.md#charts)); aggregated curves have none.
 - With `by: [fields]`, the runs sharing the fields' values come back as one aggregated curve per
   bucket: mean, a band (`band: minmax | std | stderr | none`) and the number of contributing runs.
   `seeds: config.seed` is the shorthand for aggregating by the varying config, apart from the seed.

@@ -14,8 +14,9 @@ import { groupUrl, navigate, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { ConfigTree } from "../ui/config.ts";
 import { IconButton } from "../ui/primitives.ts";
-import { eventIcon, symbolFor } from "../ui/symbols.ts";
+import { eventIcon, runSymbol, symbolFor } from "../ui/symbols.ts";
 import * as calls from "./calls.ts";
+import { DiffViewer, lifecycleRows } from "./lifecycle.ts";
 
 export function Drawer(props: { path: string; run: string | null }) {
   const close = () => navigate(groupUrl(props.path), { replace: true });
@@ -40,16 +41,19 @@ function RunContext({ id, scope }: { id: string; scope: string }) {
   const r = card.run;
   const metrics = Object.entries(card.metrics ?? {}) as [string, any][];
   const mark = swatch(color, theme);
+  const lifecycle = lifecycleRows(card);
   return html`<div class="drawer-body">
     <h3 class="heading"><span class=${mark.class} style=${mark.style}></span>
       <a href=${runUrl(id)}>${r.name}</a></h3>
     <p class="facts small">
-      <${Sym} spec=${symbolFor("run", r.status)} word />
+      <${Sym} spec=${runSymbol(r.status, r.exit)} word />
       <span><b>${step(r.steps)}</b> steps</span>
       <span><b>${duration(r.duration_s)}</b></span>
       <span data-tip=${r.created_at}>${ago(r.created_at)}</span>
     </p>
     ${r.error ? html`<pre class="log code bad-text">${r.error}</pre>` : null}
+    ${lifecycle.length ? html`<table class="kv small">${lifecycle.map(([k, v]) => html`<tr><td class="muted">${k}</td><td>${v}</td></tr>`)}</table>` : null}
+    ${r.git?.dirty ? html`<${DiffViewer} run=${r.id} scope=${scope} />` : null}
     <h4 class="small">Config</h4>
     <${ConfigTree} config=${card.config ?? {}} varying=${varyingKeys(keys)} />
     ${metrics.length

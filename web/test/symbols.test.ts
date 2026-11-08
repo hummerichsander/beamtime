@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { symbolFor } from "../src/ui/symbols.ts";
+import { runSymbol, symbolFor } from "../src/ui/symbols.ts";
 
 test("every state has an icon, a tone and a word", () => {
   assert.deepEqual(symbolFor("run", "failed"), { icon: "circle-x", tone: "bad", label: "failed" });
@@ -19,4 +19,12 @@ test("unknown states still show something", () => {
 
 test("an unknown kind, as a custom block may pass it, falls back to the neutral symbol", () => {
   assert.deepEqual(symbolFor("nope" as never, "failed"), { icon: "circle-dashed", tone: "muted", label: "failed" });
+});
+
+test("a run killed by its time limit says so, and no other state changes", () => {
+  assert.equal(runSymbol("killed", { reason: "time_limit" }).label, "killed · time limit");
+  assert.equal(runSymbol("killed", { reason: "time_limit" }).tone, "warn");
+  assert.equal(runSymbol("killed", { reason: "interrupted" }).label, "killed");
+  assert.equal(runSymbol("killed", null).label, "killed");
+  assert.equal(runSymbol("finished", { reason: "time_limit" }).label, "finished");
 });

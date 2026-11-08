@@ -235,6 +235,18 @@ def test_series_x_axes_and_smoothing(ask, roles) -> None:
     assert all(x is None or x <= 0.01 for c in by_lr["curves"] for x in c["x"])
 
 
+def test_a_resumed_runs_curve_names_where_the_attempts_meet(ask, roles) -> None:
+    """A run with a second attempt carries the resume step, also mapped to another x axis; a
+    run with one attempt carries none."""
+    base = {"from": roles["resumed"], "y": ["train/loss"], "points": 10}
+    (curve,) = ask({"series": base})["curves"]
+    assert len(curve["resumes"]) == 1 and curve["resumes"][0] > 0
+    (timed,) = ask({"series": base | {"x": "_elapsed"}})["curves"]
+    assert len(timed["resumes"]) == 1 and 0 < timed["resumes"][0] < timed["x"][-1]
+    plain = ask({"series": {"from": roles["killed"], "y": ["train/loss"]}})["curves"][0]
+    assert "resumes" not in plain
+
+
 def test_grouped_series_show_the_tokenizer_gap(ask) -> None:
     """Grouped curves average seeds per bucket; unigram ends lower than BPE."""
     a = ask(

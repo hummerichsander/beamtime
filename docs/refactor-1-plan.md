@@ -936,7 +936,7 @@ Before E5 and before the user merges `refactor-1-lifecycle`. In its worktree (`.
 
 One commit for 2. The user merges afterwards.
 
-### E5. The run lifecycle in the UI (sonnet)
+### E5. The run lifecycle in the UI (sonnet) — **done**
 
 - **Touches:** `web/src/bt/uplot.ts` (`LineSpec.marks`), `web/src/ui/symbols.ts` (time limit), `web/src/shell/header.ts` (code versions fact), the run page's details (`web/src/shell/page.ts`, `drawer.ts`), `web/src/blocks/table.ts` (column picker); `design/components/` and `design/gallery.html` for new components.
 - **Read:** `docs/design/07-web-ui.md` § Pages and URLs, § Charts; `docs/design/01-storage.md` on `attempts`, `copied_from`, `origin`.

@@ -3,6 +3,7 @@
 A state as an icon in its tone plus its word in `small`, so color never stands alone.
 
 - Run: running, finished, failed, killed, lost. Check: pass, fail, inconclusive, pending. Verdict: confirmed, refuted. Note: observation, decision, idea, question.
+- A run killed at its scheduler's time limit reads "killed · time limit" in the same tone (`runSymbol`); the word never moves to the tooltip there.
 - In dense rows the word may move to the tooltip, never disappear.
 
 ## Markup

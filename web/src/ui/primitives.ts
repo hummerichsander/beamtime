@@ -59,8 +59,13 @@ export function Field(props: { label: string; inline?: boolean; error?: string |
   </label>`;
 }
 
-export function Disclosure(props: { summary: ComponentChildren; open?: boolean; children?: ComponentChildren }) {
-  return html`<details class="disclosure" open=${props.open}>
+export function Disclosure(props: {
+  summary: ComponentChildren;
+  open?: boolean;
+  onToggle?: (open: boolean) => void;
+  children?: ComponentChildren;
+}) {
+  return html`<details class="disclosure" open=${props.open} onToggle=${(e: Event) => props.onToggle?.((e.currentTarget as HTMLDetailsElement).open)}>
     <summary><${Icon} name="chevron-right" size=${14} class="disclosure-chevron" />${props.summary}</summary>
     <div class="disclosure-body">${props.children}</div>
   </details>`;

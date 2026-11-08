@@ -241,6 +241,15 @@ def test_code_is_read_with_the_token(api, client) -> None:
     assert api("code", **(ref | {"path": "view.yaml"})).status_code == 404
 
 
+def test_a_dirty_runs_diff_is_read_only_when_asked_for(api, roles: dict) -> None:
+    """The recorded git diff is a page method of its own, so the card stays small; a run without
+    one answers 404."""
+    shown = api("run_diff", run=roles["realistic_dirty"]).json()
+    assert shown["kind"] == "diff" and "+dropout" in shown["text"]
+    assert api("run_diff", run=roles["resumed"]).status_code == 404
+    assert api("run_diff", run="../../etc/passwd").status_code == 404
+
+
 def test_project_style_files(api, project: Path) -> None:
     """A project's .mplstyle file is offered, can be set, and draws the PDF; a missing one can't."""
     pytest.importorskip("scienceplots")

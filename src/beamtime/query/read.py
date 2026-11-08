@@ -285,6 +285,18 @@ def x_values(cols: "Columns", x: str, steps: Sequence[int]) -> list[float | None
     return [v if v is None or math.isfinite(v) else None for v in raw]
 
 
+def resume_marks(cols: "Columns", x: str) -> list[float]:
+    """Place the points where a resumed run's later attempts took over on an x axis.
+
+    :param cols: The run's columns.
+    :param x: ``_step``, ``_t``, ``_elapsed`` or a metric key.
+    :return: One x per resumed attempt; those the axis has no value for are left out."""
+    steps = [int(a[1]) for a in cols.manifest.attempts]
+    if x == "_step":
+        return steps
+    return [v for v in x_values(cols, x, steps) if v is not None]
+
+
 def is_monotone(values: Sequence[float]) -> bool:
     """Tell whether values never decrease.
 
