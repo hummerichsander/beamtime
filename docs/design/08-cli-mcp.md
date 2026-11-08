@@ -35,9 +35,9 @@ wherever a group does.
 | `beamtime memory show <group>` | `memory_show` | the memory of the group and every group above it, with a staleness hint |
 | `beamtime keys <group>` | `keys` | metrics, config keys, data keys and tags |
 | `beamtime groups <group>` | `groups` | the group tree with status, proposal, check, verdict and run counts |
-| `beamtime runs <group>` | `runs` | a run table: `--where`, `--select`, `--sort`, `--limit`, `--seeds`, `--by` (one aggregated row per value) |
+| `beamtime runs <group>` | `runs` | a run table: `--where`, `--select`, `--sort`, `--limit`, `--seeds`, `--by` (one aggregated row per value), `--to FILE` |
 | `beamtime card <run>` | `card` | one run's card with its proposals' checks, verdicts and latest notes |
-| `beamtime series <group> -y <key>` | `series` | curves: `--steps`, `--points`, `--by`, `--seeds` |
+| `beamtime series <group> -y <key>` | `series` | curves: `--steps`, `--points`, `--by`, `--seeds`, `--to FILE` |
 | `beamtime data <group> <key>` | `data` | logged tables, images (as references) and text |
 | `beamtime file <view-group> <path>` | `file` | a data file stored with a view |
 | `beamtime output <run>` | `output` | captured output: `--tail`, `--grep`, `--rank` |
@@ -201,6 +201,10 @@ Claude Code's plugin docs describe (`.claude-plugin/plugin.json`, `skills/<name>
 | curves | 100 points per curve | `points` |
 | notes, timeline | descriptions only, 30 entries | `full`, `limit` |
 | output | last 50 lines | `tail`, `grep` |
+| logs | last 10 lines per run; failed runs' tracebacks once per signature | `tail`, `grep`, `context` |
+| compare | 20 metrics | `metrics` |
+| digest | notes, failures and values per key capped at 5 to 8 | – |
+| file export | the path only: `runs` and `series` with `to` write every row or point as CSV or JSON below `.beamtime/exports/` of the project (never elsewhere, never overwritten) | `to` |
 | any answer | about 8k tokens; beyond that the answer is cut and returns a `next` cursor | `cursor` |
 
 Every answer carries meta: freshness, whether it was cut or downsampled, how many items matched, and

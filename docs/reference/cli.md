@@ -59,6 +59,7 @@ beamtime runs [from]
 | `--limit` |  | a number |
 | `--seeds` |  | e.g. config.seed: average over seeds |
 | `--by` |  | one row per value of these fields, e.g. config.lr |
+| `--to` |  | write all of it to this .csv or .json file below .beamtime/exports/ and answer the path (outside the token budget) |
 
 ### `beamtime card`
 
@@ -88,6 +89,7 @@ beamtime series [from]
 | `--seeds` |  |  |
 | `--smooth` |  | a number |
 | `--band` | `minmax` | minmax, std, stderr, none |
+| `--to` |  | write all of it to this .csv or .json file below .beamtime/exports/ and answer the path (outside the token budget) |
 
 ### `beamtime data`
 

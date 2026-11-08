@@ -72,6 +72,13 @@ class RunsParams(Selection, kw_only=True):
         list[str] | None,
         msgspec.Meta(description="one row per value of these fields, e.g. config.lr"),
     ] = None
+    to: Annotated[
+        str | None,
+        msgspec.Meta(
+            description="write all of it to this .csv or .json file below .beamtime/exports/ "
+            "and answer the path (outside the token budget)"
+        ),
+    ] = None
 
 
 class CardParams(Params, kw_only=True):
@@ -98,6 +105,13 @@ class SeriesParams(Selection, kw_only=True):
     seeds: str | None = None
     smooth: float | None = None
     band: Literal["minmax", "std", "stderr", "none"] = "minmax"
+    to: Annotated[
+        str | None,
+        msgspec.Meta(
+            description="write all of it to this .csv or .json file below .beamtime/exports/ "
+            "and answer the path (outside the token budget)"
+        ),
+    ] = None
 
 
 class DataParams(Selection, kw_only=True):

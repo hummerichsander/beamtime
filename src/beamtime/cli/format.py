@@ -212,6 +212,8 @@ def render(answer: dict[str, Any]) -> str:
             return render_diagnose(answer)
         case "plan missing":
             return render_plan_missing(answer)
+        case "export":
+            return f"wrote {answer['rows']} rows to {answer['path']} ({answer['bytes']} bytes)"
         case "data":
             lines = [render_entry(e) for e in answer["entries"]]
             answer["meta"]["matched"] = answer["meta"].get("entries")

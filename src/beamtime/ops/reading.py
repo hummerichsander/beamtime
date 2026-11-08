@@ -127,6 +127,8 @@ def runs(ctx: Context, p: r.RunsParams) -> dict[str, Any]:
         "seeds": p.seeds,
         "by": p.by,
     }
+    if p.to is not None:
+        return export(ctx, evaluate(ctx, {"runs": q | {"limit": p.limit or 10**6}}), p.to)
     return ask(ctx, {"runs": q}, p.cursor)
 
 
@@ -146,6 +148,8 @@ def series(ctx: Context, p: r.SeriesParams) -> dict[str, Any]:
         "band": p.band,
         "smooth": {"ema": p.smooth} if p.smooth is not None else None,
     }
+    if p.to is not None:
+        return export(ctx, evaluate(ctx, {"series": q}), p.to)
     return ask(ctx, {"series": q}, p.cursor)
 
 
@@ -746,6 +750,94 @@ def plan_missing(ctx: Context, p: r.GroupParams) -> dict[str, Any]:
             "the proposal has no plan; `proposal set` with a plan names the runs"
         )
     return page(ctx, answer, None)
+
+
+def export(ctx: Context, answer: dict[str, Any], to: str) -> dict[str, Any]:
+    """Write a whole run table or set of curves to a CSV or JSON file, outside the token budget.
+
+    Files go under ``.beamtime/exports/`` of the project and are never overwritten.
+
+    :param ctx: The operation context.
+    :param answer: A ``runs`` or ``series`` answer, uncut.
+    :param to: The file name below ``.beamtime/exports/``, ending in ``.csv`` or ``.json``.
+    :return: The file's path, format and size."""
+    import csv
+
+    from beamtime.views.store import drafts
+
+    folder = (drafts(ctx).parent / "exports").resolve()
+    path = (folder / to).resolve()
+    if folder not in path.parents:
+        raise OpError(f"--to {to!r}: exports go under {folder}; name a file below it", code=2)
+    if path.suffix not in (".csv", ".json"):
+        raise OpError(f"--to {to!r}: the name ends in .csv or .json", code=2)
+    if path.exists():
+        raise OpError(
+            f"--to {to!r}: {path} exists; exports are not overwritten, pick a new name", code=2
+        )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.suffix == ".json":
+        path.write_text(json.dumps({k: v for k, v in answer.items() if k != "meta"}, default=str))
+        n = len(answer.get("rows") or answer.get("curves") or [])
+    else:
+        header, rows = table_of(answer)
+        with path.open("w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
+            writer.writerows(rows)
+        n = len(rows)
+    return {
+        "kind": "export",
+        "path": str(path),
+        "format": path.suffix[1:],
+        "rows": n,
+        "bytes": path.stat().st_size,
+        "meta": {"matched": answer["meta"].get("matched")},
+    }
+
+
+def table_of(answer: dict[str, Any]) -> tuple[list[str], list[list[Any]]]:
+    """Flatten a ``runs`` or ``series`` answer into one table for CSV.
+
+    :param answer: The answer.
+    :return: The header and the rows. A run table keeps its columns, a ``{mean, std, n}`` cell
+        becoming three columns; curves become one row per point, with the curve's labels."""
+    if answer["kind"] == "runs":
+        spread = {
+            j for j, col in enumerate(answer["columns"])
+            if any(isinstance(row[j], dict) and "mean" in row[j] for row in answer["rows"])
+        }  # fmt: skip
+        header = [
+            f"{col}.{stat}" if j in spread else col
+            for j, col in enumerate(answer["columns"])
+            for stat in (("mean", "std", "n") if j in spread else (None,))
+        ]
+        rows = []
+        for row in answer["rows"]:
+            out = []
+            for j, cell in enumerate(row):
+                if j in spread:
+                    out += [
+                        cell.get(k) if isinstance(cell, dict) else None
+                        for k in ("mean", "std", "n")
+                    ]
+                else:
+                    out.append(json.dumps(cell) if isinstance(cell, (list, dict)) else cell)
+            rows.append(out)
+        return header, rows
+    header: list[str] = []
+    rows = []
+    for curve in answer["curves"]:
+        points = len(curve["x"])
+        labels = {k: v for k, v in curve.items() if not isinstance(v, (list, dict))}
+        labels |= {k: v for k, v in curve.get("by", {}).items()}
+        arrays = {k: v for k, v in curve.items() if isinstance(v, list) and len(v) == points}
+        names = [*labels, *arrays]
+        if names != header:
+            header = list(dict.fromkeys([*header, *names]))
+        for i in range(points):
+            rows.append({**labels, **{k: v[i] for k, v in arrays.items()}})
+    return header, [[row.get(k) for k in header] for row in rows]
 
 
 def find_run(ctx: Context, run_id: str) -> Path:

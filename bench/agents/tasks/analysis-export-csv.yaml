@@ -1,0 +1,9 @@
+kind: analysis
+category: analysis
+page: scaling/lr-sweep
+prompt: >
+  I want every run of scaling/lr-sweep with its learning rate, seed and final val/acc in a CSV
+  file for my plotting script. Make it and tell me where it is.
+facts:
+  answer: ["\\.beamtime/exports/\\S+\\.csv"]
+  tools: [runs, query]

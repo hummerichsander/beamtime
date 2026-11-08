@@ -19,6 +19,7 @@ Ask with the tools; never parse run files. Start with `keys` (what exists), then
 | Does the data support the prediction? | `check` (never re-derive it by hand) |
 | What was decided, seen, left open? | `timeline`, `notes --open`, `memory_show` |
 | How does the research stand? | `groups`, `proposal_show` |
+| I need all of it for my own script or a table (CSV/JSON) | `runs` or `series` with `to: name.csv`: written below `.beamtime/exports/`, the answer is the path. Never hand-write a loop over run files |
 | Anything else in the query language | `query` with the object form (`guide queries`) |
 
 ## Habits

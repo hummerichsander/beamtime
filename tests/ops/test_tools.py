@@ -240,3 +240,44 @@ def test_runs_by_aggregates_one_row_per_value(ctx: Context) -> None:
     assert row[2]["mean"] == pytest.approx(0.92, abs=0.002)
     plain = call("runs", {"from": "scaling/lr-sweep", "by": ["config.lr"]}, ctx)
     assert "run.name" not in plain["columns"]
+
+
+def test_to_writes_a_table_outside_the_budget(ctx: Context) -> None:
+    """``--to`` writes every row, CSV with a spread cell split in three, and answers the path."""
+    exports = ctx.root / ".beamtime" / "exports"
+    a = call("runs", {"by": ["config.lr"], "select": ["metric.val/acc.last"], "to": "lr.csv"}, ctx)
+    assert a["kind"] == "export" and a["path"] == str(exports / "lr.csv")
+    header, *rows = (exports / "lr.csv").read_text().splitlines()
+    assert header == "runs,config.lr,metric.val/acc.last.mean,metric.val/acc.last.std,metric.val/acc.last.n"
+    assert len(rows) == a["rows"] and a["rows"] > 6
+    everything = call("runs", {"to": "all.csv"}, ctx)
+    assert everything["rows"] == 47 > 40
+    assert (ctx.root / ".beamtime" / ".gitignore").is_file()
+
+
+def test_to_writes_curves_one_row_per_point(ctx: Context) -> None:
+    """Curves go to CSV as one row per point, and to JSON as the answer."""
+    query = {"from": "scaling/lr-sweep", "y": ["val/acc"], "points": "all"}
+    csv = call("series", query | {"to": "curves.csv"}, ctx)
+    header, *rows = (ctx.root / ".beamtime" / "exports" / "curves.csv").read_text().splitlines()
+    assert header.split(",")[:3] == ["run", "name", "metric"] and "x" in header.split(",")
+    assert len(rows) == csv["rows"] > 500
+    out = call("series", query | {"to": "sub/curves.json"}, ctx)
+    data = json.loads((ctx.root / ".beamtime" / "exports" / "sub" / "curves.json").read_text())
+    assert len(data["curves"]) == out["rows"] == 17
+
+
+def test_to_stays_under_the_exports_folder_and_never_overwrites(ctx: Context) -> None:
+    """Paths leaving ``.beamtime/exports/``, other formats and existing files are refused."""
+    for bad in ("../x.csv", "/tmp/x.csv", "a/../../x.csv", "x.txt", ""):
+        with pytest.raises(OpError) as e:
+            call("runs", {"to": bad}, ctx)
+        assert e.value.code == 2
+    call("runs", {"to": "once.csv"}, ctx)
+    with pytest.raises(OpError, match="not overwritten"):
+        call("runs", {"to": "once.csv"}, ctx)
+    link = ctx.root / ".beamtime" / "exports" / "out"
+    link.symlink_to(ctx.root.parent)
+    with pytest.raises(OpError, match="exports go under"):
+        call("runs", {"to": "out/escaped.csv"}, ctx)
+    assert not (ctx.root.parent / "escaped.csv").exists()
