@@ -1,0 +1,9 @@
+kind: analysis
+category: analysis
+page: scaling/lr-sweep
+prompt: >
+  Why did the run that failed in scaling/lr-sweep fail? Quote the error from its output, and say
+  whether other runs in the group failed the same way.
+facts:
+  answer: ["FloatingPointError", "inf", "no other|only one|none of the other|one run"]
+  tools: [logs, output, card, runs, digest]

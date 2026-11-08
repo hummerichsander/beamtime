@@ -75,3 +75,32 @@ def test_digest_without_proposal_or_metric(ctx: Context) -> None:
     assert named["best"]["by"]["config.tokenizer"]
     with pytest.raises(OpError, match="no group"):
         call("digest", {"group": "nope"}, ctx)
+
+
+def test_logs_group_tracebacks_by_signature(ctx: Context, roles: dict[str, str]) -> None:
+    """Failed runs' last tracebacks are grouped by their exception line; runs show their tail."""
+    a = call("logs", {"from": "scaling/lr-sweep", "tail": 2}, ctx)
+    [crash] = a["tracebacks"]
+    assert crash["signature"] == "FloatingPointError: train/loss is inf"
+    assert crash["runs"] == [roles["diverging"]]
+    assert crash["traceback"][0].startswith("Traceback") and crash["traceback"][-1].startswith("Floating")
+    assert all(len(e["lines"]) <= 2 for e in a["entries"])
+    assert a["meta"]["matched"] == 17
+
+
+def test_logs_grep_shows_matches_with_context(ctx: Context, roles: dict[str, str]) -> None:
+    """``grep`` keeps matching lines, numbered, with ``context`` lines around them."""
+    a = call("logs", {"from": roles["diverging"], "grep": "Error", "context": 2}, ctx)
+    [entry] = a["entries"]
+    assert entry["lines"][-1].startswith(("25: Floating", "26: Floating"))
+    assert entry["lines"][0].split("-")[0].isdigit() and len(entry["lines"]) == 3
+    with pytest.raises(OpError, match="regular expression"):
+        call("logs", {"from": roles["diverging"], "grep": "("}, ctx)
+
+
+def test_logs_is_cut_at_the_budget_not_dropped(ctx: Context) -> None:
+    """A whole project's output is cut at whole runs, and the cursor continues after them."""
+    first = call("logs", {"tail": 0}, ctx)
+    assert first["meta"]["cut"] and len(json.dumps(first)) < MAX_CHARS + 2000
+    second = call("logs", {"tail": 0, "cursor": first["meta"]["next"]}, ctx)
+    assert second["entries"][0]["run"] != first["entries"][0]["run"]

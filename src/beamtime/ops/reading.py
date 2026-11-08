@@ -38,6 +38,7 @@ COMPARE_METRICS = 20
 DIGEST_NOTES = 5
 DIGEST_VALUES = 8
 DIGEST_KEYS = 3
+LOG_WIDTH = 300
 
 
 def ask(ctx: Context, query: dict[str, Any], cursor: str | None = None) -> dict[str, Any]:
@@ -198,14 +199,19 @@ def query(ctx: Context, p: r.QueryParams) -> dict[str, Any]:
     return ask(ctx, p.query, p.cursor)
 
 
-def members(ctx: Context, target: str) -> list[dict[str, Any]]:
+def members(
+    ctx: Context, target: str, where: dict[str, Any] | None = None, depth: Any = "all"
+) -> list[dict[str, Any]]:
     """List the runs of a group or the one run a target names, whole and without a budget.
 
     :param ctx: The operation context.
     :param target: A group below the log dir, or a run id.
+    :param where: A condition the runs must meet.
+    :param depth: How many group levels below the target to look into.
     :return: Per run: ``id``, ``name``, ``status``, ``code`` and ``dir``."""
     fields = ["run.name", "run.status", "run.code", "run.path"]
-    table = evaluate(ctx, {"runs": {"from": target, "select": fields, "limit": 10**6}})
+    query = {"from": target, "select": fields, "limit": 10**6, "where": where or {}, "depth": depth}
+    table = evaluate(ctx, {"runs": query})
     return [
         {"id": row[0], "name": row[1], "status": row[2], "code": row[3], "dir": ctx.logdir / row[4]}
         for row in table["rows"]
@@ -481,6 +487,76 @@ def plan_points(target: Any, version: str, proposal: Any) -> dict[str, Any]:
             return {"form": "children", "missing": total - done}
         case _:
             return {"form": "none", "missing": None}
+
+
+def logs(ctx: Context, p: r.LogsParams) -> dict[str, Any]:
+    """Show the output of a run or of every run of a group, and group the failed runs'
+    last tracebacks by signature.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: ``tracebacks`` (signature, runs, the first run's traceback) and per run ``entries``
+        with its last lines, or the lines matching ``grep`` with their context."""
+    pattern = None
+    if p.grep:
+        try:
+            pattern = re.compile(p.grep)
+        except re.error as e:
+            raise OpError(f"grep: {p.grep!r} is not a regular expression: {e}", code=2) from None
+    entries, crashes = [], {}
+    runs_ = members(ctx, p.from_, p.where, p.depth)
+    for m in runs_:
+        lines = [
+            collapse(line)[:LOG_WIDTH] for line in read_output(m["dir"], rank=p.rank).splitlines()
+        ]
+        if shown := excerpt(lines, pattern, p.tail, p.context):
+            entries.append(
+                {"run": m["id"], "name": m["name"], "status": m["status"], "lines": shown}
+            )
+        if m["status"] == "failed":
+            trace = last_traceback(lines)
+            error = read_card(m["dir"]).error if (m["dir"] / c.CARD).exists() else None
+            sig = failure_signature(trace[-1] if trace else error)
+            crash = crashes.setdefault(sig, {"signature": sig, "runs": [], "traceback": trace})
+            crash["runs"].append(m["id"])
+    answer = {
+        "kind": "logs",
+        "tracebacks": sorted(crashes.values(), key=lambda crash: -len(crash["runs"])),
+        "entries": entries,
+        "meta": {"matched": len(runs_), "with_lines": len(entries)},
+    }
+    return page(ctx, answer, p.cursor)
+
+
+def excerpt(lines: list[str], pattern: re.Pattern | None, tail: int, context: int) -> list[str]:
+    """Pick the lines to show: the last ones, or the last matches with their surroundings.
+
+    :param lines: The run's output lines.
+    :param pattern: What to search for, or ``None`` for the last lines.
+    :param tail: How many lines, or matching lines, to keep.
+    :param context: Lines to show around each match.
+    :return: The lines; a match is ``n: line``, its context ``n- line``."""
+    if pattern is None:
+        return lines[-tail:] if tail else lines
+    hits = [i for i, line in enumerate(lines) if pattern.search(line)]
+    hits = hits[-tail:] if tail else hits
+    keep = sorted(
+        {j for i in hits for j in range(max(0, i - context), min(len(lines), i + context + 1))}
+    )
+    return [f"{j + 1}{':' if j in hits else '-'} {lines[j]}" for j in keep]
+
+
+def last_traceback(lines: list[str]) -> list[str]:
+    """Find the last Python traceback in a run's output.
+
+    :param lines: The output lines.
+    :return: The traceback up to and including its exception line; empty without one."""
+    starts = [i for i, line in enumerate(lines) if line.startswith("Traceback (most recent call")]
+    if not starts:
+        return []
+    block = lines[starts[-1] :]
+    end = next((i for i, line in enumerate(block[1:], 1) if line and not line[0].isspace()), None)
+    return block if end is None else block[: end + 1]
 
 
 def find_run(ctx: Context, run_id: str) -> Path:

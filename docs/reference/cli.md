@@ -129,6 +129,23 @@ beamtime output <run>
 | `--grep` |  |  |
 | `--rank` | `0` | a number |
 
+### `beamtime logs`
+
+Output of a run or a group's runs; failed runs' tracebacks by signature.
+
+```sh
+beamtime logs [from]
+```
+
+| Option | Default | |
+|---|---|---|
+| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
+| `--depth` | `all` | all, a number |
+| `--grep` |  | regular expression; show its matches |
+| `--tail` | `10` | lines (with grep: matches) per run |
+| `--context` | `0` | lines around each match |
+| `--rank` | `0` | a number |
+
 ### `beamtime resume`
 
 What's needed to resume a killed run by hand: command, cwd, step, checkpoint.

@@ -121,6 +121,17 @@ class OutputParams(Params, kw_only=True):
     rank: int = 0
 
 
+class LogsParams(Selection, kw_only=True):
+    """Parameters of ``logs``."""
+
+    grep: Annotated[
+        str | None, msgspec.Meta(description="regular expression; show its matches")
+    ] = None
+    tail: Annotated[int, msgspec.Meta(description="lines (with grep: matches) per run")] = 10
+    context: Annotated[int, msgspec.Meta(description="lines around each match")] = 0
+    rank: int = 0
+
+
 class ResumeParams(Params, kw_only=True):
     """Parameters of ``resume``."""
 
@@ -716,6 +727,13 @@ OPS = [
         impl=f"{R}:output",
         positional=("run",),
         summary="Captured stdout and stderr of a run: tail, grep, rank.",
+    ),
+    Op(
+        name="logs",
+        params=LogsParams,
+        impl=f"{R}:logs",
+        positional=("from_",),
+        summary="Output of a run or a group's runs; failed runs' tracebacks by signature.",
     ),
     Op(
         name="resume",

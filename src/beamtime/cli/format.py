@@ -202,6 +202,8 @@ def render(answer: dict[str, Any]) -> str:
             return render_compare(answer)
         case "digest":
             return render_digest(answer)
+        case "logs":
+            return render_logs(answer)
         case "data":
             lines = [render_entry(e) for e in answer["entries"]]
             answer["meta"]["matched"] = answer["meta"].get("entries")
@@ -413,6 +415,23 @@ def render_digest(answer: dict[str, Any]) -> str:
     ):
         if notes:
             lines += ["", title] + [f"  {n['id']}  {n['type']}  {n['description']}" for n in notes]
+    return "\n".join(lines)
+
+
+def render_logs(answer: dict[str, Any]) -> str:
+    """Render a ``logs`` answer: tracebacks by signature, then each run's lines.
+
+    :param answer: The answer.
+    :return: The text."""
+    lines = []
+    for crash in answer["tracebacks"]:
+        lines.append(
+            f"{len(crash['runs'])} failed: {crash['signature'] or '-'}  {', '.join(crash['runs'])}"
+        )
+        lines += [f"    {line}" for line in crash["traceback"]]
+    for e in answer["entries"]:
+        lines += ["", f"== {e['name']}  {e['run']}  {e['status']}", *e["lines"]]
+    lines.append(meta_line(answer, "runs", answer["meta"]["with_lines"]))
     return "\n".join(lines)
 
 

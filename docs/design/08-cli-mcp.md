@@ -44,6 +44,7 @@ wherever a group does.
 | `beamtime resume <run>` | `resume` | what's needed to resume a killed or failed run by hand: command, cwd, step, checkpoint; it runs nothing |
 | `beamtime compare <a> <b> …` | `compare` | runs or groups side by side: the config keys that differ (with those that change together), whether the code is the same, status counts and a metric table (last values, a group's mean) with the difference of two; all targets on one source |
 | `beamtime digest <group>` | `digest` | one page on a group: status counts, the proposal's check and predictions, a metric per value of each varying config key (`--metric`, default the proposal's), failures by signature, open questions and the newest notes, and the plan's gaps |
+| `beamtime logs <group or run>` | `logs` | the output of one run or every run of a group (`--where`, `--depth`): the last `--tail` lines (default 10) of each, or with `--grep RE` the last matches with `--context` lines; the failed runs' last tracebacks grouped by their exception line; cut at the token budget with a cursor |
 | `beamtime timeline <group>` | `timeline` | notes and events in time order: `--types`, `--since` |
 | `beamtime notes <group>` | `notes` | notes with descriptions; `--open` for open questions, `--current` without superseded notes, `--full` for bodies |
 | `beamtime proposal show <group>` | `proposal_show` | the current proposal version, its earlier versions and their checks |

@@ -9,6 +9,7 @@ Ask with the tools; never parse run files. Start with `keys` (what exists), then
 | What differs between these runs or groups, and did the metrics move? | `compare` |
 | Where does a group stand: statuses, check, best per setting, failures, notes? | `digest` (first, then the narrower tools) |
 | What happened in one run? | `card`, then `output` (tail, grep) |
+| What did the runs print, or why did they fail? | `logs` (one run or a group; `grep`, `context`; tracebacks grouped by signature) |
 | How did a metric evolve? | `series` (downsampled; aggregated with `by` or `seeds`) |
 | What is the best, mean or last value, per setting? | `runs` or `query` with `metric.<key>.<stat>` columns and `by` |
 | What did the runs log besides metrics? | `data` (tables, images, text) |
