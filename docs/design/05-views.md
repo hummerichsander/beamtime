@@ -677,7 +677,7 @@ it, with a link to its code and the error; the frame and every other block stay 
 ## The agent guide
 
 `beamtime guide` and the `guide` tool give agents everything they need to build views: short design
-guidance, a few complete examples, deterministic checks and a fixed screenshot checklist, which the
+guidance by topic (each part under about 100 lines, indexed in the overview), a few complete examples, deterministic checks and a fixed screenshot checklist, which the
 research shows work better than long rule lists.
 
 ### Progressive disclosure
@@ -687,10 +687,15 @@ research shows work better than long rule lists.
 | `guide` | workflow, design principles, defaults, and an index of the other parts | ~1.5k tokens |
 | `guide examples [name]` | the example views, or one with commentary | ~1k each |
 | `guide blocks [name]` | the catalog, or one block's schema and description | ~1.5k / ~300 |
-| `guide kit` | the `bt` kit API | ~2k |
 | `guide queries` | the query language | ~1.5k |
-| `guide checklist` | the screenshot checklist | ~300 |
+| `guide charts` | chart practice: axis labels, captions that do not restate the axes, at most eight curves, log and symlog, prefix sections, shared y limits | ~700 |
+| `guide checklist` | the screenshot checklist | ~400 |
 | `guide anti-patterns` | common mistakes with fixes | ~800 |
+| `guide kit` | custom blocks: the three chart tiers, `Figure`, reusing the app's vocabulary (`Sym`, `Predictions`, `tone`), section titles in the left column | ~1.5k |
+| `guide kit-api`, `guide library` | every `bt` name with the validator's rules; library blocks | ~1k each |
+| `guide proposals`, `predictions` | proposals with plans and versions; `each` and `compare` with worked examples | ~700 each |
+| `guide notes`, `verdicts`, `memory` | note types and links; judging a proposal, stating what the check says; compressing memory | ~500 each |
+| `guide remote`, `analysis` | `@source/...` groups; which tool answers which question | ~400 each |
 | `guide <group>` | additionally: the group's metrics and varying config, its current view; from M7 library blocks and outdated pins | – |
 
 ### Workflow

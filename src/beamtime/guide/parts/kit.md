@@ -53,6 +53,7 @@ export default function render(root) {
 ## Three tiers of charts
 
 Use the first tier that can show what you need; each later one gives up something the earlier ones do.
+The rule: a chart a built-in block can draw is tier 1 or 2; tier 3 only for a drawing none can make.
 
 1. **A YAML block** (`line`, `scatter`, `scorecard`, ...): everything is included. No code.
 2. **`bt.chart.Line`, `Scatter`, `Bar`, `Histogram`** in a custom layout: the props of the YAML form, a
@@ -95,69 +96,26 @@ preferences, the hovered key, the hidden keys, the size or the theme change, and
 function of its inputs. Colors come from `bt.theme` (`runColor`, `scale`, `tone`), never from literals. A block with a
 `Figure` has no head of its own; the figure's Expand opens the block in the page's dialog, where `height` is larger.
 
-## The API
+## Reuse Beamtime's vocabulary
 
-| Name | What |
+A symbol, colour or pill the app already has for a thing is used as is, so the same mark means the same
+thing on every page. Never hex colours, emoji or glyphs for status, and never a typed-in result.
+
+| Thing | Kit name |
 |---|---|
-| `bt.useData(name, values?)` | hook: a declared query's result; re-renders on new data |
-| `bt.data(name, values?)`, `bt.subscribe(name, cb, values?)` | the same as a promise, or a callback per update |
-| result | `status` (`loading`, `ready`, `error`), `error`, `columns`, `rows` (objects keyed by field), `curves` (`{run, key, group, x, y \| min, max, last, mean, count}`), `data` (the raw answer); a `runs` answer's `columns` always start with `run.id`, selected or not |
-| `bt.chart.Line`, `Scatter`, `Bar`, `Histogram` | built-in charts: the props of their YAML form, plus `data` (a result) |
-| `bt.chart.Figure` | your own drawing in the chart frame: `id`, `title`, `xlabel`, `ylabel`, `series`, `settings`, `csv`, `draw(el, {width, height, prefs, hovered, hidden})` |
-| `bt.ui.Table`, `Stat`, `DataTable`, `Grid`, `Row`, `Section`, `Tabs`/`Tab`, `Note` | built-in blocks and layouts |
-| `bt.ui.Sym` (`kind`, `value`, `word?`) | the app's symbol for a value; `kind`: `run`, `result`, `verdict`, `note`, `research`, `thing`; unknown values get a neutral symbol |
-| `bt.ui.Icon` (`name`), `bt.ui.Tag` (`tone`) | a lucide icon by name; a pill with a tone |
-| `bt.ui.Predictions` (`of?`) | the `proposal` block's prediction rows with the live check of a group (default: the view's) |
-| `bt.ui.Config` (`config`, optional `varying`: dotted keys) | a nested config as a collapsible, filterable tree |
-| `bt.theme.tone(name)` | the colour of `good`, `bad`, `warn`, `muted` or `accent` in the current theme: colour a pass or fail like the app does |
-| `bt.theme.tokens`, `.mode`, `.onChange(cb)` | the theme (`colors.ink`, `colors["data-1"]`, ...); also as CSS variables (`var(--ink)`, `var(--muted)`, `var(--line)`, ...) |
-| `bt.theme.runColor(id)`, `.runDash(id)`, `.groupColor(values, value)`, `.scale(kind, name?)` | a run's color and line style (stroke-dasharray values), a group value's color, the built-in colormaps as `sequential` (viridis)/`diverging` (coolwarm) (t in 0..1) or the matplotlib colormap `name` (e.g. `.scale("sequential", "magma")`), or `categorical` (index) |
-| `bt.fmt.value(v)`, `bt.fmt.step(n)`, `bt.fmt.duration(s)`, `bt.label(field)`, `bt.name(run)` | formatting |
-| `bt.link.run(id)`, `bt.link.group(path)` | URLs; links open in the page |
-| `bt.useSize()` | `[ref, width]` of an element |
-| `bt.hover(run)`, `bt.useHovered()` | highlight a run in every chart of the page; the run hovered anywhere on it |
-| `bt.warn(message)` | a warning on the block and in `view_validate` |
-| `bt.params` | a library block's params as the view gives them, defaults filled in |
-| `bt.lib.d3` ... | the declared libraries |
-| `bt.preact` | `h`, `render`, `html` (htm) and the hooks |
+| run status, prediction result, verdict, note type | `bt.ui.Sym` with that `kind` |
+| predictions with their check | the `predictions` block, or `bt.ui.Predictions` |
+| pass, fail, warning | `bt.theme.tone` (`good`, `bad`, `warn`) |
+| a run's or group's colour, a colour ramp | `bt.theme.runColor`, `groupColor`, `scale` |
 
-## Rules (checked by `view_validate`)
+## Titles go in the left column
 
-- `export default function render(root)`; no `import`: everything comes through `bt`.
-- No network (`fetch`, `XMLHttpRequest`, `WebSocket`, ...), at most 64 KB, no long inline number
-  lists (data belongs in queries or data files).
-- No color literals (`#hex`, `rgb(`, `hsl(`): take colors from `bt.theme` or CSS variables, so the
-  block works in light and dark.
-- Read field names from the query's `columns` instead of writing them into the code; such a block
-  can become a library block later.
-- The render must show no errors, draw something and fit its width; a block that throws shows an
-  error panel with the message. The checks can't tell a chart drawn from the wrong column: look at
-  the screenshot.
+Every top-level block of a view is a page section. A top-level `section` (or custom block) titled
+with one or two words shows that title in the margin; a longer title, a nested section, a Markdown
+`##` in a `text` block and `bt.ui.Section` inside code all stay in the content column. So structure a
+view as top-level `section`s with short titles (`validation`, `energy`, `phase space`) and put the
+blocks, custom ones included, inside; split one big custom block into one per section. Use
+`bt.ui.Section` only for subheadings within one block; longer explanations go in the caption.
 
-## Library blocks
-
-`block_promote` and `block_fork` write a draft `.beamtime/drafts/blocks/<name>/block.yaml`:
-
-```yaml
-schema: 1
-name: phase-map
-description: >                       # what it shows; "Use for ..."; "Not for ..."
-  Heatmap of a value over two config fields. Use for two-way sweeps. Not for single runs.
-params:                              # kind: field, fields, metric, metrics, number, string, bool
-  x: {kind: field, description: the config across}
-  y: {kind: field, default: config.seed}
-  value: {kind: field}
-  curves: {kind: metrics, default: [val/acc]}
-examples:                            # at least two; each is the params of one use
-  - {x: config.lr, value: metric.val/acc.max}
-  - {x: config.lr, y: config.wd, value: metric.val/loss.min, curves: [val/loss]}
-queries:                             # $param fills in when a view uses it; other $names at runtime
-  runs: {runs: {select: [run.id, $x, $y, $value]}}
-  detail: {series: {from: $run, y: $curves}}
-code: code/phase-map.js
-libs: [d3]
-```
-
-A list param fills a list in place (`select: [run.id, $fields]`). Number, string and bool params
-reach the code as `bt.params`. `block_validate` runs and renders every example as a use in a view
-of the draft's group; `view_render block-<name>` takes screenshots of them.
+`guide kit-api` lists every name and the rules `view_validate` checks. For live data use `bt.useData`,
+never a value copied into the code.

@@ -981,7 +981,7 @@ they needed.
 
 **Which tools?** See G4, ordered by what the real sessions show.
 
-### G1. Guide by topic, with chart best practices (sonnet)
+### G1. Guide by topic, with chart best practices (sonnet) — **done**
 
 - **Touches:** `src/beamtime/guide/parts/` (new topic files), `src/beamtime/guide/__init__.py` (`guide` 35, `read` 57), `guide/examples/*.yaml`, new `tests/guide/`.
 - **Read:** `docs/design/05-views.md` § The agent guide (l. 603), § Agent instructions (l. 710).

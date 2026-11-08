@@ -21,15 +21,23 @@ body:
             id: loss-curves
             children:
               - line: {id: loss, y: "{{loss}}", caption: "Training loss over steps."}
-  - histogram:
-      id: distribution
-      key: "{{hist}}"
-      caption: "The last logged distribution of {{hist}}."
-  - images:
-      id: samples
-      key: "{{image}}"
-      caption: "Samples at the last logged step."
-  - data_table:
-      id: table
-      key: "{{table}}"
-  - output: {id: output, title: Output, lines: 40}
+  - section:
+      id: logged
+      title: logged
+      children:
+        - histogram:
+            id: distribution
+            key: "{{hist}}"
+            caption: "The last logged distribution of {{hist}}."
+        - images:
+            id: samples
+            key: "{{image}}"
+            caption: "Samples at the last logged step."
+        - data_table:
+            id: table
+            key: "{{table}}"
+  - section:
+      id: output-section
+      title: output
+      children:
+        - output: {id: output, lines: 40}

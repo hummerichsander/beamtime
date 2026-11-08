@@ -12,6 +12,22 @@ from beamtime.ops import registry as r
 from beamtime.ops.context import Context, OpError
 from beamtime.remote import answer as remote_answer
 
+TOPICS = (
+    "queries",
+    "checklist",
+    "anti-patterns",
+    "charts",
+    "kit",
+    "kit-api",
+    "library",
+    "proposals",
+    "predictions",
+    "notes",
+    "verdicts",
+    "memory",
+    "remote",
+    "analysis",
+)
 EXAMPLES = ("sweep", "ablation", "run", "direction", "custom")
 ESSENTIAL = ("key", "x", "y", "field", "file")
 GENERIC = {
@@ -49,8 +65,8 @@ def guide(ctx: Context, p: r.GuideParams) -> dict[str, Any]:
             text = example(p.name, ctx, p.group) if p.name else examples()
         case "blocks":
             text = block(p.name) if p.name else catalog()
-        case "queries" | "checklist" | "anti-patterns" | "kit":
-            text = read(f"{p.part}.md")
+        case topic if topic in TOPICS:
+            text = read(f"{topic}.md")
         case other:
             raise ValueError(f"no guide part {other!r}")
     return {"kind": "guide", "part": p.part or "overview", "text": text}

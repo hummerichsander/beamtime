@@ -435,7 +435,25 @@ class GuideParams(Params, kw_only=True):
     """Parameters of ``guide``."""
 
     part: Annotated[
-        Literal["examples", "blocks", "queries", "checklist", "anti-patterns", "kit"] | None,
+        Literal[
+            "examples",
+            "blocks",
+            "queries",
+            "checklist",
+            "anti-patterns",
+            "charts",
+            "kit",
+            "kit-api",
+            "library",
+            "proposals",
+            "predictions",
+            "notes",
+            "verdicts",
+            "memory",
+            "remote",
+            "analysis",
+        ]
+        | None,
         msgspec.Meta(description="default: the overview"),
     ] = None
     name: Annotated[
@@ -758,7 +776,7 @@ OPS = [
         params=GuideParams,
         impl="beamtime.guide:guide",
         positional=("part", "name"),
-        summary="How to build views: workflow, examples, blocks, checklist. Read before view new.",
+        summary="The agent guide by topic: views, charts, the record. Read before view new.",
     ),
     Op(
         name="view new",

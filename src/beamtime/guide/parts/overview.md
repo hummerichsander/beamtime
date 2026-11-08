@@ -28,19 +28,9 @@ Tools are named as over MCP (`view_new`); on the command line the same operation
 
 ## Library blocks
 
-Custom blocks that prove useful become library blocks: named, described, with params, used in any
-view like a built-in block (`- phase-map: {x: config.lr, y: config.wd, value: metric.val/acc.max}`).
-
-- `block_list <group>` shows what a group can use; `block_show <name>` its params and code.
-- `block_promote <group> <block-id> <name>` turns a saved view's custom block into a block draft
-  (`.beamtime/drafts/blocks/<name>/`); `block_fork <name> <new-name>` copies a block. Replace fixed
-  fields with `$params`, read field names from the query's columns and values from `bt.params`,
-  write when to use it and when not, and give at least two examples.
-- `block_validate <draft>` checks it (and renders its examples); `block_save <draft>` writes a
-  version, at the log dir root unless `group` says otherwise. Saving the same draft again makes a
-  newer version.
-- Views pin the versions they were saved with. When you edit a view, `view_outdated` names pins
-  with newer versions; offer `view_upgrade <group>`.
+Custom blocks that prove useful become library blocks, used like built-in ones
+(`- phase-map: {x: config.lr, ...}`). `block_list <group>` shows what a group can use; promoting,
+forking, validating and saving are in `guide library`.
 
 ## Design principles
 
@@ -60,6 +50,10 @@ view like a built-in block (`- phase-map: {x: config.lr, y: config.wd, value: me
   | What does a run produce? | `images`, `text`, `data_table` |
   | Where does the research stand? | `proposal`, `groups`, `timeline`, `memory` |
 
+- **Structure by sections.** Make every top-level node a `section` titled with one or two words
+  (`validation`, `energy`): the title shows in the page's left column. Longer titles, nested sections
+  and headings inside text or custom blocks stay in the content column; put long explanations in a
+  caption.
 - **Tame many runs** (more than about eight curves) with `color: <field>`, `by: [<field>]` or
   `seeds: config.seed`.
 - **State the setup in captions**: what was varied, what was held fixed, how many runs. Charts
@@ -104,9 +98,19 @@ These are defaults; the user's own instructions (CLAUDE.md, AGENTS.md) take prec
   `data_table: {file: data/<name>.csv}`; record the script that made it in a note.
 - Never run user commands (serve, install, settings); hand the user the exact command.
 
-## More
+## More: `guide <topic>`
 
-`guide examples [name]` (sweep, ablation, run, direction, custom) · `guide blocks [name]` ·
-`guide queries` · `guide checklist` · `guide anti-patterns` · `guide kit` (custom blocks: code for what
-no built-in block shows).
+| Topic | For |
+|---|---|
+| `examples [name]` | complete views: sweep, ablation, run, direction, custom |
+| `blocks [name]` | the block catalog, or one block's schema |
+| `queries` | the query language |
+| `charts` | axis labels, captions, scales, many curves |
+| `checklist`, `anti-patterns` | the screenshot checklist; common mistakes |
+| `kit`, `kit-api`, `library` | custom blocks: tiers and vocabulary; every `bt` name; library blocks |
+| `proposals`, `predictions` | writing proposals with plans; `each` and `compare` checks |
+| `notes`, `verdicts`, `memory` | the record: note types, judging a proposal, compressing |
+| `remote` | `@source/...` groups on clusters |
+| `analysis` | which tool answers which question |
+
 With a group (`guide examples sweep --group <group>`), examples use its metrics and config.

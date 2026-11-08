@@ -5,15 +5,22 @@ schema: 1
 title: "{{group}}"
 finding: "TODO: where the direction stands in one sentence."
 body:
-  - groups: {id: groups, title: Experiments}
-  - grid:
-      id: record
-      columns: 2
+  - section:
+      id: experiments
+      title: experiments
       children:
-        - timeline:
-            id: decisions
-            title: Decisions and verdicts
-            types: [decision, verdict]
-            limit: 12
-        - memory: {id: memory, title: Memory}
-  - notes: {id: notes, title: Latest notes, limit: 5}
+        - groups: {id: groups}
+  - section:
+      id: record
+      title: record
+      children:
+        - grid:
+            columns: 2
+            children:
+              - timeline:
+                  id: decisions
+                  title: Decisions and verdicts
+                  types: [decision, verdict]
+                  limit: 12
+              - memory: {id: memory, title: Memory}
+        - notes: {id: notes, title: Latest notes, limit: 5}

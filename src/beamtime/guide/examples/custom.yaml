@@ -5,18 +5,26 @@ schema: 1
 title: "{{group}}"
 finding: "TODO: the result in one sentence."
 body:
-  - custom:
-      id: phase-map
-      title: "{{main}} over {{swept}} and {{swept2}}"
-      caption: "Mean {{main}} ({{stat}}) per cell over seeds; click a cell for the curves of its best run."
-      code: code/phase-map.js
-      libs: [d3]
-      queries:
-        runs: {runs: {select: [run.id, "{{swept}}", "{{swept2}}", "metric.{{main}}.{{stat}}"]}}
-        detail: {series: {from: $run, y: ["{{main}}", "{{loss}}"]}}
-  - scatter:
-      id: fallback
-      x: "{{swept}}"
-      y: "metric.{{main}}.{{stat}}"
-      x_scale: "{{swept_scale}}"
-      caption: "{{main}} against {{swept}}, one point per run."
+  - section:
+      id: phase
+      title: phase map
+      children:
+        - custom:
+            id: phase-map
+            title: "{{main}} over {{swept}} and {{swept2}}"
+            caption: "Mean {{main}} ({{stat}}) per cell over seeds; click a cell for the curves of its best run."
+            code: code/phase-map.js
+            libs: [d3]
+            queries:
+              runs: {runs: {select: [run.id, "{{swept}}", "{{swept2}}", "metric.{{main}}.{{stat}}"]}}
+              detail: {series: {from: $run, y: ["{{main}}", "{{loss}}"]}}
+  - section:
+      id: fallback-section
+      title: fallback
+      children:
+        - scatter:
+            id: fallback
+            x: "{{swept}}"
+            y: "metric.{{main}}.{{stat}}"
+            x_scale: "{{swept_scale}}"
+            caption: "{{main}} against {{swept}}, one point per run."

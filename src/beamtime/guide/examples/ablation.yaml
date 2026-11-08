@@ -8,26 +8,37 @@ metrics:
   "{{main}}": {higher_is_better: {{higher}}}
 main_metrics: ["{{main}}"]
 body:
-  - proposal: {id: proposal, title: Predictions}
-  - grid:
-      id: comparison
-      columns: 2
+  - section:
+      id: predictions
+      title: predictions
       children:
-        - bar:
-            id: effect
-            title: "{{main}} by {{change}}"
-            x: "{{change}}"
-            y: "metric.{{main}}.{{stat}}"
-            error: std
-            caption: "Mean over runs per {{change}}; error bars show one standard deviation."
-        - line:
-            id: curves
-            title: "{{main}} over training"
-            y: "{{main}}"
-            by: ["{{change}}"]
-            band: stderr
-            caption: "Mean and standard error per {{change}}."
-  - table:
-      id: runs-table
-      columns: [run.name, run.status, "{{change}}", "metric.{{main}}.{{stat}}"]
-      sort: ["{{change}}", "{{sort}}"]
+        - proposal: {id: proposal}
+  - section:
+      id: comparison
+      title: comparison
+      children:
+        - grid:
+            columns: 2
+            children:
+              - bar:
+                  id: effect
+                  title: "{{main}} by {{change}}"
+                  x: "{{change}}"
+                  y: "metric.{{main}}.{{stat}}"
+                  error: std
+                  caption: "Mean over runs per {{change}}; error bars show one standard deviation."
+              - line:
+                  id: curves
+                  title: "{{main}} over training"
+                  y: "{{main}}"
+                  by: ["{{change}}"]
+                  band: stderr
+                  caption: "Mean and standard error per {{change}}."
+  - section:
+      id: runs-section
+      title: runs
+      children:
+        - table:
+            id: runs-table
+            columns: [run.name, run.status, "{{change}}", "metric.{{main}}.{{stat}}"]
+            sort: ["{{change}}", "{{sort}}"]
