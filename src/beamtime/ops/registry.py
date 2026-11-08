@@ -188,6 +188,15 @@ class GroupParams(Params, kw_only=True):
     group: Group = "."
 
 
+class DigestParams(GroupParams, kw_only=True):
+    """Parameters of ``digest``."""
+
+    metric: Annotated[
+        str | None,
+        msgspec.Meta(description="metric for the best-per-setting table; default: the proposal's"),
+    ] = None
+
+
 class CheckParams(GroupParams, kw_only=True):
     """Parameters of ``check``."""
 
@@ -751,6 +760,13 @@ OPS = [
         impl=f"{W}:check",
         positional=("group",),
         summary="The predictions of a proposal version and their results, with plan progress.",
+    ),
+    Op(
+        name="digest",
+        params=DigestParams,
+        impl=f"{R}:digest",
+        positional=("group",),
+        summary="One page on a group: statuses, check, best per setting, failures, notes, gaps.",
     ),
     Op(
         name="memory show",

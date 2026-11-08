@@ -40,7 +40,27 @@ def schema(op: Op) -> dict[str, Any]:
     root.pop("description", None)
     if defs:
         root["$defs"] = defs
-    return root
+    return slim(root)
+
+
+def slim(node: Any) -> Any:
+    """Drop what costs agents tokens and tells them nothing: ``null`` and empty defaults, the
+    ``null`` member of a nullable type (an optional parameter is left out) and empty ``required``.
+
+    :param node: A JSON schema node.
+    :return: The node, slimmed."""
+    if isinstance(node, list):
+        return [slim(x) for x in node]
+    if not isinstance(node, dict):
+        return node
+    out = {k: slim(v) for k, v in node.items() if not (k == "default" and v in (None, [], {}))}
+    if out.get("required") == []:
+        del out["required"]
+    if len(members := out.get("anyOf", [])) == 2 and {"type": "null"} in members:
+        rest = next(m for m in members if m != {"type": "null"})
+        del out["anyOf"]
+        out |= rest
+    return out
 
 
 def tools() -> list[types.Tool]:
@@ -115,12 +135,11 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
         "Compare two runs or groups: config differences and metric deltas.",
         [("a", "a run id or group", True), ("b", "a run id or group", True)],
         text(
-            """Compare {a} and {b} in Beamtime. Read `guide queries` for the query forms.
-            For runs, read both `card`s and list
-            config differences and metric deltas (last, max, min). For groups, use
-            `keys` and `runs` with the shared metrics (seeds: config.seed when there
-            are seeds) and `series` with `by` the differing config key. Say which is
-            better, by how much, and how sure that is given the number of runs."""
+            """Compare {a} and {b} in Beamtime. Read `guide analysis` first, then call
+            `compare` with both: it lists the config keys that differ, whether the code is
+            the same and the metrics side by side. For groups with seeds, back it with
+            `series` `by` the differing config key. Say which is better, by how much, and
+            how sure that is given the number of runs."""
         ),
     ),
     "proposal": (

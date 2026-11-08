@@ -1,6 +1,9 @@
+import json
+
 import pytest
 
 from beamtime.ops import call
+from beamtime.ops.budget import MAX_CHARS
 from beamtime.ops.context import Context, OpError
 from beamtime.remote.route import routed
 
@@ -46,3 +49,29 @@ def test_compare_needs_two_targets_and_one_source(ctx: Context) -> None:
         call("compare", {"targets": ["scaling"]}, ctx)
     with pytest.raises(OpError, match="pull"):
         routed("compare", {"targets": ["@a/x", "@b/y"]}, ctx, lambda p: {})
+
+
+def test_digest_is_one_page_on_a_group(ctx: Context, roles: dict[str, str]) -> None:
+    """A digest has statuses, the check, the best per varying value, failures by signature, notes."""
+    d = call("digest", {"group": "scaling/lr-sweep"}, ctx)
+    assert d["runs"] == {"finished": 15, "failed": 1, "killed": 1}
+    assert d["proposal"]["result"] == "pass" and not d["proposal"]["provisional"]
+    assert {p["name"] for p in d["predictions"]} == {"converges", "mid-beats-high"}
+    assert d["best"]["metric"] == "val/acc" and list(d["best"]["by"]) == ["config.lr"]
+    best = max(d["best"]["by"]["config.lr"], key=lambda row: row["mean"])
+    assert best["value"] == 0.0003 and best["runs"] == 3
+    failed = next(f for f in d["failures"] if f["status"] == "failed")
+    assert failed["signature"] == "FloatingPointError: train/loss is inf"
+    assert failed["runs"] == [roles["diverging"]]
+    assert d["notes"] and d["missing"]["missing"] == 0
+    assert len(json.dumps(d)) < MAX_CHARS
+
+
+def test_digest_without_proposal_or_metric(ctx: Context) -> None:
+    """A group with no proposal still gets statuses, failures and notes; ``metric`` picks the table."""
+    d = call("digest", {"group": "tokenizer"}, ctx)
+    assert d["proposal"] is None and d["best"] is None and d["open_questions"]
+    named = call("digest", {"group": "tokenizer/bpe-vs-unigram", "metric": "val/ppl"}, ctx)
+    assert named["best"]["by"]["config.tokenizer"]
+    with pytest.raises(OpError, match="no group"):
+        call("digest", {"group": "nope"}, ctx)

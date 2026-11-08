@@ -16,7 +16,7 @@ pytest.importorskip("mcp")
 from mcp.client.session import ClientSession  # noqa: E402
 from mcp.client.stdio import StdioServerParameters, stdio_client  # noqa: E402
 
-from beamtime.mcp.server import content  # noqa: E402
+from beamtime.mcp.server import content, slim  # noqa: E402
 
 BEAMTIME = Path(sys.executable).parent / ("beamtime.exe" if sys.platform == "win32" else "beamtime")
 
@@ -29,6 +29,25 @@ def test_content_names_each_shots_mime_type_from_its_file(tmp_path: Path) -> Non
     answer = {"shots": [{"file": str(jpg), "block": None}, {"file": str(png), "block": "b"}]}
     _, *images = content(answer)
     assert [i.mime_type for i in images] == ["image/jpeg", "image/png"]
+
+
+def test_slim_drops_null_members_and_empty_defaults() -> None:
+    """Optional parameters lose their ``null`` type and default; real defaults stay."""
+    node = {
+        "properties": {
+            "a": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None},
+            "b": {"type": "array", "default": []},
+            "c": {"anyOf": [{"enum": ["all"]}, {"type": "integer"}], "default": "all"},
+        },
+        "required": [],
+    }
+    assert slim(node) == {
+        "properties": {
+            "a": {"type": "string"},
+            "b": {"type": "array"},
+            "c": {"anyOf": [{"enum": ["all"]}, {"type": "integer"}], "default": "all"},
+        }
+    }
 
 
 @pytest.fixture(scope="module")

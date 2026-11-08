@@ -200,6 +200,8 @@ def render(answer: dict[str, Any]) -> str:
             return render_resume(answer)
         case "compare":
             return render_compare(answer)
+        case "digest":
+            return render_digest(answer)
         case "data":
             lines = [render_entry(e) for e in answer["entries"]]
             answer["meta"]["matched"] = answer["meta"].get("entries")
@@ -373,6 +375,44 @@ def render_compare(answer: dict[str, Any]) -> str:
         rows = [[r["metric"], *r["values"], r["delta"]] for r in answer["rows"]]
         lines += ["", *table(["metric", *names, "delta"], rows)]
     lines.append(meta_line(answer, "metrics", len(answer["rows"])))
+    return "\n".join(lines)
+
+
+def render_digest(answer: dict[str, Any]) -> str:
+    """Render a ``digest`` answer: one page about a group.
+
+    :param answer: The answer.
+    :return: The text."""
+    lines = [f"{answer['group']}  " + ", ".join(f"{n} {s}" for s, n in answer["runs"].items())]
+    if prop := answer["proposal"]:
+        lines.append(f"proposal {prop['version']}: {prop['statement']}")
+        lines.append(
+            f"check {result_text(prop['result'], prop['provisional'])}  {prop['progress']}"
+        )
+    for pr in answer["predictions"]:
+        effect = f"  effect {num(pr['effect'])} {num(pr['ci'])}" if pr["effect"] is not None else ""
+        lines.append(
+            f"  {pr['name']}  {pr['test']}  {pr['result']}{effect}  {pr['detail'] or ''}".rstrip()
+        )
+    if best := answer["best"]:
+        lines += ["", f"{best['metric']} ({best['stat']}) of {best['runs']} finished runs"]
+        for key, rows in best["by"].items():
+            cells = [[r["value"], r["runs"], r["mean"], r["min"], r["max"]] for r in rows]
+            lines += table([key, "runs", "mean", "min", "max"], cells)
+    if answer["failures"]:
+        lines += ["", "failures"]
+        for f in answer["failures"]:
+            lines.append(
+                f"  {f['count']} {f['status']}  {f['signature'] or '-'}  {', '.join(f['runs'])}"
+            )
+    if (missing := answer["missing"]) and missing["missing"]:
+        lines += ["", f"plan ({missing['form']}): {missing['missing']} missing"]
+    for title, notes in (
+        ("open questions", answer["open_questions"]),
+        ("newest notes", answer["notes"]),
+    ):
+        if notes:
+            lines += ["", title] + [f"  {n['id']}  {n['type']}  {n['description']}" for n in notes]
     return "\n".join(lines)
 
 

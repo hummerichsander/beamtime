@@ -1,0 +1,9 @@
+kind: analysis
+category: analysis
+page: scaling/lr-sweep
+prompt: >
+  Give me a short status update on scaling/lr-sweep: how it stands, what failed and why, and
+  what is left open.
+facts:
+  answer: ["3e-4|3\\.0e-4|0\\.0003", "inf|FloatingPoint|diverg", "killed"]
+  tools: [digest, groups, check, runs, notes]

@@ -43,6 +43,7 @@ wherever a group does.
 | `beamtime output <run>` | `output` | captured output: `--tail`, `--grep`, `--rank` |
 | `beamtime resume <run>` | `resume` | what's needed to resume a killed or failed run by hand: command, cwd, step, checkpoint; it runs nothing |
 | `beamtime compare <a> <b> …` | `compare` | runs or groups side by side: the config keys that differ (with those that change together), whether the code is the same, status counts and a metric table (last values, a group's mean) with the difference of two; all targets on one source |
+| `beamtime digest <group>` | `digest` | one page on a group: status counts, the proposal's check and predictions, a metric per value of each varying config key (`--metric`, default the proposal's), failures by signature, open questions and the newest notes, and the plan's gaps |
 | `beamtime timeline <group>` | `timeline` | notes and events in time order: `--types`, `--since` |
 | `beamtime notes <group>` | `notes` | notes with descriptions; `--open` for open questions, `--current` without superseded notes, `--full` for bodies |
 | `beamtime proposal show <group>` | `proposal_show` | the current proposal version, its earlier versions and their checks |
@@ -112,6 +113,9 @@ MCP server, started by an agent client).
 - **Global flags**: `--root` (another project), `--json` (the canonical answer), `--quiet`.
 - **Writes take `--author`** (a person or model id; default: the local account) and record `user`, the
   local account ([research record](09-research-record.md#fields)).
+- **Tool schemas are slimmed** (`mcp/server.py:slim`): `null` and empty defaults, the `null` member of a
+  nullable type and an empty `required` are dropped, so the definitions of all tools stay under
+  6000 tokens (a test checks it) as the tool set grows.
 - **Exit codes**: `0` success, `1` error, `2` wrong usage, `3` validation found errors, `4` not found.
 - **Conditions** (`--where`, repeatable, combined with AND): field, operator, value, e.g.
   `config.lr<1e-3`, `run.status!=failed`, `run.name~lr-*`, `config.seed in 0,1,2`. Operators are

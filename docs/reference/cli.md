@@ -166,6 +166,18 @@ beamtime timeline [from]
 | `--limit` |  | a number |
 | `--full` | `False` |  |
 
+### `beamtime digest`
+
+One page on a group: statuses, check, best per setting, failures, notes, gaps.
+
+```sh
+beamtime digest [group]
+```
+
+| Option | Default | |
+|---|---|---|
+| `--metric` |  | metric for the best-per-setting table; default: the proposal's |
+
 ### `beamtime query`
 
 Any query in its object form, e.g. {runs: {from: ., limit: 5}}.

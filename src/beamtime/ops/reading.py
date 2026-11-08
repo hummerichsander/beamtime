@@ -26,13 +26,18 @@ from beamtime.ops.context import Context, OpError
 from beamtime.query import QueryError
 from beamtime.query import run as run_query
 from beamtime.query.aggregate import spread
-from beamtime.query.distinguish import distinguishing, flatten, signature
+from beamtime.query.distinguish import distinguishing, flatten, is_seed, signature
 from beamtime.query.kinds import describe_event
 from beamtime.query.progress import progress
 from beamtime.query.select import Columns
+from beamtime.record.check import rounded
+from beamtime.record.stats import mean
 
 RECENT_EVENTS = 10
 COMPARE_METRICS = 20
+DIGEST_NOTES = 5
+DIGEST_VALUES = 8
+DIGEST_KEYS = 3
 
 
 def ask(ctx: Context, query: dict[str, Any], cursor: str | None = None) -> dict[str, Any]:
@@ -314,6 +319,168 @@ def center(value: Any) -> Any:
     :param value: A cell from ``cell``.
     :return: The value, or a group's mean."""
     return value["mean"] if isinstance(value, dict) else value
+
+
+def digest(ctx: Context, p: r.DigestParams) -> dict[str, Any]:
+    """Summarize a group on one page: runs by status, the proposal's check, the best value per
+    varying setting, failures by signature, the newest notes and what the plan still lacks.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The digest."""
+    from beamtime.ops.authored import target_of
+    from beamtime.record.check import evaluate
+    from beamtime.record.notes import listing
+    from beamtime.record.proposals import current, load
+
+    runs_ = members(ctx, p.group)
+    with target_of(ctx, p.group) as target:
+        version = current(target.dir)
+        proposal = load(target.dir, version) if version else None
+        check_ = evaluate(target, version, proposal) if proposal else None
+        plan = plan_points(target, version, proposal) if proposal else None
+        newest = listing(target, types=None, only_open=False, full=False, only_current=True)
+        questions = listing(target, types=None, only_open=True, full=False, only_current=True)
+
+    reduce = (
+        next((pr.reduce for pr in proposal.predictions if pr.reduce), None) if proposal else None
+    )
+    metric = p.metric or (reduce.metric if reduce else None)
+    stat = reduce.stat if reduce and reduce.metric == metric else "last"
+    return {
+        "kind": "digest",
+        "group": p.group,
+        "runs": dict(Counter(m["status"] for m in runs_)),
+        "proposal": None
+        if proposal is None
+        else {
+            "version": version,
+            "statement": proposal.statement,
+            "result": check_["result"],
+            "provisional": check_["provisional"],
+            "progress": check_["progress"]["text"],
+        },
+        "predictions": [
+            {k: pr.get(k) for k in ("name", "test", "result", "effect", "ci", "detail")}
+            for pr in (check_["predictions"] if check_ else [])
+        ],
+        "best": best_per_setting(runs_, metric, stat),
+        "failures": failures(runs_),
+        "missing": plan,
+        "open_questions": [note_row(n) for n in questions[:DIGEST_NOTES]],
+        "notes": [note_row(n) for n in newest[:DIGEST_NOTES]],
+        "meta": {},
+    }
+
+
+def note_row(note: dict[str, Any]) -> dict[str, Any]:
+    """Shorten a note listing entry for a digest.
+
+    :param note: An entry of ``record.notes.listing``.
+    :return: Its id, type and description."""
+    return {k: note[k] for k in ("id", "type", "description")}
+
+
+def best_per_setting(
+    runs_: list[dict[str, Any]], metric: str | None, stat: str
+) -> dict[str, Any] | None:
+    """Tabulate a metric of the finished runs per value of each config key that varies.
+
+    :param runs_: The group's runs, as ``members`` lists them.
+    :param metric: The metric key, or ``None`` for no table.
+    :param stat: The statistic of the metric that stands for a run.
+    :return: ``metric``, ``stat`` and per varying key (never a seed) its values with the number
+        of runs and the mean, min and max; ``None`` without a metric or finished runs."""
+    done = [m for m in runs_ if m["status"] == "finished" and (m["dir"] / c.CARD).exists()]
+    values = [
+        getattr(card.metrics.get(metric), stat, None)
+        for card in (read_card(m["dir"]) for m in done)
+    ]
+    kept = [(m, v) for m, v in zip(done, values, strict=True) if v is not None]
+    if metric is None or not kept:
+        return None
+    configs = [flatten(read_config(m["dir"])) for m, _ in kept]
+    keys = [k for k in distinguishing(configs).varying if not is_seed(k)][:DIGEST_KEYS]
+    by_key = {}
+    for key in keys:
+        groups: dict[str, list[float]] = {}
+        for cfg, (_, v) in zip(configs, kept, strict=True):
+            groups.setdefault(json.dumps(cfg.get(key.removeprefix("config."))), []).append(v)
+        by_key[key] = [
+            {
+                "value": json.loads(label),
+                "runs": len(vs),
+                "mean": rounded(mean(vs)),
+                "min": rounded(min(vs)),
+                "max": rounded(max(vs)),
+            }
+            for label, vs in list(groups.items())[:DIGEST_VALUES]
+        ]
+    return {"metric": metric, "stat": stat, "runs": len(kept), "by": by_key}
+
+
+def failures(runs_: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Group the failed, killed and lost runs by how they ended.
+
+    :param runs_: The group's runs, as ``members`` lists them.
+    :return: Per signature: the signature, status, run ids; the biggest group first."""
+    groups: dict[tuple[str, str], list[str]] = {}
+    for m in runs_:
+        if m["status"] in ("failed", "killed", "lost"):
+            error = read_card(m["dir"]).error if (m["dir"] / c.CARD).exists() else None
+            groups.setdefault((m["status"], failure_signature(error)), []).append(m["id"])
+    ordered = sorted(groups.items(), key=lambda item: -len(item[1]))
+    return [
+        {"status": status, "signature": sig, "count": len(ids), "runs": ids[:DIGEST_NOTES]}
+        for (status, sig), ids in ordered
+    ]
+
+
+def failure_signature(text: str | None) -> str:
+    """Reduce an error to what runs of one failure share: its last line without numbers.
+
+    :param text: An error message or traceback, or ``None``.
+    :return: The signature; empty without an error."""
+    lines = [line.strip() for line in (text or "").splitlines() if line.strip()]
+    return re.sub(r"0x[0-9a-f]+|\d+(\.\d+)?", "#", lines[-1])[:120] if lines else ""
+
+
+def plan_points(target: Any, version: str, proposal: Any) -> dict[str, Any]:
+    """Find what a version's plan still lacks.
+
+    :param target: The group or run.
+    :param version: The version id.
+    :param proposal: The version.
+    :return: ``form``, ``missing`` (how many) and, for a grid, the ``points`` without a finished
+        run with the status counts of the runs at them."""
+    import itertools
+
+    from beamtime.query.where import compare as equal
+    from beamtime.record.plans import children
+
+    finished = sum(m["status"] == "finished" for m in target.members(version))
+    match proposal.plan:
+        case {"grid": dict(grid)}:
+            fields = list(grid)
+            rows = target.select(version, {}, [*fields, "run.status"])
+            points = []
+            for point in itertools.product(*grid.values()):
+                at = [
+                    row
+                    for row in rows
+                    if all(equal("eq", row[f], v) for f, v in zip(fields, point, strict=True))
+                ]
+                if not any(row["run.status"] == "finished" for row in at):
+                    runs_at = dict(Counter(row["run.status"] for row in at))
+                    points.append({"point": dict(zip(fields, point, strict=True)), "runs": runs_at})
+            return {"form": "grid", "missing": len(points), "points": points}
+        case {"runs": int(n)}:
+            return {"form": "runs", "missing": max(0, n - finished)}
+        case "children":
+            done, total = children(target)
+            return {"form": "children", "missing": total - done}
+        case _:
+            return {"form": "none", "missing": None}
 
 
 def find_run(ctx: Context, run_id: str) -> Path:
