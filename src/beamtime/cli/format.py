@@ -198,6 +198,8 @@ def render(answer: dict[str, Any]) -> str:
             return render_card(answer)
         case "resume":
             return render_resume(answer)
+        case "compare":
+            return render_compare(answer)
         case "data":
             lines = [render_entry(e) for e in answer["entries"]]
             answer["meta"]["matched"] = answer["meta"].get("entries")
@@ -346,6 +348,31 @@ def render_card(answer: dict[str, Any]) -> str:
         lines += ["", "recent events"] + [
             f"  {e['t'][:16].replace('T', ' ')}  {e['description']}" for e in answer["events"]
         ]
+    return "\n".join(lines)
+
+
+def render_compare(answer: dict[str, Any]) -> str:
+    """Render a ``compare`` answer: targets, config differences, then metrics.
+
+    :param answer: The answer.
+    :return: The text."""
+    names = [f"[{i + 1}]" for i in range(len(answer["targets"]))]
+    lines = []
+    for name, t in zip(names, answer["targets"], strict=True):
+        status = " ".join(f"{n} {s}" for s, n in t["status"].items())
+        lines.append(
+            f"{name} {t['target']}  {t['runs']} run(s): {status}  code {','.join(t['code']) or '-'}"
+        )
+    lines.append("same code" if answer["same_code"] else "code differs")
+    if answer["differences"]:
+        rows = [[d["key"], *d["values"], d["same_split_as"] or ""] for d in answer["differences"]]
+        lines += ["", *table(["config", *names, "same split as"], rows)]
+    else:
+        lines += ["", "config identical"]
+    if answer["rows"]:
+        rows = [[r["metric"], *r["values"], r["delta"]] for r in answer["rows"]]
+        lines += ["", *table(["metric", *names, "delta"], rows)]
+    lines.append(meta_line(answer, "metrics", len(answer["rows"])))
     return "\n".join(lines)
 
 

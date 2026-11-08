@@ -6,6 +6,7 @@ Ask with the tools; never parse run files. Start with `keys` (what exists), then
 |---|---|
 | What metrics, config keys and data does the group have? | `keys` |
 | Which runs, how did they end, what were their settings? | `runs` (`where`, columns, `sort`, `limit`) |
+| What differs between these runs or groups, and did the metrics move? | `compare` |
 | What happened in one run? | `card`, then `output` (tail, grep) |
 | How did a metric evolve? | `series` (downsampled; aggregated with `by` or `seeds`) |
 | What is the best, mean or last value, per setting? | `runs` or `query` with `metric.<key>.<stat>` columns and `by` |

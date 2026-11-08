@@ -1,0 +1,9 @@
+kind: analysis
+category: analysis
+page: scaling/lr-sweep
+prompt: >
+  Compare scaling/lr-sweep with tokenizer/bpe-vs-unigram. Did they run the same code, and which
+  config key sets the second one apart from the first (leave the seed and the learning rate aside)?
+facts:
+  answer: ["same (code|commit)|identical code", "tokenizer"]
+  tools: [compare, runs, query, card, keys]

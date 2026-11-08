@@ -11,7 +11,7 @@ from typing import Any
 from beamtime.format.ids import is_run_id
 from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import OPS
-from beamtime.remote import TARGETS
+from beamtime.remote import TARGETS, places
 
 # from the registry: listings merge across sources, drafts stay in this project, snapshots refuse
 # writes (and the web UI's own writes), writes that take an author get this machine's.
@@ -57,8 +57,8 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
     from beamtime.remote.sources import client_for
 
     params = strip_local(params)
-    if method == "cp":
-        check_one_source(params, ctx)
+    if method in ("cp", "compare"):
+        check_one_source(method, params, ctx)
     source = source_of(params)
     fans = method in LISTINGS and ctx.sources is not None and ctx.merge and fans_out(params)
     if source is None and fans:
@@ -83,17 +83,22 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
         return elsewhere(method, params, ctx, run, e)
 
 
-def check_one_source(params: dict[str, Any], ctx: Context) -> None:
-    """Refuse a copy whose source and destination are not on the same machine.
+def check_one_source(method: str, params: dict[str, Any], ctx: Context) -> None:
+    """Refuse a call whose targets are not all on the same machine.
 
-    :param params: The ``cp`` parameters.
+    :param method: ``cp`` or ``compare``.
+    :param params: The parameters.
     :param ctx: The operation context, for the default source a bare path means.
-    :raises OpError: If the two name different sources."""
-    named = {source_of({key: params[key]}) or ctx.default_source for key in ("source", "dest")}
+    :raises OpError: If the targets name different sources."""
+    keys = ("source", "dest") if method == "cp" else ("targets",)
+    named = {
+        source_of({"from": v}) or ctx.default_source
+        for key in keys
+        for v in places({key: params.get(key)})
+    }
     if len(named) > 1:
-        raise OpError(
-            "cp works within one source for now; `beamtime pull` copies across sources", code=2
-        )
+        then = "`beamtime pull` copies across sources" if method == "cp" else "pull one first"
+        raise OpError(f"{method} works within one source for now; {then}", code=2)
 
 
 def with_default(method: str, params: dict[str, Any], source: str) -> dict[str, Any]:
@@ -165,8 +170,8 @@ def source_of(params: dict[str, Any]) -> str | None:
 
     :param params: The parameters.
     :return: The source's name without ``@``, or ``None`` for this machine."""
-    for key in TARGETS:
-        if isinstance(v := params.get(key), str) and v.startswith("@"):
+    for v in places(params):
+        if v.startswith("@"):
             return v[1:].split("/", 1)[0]
     if isinstance(query := params.get("query"), dict):
         for inner in query.values():
@@ -182,6 +187,8 @@ def strip_local(params: dict[str, Any]) -> dict[str, Any]:
     :return: The parameters, with ``@local`` stripped."""
 
     def bare(v: Any) -> Any:
+        if isinstance(v, list):
+            return [bare(x) for x in v]
         if not isinstance(v, str) or not (v == "@local" or v.startswith("@local/")):
             return v
         rest = v[len("@local") :].lstrip("/")
@@ -204,6 +211,8 @@ def strip(params: dict[str, Any], source: str) -> dict[str, Any]:
     :return: The parameters as the remote reads them."""
 
     def bare(v: Any) -> Any:
+        if isinstance(v, list):
+            return [bare(x) for x in v]
         if not isinstance(v, str) or not v.startswith(f"@{source}"):
             return v
         rest = v[len(source) + 1 :].lstrip("/")

@@ -1,5 +1,6 @@
 """The reading operations, shared by the CLI and MCP."""
 
+import json
 import re
 import time
 from collections import Counter
@@ -24,11 +25,14 @@ from beamtime.ops.budget import MAX_CHARS, cut, offset_of
 from beamtime.ops.context import Context, OpError
 from beamtime.query import QueryError
 from beamtime.query import run as run_query
+from beamtime.query.aggregate import spread
+from beamtime.query.distinguish import distinguishing, flatten, signature
 from beamtime.query.kinds import describe_event
 from beamtime.query.progress import progress
 from beamtime.query.select import Columns
 
 RECENT_EVENTS = 10
+COMPARE_METRICS = 20
 
 
 def ask(ctx: Context, query: dict[str, Any], cursor: str | None = None) -> dict[str, Any]:
@@ -38,7 +42,15 @@ def ask(ctx: Context, query: dict[str, Any], cursor: str | None = None) -> dict[
     :param query: The query in its object form.
     :param cursor: A cursor from an earlier, cut answer.
     :return: The answer."""
-    offset = offset_of(cursor)
+    return page(ctx, evaluate(ctx, query), cursor)
+
+
+def evaluate(ctx: Context, query: dict[str, Any]) -> dict[str, Any]:
+    """Answer a query for the context's log dir, whole, without the token budget.
+
+    :param ctx: The operation context.
+    :param query: The query in its object form.
+    :return: The answer."""
     if not ctx.logdir.is_dir():
         raise OpError(
             f"no log dir at {ctx.logdir}; runs appear there once a script calls "
@@ -50,6 +62,17 @@ def ask(ctx: Context, query: dict[str, Any], cursor: str | None = None) -> dict[
     except QueryError as e:
         raise OpError(str(e), code=4 if e.code == "not_found" else 2) from None
     answer["meta"] = {k: v for k, v in answer["meta"].items() if v is not None}
+    return answer
+
+
+def page(ctx: Context, answer: dict[str, Any], cursor: str | None) -> dict[str, Any]:
+    """Cut an answer at the token budget, except for the web UI.
+
+    :param ctx: The operation context.
+    :param answer: The answer with one item list.
+    :param cursor: A cursor from an earlier, cut answer.
+    :return: The answer, with ``meta.next`` when items were left out."""
+    offset = offset_of(cursor)
     return answer if ctx.caller == "view" else cut(answer, offset)
 
 
@@ -168,6 +191,129 @@ def query(ctx: Context, p: r.QueryParams) -> dict[str, Any]:
     :param p: The parameters.
     :return: The answer."""
     return ask(ctx, p.query, p.cursor)
+
+
+def members(ctx: Context, target: str) -> list[dict[str, Any]]:
+    """List the runs of a group or the one run a target names, whole and without a budget.
+
+    :param ctx: The operation context.
+    :param target: A group below the log dir, or a run id.
+    :return: Per run: ``id``, ``name``, ``status``, ``code`` and ``dir``."""
+    fields = ["run.name", "run.status", "run.code", "run.path"]
+    table = evaluate(ctx, {"runs": {"from": target, "select": fields, "limit": 10**6}})
+    return [
+        {"id": row[0], "name": row[1], "status": row[2], "code": row[3], "dir": ctx.logdir / row[4]}
+        for row in table["rows"]
+    ]
+
+
+def compare(ctx: Context, p: r.CompareParams) -> dict[str, Any]:
+    """Compare runs or groups: what differs in config, whether the code is the same, how the
+    metrics end up.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: Per target its status and code; the config keys that differ with their values;
+        a metric table (last values; the mean over a group's runs) with the difference of two."""
+    if len(p.targets) < 2:
+        raise OpError("compare takes at least two runs or groups", code=2)
+    entities = []
+    for target in p.targets:
+        if not (runs_ := members(ctx, target)):
+            raise OpError(f"{target!r} holds no runs to compare", code=4)
+        entities.append((target, runs_))
+
+    configs = [entity_config(runs_) for _, runs_ in entities]
+    aliases = distinguishing(configs).aliases
+    differences = [
+        {
+            "key": f"config.{key}",
+            "values": [cfg.get(key) for cfg in configs],
+            "same_split_as": aliases.get(f"config.{key}"),
+        }
+        for key in sorted({k for cfg in configs for k in cfg})
+        if len(set(signature(configs, key))) > 1
+    ]
+
+    lasts = [[last_values(m["dir"]) for m in runs_] for _, runs_ in entities]
+    found = sorted({k for per_run in lasts for last in per_run for k in last})
+    keys = p.metrics or found[:COMPARE_METRICS]
+    rows = []
+    for key in keys:
+        cells = [cell([last[key] for last in per_run if key in last]) for per_run in lasts]
+        delta = None
+        if len(cells) == 2 and all(isinstance(c_, (int, float)) for c_ in map(center, cells)):
+            delta = center(cells[1]) - center(cells[0])
+        rows.append({"metric": key, "values": cells, "delta": delta})
+
+    codes = [sorted({m["code"] for m in runs_ if m["code"]}) for _, runs_ in entities]
+    answer = {
+        "kind": "compare",
+        "targets": [
+            {
+                "target": target,
+                "runs": len(runs_),
+                "status": dict(Counter(m["status"] for m in runs_)),
+                "code": codes[i],
+            }
+            for i, (target, runs_) in enumerate(entities)
+        ],
+        "same_code": len({tuple(code) for code in codes}) == 1
+        and all(len(c_) == 1 for c_ in codes),
+        "differences": differences,
+        "rows": rows,
+        "meta": {"matched": len(rows)},
+    }
+    if not p.metrics and len(found) > len(keys):
+        answer["meta"]["hint"] = f"{len(found)} metrics logged; name them with metrics"
+    return page(ctx, answer, p.cursor)
+
+
+def entity_config(runs_: list[dict[str, Any]]) -> dict[str, Any]:
+    """Flatten the configs of one compared target: a run's own, a group's with differing values
+    listed.
+
+    :param runs_: The target's runs, as ``members`` lists them.
+    :return: Dotted key to its value, or to ``{"varies": [...]}`` when the runs disagree."""
+    per_run = [
+        flatten(read_config(m["dir"])) if (m["dir"] / c.CONFIG).exists() else {} for m in runs_
+    ]
+    out = {}
+    for key in {k for cfg in per_run for k in cfg}:
+        seen = {json.dumps(cfg.get(key), sort_keys=True): cfg.get(key) for cfg in per_run}
+        out[key] = next(iter(seen.values())) if len(seen) == 1 else {"varies": list(seen.values())}
+    return out
+
+
+def last_values(run_dir: Path) -> dict[str, float]:
+    """Read the last value of every metric of a run from its card.
+
+    :param run_dir: The run directory.
+    :return: Metric key to last value; metrics without a finite value are left out."""
+    if not (run_dir / c.CARD).exists():
+        return {}
+    return {k: m.last for k, m in read_card(run_dir).metrics.items() if m.last is not None}
+
+
+def cell(values: list[float]) -> Any:
+    """Summarize one metric over a target's runs.
+
+    :param values: The runs' last values.
+    :return: ``None`` without values, the value for one run, else ``{mean, std, n}``."""
+    if not values:
+        return None
+    if len(values) == 1:
+        return values[0]
+    mu, std = spread(values)
+    return {"mean": mu, "std": std, "n": len(values)}
+
+
+def center(value: Any) -> Any:
+    """Give the number a metric cell stands for.
+
+    :param value: A cell from ``cell``.
+    :return: The value, or a group's mean."""
+    return value["mean"] if isinstance(value, dict) else value
 
 
 def find_run(ctx: Context, run_id: str) -> Path:

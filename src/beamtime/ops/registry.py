@@ -136,6 +136,17 @@ class TimelineParams(Selection, kw_only=True):
     full: bool = False
 
 
+class CompareParams(Page, kw_only=True):
+    """Parameters of ``compare``."""
+
+    targets: Annotated[
+        list[str], msgspec.Meta(description="two or more runs or groups, on one source")
+    ]
+    metrics: Annotated[
+        list[str] | None, msgspec.Meta(description="metric keys to tabulate; default: all logged")
+    ] = None
+
+
 class QueryParams(Page, kw_only=True):
     """Parameters of ``query``."""
 
@@ -703,6 +714,13 @@ OPS = [
         impl=f"{R}:resume",
         positional=("run",),
         summary="What's needed to resume a killed run by hand: command, cwd, step, checkpoint.",
+    ),
+    Op(
+        name="compare",
+        params=CompareParams,
+        impl=f"{R}:compare",
+        positional=("targets",),
+        summary="Runs or groups side by side: config differences, code, final metrics.",
     ),
     Op(
         name="timeline",

@@ -7,7 +7,22 @@ operation context (``Context.sources``)."""
 from typing import Any
 
 # parameters that name a place: a group, a run, a page.
-TARGETS = ("group", "from", "run", "path", "view", "source", "to", "target", "dest")
+TARGETS = ("group", "from", "run", "path", "view", "source", "to", "target", "dest", "targets")
+
+
+def places(params: dict[str, Any]) -> list[str]:
+    """List the places a call names, also the items of a list of targets.
+
+    :param params: An operation's parameters.
+    :return: The text values of the target parameters, in order."""
+    out = []
+    for key in TARGETS:
+        match params.get(key):
+            case str() as v:
+                out.append(v)
+            case list() as vs:
+                out += [v for v in vs if isinstance(v, str)]
+    return out
 
 
 def targets(params: dict[str, Any]) -> bool:
@@ -15,9 +30,8 @@ def targets(params: dict[str, Any]) -> bool:
 
     :param params: An operation's parameters.
     :return: Whether a target (or a query's ``from``) starts with ``@``."""
-    for key in TARGETS:
-        if isinstance(v := params.get(key), str) and v.startswith("@"):
-            return True
+    if any(v.startswith("@") for v in places(params)):
+        return True
     if isinstance(query := params.get("query"), dict):
         return any(
             isinstance(q, dict) and str(q.get("from", "")).startswith("@") for q in query.values()

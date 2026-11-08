@@ -137,6 +137,18 @@ What's needed to resume a killed run by hand: command, cwd, step, checkpoint.
 beamtime resume <run>
 ```
 
+### `beamtime compare`
+
+Runs or groups side by side: config differences, code, final metrics.
+
+```sh
+beamtime compare <targets>
+```
+
+| Option | Default | |
+|---|---|---|
+| `--metrics` |  | metric keys to tabulate; default: all logged |
+
 ### `beamtime timeline`
 
 Notes and run events in time order.
