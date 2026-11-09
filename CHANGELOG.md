@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- **Fixed** the `synth` byte-stability test on Windows: it hashed `str(path)`, whose separator is a
+  backslash there, so the digest never matched. The generated files were always identical across
+  platforms; the test now hashes the posix path.
+
 ## 0.2.0
 
 Charts, sources, the run lifecycle and the agent tools, after the first end-to-end tests. Logged runs,

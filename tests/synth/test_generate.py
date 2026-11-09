@@ -63,7 +63,8 @@ def test_the_original_groups_are_byte_stable(synth: tuple[Path, Manifest]) -> No
     for top in ("memory", "scaling", "tokenizer"):
         for p in sorted((logdir / top).rglob("*")):
             if p.is_file():
-                digest.update(str(p.relative_to(logdir)).encode() + p.read_bytes())
+                # as_posix keeps the digest off the OS path separator (backslash on Windows).
+                digest.update(p.relative_to(logdir).as_posix().encode() + p.read_bytes())
     assert digest.hexdigest() == "b1568826298cad32233b91935cf1d59fcb3d3394887de84345be76f5ed40c0bd"
 
 
