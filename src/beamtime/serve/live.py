@@ -58,9 +58,13 @@ class Hub:
 
         :param client: The page's id.
         :param watched: Call id to ``[scope, kinds]``, the kinds of change it cares about."""
-        self.clients.setdefault(client, Client()).watched = {
-            qid: (scope, set(kinds)) for qid, (scope, kinds) in watched.items()
-        }
+        # a stale page (an older client left open) may send another shape; skip it, never crash.
+        parsed: dict[str, tuple[str, set[str]]] = {}
+        for qid, entry in watched.items():
+            if isinstance(entry, (list, tuple)) and len(entry) == 2:
+                scope, kinds = entry
+                parsed[qid] = (scope, set(kinds))
+        self.clients.setdefault(client, Client()).watched = parsed
 
     def changed(self, changed: dict[str, set[str]]) -> None:
         """Hand over changed paths and their kinds from the indexing thread.

@@ -54,6 +54,13 @@ def test_hub_sends_only_affected_calls_at_most_once_a_second() -> None:
     assert json.loads(second.split("data: ")[1]) == ["all", "tok"]
 
 
+def test_hub_watch_skips_legacy_entries() -> None:
+    """An older page sending the bare-scope shape is ignored, not fatal."""
+    hub = Hub()
+    hub.watch("p", {"old": "tokenizer", "new": ["scaling/lr-sweep", ALL]})
+    assert hub.clients["p"].watched == {"new": ("scaling/lr-sweep", set(ALL))}
+
+
 def test_hub_filters_by_kind() -> None:
     """A page watching only authored changes doesn't wake for a metrics-only change."""
 
