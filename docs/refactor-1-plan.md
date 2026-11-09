@@ -116,11 +116,11 @@ F1 ─┬─ A1 A2 A3 A4 A5 A6 A7 A8 A9     bugs, independent (all done)
     ├─ E1   E2   E3 ─ E4 ··· E5           run lifecycle (E1 to E4 done); E5, its UI, after B8
     └─ G1 ─ G2 ─ G3 ─ G4                   guides, harness, tools (G1 after C3; G3 after D2)
                               Z1           docs, changelog, release
-    H1                                       follow-ups (after the above; release-independent)
+    H1   H2                                  follow-ups (after the above; release-independent)
 ```
 
 What's left runs in this order, one session at a time in the main checkout (every chunk touches `web/` or the
-guide): B8 E5 C1 C2 C3 G1 G2 G3 G4 Z1 H1.
+guide): B8 E5 C1 C2 C3 G1 G2 G3 G4 Z1 H1 H2.
 
 ## F. Foundation
 
@@ -1179,6 +1179,55 @@ Done: a run copied after `serve` started resolves by id without waiting for the 
 a bad `band`, a typo'd group and a re-used draft name each get a message that names the near option or the valid set;
 the `lifecycle-resume` task and its scorer agree; the open MISTAKES rows are closed and `.DS_Store` is ignored.
 Not done here (reserved, as before): the full G3 harness baseline, the release, and the cluster steps.
+
+## H2. Bench: trustworthy scores (sonnet)
+
+The first full baseline (`bench/agents/runs/20261108-213034`, promoted into `bench/agents/RESULTS.md`) showed three
+bench defects that make the numbers lie, found while analysing it. None is an agent fault; all are in the harness. Fix
+them so a later refine cycle measures the guide, not the harness.
+
+- **Touches:** `bench/agents/score.py` (`score_batch` 29, the judge `ask`/`judge_checklist` 417–488, the analysis
+  `tools` gate 205), `bench/agents/run.py` (the remote setup 116–134), `bench/agents/tasks/analysis-*.yaml` (the
+  `tools` gates), `bench/agents/README.md`.
+- **Read:** the baseline analysis in the "What it showed" section of `bench/agents/RESULTS.md`; `src/beamtime/remote/`
+  on how a project reaches an `@source`; the `--guide` path in `run.py` and `report.py`.
+- **Check:** `uv run ruff check bench && uv run ruff format --check bench`; plus the offline verifications in each step
+  (no agent runs, no judge calls beyond one probe). Bench has no pytest suite, so the step verifications stand in; say
+  what you ran for each.
+- **Risks:** a rescore must not change a run that was already scored cleanly; the view-remote fix must not need network;
+  the `tools` gate must still reject an answer given with no querying at all; the judge-stall fix must not mask a real
+  "no JSON" bug (a malformed answer is still an error, only a usage-limit answer is "unscored").
+- **Note:** one commit. The full `view-remote` agent pass and the refine re-run stay the user's (they cost agent runs);
+  prepare them.
+
+1. **A stalled judge must not score every item false.** `ask` (`score.py`) returns `{error}` when the judge answer
+   has no JSON; `judge_checklist` then reads an empty `marks` and marks every item `yes: false, why: null`, which is
+   exactly how the baseline's 17 `sweep-table`/`tokenizer-compare`/`sweep-samples` views were scored wrong after the
+   judge hit its 5-hour limit mid-batch. Detect a usage-limit answer (e.g. "hit your 5-hour limit") distinctly from a
+   malformed one, and on it do not write a `score.json` at all, so the run stays unscored and a later pass retries it;
+   a genuinely malformed answer stays an error. Verify by feeding `judge_checklist`/`ask` a canned usage-limit string
+   and asserting no all-false score is produced.
+2. **Re-score without hand-deleting.** `score_batch` skips any run that already has a `score.json`, so re-scoring the
+   17 needed deleting their score files by hand. Add a `--rescore` flag that re-scores runs that are unscored or whose
+   score is an error/stall (not clean passes), and document it. Verify it re-scores only those on the baseline batch.
+3. **`view-remote` sets up its remote.** The task declares `remote: box` and `run.py` writes a `remotes:` block
+   (116–134), yet every run failed with `no source @box (remotes: none configured)`: the config does not reach the
+   project the agent drives. Trace where `run.py` writes the remote settings versus where the agent's `beamtime` reads
+   them, and fix the wiring over the command transport. Verify offline: set up the `view-remote` project as `run.py`
+   does and assert `beamtime runs @box/scaling/lr-sweep` (or the API resolve) lists runs, without starting an agent.
+4. **The analysis `tools` gate credits G4's tools.** `score_analysis` requires one of `facts["tools"]`; the
+   `analysis-tokenizer-gap` runs answered correctly with `digest` (G4) and still scored incorrect because the task's
+   list predates G4. Add the G4 read tools (`digest`, `logs`, `diagnose`, `compare`, `plan`, `wait`) to the analysis
+   tasks whose answer they can give, or credit them centrally; keep the gate rejecting an answer given with no query
+   tool at all. Verify by re-scoring an `analysis-tokenizer-gap` run and getting `tools: true`, `correct: true`.
+5. **Record it.** Note the three fixes and the `--rescore` flag in `bench/agents/README.md`, and add the stalled-judge
+   and stale-gate rows to `bench/agents/MISTAKES.md` (class: task / harness).
+
+Done: a usage-limited judge leaves a run unscored instead of all-false; `--rescore` re-scores the stalled and errored
+runs of a batch without hand-deletion; a `view-remote` project resolves `@box` offline; an `analysis-tokenizer-gap`
+run with a correct `digest` answer scores correct. Reserved for the user: re-run `view-remote` under a real agent to
+confirm it now passes, and run the refine cycle (`run.py ... --guide` on the view slice, then
+`report.py --base 20261108-213034 --new <refine>`) that G3's Done line needs.
 
 ## Breaking changes
 
