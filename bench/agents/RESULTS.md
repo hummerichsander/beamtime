@@ -1,4 +1,4 @@
-# Agent tasks: first full baseline (2026-11-08)
+# Agent tasks: first full baseline (2026-11-08, re-scored 2026-11-09)
 
 | task | kind | model | correct | rounds | errors | tokens | turns | violations | seconds |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -130,22 +130,22 @@
 | sweep-lr-scatter | view | sonnet | True | 3 | 0 | 337417 | 13 | 0 | 41.6 |
 | sweep-samples | view | haiku | True | 4 | 0 | 532429 | 20 | 0 | 65.7 |
 | sweep-samples | view | haiku | False | 7 | 0 | 1033616 | 32 | 0 | 74.5 |
-| sweep-samples | view | haiku | False | 4 | 0 | 551108 | 22 | 0 | 62.5 |
-| sweep-samples | view | sonnet | False | 3 | 0 | 347375 | 17 | 0 | 42.7 |
-| sweep-samples | view | sonnet | False | 3 | 0 | 277115 | 14 | 0 | 33.2 |
-| sweep-samples | view | sonnet | False | 3 | 0 | 344943 | 17 | 0 | 35.3 |
-| sweep-table | view | haiku | False | 3 | 0 | 433938 | 17 | 0 | 53.5 |
-| sweep-table | view | haiku | False | 2 | 0 | 304296 | 12 | 0 | 37.1 |
-| sweep-table | view | haiku | False | 2 | 0 | 302101 | 15 | 0 | 35.8 |
-| sweep-table | view | sonnet | False | 5 | 0 | 557907 | 21 | 0 | 53.4 |
-| sweep-table | view | sonnet | False | 2 | 0 | 273180 | 12 | 0 | 28.8 |
-| sweep-table | view | sonnet | False | 3 | 0 | 321220 | 14 | 0 | 39.6 |
-| tokenizer-compare | view | haiku | False | 5 | 0 | 597675 | 23 | 0 | 62.5 |
-| tokenizer-compare | view | haiku | False | 3 | 1 | 473980 | 22 | 0 | 46.2 |
-| tokenizer-compare | view | haiku | False | 2 | 1 | 426155 | 21 | 0 | 48.3 |
-| tokenizer-compare | view | sonnet | False | 3 | 0 | 357062 | 15 | 0 | 41.4 |
-| tokenizer-compare | view | sonnet | False | 3 | 0 | 323869 | 14 | 0 | 38.7 |
-| tokenizer-compare | view | sonnet | False | 2 | 0 | 280760 | 13 | 0 | 31.9 |
+| sweep-samples | view | haiku | True | 4 | 0 | 551108 | 22 | 0 | 62.5 |
+| sweep-samples | view | sonnet | True | 3 | 0 | 347375 | 17 | 0 | 42.7 |
+| sweep-samples | view | sonnet | True | 3 | 0 | 277115 | 14 | 0 | 33.2 |
+| sweep-samples | view | sonnet | True | 3 | 0 | 344943 | 17 | 0 | 35.3 |
+| sweep-table | view | haiku | True | 3 | 0 | 433938 | 17 | 0 | 53.5 |
+| sweep-table | view | haiku | True | 2 | 0 | 304296 | 12 | 0 | 37.1 |
+| sweep-table | view | haiku | True | 2 | 0 | 302101 | 15 | 0 | 35.8 |
+| sweep-table | view | sonnet | True | 5 | 0 | 557907 | 21 | 0 | 53.4 |
+| sweep-table | view | sonnet | True | 2 | 0 | 273180 | 12 | 0 | 28.8 |
+| sweep-table | view | sonnet | True | 3 | 0 | 321220 | 14 | 0 | 39.6 |
+| tokenizer-compare | view | haiku | True | 5 | 0 | 597675 | 23 | 0 | 62.5 |
+| tokenizer-compare | view | haiku | True | 3 | 1 | 473980 | 22 | 0 | 46.2 |
+| tokenizer-compare | view | haiku | True | 2 | 1 | 426155 | 21 | 0 | 48.3 |
+| tokenizer-compare | view | sonnet | True | 3 | 0 | 357062 | 15 | 0 | 41.4 |
+| tokenizer-compare | view | sonnet | True | 3 | 0 | 323869 | 14 | 0 | 38.7 |
+| tokenizer-compare | view | sonnet | True | 2 | 0 | 280760 | 13 | 0 | 31.9 |
 | verdict-tokenizer | verdict | haiku | False | 0 | 1 | 145959 | 10 | 0 | 20.7 |
 | verdict-tokenizer | verdict | haiku | True | 0 | 1 | 146267 | 10 | 0 | 21.0 |
 | verdict-tokenizer | verdict | haiku | True | 0 | 0 | 115291 | 9 | 0 | 16.7 |
@@ -173,25 +173,30 @@
 | proposal | sonnet | 3 | 3/3 | 0.0 | 1.0 | 99016.7 | 0.0 |
 | verdict | haiku | 3 | 2/3 | 0.0 | 0.7 | 135839.0 | 0.0 |
 | verdict | sonnet | 3 | 3/3 | 0.0 | 0.0 | 105917.3 | 0.0 |
-| view | haiku | 33 | 18/33 | 3.2 | 0.6 | 567844.4 | 0.0 |
-| view | sonnet | 33 | 19/33 | 2.9 | 0.1 | 363212.7 | 0.0 |
+| view | haiku | 33 | 25/33 | 3.2 | 0.6 | 567844.4 | 0.0 |
+| view | sonnet | 33 | 28/33 | 2.9 | 0.1 | 363212.7 | 0.0 |
 
 ## What it showed
 
 Batch `20261108-213034`: all task kinds, haiku and sonnet, three reps each (156 runs). The scorer
-credits a correct result per kind, not just a saved-and-valid view, so the bar is stricter than the
-2026-10-31 view smoke.
+credits a correct result per kind, not just a saved-and-valid view. The first scoring pass ran out of
+judge quota mid-batch; the view runs it had not reached scored every checklist item false. Those 17
+runs (`sweep-table`, `tokenizer-compare`, `sweep-samples`) were re-scored on 2026-11-09, which is the
+version here.
 
-- Non-view kinds are strong. Analysis is 29/33 (haiku) and 33/33 (sonnet); lifecycle, notes, proposal
-  and verdict are at or near 3/3. `analysis-tokenizer-gap` is the one analysis task haiku misses every
-  time; `verdict-tokenizer` and `analysis-failure-cause` cost haiku a single rep each.
-- Proposal is correct but expensive on haiku: about 265k tokens and four tool errors per run, with the
-  odd violation, against sonnet's 99k and one error.
-- Views are the weak area: 18/33 (haiku) and 19/33 (sonnet), about 55 %. The misses cluster on a few
-  tasks rather than spreading out. `sweep-table`, `tokenizer-compare` and `sweep-samples` fail across
-  both models and all reps; `root-overview` fails only on haiku; `view-remote` fails everywhere with
-  tool errors, which points at the task's remote setup (G3 noted `view-remote` was never run) rather
-  than the agent.
+- Overall 138/156. Non-view kinds are strong: analysis 62/66, lifecycle/notes/proposal 6/6, verdict
+  5/6. Views are 53/66 (about 80 %), not the ~55 % the contaminated first pass showed.
+- The one repeatable agent-behaviour view miss is `root-overview` on haiku (3/3): a metric chart at
+  the log-dir root is blank for the groups that do not log it, and leaves an empty section, with a
+  finding that overclaims. The guide now covers this (overviews lead with `groups`/`proposal` and
+  per-group `stat`/`scorecard` pulled `from:` the subgroup).
+- The rest of the view and analysis misses are either single-rep flakes (`run-diverged`,
+  `sweep-divergence`, `sweep-lr-scatter`, `sweep-samples`, `verdict-tokenizer`, `analysis-failure-cause`,
+  one rep each) or bench defects, not agent faults:
+  - `view-remote` (6/6, never saved): the task does not configure the `@box` remote it asks the agent
+    to view (`no source @box`); it needs the remote set up before it can pass.
+  - `analysis-tokenizer-gap` (haiku 3/3): the answer is correct (the gap is ~0.40), but the task's
+    `tools` gate predates G4 and does not credit `digest`, which the agent used.
 
-The first refine cycle targets views: tighten the chart and view guidance, confirm whether
-`view-remote` is a task or scoring defect, and re-run the view slice to measure the move.
+A trustworthy refine cycle should first fix those two bench defects and guard the judge against a
+quota stall, then re-run the view slice to measure the guide change.
