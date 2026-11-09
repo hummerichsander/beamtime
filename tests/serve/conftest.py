@@ -112,7 +112,12 @@ def page() -> Iterator[Any]:
     with sync_api.sync_playwright() as p:
         if (browser := launch(p)) is None:
             pytest.skip("no Chromium available (playwright install chromium)")
-        yield browser.new_page(viewport={"width": 1280, "height": 900})
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        # four workers each run a serve and a headless browser; Playwright's 30 s default is too
+        # tight when a loaded CI runner is slow to boot a page, so give waits more room.
+        page.set_default_timeout(60_000)
+        page.set_default_navigation_timeout(60_000)
+        yield page
         browser.close()
 
 

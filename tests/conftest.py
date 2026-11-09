@@ -23,6 +23,25 @@ GOLDEN = Path(__file__).parent / "golden" / "schema1" / "beamtime"
 NOW = datetime(2026, 10, 26, 12, 0, 0, tzinfo=timezone.utc)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _warm_matplotlib() -> None:
+    """Build matplotlib's font cache once, before any test uses it.
+
+    A page load's ``settings`` call imports matplotlib to list figure styles; on a fresh machine
+    the first import builds the font cache, seconds of blocking work that would otherwise land
+    inside a view render's 15 s budget and make it flake under load. No-op without the figures
+    extra."""
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        from matplotlib.font_manager import FontProperties, findfont
+
+        findfont(FontProperties())
+    except ImportError:
+        pass
+
+
 @pytest.fixture
 def golden() -> Path:
     """The checked-in schema-1 log dir.
