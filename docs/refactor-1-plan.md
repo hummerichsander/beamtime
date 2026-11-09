@@ -1043,7 +1043,7 @@ evaluated for this plan.
 
 Done: `beamtime mcp install --skills` writes the three `SKILL.md` files, which name topics and copy no guide text (a test checks it); `scripts/build-plugin` writes a directory in the format Claude Code's docs describe; the MCP prompts list the same topics as `beamtime guide`.
 
-### G3. The agent harness (sonnet + review)
+### G3. The agent harness (sonnet + review) — **done**
 
 - **Touches:** `git mv bench/views bench/agents`; `run.py`, `score.py`, `report.py`, `tasks/`, new `mine.py`, `README.md`, `MISTAKES.md`.
 - **Read:** `bench/views/README.md`; G3's chunk.

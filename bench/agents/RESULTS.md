@@ -198,3 +198,20 @@ all-false, and the analysis `tools` gate predated G4.
 
 The judge-stall and the stale gate are fixed (H2), so a later refine cycle measures the guide, not the
 harness.
+
+## Refine cycle (2026-11-09)
+
+After the guide change (overviews avoid blank metric charts across unlike groups) and the H2 bench
+fix (`view-remote`'s `@box` config), `root-overview` and `view-remote` were re-run at three reps
+(`20261109-093907`) against the baseline `20261108-213034`:
+
+| task | model | correct (base → new) |
+| --- | --- | --- |
+| root-overview | haiku | 0.00 → 1.00 (+1.00) |
+| root-overview | sonnet | 1.00 → 1.00 (+0.00) |
+| view-remote | haiku | 0.00 → 1.00 (+1.00) |
+| view-remote | sonnet | 0.00 → 1.00 (+1.00) |
+
+All twelve runs pass; no regression. The sonnet `root-overview` miss seen at one rep did not recur.
+The guide change fixed haiku's blank-chart overview, and the `@box` fix cleared `view-remote` for both
+models.
