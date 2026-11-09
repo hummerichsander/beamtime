@@ -17,6 +17,7 @@ uv run python bench/agents/run.py --kinds notes verdict --reps 3
 uv run python bench/agents/run.py --heldout --reps 3           # the held-out third, once per release
 uv run python bench/agents/run.py --guide /tmp/guide           # parts of the guide read from a directory
 uv run python bench/agents/score.py bench/agents/runs/<stamp>  # score again (only unscored runs)
+uv run python bench/agents/score.py bench/agents/runs/<stamp> --rescore  # also redo errored and stalled scores
 uv run python bench/agents/report.py bench/agents/runs/<stamp> # write RESULTS.md again
 uv run python bench/agents/report.py --base <stamp> --new <stamp>  # per-task deltas
 uv run python bench/agents/mine.py                             # tool counts and errors of real sessions
@@ -62,7 +63,9 @@ facts: ...                       # the truth, by kind
 
 A view task with `remote: box` also generates a second log dir that the project reaches as the remote
 `box` over the command transport; the agent works on `@box/<group>`, and the saved view is scored on
-the remote's log dir.
+the remote's log dir. `run.py` writes the project's `beamtime.yaml` with `yaml.safe_dump`, which the
+settings reader must parse for `@box` to resolve (a JSON line appended to a YAML mapping did not, and
+every first-baseline `view-remote` run failed on it).
 
 The log dirs come from `beamtime.synth` (seed 7), whose planted effects are the truth: lr 3e-4 is
 best in the sweep, unigram beats BPE by about 0.4 val/ppl, one run diverges at lr 1e-2, one is
@@ -80,6 +83,11 @@ Deterministic first; a model judges prose only (a view's finding and checklist).
 | tokens, turns | from the transcript's result |
 | violations | raw reads (Read, Grep or Glob of the log dir, `_*` files included), edits of the log dir, calls of user-only commands |
 | views | also hand-drawn charts, live-capable blocks, axis labels and caption length (the validator's lints), the queries' coverage, the checklist and robustness on a single run, a subgroup and an empty group |
+
+A judge that hits its usage limit leaves the run unscored (no `score.json`, the batch stops, a later
+pass retries it); a malformed answer is still an `error` in the score. `--rescore` redoes the scores
+whose finding or checklist is an error or whose checklist is all bare `no` with no reason, never a clean
+one. The `tools` list of an analysis task credits any tool that can give the answer, `digest` included.
 
 `report.py --base --new` compares two batches task by task and model by model. A delta from fewer
 than three reps is marked; compare on Haiku and Sonnet.

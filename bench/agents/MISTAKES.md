@@ -6,6 +6,9 @@ message, guide, task), what fixed it, and the task that guards it. Newest first.
 
 | Mistake | Class | Fix | Task |
 |---|---|---|---|
+| The judge hit its usage limit mid-batch and every checklist item was scored `no` | harness | `ask` raises on a usage-limit answer, the run stays unscored; `score.py --rescore` | none (offline check) |
+| A correct `digest` answer to `analysis-tokenizer-gap` scored incorrect: the task's `tools` list predated `digest` | task | `digest` added to the group-level analysis tasks | `analysis-tokenizer-gap` |
+| `view-remote` failed with `no source @box`: `run.py` wrote invalid YAML for `remotes:` | harness | `beamtime.yaml` is written with `yaml.safe_dump` | `view-remote` |
 | `runs` asked for the field `run.started`; the field is `run.created_at` | error message | message names `run.created_at` | `analysis-start-times`; `test_field_errors_suggest_the_right_run_field` |
 | `series` got `band: minmax`, which isn't a value | error message | H1: the message lists the bands | `test_an_unknown_band_lists_the_valid_ones` (via the API msgspec's own enum message still shows) |
 | `view_new` on a group of a remote refused ("run it there (ssh)") | product | D2 routes views to the source | `view-remote` |

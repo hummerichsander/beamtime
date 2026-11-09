@@ -6,4 +6,4 @@ prompt: >
   How did the runs in scaling/lr-sweeps do on val/acc? Give the best final value.
 facts:
   answer: ["0\\.9[23]"]
-  tools: [runs, query, series, check, data]
+  tools: [runs, query, series, check, data, digest]

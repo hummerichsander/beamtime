@@ -7,12 +7,12 @@ a screenshot of the saved page), robustness (the view validates on a single run,
 empty group) and the validator's lints. Writes score.json next to each run's record.json.
 """
 
+import argparse
 import json
 import os
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -22,17 +22,46 @@ from run import HERE, Task
 LOGDIR = re.compile(r"(?<![.\w])beamtime/")
 JUDGE = "sonnet"
 JUDGE_LIMIT_S = 300
+USAGE_LIMIT = re.compile(r"hit your .{0,40}limit|usage limit|limit reached", re.I)
 
 
-def score_batch(stamp: Path) -> None:
-    """Score every run of a batch that has no score yet.
+class JudgeStalled(Exception):
+    """The judge model refused to answer because of a usage limit."""
 
-    :param stamp: The batch's folder."""
+
+def score_batch(stamp: Path, rescore: bool = False) -> None:
+    """Score every run of a batch that has no score yet; stop when the judge hits its usage limit.
+
+    :param stamp: The batch's folder.
+    :param rescore: Also score again the runs whose score is an error or a stall, not clean ones."""
     for folder in sorted(p for p in stamp.iterdir() if (p / "record.json").is_file()):
-        if not (folder / "score.json").is_file():
+        file = folder / "score.json"
+        if file.is_file() and not (rescore and needs_rescore(json.loads(file.read_text()))):
+            continue
+        try:
             score = score_run(folder)
-            (folder / "score.json").write_text(json.dumps(score, indent=2))
-            print(f"{folder.name}: {short(score)}", flush=True)
+        except JudgeStalled as e:
+            print(f"{folder.name}: unscored, {e}; run again later", flush=True)
+            return
+        file.write_text(json.dumps(score, indent=2))
+        print(f"{folder.name}: {short(score)}", flush=True)
+
+
+def needs_rescore(score: dict[str, Any]) -> bool:
+    """Tell a score the judge failed on from a clean one.
+
+    :param score: A written score.
+    :return: Whether the finding or checklist is an error, or every checklist item is a bare
+        ``no`` with no reason (the mark of a judge that gave no answer)."""
+    finding, checklist = score.get("finding"), score.get("checklist")
+    if isinstance(finding, dict) and "error" in finding:
+        return True
+    if not isinstance(checklist, dict):
+        return False
+    items = checklist.get("items") or []
+    return "error" in checklist or (
+        bool(items) and all(not i["yes"] and i["why"] is None for i in items)
+    )
 
 
 def score_run(folder: Path) -> dict[str, Any]:
@@ -457,7 +486,8 @@ def ask(prompt: str, folder: Path, *, tools: str) -> dict[str, Any]:
     :param prompt: The question.
     :param folder: The working directory.
     :param tools: Built-in tools it may use, e.g. ``Read``; empty for none.
-    :return: The parsed JSON, or ``{error}``."""
+    :return: The parsed JSON, or ``{error}``.
+    :raises JudgeStalled: When the answer says the usage limit is reached."""
     command = [
         "claude",
         "-p",
@@ -482,6 +512,8 @@ def ask(prompt: str, folder: Path, *, tools: str) -> dict[str, Any]:
         text = json.loads(done.stdout).get("result", "")
     except (subprocess.TimeoutExpired, ValueError) as e:
         return {"error": str(e)}
+    if USAGE_LIMIT.search(text):
+        raise JudgeStalled(text[:200])
     if (m := re.search(r"\{.*\}", text, re.S)) is None:
         return {"error": f"no JSON in {text[:200]!r}"}
     try:
@@ -501,4 +533,10 @@ def short(score: dict[str, Any]) -> str:
 
 
 if __name__ == "__main__":
-    score_batch(Path(sys.argv[1]))
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("stamp", type=Path)
+    parser.add_argument(
+        "--rescore", action="store_true", help="also redo errored and stalled scores"
+    )
+    args = parser.parse_args()
+    score_batch(args.stamp, args.rescore)

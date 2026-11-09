@@ -116,15 +116,15 @@ def project(task: Task, folder: Path, guide: Path | None) -> tuple[Path, dict[st
     root = folder / "proj"
     now = datetime.now(timezone.utc)
     manifest = generate(root / "beamtime", seed=task.seed, now=now)
-    config = "logdir: beamtime\n"
+    config: dict[str, Any] = {"logdir": "beamtime"}
     if task.remote:
         box = root / task.remote
         generate(box / "beamtime", seed=task.seed, now=now)
         (box / "beamtime.yaml").write_text("logdir: beamtime\n")
         command = f"{sys.executable} -m beamtime.cli"
         remote = {"path": str(box / "beamtime"), "command": command, "transport": "command"}
-        config += json.dumps({"remotes": {task.remote: remote}}) + "\n"
-    (root / "beamtime.yaml").write_text(config)
+        config["remotes"] = {task.remote: remote}
+    (root / "beamtime.yaml").write_text(yaml.safe_dump(config))
     instructions(root, root / "CLAUDE.md")
     if guide is not None and (rules := guide / "instructions.md").is_file():
         (root / "CLAUDE.md").write_text(f"{START}\n{rules.read_text().strip()}\n{END}\n")

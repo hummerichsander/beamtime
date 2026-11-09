@@ -1180,7 +1180,7 @@ a bad `band`, a typo'd group and a re-used draft name each get a message that na
 the `lifecycle-resume` task and its scorer agree; the open MISTAKES rows are closed and `.DS_Store` is ignored.
 Not done here (reserved, as before): the full G3 harness baseline, the release, and the cluster steps.
 
-## H2. Bench: trustworthy scores (sonnet)
+## H2. Bench: trustworthy scores (sonnet) — **done**
 
 The first full baseline (`bench/agents/runs/20261108-213034`, promoted into `bench/agents/RESULTS.md`) showed three
 bench defects that make the numbers lie, found while analysing it. None is an agent fault; all are in the harness. Fix
