@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2
+
+- **Fixed** a crash in the live-update hub when a stale page (an older tab left open) sent a watch
+  request in an earlier shape: the entry is skipped now instead of taking the hub down.
+- **Steadied the browser tests** under CI load: the shared Playwright page fixture gets a longer
+  default timeout, and matplotlib's font cache is warmed once per session so a view render's
+  settle budget isn't spent building it. Test-only; nothing ships differently.
+
 ## 0.2.1
 
 - **Fixed** the `synth` byte-stability test on Windows: it hashed `str(path)`, whose separator is a
