@@ -9,6 +9,8 @@
 | ✓ a chart without caption | say what it shows, what varies, how many runs |
 | ✓ a field or key that no run logs | use the names `keys` lists; validation suggests the closest |
 | ✓ a block without data in scope | check `from`, `where` and `depth`; remove the block |
+| ✓ a metric chart at a scope where only some groups log it (an overview of the root) | pull it `from:` the subgroup that logs it, or use `groups` and a per-group `stat`; the render reports it blank |
+| a section or block left empty when its data is elsewhere | remove the empty block, and its section if nothing remains |
 | ✓ no finding | state the result in one sentence |
 | strong smoothing that hides spikes | lower `smooth` |
 | comparing runs of different length without saying so | a `steps` window, or say it in the caption |

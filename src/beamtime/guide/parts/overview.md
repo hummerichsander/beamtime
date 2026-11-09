@@ -37,6 +37,11 @@ forking, validating and saving are in `guide library`.
 - **Lead with the finding.** `finding:` states the result in one sentence; the first blocks carry
   the evidence for it, details follow.
 - **One block, one question.** A chart that answers two questions is two charts.
+- **An overview spans groups that log different metrics.** At the log-dir root, or any scope over
+  unlike groups, a single metric chart (`val/ppl`, `energy`) is blank for every run that does not log
+  it. Lead with `groups`, `proposal`, `timeline` and `memory`; show each group's result with a `stat`
+  or `scorecard` pulled `from:` that subgroup, not one chart across all of them. Render and confirm no
+  block is blank and no section is empty before saving.
 - **Choose the block by the question:**
 
   | Question | Block |
