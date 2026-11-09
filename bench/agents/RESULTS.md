@@ -56,9 +56,9 @@
 | analysis-status-update | analysis | sonnet | True | 0 | 0 | 51315 | 4 | 0 | 9.6 |
 | analysis-status-update | analysis | sonnet | True | 0 | 0 | 77906 | 4 | 0 | 12.4 |
 | analysis-status-update | analysis | sonnet | True | 0 | 0 | 85325 | 7 | 0 | 12.0 |
-| analysis-tokenizer-gap | analysis | haiku | False | 0 | 0 | 52746 | 3 | 0 | 9.6 |
-| analysis-tokenizer-gap | analysis | haiku | False | 0 | 0 | 52825 | 3 | 0 | 9.2 |
-| analysis-tokenizer-gap | analysis | haiku | False | 0 | 0 | 52594 | 3 | 0 | 8.5 |
+| analysis-tokenizer-gap | analysis | haiku | True | 0 | 0 | 52746 | 3 | 0 | 9.6 |
+| analysis-tokenizer-gap | analysis | haiku | True | 0 | 0 | 52825 | 3 | 0 | 9.2 |
+| analysis-tokenizer-gap | analysis | haiku | True | 0 | 0 | 52594 | 3 | 0 | 8.5 |
 | analysis-tokenizer-gap | analysis | sonnet | True | 0 | 0 | 81599 | 5 | 0 | 11.7 |
 | analysis-tokenizer-gap | analysis | sonnet | True | 0 | 1 | 81096 | 5 | 0 | 12.9 |
 | analysis-tokenizer-gap | analysis | sonnet | True | 0 | 0 | 82151 | 6 | 0 | 15.9 |
@@ -163,7 +163,7 @@
 
 | kind | model | runs | correct | rounds | tool errors | tokens | violations |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| analysis | haiku | 33 | 29/33 | 0.0 | 0.4 | 82989.0 | 0.0 |
+| analysis | haiku | 33 | 32/33 | 0.0 | 0.4 | 82989.0 | 0.0 |
 | analysis | sonnet | 33 | 33/33 | 0.0 | 0.2 | 68221.2 | 0.0 |
 | lifecycle | haiku | 3 | 3/3 | 0.0 | 0.0 | 51577.3 | 0.0 |
 | lifecycle | sonnet | 3 | 3/3 | 0.0 | 0.0 | 49674.7 | 0.0 |
@@ -179,24 +179,22 @@
 ## What it showed
 
 Batch `20261108-213034`: all task kinds, haiku and sonnet, three reps each (156 runs). The scorer
-credits a correct result per kind, not just a saved-and-valid view. The first scoring pass ran out of
-judge quota mid-batch; the view runs it had not reached scored every checklist item false. Those 17
-runs (`sweep-table`, `tokenizer-compare`, `sweep-samples`) were re-scored on 2026-11-09, which is the
-version here.
+credits a correct result per kind, not just a saved-and-valid view. Re-scored on 2026-11-09 after two
+harness fixes (H2): the first scoring pass had run out of judge quota mid-batch and scored 17 views
+all-false, and the analysis `tools` gate predated G4.
 
-- Overall 138/156. Non-view kinds are strong: analysis 62/66, lifecycle/notes/proposal 6/6, verdict
+- Overall 141/156. Non-view kinds are strong: analysis 65/66, lifecycle/notes/proposal 6/6, verdict
   5/6. Views are 53/66 (about 80 %), not the ~55 % the contaminated first pass showed.
 - The one repeatable agent-behaviour view miss is `root-overview` on haiku (3/3): a metric chart at
   the log-dir root is blank for the groups that do not log it, and leaves an empty section, with a
   finding that overclaims. The guide now covers this (overviews lead with `groups`/`proposal` and
-  per-group `stat`/`scorecard` pulled `from:` the subgroup).
-- The rest of the view and analysis misses are either single-rep flakes (`run-diverged`,
-  `sweep-divergence`, `sweep-lr-scatter`, `sweep-samples`, `verdict-tokenizer`, `analysis-failure-cause`,
-  one rep each) or bench defects, not agent faults:
-  - `view-remote` (6/6, never saved): the task does not configure the `@box` remote it asks the agent
-    to view (`no source @box`); it needs the remote set up before it can pass.
-  - `analysis-tokenizer-gap` (haiku 3/3): the answer is correct (the gap is ~0.40), but the task's
-    `tools` gate predates G4 and does not credit `digest`, which the agent used.
+  per-group `stat`/`scorecard` pulled `from:` the subgroup). This is the target of the first refine
+  cycle.
+- The rest are single-rep flakes (`run-diverged`, `sweep-divergence`, `sweep-lr-scatter`,
+  `sweep-samples`, `verdict-tokenizer`, `analysis-failure-cause`, one rep each).
+- `view-remote` (6/6, never saved) is still a failure here: H2 fixed the task's remote config
+  (`run.py` wrote invalid YAML, so `@box` was never configured), but the baseline ran before the fix.
+  A fresh `view-remote` run is needed to clear it.
 
-A trustworthy refine cycle should first fix those two bench defects and guard the judge against a
-quota stall, then re-run the view slice to measure the guide change.
+The judge-stall and the stale gate are fixed (H2), so a later refine cycle measures the guide, not the
+harness.
