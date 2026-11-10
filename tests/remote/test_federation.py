@@ -2,9 +2,12 @@ import dataclasses
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
+from beamtime.ops import budget
 from beamtime.ops.context import Context, OpError
 from beamtime.remote import answer as call
 from beamtime.remote.client import Spec
@@ -61,7 +64,9 @@ def test_writes_land_on_the_remote(box: Path, ctx: Context, project: Path) -> No
     assert "Seen from the laptop." in written.read_text()
     assert not (project / "beamtime" / answer["path"].removeprefix("@box/")).exists()
     notes = call("notes", {"from": ".", "limit": 5}, ctx)["entries"]
-    assert notes[0]["description"] == "Seen from the laptop." and notes[0]["group"] == f"@box/{SWEEP}"
+    assert (
+        notes[0]["description"] == "Seen from the laptop." and notes[0]["group"] == f"@box/{SWEEP}"
+    )
 
 
 def test_runs_are_found_wherever_they_are(box: Path, ctx: Context) -> None:
@@ -116,7 +121,10 @@ def test_ssh_command_leaves_the_command_to_the_remote_shell() -> None:
                 cache="/tmp/{user}")  # fmt: skip
     argv = spec.argv()
     assert argv[0] == "ssh" and "BatchMode=yes" in argv and argv[-2] == "login.hpc"
-    assert argv[-1] == "~/venvs/bt/bin/beamtime serve --stdio --logdir '${SCRATCH}/p b' --cache '/tmp/{user}'"
+    assert (
+        argv[-1]
+        == "~/venvs/bt/bin/beamtime serve --stdio --logdir '${SCRATCH}/p b' --cache '/tmp/{user}'"
+    )
 
 
 def test_remote_paths_expand_on_the_remote(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -228,3 +236,109 @@ def test_aggregated_runs_name_their_source(box: Path, ctx: Context) -> None:
     assert {r[1] for r in out["rows"]} == {".", "@box"}
     sources = [r[1] for r in out["rows"]]
     assert sources == sorted(sources, key=lambda s: s != ".")
+
+
+class FakeClient:
+    """A source that answers one list of group rows, or is down."""
+
+    def __init__(self, rows: list[list[Any]] | None, *, cut: bool = False) -> None:
+        """Remember what the source answers.
+
+        :param rows: Its rows, or ``None`` for a source that is down.
+        :param cut: Whether it cut its own answer at its budget."""
+        self.rows, self.cut, self.asked = rows, cut, []
+        self.spec = SimpleNamespace(scope=".")
+
+    def request(self, method: str, params: dict, **_: Any) -> dict:
+        """Answer like a remote's ``groups``, or fail.
+
+        :param method: The method.
+        :param params: Its parameters, remembered.
+        :return: The answer."""
+        self.asked.append(params)
+        if self.rows is None:
+            raise OpError("down", code=1)
+        meta: dict[str, Any] = {"matched": len(self.rows)}
+        if self.cut:
+            meta |= {"cut": True, "next": "3", "hint": "answer cut"}
+        return {"kind": "groups", "columns": ["path"], "rows": self.rows, "meta": meta}
+
+
+def paged_groups(
+    ctx: Context, local: list[list[Any]], *clients: FakeClient
+) -> tuple[list[list[Any]], int]:
+    """Follow ``meta.next`` over federated groups until it is absent.
+
+    :param ctx: A context with this machine as a source.
+    :param local: The local rows.
+    :param clients: The remotes, named ``s0``, ``s1``, ...
+    :return: Every row in the order the pages gave them, and the number of pages."""
+    from beamtime.remote.route import federate
+
+    sources = SimpleNamespace(clients={f"s{i}": c for i, c in enumerate(clients)})
+    ctx = dataclasses.replace(ctx, sources=sources)
+    seen: list[list[Any]] = []
+    cursor = None
+
+    def local_answer(params: dict) -> dict:
+        return {"kind": "groups", "columns": ["path"], "rows": list(local),
+                "meta": {"matched": len(local)}}  # fmt: skip
+
+    for pages in range(1, 50):
+        params = {"from": "."} | ({"cursor": cursor} if cursor else {})
+        page = federate("groups", params, ctx, local_answer)
+        seen += page["rows"]
+        if (cursor := page["meta"].get("next")) is None:
+            return seen, pages
+    raise AssertionError("paging does not end")
+
+
+@pytest.fixture
+def small_pages(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cut every answer at 400 characters.
+
+    :param monkeypatch: Pytest's monkeypatch."""
+    monkeypatch.setitem(budget.cut.__kwdefaults__, "max_chars", 400)
+
+
+def test_federated_pages_give_every_item_once(ctx: Context, small_pages: None) -> None:
+    """Following the cursor lists both sources' items once, local first; matched is the sum."""
+    local = [[f"local/{i:02d}"] for i in range(30)]
+    one = FakeClient([[f"@s0/{i:02d}"] for i in range(30)])
+    two = FakeClient([[f"@s1/{i:02d}"] for i in range(30)])
+    rows, pages = paged_groups(ctx, local, one, two)
+    assert pages > 1 and rows == [*local, *one.rows, *two.rows]
+    assert all("cursor" not in p for p in one.asked + two.asked)
+
+
+def test_a_source_that_cut_itself_says_so(ctx: Context) -> None:
+    """A source's own cut shows in meta.sources with a hint; the merged answer has no stale cursor."""
+    from beamtime.remote.route import federate
+
+    cut = FakeClient([["@s0/a"], ["@s0/b"], ["@s0/c"]], cut=True)
+    ctx = dataclasses.replace(ctx, sources=SimpleNamespace(clients={"s0": cut}))
+    answer = federate("groups", {"from": "."}, ctx, lambda p: {
+        "kind": "groups", "columns": ["path"], "rows": [["x"]], "meta": {"matched": 1}})  # fmt: skip
+    state = answer["meta"]["sources"][1]
+    assert state["cut"] is True and state["hint"] == "narrow from or where to see all of @s0"
+    assert "cut" not in answer["meta"]["sources"][0]
+    assert "next" not in answer["meta"] and answer["meta"]["matched"] == 4
+
+
+def test_bad_cursor(ctx: Context) -> None:
+    """A cursor Beamtime did not give out is refused with code 2, as for one source."""
+    from beamtime.remote.route import federate
+
+    ctx = dataclasses.replace(ctx, sources=SimpleNamespace(clients={"s0": FakeClient([["a"]])}))
+    with pytest.raises(OpError) as raised:
+        federate("groups", {"from": ".", "cursor": "zz"}, ctx, lambda p: {
+            "kind": "groups", "columns": ["path"], "rows": [], "meta": {}})  # fmt: skip
+    assert raised.value.code == 2
+
+
+def test_down_source_paging(ctx: Context, small_pages: None) -> None:
+    """A source that is down does not shift the others' items between pages."""
+    local = [[f"local/{i:02d}"] for i in range(30)]
+    up = FakeClient([[f"@s1/{i:02d}"] for i in range(30)])
+    rows, pages = paged_groups(ctx, local, FakeClient(None), up)
+    assert pages > 1 and rows == [*local, *up.rows]

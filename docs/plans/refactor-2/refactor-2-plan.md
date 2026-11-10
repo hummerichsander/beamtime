@@ -266,7 +266,7 @@ Behaviour-preserving: the code moves, nothing is fixed yet (R2–R4 fix).
 3. One sentence in `04-remotes.md` § Federation: aggregated listings are labelled by source and keep each
    source's order. CHANGELOG (Fixed).
 
-### R4. Federated listings are paged once (sonnet + review) — code
+### R4. Federated listings are paged once (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/remote/route.py` (`federate` 324–368), `src/beamtime/ops/answers.py` (new `paged`),
   `tests/remote/test_federation.py`, `docs/design/04-remotes.md`, `CHANGELOG.md`.

@@ -149,3 +149,16 @@ def test_limit_cut_is_flagged() -> None:
     out = merged("runs", answers, {"by": ["config.lr"], "limit": 2}, "cli")
     assert [r[1] for r in out["rows"]] == [".", "."]
     assert out["meta"]["cut"] is True and out["meta"]["shown"] == 2
+
+
+def test_merged_sums_groups_and_means_like_matched() -> None:
+    """Every source's group and seed-mean counts add up next to its matched runs."""
+    one = table("l", [0.3, 0.1]) | {"meta": {"matched": 4, "groups": 2}}
+    two = table("b", [0.2]) | {"meta": {"matched": 3, "groups": 1}}
+    out = merged("runs", [("local", one), ("box", two)], {"by": ["config.lr"]}, "cli")
+    assert out["meta"]["matched"] == 7 and out["meta"]["groups"] == 3
+    assert "means" not in out["meta"]
+    one["meta"] = {"matched": 4, "means": 2}
+    two["meta"] = {"matched": 3, "means": 1}
+    out = merged("runs", [("local", one), ("box", two)], {"seeds": ["config.seed"]}, "cli")
+    assert out["meta"]["means"] == 3 and "groups" not in out["meta"]

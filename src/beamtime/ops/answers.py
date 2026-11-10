@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from beamtime.format.place import Place
+from beamtime.ops import budget
 
 PATH_KEYS = ("group", "from", "scope", "folder")
 # what users wrote or logged: its keys may be called group or path, and it is never a place.
@@ -386,9 +387,23 @@ def merged(method: str, answers: list[tuple[str, dict]], params: dict, caller: s
     if (merger := ANSWERS.get(method)) is None:
         raise ValueError(f"no merge for {method!r}")
     out = merger.merged(answers, params, caller)
-    matched = sum(a.get("meta", {}).get("matched", 0) or 0 for _, a in answers)
-    out["meta"] = {**out.get("meta", {}), "matched": matched, "source": "."}
+    counts = {
+        key: sum(a.get("meta", {}).get(key) or 0 for _, a in answers)
+        for key in ("matched", "groups", "means")
+        if key == "matched" or any(a.get("meta", {}).get(key) is not None for _, a in answers)
+    }
+    out["meta"] = {**out.get("meta", {}), **counts, "source": "."}
     return out
+
+
+def paged(answer: dict, cursor: str | None) -> dict:
+    """Cut a merged listing once, at the token budget, from the cursor on.
+
+    :param answer: The merged answer.
+    :param cursor: A cursor from an earlier page, or ``None`` for the first.
+    :return: The answer, with ``meta.next`` when items were left out.
+    :raises OpError: If the cursor is not one Beamtime gave out."""
+    return budget.cut(answer, budget.offset_of(cursor))
 
 
 def is_call(v: Any) -> bool:

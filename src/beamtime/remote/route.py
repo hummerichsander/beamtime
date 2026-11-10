@@ -233,9 +233,12 @@ def federate(method: str, params: dict[str, Any], ctx: Context, local: Local) ->
     :param params: Its parameters (``from`` is ``.``).
     :param ctx: The operation context.
     :param local: Answers the call here.
-    :return: The merged answer; ``meta.sources`` says which source answered."""
+    :return: The merged answer, cut once at the budget; ``meta.sources`` says which source
+        answered and which cut its own answer."""
     assert ctx.sources is not None
     clients = list(ctx.sources.clients.items())
+    cursor = params.get("cursor")
+    params = strip_cursor(params)
 
     def ask(name: str, client: Any) -> tuple[dict | None, dict[str, Any]]:
         scoped = params | {"from": client.spec.scope}
@@ -255,10 +258,13 @@ def federate(method: str, params: dict[str, Any], ctx: Context, local: Local) ->
         # a source is a named log dir; without local runs, local isn't one and is left out.
         collected = [("local", local(params))] if ctx.has_local else []
         states = [{"name": "local", "state": "connected"}] if ctx.has_local else []
+        if collected:
+            drop_own_cut(collected[0][1], states[0])
         for (name, _), future in zip(clients, asked, strict=True):
             answer, state = future.result()
             states.append(state)
             if answer is not None:
+                drop_own_cut(answer, state)
                 collected.append((name, answer))
     if not collected and method == "groups":
         # the tree still has a root per source, each saying why it can't answer.
@@ -273,7 +279,29 @@ def federate(method: str, params: dict[str, Any], ctx: Context, local: Local) ->
         **merged.get("meta", {}),
         "sources": states,
     }
-    return merged
+    # the web UI takes whole answers, as it does from one source.
+    return merged if ctx.caller == "view" else answers.paged(merged, cursor)
+
+
+def strip_cursor(params: dict[str, Any]) -> dict[str, Any]:
+    """Leave the cursor out: each source answers from its start, the merged answer is cut once.
+
+    :param params: The call's parameters.
+    :return: A copy without ``cursor``."""
+    return {k: v for k, v in params.items() if k != "cursor"}
+
+
+def drop_own_cut(answer: dict[str, Any], state: dict[str, Any]) -> None:
+    """Move a source's own budget cut from its answer to its state in ``meta.sources``.
+
+    :param answer: The source's answer; its paging keys are removed.
+    :param state: The source's entry in ``meta.sources``."""
+    meta = answer.get("meta", {})
+    if meta.pop("next", None) is None:
+        return
+    for key in ("cut", "hint", "offset"):
+        meta.pop(key, None)
+    state |= {"cut": True, "hint": f"narrow from or where to see all of {state['name']}"}
 
 
 FILE_LIMIT = 64 << 20

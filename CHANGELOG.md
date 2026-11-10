@@ -9,6 +9,10 @@
 - **Fixed** `runs --by` and `--seeds` over several sources: the rows keep each source's own order
   (no re-sort by creation time) and a `source` column says where each group comes from. A merged
   run table cut at its limit now says so (`meta.cut`), with `meta.shown` counting every source.
+- **Fixed** paging of listings over several sources: the cursor is applied once to the merged
+  answer, so following `meta.next` lists every item of every source once, local first. A source
+  that cut its own answer says so in `meta.sources[].cut`. `meta.groups` and `meta.means` are
+  summed over the sources, like `meta.matched`.
 
 ## 0.2.2
 

@@ -132,7 +132,12 @@ beamtime pull cluster:scaling/lr-sweep
   exact because each source returned its top rows by that sort; groups, curves and data entries are
   concatenated in source order; timeline entries are merged by time and notes by id; `keys` unions
   names and adds run counts. Aggregated curves (`by`, `seeds`) are computed per source and labelled
-  with it. The size cut for agents applies after merging.
+  with it. `meta.matched`, `meta.groups` and `meta.means` are summed over the sources.
+- **A merged listing is paged once.** The cursor is not sent to the sources: each answers from its
+  start, the merged answer is cut at the size budget for agents (`answers.paged`) and its `meta.next`
+  continues in the merged order, local first. A source that cut its own answer at the budget shows
+  `meta.sources[i].cut: true` and the hint `narrow from or where to see all of @<name>`; items beyond
+  its cut are not reachable by paging. The web UI takes whole answers and is not cut.
 - **`cp` stays within one source**: `cp @au/a @au/b` is routed to `au`, which copies inside its own log dir
   (`source` and `dest` are targets like any other); a source and a destination on different machines are
   refused with a pointer to `pull`, and nothing is written.
