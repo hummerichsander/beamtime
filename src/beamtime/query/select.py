@@ -310,4 +310,4 @@ def meta(ctx: Context, **kwargs: Any) -> dict[str, Any]:
     :param ctx: The query context.
     :param kwargs: Kind-specific entries.
     :return: The meta dict; freshness is added by ``run``."""
-    return {"source": "local", "from": ctx.scope} | kwargs
+    return {"source": ".", "from": ctx.scope} | kwargs

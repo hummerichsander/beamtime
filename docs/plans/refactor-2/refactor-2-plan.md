@@ -300,7 +300,7 @@ Behaviour-preserving: the code moves, nothing is fixed yet (R2–R4 fix).
 3. Mark `cut: true` and the hint on a source whose answer carried `meta.next`.
 4. `04-remotes.md` § Routing and merging: the cursor-and-cut rule and `meta.sources[].cut`. CHANGELOG (Fixed).
 
-### R5. Every reading kind places its own fields (sonnet) — code
+### R5. Every reading kind places its own fields (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/ops/answers.py`, `tests/remote/test_answers.py`.
 - **Read:** c1 §4 (prefixing rules); the answer builders in `src/beamtime/ops/reading.py` and

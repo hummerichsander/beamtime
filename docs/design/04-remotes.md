@@ -77,6 +77,10 @@ The local `serve`, CLI and MCP send each query to every source in scope and comb
   source returns its top `limit` rows by the same sort, so the merged top rows are exact. Aggregated
   listings (`runs` with `by` or `seeds`) are labelled by a `source` column and keep each source's
   order, local first.
+- **One form names a source in an answer**: `.` for this machine, `@name` for a remote, the form of
+  a place. It is the `source` column, `by.source` of an aggregated curve, `meta.source`, and
+  `meta.sources[].name`, and it is what the hints say. (Version 0.2 wrote `local` and a bare name
+  in some of these; a remote that still says `local` in `meta.source` is placed like `.`.)
 - **Aggregates are computed per source**: group and seed means, `importance`, value ranges in `keys`,
   and prediction checks. A proposal belongs to a group and a group to one source, so checks never
   span sources. A query over several sources returns aggregates per source, labelled.
@@ -123,7 +127,7 @@ beamtime pull cluster:scaling/lr-sweep
   A path in an answer that names a source stays as it is; one that names none, `@local/g` included, is placed on the remote (`@local/g` from `box` becomes `@box/g`), so placing twice changes nothing.
   What users wrote or logged (configs, a proposal's text, conditions) keeps its values, but a
   block's call (`method`, `params`, `scope`) is always a place, also under a key like `proposal`.
-  Placing an answer and merging a listing live in `ops/answers.py`, one `Answer` per answer kind; `remote/route.py` keeps the transport, the fan-out, snapshots and source states, and names no answer key.
+  Placing an answer and merging a listing live in `ops/answers.py`, one `Answer` per answer kind, each naming its own places (a path column, a `group`, `run.path`; run ids, statuses, metric keys and what users wrote are never places); `remote/route.py` keeps the transport, the fan-out, snapshots and source states, and names no answer key.
   Operations on `.` that list (`groups`, `runs`, `series`, `data`, `timeline`, `notes`, `keys`) ask
   every source at once and merge; everything else stays local. Which operations list, write or
   work on drafts is a flag on each operation in the registry. A source that doesn't answer a listing
@@ -137,7 +141,9 @@ beamtime pull cluster:scaling/lr-sweep
   start, the merged answer is cut at the size budget for agents (`answers.paged`) and its `meta.next`
   continues in the merged order, local first. A source that cut its own answer at the budget shows
   `meta.sources[i].cut: true` and the hint `narrow from or where to see all of @<name>`; items beyond
-  its cut are not reachable by paging. The web UI takes whole answers and is not cut.
+  its cut are not reachable by paging. When any source cut and the merged answer has no `meta.next`,
+  the merged `meta` says `cut: true` with the same hint naming every such source, which is what the
+  CLI shows in place of `--limit to see more`. The web UI takes whole answers and is not cut.
 - **`cp` stays within one source**: `cp @au/a @au/b` is routed to `au`, which copies inside its own log dir
   (`source` and `dest` are targets like any other); a source and a destination on different machines are
   refused with a pointer to `pull`, and nothing is written.

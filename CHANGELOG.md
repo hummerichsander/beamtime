@@ -13,6 +13,16 @@
   answer, so following `meta.next` lists every item of every source once, local first. A source
   that cut its own answer says so in `meta.sources[].cut`. `meta.groups` and `meta.means` are
   summed over the sources, like `meta.matched`.
+- **Changed** how answers name a source: `.` for this machine and `@name` for a remote, everywhere.
+  `by.source` of federated `series` curves was `local`/`box` and is now `.`/`@box`;
+  `meta.sources[].name` and `status`'s `sources` say `.` where they said `local`; `meta.source` of
+  an answer from this machine is `.`. Views and agents that compare with `"local"` should compare
+  with `"."`.
+- **Changed** a merged listing whose source cut its own answer now says so at the top: `meta.cut`
+  and the hint `narrow from or where to see all of @<name>`, which the CLI prints in place of
+  `--limit to see more` (a limit would not show what a source's budget left out).
+- **Fixed** a data file's `path` over a remote: it stays relative to the view (it was prefixed
+  with `@box/`), and a table column called `path` in a logged file is no longer prefixed.
 
 ## 0.2.2
 

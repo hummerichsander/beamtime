@@ -166,6 +166,8 @@ def meta_line(answer: dict[str, Any], noun: str, shown: int) -> str:
         parts.append(fresh["text"])
     if meta.get("next"):
         parts.append(f"--cursor {meta['next']} for more")
+    elif meta.get("cut") and any(s.get("cut") for s in meta.get("sources") or []):
+        parts.append(meta["hint"])
     elif meta.get("cut"):
         parts.append("--limit to see more")
     return " · ".join(parts)

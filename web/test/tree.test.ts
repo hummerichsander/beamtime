@@ -34,7 +34,7 @@ test("siblings for [ and ]", () => {
 test("each source has its own root, also one that can't answer", () => {
   const remote = [{ path: "@box", runs: 4 }, { path: "@box/scaling", runs: 4 }, { path: "@box/scaling/lr-sweep", runs: 4 }];
   const roots = buildTree([...rows, ...remote], [
-    { name: "local", state: "connected" },
+    { name: ".", state: "connected" },
     { name: "@box", state: "connected" },
     { name: "@gone", state: "unreachable", error: "ssh: timed out" },
   ]);

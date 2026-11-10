@@ -933,7 +933,7 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
             }
             for e in events[-RECENT_EVENTS:]
         ],
-        "meta": {"source": "local", "freshness": freshness.dump()},
+        "meta": {"source": ".", "freshness": freshness.dump()},
     }
 
 
@@ -1097,9 +1097,7 @@ def sources(ctx: Context) -> list[dict[str, Any]]:
         for a remote also since when, its last error and its version."""
     out: list[dict[str, Any]] = []
     if ctx.has_local:
-        out.append(
-            {"name": "local", "kind": "local", "state": "connected", "logdir": str(ctx.logdir)}
-        )
+        out.append({"name": ".", "kind": "local", "state": "connected", "logdir": str(ctx.logdir)})
     if ctx.sources is not None:
         out += [
             client.describe() | {"kind": "remote", "logdir": client.spec.path}

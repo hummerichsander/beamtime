@@ -1,6 +1,9 @@
+import copy
+from typing import Any
+
 import pytest
 
-from beamtime.ops.answers import merged, placed
+from beamtime.ops.answers import ANSWERS, flagged, merged, placed
 
 
 def test_placed_leaves_what_users_wrote_alone() -> None:
@@ -162,3 +165,157 @@ def test_merged_sums_groups_and_means_like_matched() -> None:
     two["meta"] = {"matched": 3, "means": 1}
     out = merged("runs", [("local", one), ("box", two)], {"seeds": ["config.seed"]}, "cli")
     assert out["meta"]["means"] == 3 and "groups" not in out["meta"]
+
+
+RUN = "20260101-aaaa"
+SRC = {"source": ".", "from": "g"}
+
+KINDS = {
+    "card": (
+        {
+            "run": {"id": RUN, "path": "g/r", "name": "group", "proposals": {".": "v1"}},
+            "config": {"group": "norm", "path": "data/cifar"},
+            "metrics": {"group": {"last": 1.0}},
+            "proposals": [{"group": ".", "version": "v1", "statement": "path"}],
+            "checkpoints": [{"name": "path", "location": "/scratch/ckpt"}],
+            "events": [{"type": "created", "description": "from g"}],
+        },
+        [("run", "path"), ("proposals", 0, "group")],
+    ),
+    "output": ({"run": RUN, "rank": 0, "lines": ["group g"]}, []),
+    "resume": (
+        {"run": RUN, "status": "failed", "cwd": "/home/u/g", "command": ["python", "g"]},
+        [],
+    ),
+    "status": (
+        {"root": "/home/u/g", "logdir": "/home/u/g/beamtime", "runs": {"failed": 1}},
+        [],
+    ),
+    "data": (
+        {"key": "group", "entries": [{"run": RUN, "step": 1, "path": "_data/x.png"}]},
+        [],
+    ),
+    "series": (
+        {"curves": [{"run": RUN, "metric": "group", "by": {"group": "a"}, "source": "preview"}]},
+        [],
+    ),
+    "keys": (
+        {"metrics": {"columns": ["key"], "rows": [["path"]]}, "status": {"running": 1}},
+        [],
+    ),
+    "groups": (
+        {"columns": ["path", "status"], "rows": [[".", "ok"], ["g", "from"]]},
+        [("rows", 0, 0), ("rows", 1, 0)],
+    ),
+    "runs": (
+        {"columns": ["run.id", "run.path", "config.path"], "rows": [[RUN, "g/r", "data"]]},
+        [("rows", 0, 1)],
+    ),
+    "timeline": (
+        {
+            "entries": [
+                {"kind": "event", "run": RUN, "type": "created", "description": "g"},
+                {"kind": "note", "id": "n1", "group": "g", "run": None, "description": "g"},
+            ]
+        },
+        [("entries", 1, "group")],
+    ),
+    "notes": (
+        {
+            "group": "g",
+            "entries": [{"id": "n1", "group": "g/s", "type": "question", "body": "see g"}],
+            "more": False,
+        },
+        [("group",), ("entries", 0, "group")],
+    ),
+    "note": ({"id": "n1", "group": "g", "body": "g"}, [("group",)]),
+    "memory": (
+        {"group": "g/s", "chain": [{"group": ".", "version": "v", "body": "g"}], "budget": 9},
+        [("group",), ("chain", 0, "group")],
+    ),
+    "proposal": (
+        {"group": "g", "proposal": {"group": "x", "statement": "g"}, "versions": []},
+        [("group",)],
+    ),
+    "check": (
+        {"group": "g", "version": "v1", "predictions": [{"name": "group", "result": "pass"}]},
+        [("group",)],
+    ),
+    "file": (
+        {"group": "g", "path": "data/fit.csv", "columns": ["path"], "rows": [["data/x"]]},
+        [("group",)],
+    ),
+    "digest": (
+        {"group": "g", "runs": {"failed": 1}, "failures": [{"status": "failed", "runs": [RUN]}]},
+        [("group",)],
+    ),
+    "logs": (
+        {"entries": [{"run": RUN, "name": "n", "lines": ["path g"]}], "tracebacks": []},
+        [],
+    ),
+    "diagnose": (
+        {"entries": [{"run": RUN, "status": "failed", "flags": {"missing": ["group"]}}]},
+        [],
+    ),
+    "plan missing": (
+        {"group": "g", "form": "grid", "entries": [{"config": {"group": "a"}, "runs": {}}]},
+        [("group",)],
+    ),
+}
+
+
+def at_box(v: str) -> str:
+    """Place a path on the remote ``box``, as ``placed`` does.
+
+    :param v: A path without a source.
+    :return: The path on ``box``."""
+    return "@box" if v == "." else f"@box/{v}"
+
+
+@pytest.mark.parametrize("kind", sorted(KINDS))
+def test_every_kind_places_its_own_fields(kind: str) -> None:
+    """Places get the source; run ids, statuses, keys and what users wrote stay as they are."""
+    answer, places = KINDS[kind]
+    answer = {"kind": kind, **answer, "meta": answer.get("meta", {}) | SRC}
+    expected = copy.deepcopy(answer)
+    expected["meta"] |= {"source": "@box", "from": "@box/g"}
+    for path in places:
+        holder: Any = expected
+        for step in path[:-1]:
+            holder = holder[step]
+        holder[path[-1]] = at_box(holder[path[-1]])
+    assert kind in ANSWERS
+    assert placed(answer, "box") == expected
+    assert placed(placed(answer, "box"), "box") == expected
+
+
+def test_old_remotes_say_local() -> None:
+    """A remote of version 0.2 names itself ``local``; it is placed like ``.``."""
+    out = placed({"kind": "card", "run": {"path": "g"}, "meta": {"source": "local"}}, "box")
+    assert out["meta"]["source"] == "@box"
+
+
+def test_a_view_file_keeps_its_relative_path() -> None:
+    """A file's path is inside the group's view; a table column called path is the user's."""
+    out = placed({"kind": "file", "group": "g", "path": "fit.csv", "columns": ["path"],
+                  "rows": [["x"]]}, "box")  # fmt: skip
+    assert out["path"] == "fit.csv" and out["rows"] == [["x"]]
+
+
+def test_series_curves_name_their_source_like_everything_else() -> None:
+    """With several sources' curves, ``by.source`` is ``.`` for this machine and ``@name``."""
+    curves = {"kind": "series", "curves": [{"by": {"config.lr": 0.1}}], "meta": {}}
+    out = merged("series", [("local", curves), ("box", curves)], {}, "cli")
+    assert [c["by"]["source"] for c in out["curves"]] == [".", "@box"]
+
+
+def test_a_source_that_cut_shows_at_the_top() -> None:
+    """The merged answer says who cut, unless a cursor already leads on."""
+    states = [{"name": ".", "state": "connected"}, {"name": "@a", "state": "connected", "cut": True},
+              {"name": "@b", "state": "connected", "cut": True}]  # fmt: skip
+    out = flagged({"meta": {"sources": states}})
+    assert out["meta"]["cut"] is True
+    assert out["meta"]["hint"] == "narrow from or where to see all of @a, @b"
+    paged = {"meta": {"sources": states, "next": "5", "hint": "pass cursor"}}
+    assert flagged(paged)["meta"] == {"sources": states, "next": "5", "hint": "pass cursor"}
+    assert "cut" not in flagged({"meta": {"sources": states[:1]}})["meta"]

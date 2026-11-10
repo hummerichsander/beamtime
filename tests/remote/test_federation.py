@@ -34,7 +34,7 @@ def test_listings_of_everything_merge(box: Path, ctx: Context) -> None:
     runs = call("runs", {"from": ".", "select": ["run.group"], "limit": 1000}, ctx)
     groups = {r[1].split("/", 1)[0] for r in runs["rows"]}
     assert "@box" in groups and any(not g.startswith("@") for g in groups)
-    assert runs["meta"]["sources"] == [{"name": "local", "state": "connected"},
+    assert runs["meta"]["sources"] == [{"name": ".", "state": "connected"},
                                        {"name": "@box", "state": "connected"}]  # fmt: skip
     # each source sends its newest rows; merged and cut, they are the newest of both.
     top = call("runs", {"from": ".", "limit": 4}, ctx)["rows"]
@@ -52,7 +52,7 @@ def test_aggregates_are_labelled_by_source(box: Path, ctx: Context) -> None:
     """Curves aggregated over a field are computed per source and say which."""
     curves = call("series", {"from": ".", "y": ["val/acc"], "by": ["config.lr"]}, ctx)["curves"]
     sources = {c["by"].get("source") for c in curves}
-    assert sources == {"local", "box"}
+    assert sources == {".", "@box"}
 
 
 def test_writes_land_on_the_remote(box: Path, ctx: Context, project: Path) -> None:
@@ -191,7 +191,7 @@ def test_a_hung_remote_is_left_out_of_listings(
     groups = call("groups", {"from": "."}, ctx)
     assert time.monotonic() - started < 10
     states = {s["name"]: s["state"] for s in groups["meta"]["sources"]}
-    assert states == {"local": "connected", "@box": "connected", "@hung": "unreachable"}
+    assert states == {".": "connected", "@box": "connected", "@hung": "unreachable"}
     assert any(r[0].startswith("@box") for r in groups["rows"])
 
 
@@ -323,6 +323,29 @@ def test_a_source_that_cut_itself_says_so(ctx: Context) -> None:
     assert state["cut"] is True and state["hint"] == "narrow from or where to see all of @s0"
     assert "cut" not in answer["meta"]["sources"][0]
     assert "next" not in answer["meta"] and answer["meta"]["matched"] == 4
+    assert answer["meta"]["cut"] is True
+    assert answer["meta"]["hint"] == "narrow from or where to see all of @s0"
+
+
+def test_a_source_that_cut_itself_shows_in_the_cli_text(ctx: Context) -> None:
+    """The text says where the missing items are, not to raise a limit that would not help."""
+    from beamtime.cli.format import render
+    from beamtime.remote.route import federate
+
+    cut = FakeClient([["@s0/a"], ["@s0/b"]], cut=True)
+    ctx = dataclasses.replace(ctx, sources=SimpleNamespace(clients={"s0": cut}))
+    answer = federate("groups", {"from": "."}, ctx, lambda p: {
+        "kind": "groups", "columns": ["path"], "rows": [["x"]], "meta": {"matched": 1}})  # fmt: skip
+    last = render(answer).splitlines()[-1]
+    assert last.endswith("narrow from or where to see all of @s0")
+    assert "--limit" not in last
+
+
+def test_local_answers_name_this_machine_with_a_dot(ctx: Context) -> None:
+    """meta.source and the sources of a status say `.` for this machine, `@name` for a remote."""
+    local = dataclasses.replace(ctx, sources=None)
+    assert call("groups", {"from": "."}, local)["meta"]["source"] == "."
+    assert [s["name"] for s in call("status", {}, ctx)["sources"]] == [".", "@box"]
 
 
 def test_bad_cursor(ctx: Context) -> None:

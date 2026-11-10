@@ -31,10 +31,10 @@ export function buildTree(rows: Record<string, any>[], sources: SourceState[] = 
   });
   for (const r of rows) nodes.set(r.path, node(r.path, r));
   // an empty list means no remotes are configured: local is implicitly the only source.
-  const local = sources.length === 0 || sources.some((s) => s.name === "local");
+  const local = sources.length === 0 || sources.some((s) => s.name === ".");
   if (local && !nodes.has(".")) nodes.set(".", node("."));
   for (const s of sources) {
-    const path = s.name === "local" ? "." : s.name;
+    const path = s.name;
     if (!nodes.has(path)) nodes.set(path, node(path));
     Object.assign(nodes.get(path)!, { state: s.state, error: s.error });
   }

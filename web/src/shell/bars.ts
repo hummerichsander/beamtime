@@ -43,15 +43,15 @@ export function TopBar() {
 // this machine and each remote, with whether it answers; the tree's answer keeps it current.
 function Sources() {
   const sources: { name: string; state: string; error?: string }[] = useCall(calls.tree()).data?.meta?.sources ?? [];
-  const remotes = sources.filter((s) => s.name !== "local");
+  const remotes = sources.filter((s) => s.name !== ".");
   if (!remotes.length) {
     return html`<span class="source small" data-tip="Sources: this machine. Remotes are configured under remotes: in the settings.">
       <${Icon} name="server" size=${15} /> local</span>`;
   }
-  return html`${[{ name: "local", state: "connected" }, ...remotes].map((s) => html`<a class=${`source small ${s.state}`}
-      href=${groupUrl(s.name === "local" ? "." : s.name)}
-      data-tip=${s.state === "connected" ? `${s.name}: connected` : `${s.name}: unreachable. ${s.error ?? ""}`}>
-      <${Icon} name=${s.state === "connected" ? "server" : "cloud-off"} size=${15} /> ${s.name}</a>`)}`;
+  return html`${[{ name: ".", state: "connected" }, ...remotes].map((s) => html`<a class=${`source small ${s.state}`}
+      href=${groupUrl(s.name)}
+      data-tip=${s.state === "connected" ? `${s.name === "." ? "local" : s.name}: connected` : `${s.name}: unreachable. ${s.error ?? ""}`}>
+      <${Icon} name=${s.state === "connected" ? "server" : "cloud-off"} size=${15} /> ${s.name === "." ? "local" : s.name}</a>`)}`;
 }
 
 function useNow(everyMs: number): number {

@@ -31,6 +31,54 @@ USER_CONTENT = (
 PATH_COLUMNS = ("path", "run.group", "run.path")
 
 
+def label(source: str) -> str:
+    """Name a source the way every answer does: ``.`` for this machine, ``@name`` for a remote.
+
+    :param source: The source's name; ``local`` is this machine.
+    :return: ``.`` or ``@name``."""
+    return "." if source == "local" else f"@{source}"
+
+
+def place_keys(
+    d: dict[str, Any], keys: tuple[str, ...], at: Callable[[str], str]
+) -> dict[str, Any]:
+    """Place the named keys of a dict; the others pass through.
+
+    :param d: A dict of an answer.
+    :param keys: The keys that hold places.
+    :param at: Puts a source's prefix on one path.
+    :return: A copy with those keys placed."""
+    return {k: at(v) if k in keys and isinstance(v, str) else v for k, v in d.items()}
+
+
+def place_table(
+    table: dict[str, Any], columns: tuple[str, ...], at: Callable[[str], str]
+) -> dict[str, Any]:
+    """Place the named columns of a table; the other columns pass through.
+
+    :param table: A dict with ``columns`` and ``rows``.
+    :param columns: The columns that hold places.
+    :param at: Puts a source's prefix on one path.
+    :return: A copy with those columns placed."""
+    cols = {i for i, c in enumerate(table.get("columns", [])) if c in columns}
+    rows = [[at(v) if i in cols else v for i, v in enumerate(r)] for r in table.get("rows", [])]
+    return {**table, "rows": rows} if "rows" in table else table
+
+
+def place_meta(answer: dict[str, Any], at: Callable[[str], str]) -> dict[str, Any]:
+    """Place the source and the scope an answer says it came from.
+
+    :param answer: An answer.
+    :param at: Puts a source's prefix on one path.
+    :return: A copy whose ``meta.source`` and ``meta.from`` name the remote."""
+    if not isinstance(meta := answer.get("meta"), dict):
+        return answer
+    meta = place_keys(meta, ("from",), at)
+    if meta.get("source") in ("local", "."):
+        meta["source"] = at(".")
+    return {**answer, "meta": meta}
+
+
 class Answer:
     """The generic answer: every place found by key name, no merge."""
 
@@ -58,7 +106,7 @@ class Answer:
                     out[k] = v
                 elif k in PATH_KEYS or (k == "path" and not ref) or (k == "view" and ref):
                     out[k] = at(v)
-                elif k == "source" and v == "local":
+                elif k == "source" and v in ("local", "."):
                     out[k] = at(".")
                 else:
                     out[k] = walk(v)
@@ -94,7 +142,145 @@ class Answer:
 DEFAULT = Answer()
 
 
-class Groups(Answer):
+class Bare(Answer):
+    """An answer with no place of its own: only its meta names the source."""
+
+    def placed(self, answer: Any, at: Callable[[str], str]) -> Any:
+        """Place the meta.
+
+        :param answer: The remote's answer.
+        :param at: Puts a source's prefix on one path.
+        :return: The answer with ``meta.source`` and ``meta.from`` placed."""
+        return place_meta(answer, at)
+
+
+class Tabled(Bare):
+    """A table whose path columns are places."""
+
+    def placed(self, answer: Any, at: Callable[[str], str]) -> Any:
+        """Place the path columns and the meta.
+
+        :param answer: The remote's answer.
+        :param at: Puts a source's prefix on one path.
+        :return: The answer with ``@source/...`` paths."""
+        return place_meta(place_table(answer, PATH_COLUMNS, at), at)
+
+
+class Grouped(Bare):
+    """An answer about one group: its ``group``, and the ``group`` of each item in ``lists``."""
+
+    lists: ClassVar[tuple[str, ...]] = ()
+
+    def placed(self, answer: Any, at: Callable[[str], str]) -> Any:
+        """Place the group, the groups of the items and the meta.
+
+        :param answer: The remote's answer.
+        :param at: Puts a source's prefix on one path.
+        :return: The answer with ``@source/...`` groups."""
+        out = place_keys(answer, ("group",), at)
+        for key in self.lists:
+            out[key] = [place_keys(item, ("group",), at) for item in out.get(key, [])]
+        return place_meta(out, at)
+
+
+class Card(Bare):
+    """One run: its path and the groups of its proposals."""
+
+    kind = "card"
+
+    def placed(self, answer: Any, at: Callable[[str], str]) -> Any:
+        """Place the run's path, its proposals' groups and the meta.
+
+        :param answer: The remote's answer.
+        :param at: Puts a source's prefix on one path.
+        :return: The answer with ``@source/...`` paths."""
+        run = place_keys(answer["run"], ("path",), at)
+        proposals = [place_keys(p, ("group",), at) for p in answer.get("proposals", [])]
+        return place_meta({**answer, "run": run, "proposals": proposals}, at)
+
+
+class Output(Bare):
+    """A run's output lines."""
+
+    kind = "output"
+
+
+class Resume(Bare):
+    """How to resume a run; its cwd and checkpoint are paths on the remote machine."""
+
+    kind = "resume"
+
+
+class Status(Bare):
+    """The log dir and the daemon of a source."""
+
+    kind = "status"
+
+
+class Logs(Bare):
+    """Output lines and tracebacks, by run id."""
+
+    kind = "logs"
+
+
+class Diagnose(Bare):
+    """What looks wrong in runs, by run id."""
+
+    kind = "diagnose"
+
+
+class Digest(Grouped):
+    """The digest of a group."""
+
+    kind = "digest"
+
+
+class PlanMissing(Grouped):
+    """The runs a group's plan still lacks."""
+
+    kind = "plan missing"
+
+
+class Check(Grouped):
+    """The check of a proposal version."""
+
+    kind = "check"
+
+
+class Proposal(Grouped):
+    """A group's proposal and its versions; the proposal text is the user's."""
+
+    kind = "proposal"
+
+
+class Memory(Grouped):
+    """The memory of a group and of the groups above it."""
+
+    kind = "memory"
+    lists = ("chain",)
+
+
+class Note(Grouped):
+    """One note: its group; the text is the user's."""
+
+    kind = "note"
+
+
+class File(Bare):
+    """A data file of a view: its group; its path is relative to the view."""
+
+    kind = "file"
+
+    def placed(self, answer: Any, at: Callable[[str], str]) -> Any:
+        """Place the group and the meta.
+
+        :param answer: The remote's answer.
+        :param at: Puts a source's prefix on one path.
+        :return: The answer with ``@source/...`` group."""
+        return place_meta(place_keys(answer, ("group",), at), at)
+
+
+class Groups(Tabled):
     """The group tree: rows of every source."""
 
     kind = "groups"
@@ -111,7 +297,7 @@ class Groups(Answer):
         return first
 
 
-class Data(Answer):
+class Data(Bare):
     """The data entries of the runs."""
 
     kind = "data"
@@ -128,7 +314,7 @@ class Data(Answer):
         return first
 
 
-class Runs(Answer):
+class Runs(Tabled):
     """A run table."""
 
     kind = "runs"
@@ -158,7 +344,7 @@ class Runs(Answer):
             columns.insert(columns.index("runs") + 1, "source")
         rows = [
             dict(zip(a.get("columns", []), r, strict=False))
-            | ({"source": "." if src == "local" else f"@{src}"} if labelled else {})
+            | ({"source": label(src)} if labelled else {})
             for src, a in answers
             for r in a.get("rows", [])
         ]
@@ -177,7 +363,7 @@ class Runs(Answer):
         return first
 
 
-class Series(Answer):
+class Series(Bare):
     """Curves of metrics."""
 
     kind = "series"
@@ -193,7 +379,7 @@ class Series(Answer):
         several = sum(1 for _, a in answers if a.get("curves")) > 1
         first["curves"] = [
             (
-                {**c, "by": {"source": src, **c["by"]}}
+                {**c, "by": {"source": label(src), **c["by"]}}
                 if several and isinstance(c.get("by"), dict)
                 else c
             )
@@ -203,10 +389,11 @@ class Series(Answer):
         return first
 
 
-class Timeline(Answer):
-    """The events of a time range."""
+class Timeline(Grouped):
+    """The events and notes of a time range; a note names its group."""
 
     kind = "timeline"
+    lists = ("entries",)
 
     def merged(self, answers: list[tuple[str, dict]], params: dict, caller: str) -> dict:
         """Sort the entries by time and keep the latest ones.
@@ -225,10 +412,11 @@ class Timeline(Answer):
         return first
 
 
-class Notes(Answer):
+class Notes(Grouped):
     """The notes of a target."""
 
     kind = "notes"
+    lists = ("entries",)
 
     def merged(self, answers: list[tuple[str, dict]], params: dict, caller: str) -> dict:
         """Sort the entries newest first and keep one page.
@@ -251,7 +439,7 @@ class Notes(Answer):
         return first
 
 
-class Keys(Answer):
+class Keys(Bare):
     """The keys of the runs: metrics, config and data."""
 
     kind = "keys"
@@ -353,6 +541,19 @@ ANSWERS: dict[str, Answer] = {
         Keys(),
         WaitAnswer(),
         CompareAnswer(),
+        Card(),
+        Output(),
+        Resume(),
+        Status(),
+        Logs(),
+        Diagnose(),
+        Digest(),
+        PlanMissing(),
+        Check(),
+        Proposal(),
+        Memory(),
+        Note(),
+        File(),
     )
 }
 
@@ -404,6 +605,19 @@ def paged(answer: dict, cursor: str | None) -> dict:
     :return: The answer, with ``meta.next`` when items were left out.
     :raises OpError: If the cursor is not one Beamtime gave out."""
     return budget.cut(answer, budget.offset_of(cursor))
+
+
+def flagged(answer: dict) -> dict:
+    """Show at the top that a source cut its own answer, unless a cursor already leads to the rest.
+
+    :param answer: A merged answer with ``meta.sources``.
+    :return: The answer; ``meta.cut`` and ``meta.hint`` name the sources whose items are missing."""
+    meta = answer.get("meta", {})
+    if "next" not in meta and (
+        names := [s["name"] for s in meta.get("sources", []) if s.get("cut")]
+    ):
+        meta |= {"cut": True, "hint": f"narrow from or where to see all of {', '.join(names)}"}
+    return answer
 
 
 def is_call(v: Any) -> bool:

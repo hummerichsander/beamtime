@@ -140,7 +140,7 @@ def test_at_local_is_accepted_and_stripped(ctx: Context) -> None:
     prefixed = call("runs", {"from": "@local/" + SWEEP, "select": ["run.name"], "limit": 3}, ctx)
     # not full equality: freshness (meta.freshness.behind_s) is live catch-up timing, not identity.
     assert prefixed["columns"] == bare["columns"] and prefixed["rows"] == bare["rows"]
-    assert prefixed["meta"]["source"] == bare["meta"]["source"] == "local"
+    assert prefixed["meta"]["source"] == bare["meta"]["source"] == "."
 
 
 def test_nothing_is_created_in_the_empty_directory(one_remote: Context, empty: Path) -> None:
