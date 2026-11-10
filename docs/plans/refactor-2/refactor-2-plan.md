@@ -61,7 +61,8 @@ What the tickets build together, so a session doesn't rediscover the design:
   `placed(answer, at)` and, for listings, `merged(answers, params, caller)`; `DEFAULT` keeps today's walk for
   methods without a `kind`. Module interface: `placed(answer, source)`, `merged(method, answers, params, caller)`,
   `paged(answer, cursor)`. `route.py` keeps transport, fan-out, snapshots, source states, and names no answer key.
-  Answers merge local first, then sources in configured order; a merged listing is cut once, locally.
+  Answers merge local first, then sources in configured order; sources answer whole (R4b), and a merged listing
+  is cut once, locally.
 - **Descriptors** (O): one flat `Op` (fields as in c2 §2 Design A). `METHODS` lists every method, page methods
   with `params=None`; `OPS` stays, derived (`params is not None`), so CLI, MCP and `docs/site/reference.py` are
   untouched; `BY_NAME`, `BY_TOOL`, `BY_API`. `Op.kind` joins a method to its `answers.ANSWERS` entry.
@@ -106,20 +107,22 @@ is marked done in the ticket's own commit.
 ## Order
 
 ```
-P1 ─ P2 ─ R1 ─ R2 ─ R3 ─ R4 ─ R5 ─ R6            place value + routing, then the answer seam
-                                   └─ P3 ─ P4 ─ P5          one resolver, every call site
-                                                └─ O1 ─ O2 ─ O3 ─ O4      descriptors (O4: web)
-                                                                   └─ S1 ─ S2 ─ S3 ─ S4 ─ S5   (S2, S3: web)
-                                                                                         └─ V1 ─ V2 ─ V3 ─ V4 (V4: web)
-                                                                                                         └─ Q1 … Q5 ─ K1 … K4 ─ X1
+P1 ─ P2 ─ R1 ─ R2 ─ R3 ─ R4 ─ R5 ─ R4b ─ R6      place value + routing, then the answer seam
+                                         └─ P3 ─ P4 ─ P5          one resolver, every call site
+                                                      └─ O1 ─ O2 ─ O3 ─ O4      descriptors (O4: web)
+                                                                         └─ S1 ─ S2 ─ S3 ─ S4 ─ S5   (S2, S3: web)
+                                                                                               └─ V1 ─ V2 ─ V3 ─ V4 (V4: web)
+                                                                                                               └─ Q1 … Q5 ─ K1 … K4 ─ X1
 ```
 
-Why this order: R builds on `Place` and on P2's `route.py` (c1 §7); P5 edits `serve/api.py` before O2 reshapes it;
-O3's conformance test needs every kind registered (R6); S3 and V4 both edit `line.ts`'s data path; Q deletes
-`members()` and shrinks `reading.py` before K collapses its adapters, and K3 reshapes `registry.py` after O.
+Why this order: R builds on `Place` and on P2's `route.py` (c1 §7); R4b comes after R5, whose flag for a source
+that cut itself it narrows, and before R6, which states the paging rule in the spec; P5 edits `serve/api.py` before
+O2 reshapes it; O3's conformance test needs every kind registered (R6); S3 and V4 both edit `line.ts`'s data path;
+Q deletes `members()` and shrinks `reading.py` before K collapses its adapters, and K3 reshapes `registry.py` after
+O.
 
 Everything runs in this order, one session at a time in the main checkout, each `+ review` ticket followed by its
-review: P1 P2 R1 R2 R3 R4 R5 R6 P3 P4 P5 O1 O2 O3 O4 S1 S2 S3 S4 S5 V1 V2 V3 V4 Q1 Q2 Q3 Q4 Q5 K1 K2 K3 K4 X1.
+review: P1 P2 R1 R2 R3 R4 R5 R4b R6 P3 P4 P5 O1 O2 O3 O4 S1 S2 S3 S4 S5 V1 V2 V3 V4 Q1 Q2 Q3 Q4 Q5 K1 K2 K3 K4 X1.
 
 ## Decisions taken; say if you want otherwise
 
@@ -151,6 +154,16 @@ review: P1 P2 R1 R2 R3 R4 R5 R6 P3 P4 P5 O1 O2 O3 O4 S1 S2 S3 S4 S5 V1 V2 V3 V4 
 13. **C1 paging**: the cursor is not fanned out; each source answers from offset 0; `paged` cuts the merged
     answer; a source that cut its own answer shows `meta.sources[i].cut: true` and the hint
     `narrow from or where to see all of @<name>`. Rejected: distributed cursors.
+    **Amended after the R4 review** (your decision: fix it in this refactor, not accept it for 0.3.0): a source
+    that cuts at its own 8k-token budget hides its later items from paging, the local listing included, so a
+    federating serve asks every source, itself too, for its whole answer (R4b): the request line carries
+    `whole: true`, and the answer is bounded only by the query's `limit` and a hard cap of about 2 MB
+    (`budget.WHOLE_MAX_CHARS`). The merged answer is then complete up to the limit and one paging walk reaches
+    every item once. `meta.sources[i].cut` remains for what is still incomplete: an old remote that ignores
+    `whole` and cuts at its budget, or an answer over the cap. A cut at the `limit` is not a source's flag, since
+    the merge applies the limit again across sources. Rejected: caching the merged answer on the serve between
+    pages (state to invalidate as runs change, and cursors tied to one serve process) and a `whole` param on the
+    ops (params forbid unknown fields, so old remotes would refuse the call).
 14. **Errors pin to the richest variant** (C7): unknown source lists the known ones; unknown group suggests
     siblings and top-level groups; a run is found by id, unique id suffix or name; one catch-up budget, 0.2 s.
 15. **The version bump waits for the release** (your decision): tickets write under `## 0.3.0 (unreleased)`;
@@ -305,6 +318,73 @@ Behaviour-preserving: the code moves, nothing is fixed yet (R2–R4 fix).
 1. A private helper per recurring shape (`place_table(columns, rows, at)`, `place_keys(d, keys, at)`), then each
    class a one-to-three-liner. Unknown fields pass through unchanged.
 2. Each class registered in `ANSWERS`; `DEFAULT` untouched.
+
+### R4b. Federated paging reaches every item (sonnet + review) — code
+
+- **Touches:** `src/beamtime/ops/budget.py` (new `WHOLE_MAX_CHARS`, new `page`), `src/beamtime/ops/context.py`
+  (`Context` 29, new field `whole`), `src/beamtime/ops/reading.py` (`page` 81–89),
+  `src/beamtime/ops/record.py` (`notes` 48–74), `src/beamtime/serve/stdio.py` (`answer` 57–88, `caller` 71),
+  `src/beamtime/remote/client.py` (`request` 133, `send` 152, request line 167), `src/beamtime/remote/route.py`
+  (`Local` 27, `routed` 30–66, `federate` 229–283, `drop_own_cut` 294–304), `src/beamtime/serve/api.py`
+  (`dispatch` 54), `src/beamtime/remote/__init__.py` (`answer` 67), `tests/remote/test_federation.py`,
+  `tests/serve/test_stdio.py`, `tests/ops/test_tools.py` (55), `docs/design/04-remotes.md`, `CHANGELOG.md`.
+  Lines at `d492da9`; R5 edits only `answers.py`.
+- **Read:** decision 13 and its amendment; ticket R4; `docs/design/04-remotes.md` § Routing and merging (l. 116,
+  the paging bullet l. 136–140), § Protocol (l. 211).
+- **Check:** `uv run pytest -q tests/remote tests/ops tests/serve/test_stdio.py`; `uv run pytest -q -n0
+  tests/test_budgets.py`.
+- **Done:** new `test_paging_reaches_beyond_a_source_budget`: local and two sources (`s0`, `s1`), 30 rows each,
+  every one of the three answers larger than the budget (`small_pages`); following `meta.next` until it is absent
+  yields every row exactly once, local first, and no `meta.sources[i]` has `cut`; it fails before the change.
+  New `test_federated_runs_page_through_local` against the `box` fixture with `small_pages`: `runs` over `.` with
+  `limit: 1000` followed by cursor gives every run id of local and `@box` exactly once (reference: each source's
+  own listing with `caller="view"`). New `test_whole_request_is_not_cut` (stdio): a listing that a plain request
+  cuts carries no `meta.next` when the request line has `"whole": true`; without it, the answer is as before.
+  New `test_whole_answer_is_capped`: with `budget.WHOLE_MAX_CHARS` lowered, a whole answer carries `meta.next`
+  and `federate` flags that source `cut: true` with the hint. New `test_view_federation_is_whole`: with
+  `caller="view"`, `federate` returns every row of every source and no `meta.next`, with `small_pages` and
+  `WHOLE_MAX_CHARS` lowered. `test_a_source_that_cut_itself_says_so` passes with its `FakeClient(cut=True)`
+  standing for an old remote that ignores `whole`.
+  `test_federated_pages_give_every_item_once`, `test_down_source_paging` and `test_bad_cursor` pass, adapted only
+  to `local(params, ctx)` and the client's `whole` keyword, and assert every source was asked `whole=True`;
+  `test_limit_cut_is_flagged` passes unchanged; `tests/ops` passes with only the `routed` lambda adapted.
+- **Risks:** remote payload and ssh time: every page asks every source again for its whole answer, up to the
+  `limit` and about 2 MB each, within `LISTING_S` (20 s) (`test_whole_answer_is_capped`); an old remote ignores
+  the request line's `whole`, still answers, and is flagged cut, never refused
+  (`test_a_source_that_cut_itself_says_so`, and `test_whole_request_is_not_cut` for a line without it); the
+  `view` caller isn't paged and keeps whole, uncapped answers with no `meta.next`
+  (`test_view_federation_is_whole`); a single source with no remotes pages exactly as before (`tests/ops`).
+- **Stop if:** an answer kind has no `limit` and no natural bound, so whole answers routinely reach the cap; or
+  passing `whole` needs a field in the ops' params (they forbid unknown fields, so old remotes would refuse).
+
+Under R4 each source cuts its answer at its own 8k-token budget before the merge, so items beyond that cut,
+the local listing of `.` included, can't be reached by paging once any remote is configured (decision 13).
+
+1. `budget.py`: `WHOLE_MAX_CHARS = 64 * MAX_CHARS` (about 2 MB, one comment line: what a federating serve takes
+   from one source); `page(answer: dict, cursor: str | None, *, caller: str, whole: bool) -> dict`: `view` →
+   the answer as it is; `whole` → `cut(answer, offset_of(cursor), max_chars=WHOLE_MAX_CHARS)`, reading the
+   module constant at call time so a test can lower it; else `cut(answer, offset_of(cursor))`.
+   `reading.page` and the last line of `record.notes` call it with `ctx.caller`, `ctx.whole`.
+2. `Context.whole: bool = False`, after `merge`, one comment line: a federating serve asks for answers bounded
+   only by their limit and `WHOLE_MAX_CHARS`.
+3. Request line: `client.request`/`send` take `whole: bool = False` and add `"whole": true` to the line only when
+   set (other requests are byte-identical); `Stdio.answer` sets `whole=request.get("whole") is True` on its
+   `dataclasses.replace`. An old remote reads only `id`, `method`, `params`, `caller` and ignores it.
+4. `route.py`: `Local = Callable[[dict[str, Any], Context], Any]`; `routed` calls `local(params, ctx)`; the
+   lambdas in `src/beamtime/serve/api.py` and `src/beamtime/remote/__init__.py` take `(given, c)` and use `c`.
+   `federate` makes `whole = dataclasses.replace(ctx, whole=True)` and uses it for `local`, `from_snapshot` and
+   `client.request(..., whole=True)`; the `view` early return stays.
+5. `drop_own_cut` keeps keying on `meta.next`, which now means only an old remote or an answer over the cap; its
+   docstring says so. A source cut at its `limit` (`meta.cut` without `next`) is not flagged: the merge applies
+   the limit again. R5's top-level cut flag, if present, keys on the same per-source flag.
+6. Tests as in Done; `FakeClient` takes `whole` and cuts itself at the budget unless asked whole, like a current
+   remote, unless `cut=True` (an old remote). The `serve --stdio` subprocess cuts at the real 32k characters, so
+   `test_whole_request_is_not_cut` picks a listing over that (`runs`, `limit: 1000`, wide `select`) or answers
+   in-process with `small_pages`, whichever is shorter.
+7. `04-remotes.md`: the paging bullet says sources answer whole (bounded by `limit` and about 2 MB) and only an
+   old remote or an answer over the cap shows `meta.sources[i].cut`, drop "items beyond its cut are not
+   reachable"; § Protocol: a request may carry `whole: true`, which older remotes ignore. Amend R4's CHANGELOG
+   line to match; no new line.
 
 ### R6. Write, view and block answers; the spec (sonnet) — code
 
@@ -806,7 +886,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 | Index cache (Q2) | schema 2 | schema 3; rebuilds once on first use | none, it's a cache |
 | `logs` failure signatures (Q4) | from the output's last traceback | from the card's error when present | signatures are labels |
 | Federated `runs --by`/`--seeds` (R3) | unlabelled rows, arbitrary order | a `source` column, per-source order | none |
-| Federated listing paging (R4) | each source cut, local cursor reused | merged answer cut once; `meta.sources[].cut` | follow `meta.next` |
+| Federated listing paging (R4, R4b) | each source cut, local cursor reused | sources answer whole, merged answer cut once; `meta.sources[].cut` only for old remotes and answers over 2 MB | follow `meta.next` |
 | Series curves (V1) | three shapes | plus `y`/`lo`/`hi`/`n` on all; old fields stay | none |
 | MCP tool schemas (K3) | `cursor` first | `cursor` last | none |
 | MCP instructions (O1) | 8 user-only commands named | all 18 | none |
