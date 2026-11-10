@@ -156,7 +156,7 @@ review: P1 P2 R1 R2 R3 R4 R5 R6 P3 P4 P5 O1 O2 O3 O4 S1 S2 S3 S4 S5 V1 V2 V3 V4 
 
 ## P. Places
 
-### P1. The place value (sonnet) — code
+### P1. The place value (sonnet) — code — **done**
 
 - **Touches:** new `src/beamtime/format/place.py`, new `tests/format/test_place.py`.
 - **Read:** `docs/design/04-remotes.md` § Naming remote groups (l. 139); `docs/plans/refactor-2-designs/c7-place-value.md` §2 Shape A.
