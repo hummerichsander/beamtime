@@ -115,6 +115,7 @@ beamtime pull cluster:scaling/lr-sweep
 
 - **A path names its source.** `@cluster/scaling` is the group `scaling` of the remote `cluster`, in
   parameters, answers, links and the web UI; local paths have no prefix.
+  Routing reads every place through `format.place.Place`: a source is matched by its whole name (`@box` never claims `@boxer/g`), and `@local/g` reads as the bare path `g`.
 - **Every operation whose target names a source** (`group`, `from`, `run`, a view or a query's
   `from`) runs on that source with the prefix stripped; paths in its answer get the prefix back.
   What users wrote or logged (configs, a proposal's text, conditions) keeps its values, but a

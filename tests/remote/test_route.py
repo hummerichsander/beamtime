@@ -30,6 +30,13 @@ def test_strip_and_source() -> None:
     assert source_of({"description": "@alice said"}) is None
     assert strip({"from": "@box", "run": "@box/r"}, "box") == {"from": ".", "run": "r"}
     assert strip({"query": {"runs": {"from": "@box/g"}}}, "box")["query"]["runs"]["from"] == "g"
+    assert strip({"group": "@local/g", "run": "@local", "path": "h"}, None) == {
+        "group": "g",
+        "run": ".",
+        "path": "h",
+    }
+    assert strip({"group": "@boxer/g"}, "box") == {"group": "@boxer/g"}
+    assert source_of({"group": "@local/g"}) is None
 
 
 def test_only_targets_name_a_remote() -> None:

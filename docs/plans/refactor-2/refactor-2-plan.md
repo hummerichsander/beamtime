@@ -178,7 +178,7 @@ A value only; no call site changes yet.
    `format.tree.is_reserved`. `on(source: str | None) -> Place`: the same path on that source.
 4. Docstrings per `CLAUDE.md`; stdlib and `beamtime.format` imports only.
 
-### P2. Routing reads places (sonnet) — code
+### P2. Routing reads places (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/remote/route.py` (`source_of` 168, `strip_local` 183 removed, `strip` 206,
   `prefix` 230–275 guard at 238, `on_source` 535–563), `src/beamtime/remote/__init__.py` (callers of

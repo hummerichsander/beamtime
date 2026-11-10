@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from beamtime.format.ids import is_run_id
+from beamtime.format.place import Place
 from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import OPS
 from beamtime.remote import TARGETS, places
@@ -56,7 +57,7 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
     from beamtime.remote.client import Unreachable
     from beamtime.remote.sources import client_for
 
-    params = strip_local(params)
+    params = strip(params, None)
     if method in ("cp", "compare"):
         check_one_source(method, params, ctx)
     source = source_of(params)
@@ -171,52 +172,30 @@ def source_of(params: dict[str, Any]) -> str | None:
     :param params: The parameters.
     :return: The source's name without ``@``, or ``None`` for this machine."""
     for v in places(params):
-        if v.startswith("@"):
-            return v[1:].split("/", 1)[0]
+        if (source := Place.parse(v).source) is not None:
+            return source
     if isinstance(query := params.get("query"), dict):
         for inner in query.values():
-            if isinstance(inner, dict) and str(inner.get("from", "")).startswith("@"):
-                return str(inner["from"])[1:].split("/", 1)[0]
+            if isinstance(inner, dict) and (
+                source := Place.parse(str(inner.get("from", ""))).source
+            ):
+                return source
     return None
 
 
-def strip_local(params: dict[str, Any]) -> dict[str, Any]:
-    """Take an explicit ``@local`` prefix off every target, so it reads like a bare local path.
-
-    :param params: The parameters.
-    :return: The parameters, with ``@local`` stripped."""
-
-    def bare(v: Any) -> Any:
-        if isinstance(v, list):
-            return [bare(x) for x in v]
-        if not isinstance(v, str) or not (v == "@local" or v.startswith("@local/")):
-            return v
-        rest = v[len("@local") :].lstrip("/")
-        return rest or "."
-
-    out = {k: bare(v) if k in TARGETS else v for k, v in params.items()}
-    if isinstance(query := out.get("query"), dict):
-        out["query"] = {
-            k: {**v, "from": bare(v.get("from"))} if isinstance(v, dict) else v
-            for k, v in query.items()
-        }
-    return out
-
-
-def strip(params: dict[str, Any], source: str) -> dict[str, Any]:
+def strip(params: dict[str, Any], source: str | None) -> dict[str, Any]:
     """Take the source's prefix off every target.
 
     :param params: The parameters.
-    :param source: The source's name.
+    :param source: The source's name, or ``None`` to take an explicit ``@local`` off.
     :return: The parameters as the remote reads them."""
 
     def bare(v: Any) -> Any:
         if isinstance(v, list):
             return [bare(x) for x in v]
-        if not isinstance(v, str) or not v.startswith(f"@{source}"):
+        if not isinstance(v, str) or (place := Place.parse(v)).source != source or v == place.path:
             return v
-        rest = v[len(source) + 1 :].lstrip("/")
-        return rest or "."
+        return place.path
 
     out = {k: bare(v) if k in TARGETS else v for k, v in params.items()}
     if isinstance(query := out.get("query"), dict):
@@ -235,7 +214,12 @@ def prefix(answer: Any, source: str) -> Any:
     :return: The answer with ``@source/...`` paths."""
 
     def p(v: Any) -> Any:
-        if not isinstance(v, str) or v.startswith(("@", "/")) or "://" in v:
+        if (
+            not isinstance(v, str)
+            or Place.parse(v).source is not None
+            or v.startswith("/")
+            or "://" in v
+        ):
             return v
         return f"@{source}" if v in (".", "") else f"@{source}/{v}"
 
@@ -548,10 +532,11 @@ def on_source(method: str, target: str, ctx: Context, body: dict[str, Any]) -> A
     from beamtime.remote.sources import client_for
 
     check_size(body)
-    source, _, group = target[1:].partition("/")
+    place = Place.parse(target)
+    source = place.source
     client = client_for(ctx, source)
     try:
-        answer = client.request(method, {"group": group or ".", **body}, caller=ctx.caller)
+        answer = client.request(method, {"group": place.path, **body}, caller=ctx.caller)
     except RemoteError as e:
         if e.code == 4 and "no API method" in e.reason:
             raise OpError(
