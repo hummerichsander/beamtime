@@ -1,8 +1,11 @@
 import copy
+import re
+from pathlib import Path
 from typing import Any
 
 import pytest
 
+import beamtime
 from beamtime.ops.answers import ANSWERS, flagged, merged, placed
 
 
@@ -261,6 +264,43 @@ KINDS = {
         {"group": "g", "form": "grid", "entries": [{"config": {"group": "a"}, "runs": {}}]},
         [("group",)],
     ),
+    "view show": ({"group": "g", "version": "v1", "yaml": "title: g\npath: g"}, [("group",)]),
+    "view history": (
+        {"group": "g", "entries": [{"version": "v1", "author": "group", "title": "path"}]},
+        [("group",)],
+    ),
+    "view outdated": (
+        {"columns": ["group", "block", "pinned", "newest"], "rows": [["g", "path", "v1", "v2"]]},
+        [("rows", 0, 0)],
+    ),
+    "view validate": (
+        {"draft": "d", "group": "g", "findings": [{"level": "error", "message": "path"}]},
+        [("group",)],
+    ),
+    "view check": ({"findings": [{"level": "error", "message": "group"}]}, []),
+    "view files": ({"content": "Zw=="}, []),
+    "block list": (
+        {
+            "group": "g",
+            "columns": ["name", "version", "group", "params", "description"],
+            "rows": [["fit", "v1", "g/s", "path: string", "group"]],
+        },
+        [("group",), ("rows", 0, 2)],
+    ),
+    "block show": ({"name": "fit", "group": "g", "yaml": "path", "code": "group"}, [("group",)]),
+    "block check": ({"findings": []}, []),
+    "block export": ({"name": "fit", "to": "/home/u/g", "lines": ["copied 1 to g"]}, []),
+    "block import": ({"blocks": ["fit"], "lines": ["fit: 1 new file(s)"]}, []),
+    "note rm": ({"notes": ["n1"], "lines": ["moved g/notes/n1.md to .beamtime/trash/g"]}, []),
+    "settings": (
+        {"columns": ["key", "value", "level"], "rows": [["path", "g", "user"]], "problems": []},
+        [],
+    ),
+    "doctor": ({"columns": ["check", "ok", "detail"], "rows": [["path", True, "g"]]}, []),
+    "source list": (
+        {"columns": ["name", "host", "path"], "rows": [["box", "host", "/scratch/g"]]},
+        [],
+    ),
 }
 
 
@@ -319,3 +359,44 @@ def test_a_source_that_cut_shows_at_the_top() -> None:
     paged = {"meta": {"sources": states, "next": "5", "hint": "pass cursor"}}
     assert flagged(paged)["meta"] == {"sources": states, "next": "5", "hint": "pass cursor"}
     assert "cut" not in flagged({"meta": {"sources": states[:1]}})["meta"]
+
+
+NOT_ANSWERS = {"auto", "manual", "local", "remote", "event", "checkpoint", "copied"}
+
+
+def emitted() -> set[str]:
+    """Collect the kinds that ``ops``, ``query`` and ``record`` build answers with.
+
+    :return: The kind strings of ``"kind": ...`` entries and of ``written``/``drafted``/``answer``."""
+    found: set[str] = set()
+    for sub in ("ops", "query", "record"):
+        for f in (Path(beamtime.__file__).parent / sub).rglob("*.py"):
+            text = f.read_text()
+            found |= set(re.findall(r'"kind": "([a-z ]+)"', text))
+            found |= set(
+                re.findall(r'(?:written|drafted|answer)\(\s*(?:ctx,\s*)?"([a-z ]+)"', text)
+            )
+    return found
+
+
+def test_answer_kinds_only() -> None:
+    """Every answer kind has its entry; the names of note, event and source types have none."""
+    assert not emitted() - NOT_ANSWERS - set(ANSWERS)
+    assert not NOT_ANSWERS & set(ANSWERS)
+
+
+def test_wrote_line() -> None:
+    """A write's path and the line that says ``wrote <path>`` name the source; twice changes nothing."""
+    answer = {
+        "kind": "note add",
+        "path": "g/notes/n1.md",
+        "version": "n1",
+        "lines": ["wrote g/notes/n1.md", "see g/notes/n1.md"],
+        "meta": {},
+    }
+    out = placed(answer, "box")
+    assert out["path"] == "@box/g/notes/n1.md" and out["version"] == "n1"
+    assert out["lines"] == ["wrote @box/g/notes/n1.md", "see g/notes/n1.md"]
+    assert placed(out, "box") == out
+    upgrade = {"kind": "view upgrade", "group": "g", "lines": ["nothing to upgrade"], "meta": {}}
+    assert placed(upgrade, "box")["group"] == "@box/g"

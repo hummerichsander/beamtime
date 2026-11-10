@@ -386,7 +386,7 @@ the local listing of `.` included, can't be reached by paging once any remote is
    reachable"; § Protocol: a request may carry `whole: true`, which older remotes ignore. Amend R4's CHANGELOG
    line to match; no new line.
 
-### R6. Write, view and block answers; the spec (sonnet) — code
+### R6. Write, view and block answers; the spec (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/ops/answers.py`, `tests/remote/test_answers.py`, `docs/design/04-remotes.md`.
 - **Read:** c1 §4, §6 step 6; the builders of the remaining kinds (`view *`, `block *`, `copied`, `pull`,

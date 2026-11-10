@@ -117,16 +117,7 @@ class Answer:
                 ]
             return out
 
-        out = walk(answer)
-        # a write says what it wrote, or where it copied to; the file is on the source.
-        if isinstance(answer, dict) and isinstance(path := answer.get("path"), str):
-            out["lines"] = [
-                line.replace(f"wrote {path}", f"wrote {at(path)}").replace(
-                    f"to {path} ", f"to {at(path)} "
-                )
-                for line in out.get("lines", [])
-            ]
-        return out
+        return walk(answer)
 
     def merged(self, answers: list[tuple[str, dict]], params: dict, caller: str) -> dict:
         """Combine this kind's answers from several sources.
@@ -167,9 +158,11 @@ class Tabled(Bare):
 
 
 class Grouped(Bare):
-    """An answer about one group: its ``group``, and the ``group`` of each item in ``lists``."""
+    """An answer about one group: its ``group``, the ``group`` of each item in ``lists`` and the
+    table columns named in ``columns``."""
 
     lists: ClassVar[tuple[str, ...]] = ()
+    columns: ClassVar[tuple[str, ...]] = ()
 
     def placed(self, answer: Any, at: Callable[[str], str]) -> Any:
         """Place the group, the groups of the items and the meta.
@@ -180,7 +173,7 @@ class Grouped(Bare):
         out = place_keys(answer, ("group",), at)
         for key in self.lists:
             out[key] = [place_keys(item, ("group",), at) for item in out.get(key, [])]
-        return place_meta(out, at)
+        return place_meta(place_table(out, self.columns, at), at)
 
 
 class Card(Bare):
@@ -529,33 +522,90 @@ class CompareAnswer(Answer):
         return out
 
 
-ANSWERS: dict[str, Answer] = {
-    a.kind: a
-    for a in (
-        Groups(),
-        Runs(),
-        Series(),
-        Data(),
-        Timeline(),
-        Notes(),
-        Keys(),
-        WaitAnswer(),
-        CompareAnswer(),
-        Card(),
-        Output(),
-        Resume(),
-        Status(),
-        Logs(),
-        Diagnose(),
-        Digest(),
-        PlanMissing(),
-        Check(),
-        Proposal(),
-        Memory(),
-        Note(),
-        File(),
-    )
-}
+class Written(Grouped):
+    """A write: the file it made, in ``path`` and in the line ``wrote <path>``."""
+
+    def placed(self, answer: Any, at: Callable[[str], str]) -> Any:
+        """Place the file, the lines that name it, the group and the meta.
+
+        :param answer: The remote's answer.
+        :param at: Puts a source's prefix on one path.
+        :return: The answer with ``@source/...`` paths."""
+        out = super().placed(place_keys(answer, ("path",), at), at)
+        if isinstance(path := answer.get("path"), str):
+            out["lines"] = [
+                line.replace(f"wrote {path}", f"wrote {at(path)}").replace(
+                    f"to {path} ", f"to {at(path)} "
+                )
+                for line in out.get("lines", [])
+            ]
+        return out
+
+
+class BlockList(Grouped):
+    """The library blocks of a group; each row names the group that holds the block."""
+
+    kind = "block list"
+    columns = ("group",)
+
+
+class ViewOutdated(Grouped):
+    """The views that pin an old block version, one row per block and group."""
+
+    kind = "view outdated"
+    columns = ("group",)
+
+
+WRITES = (
+    "view save", "view upgrade", "name", "note add", "proposal set", "memory update",
+    "block save", "cp",
+)  # fmt: skip
+# kinds whose answer names a group (and nothing else is a place).
+GROUPED = (
+    "view new", "view validate", "view render", "view show", "view history", "block show",
+    "block validate", "block promote", "block fork",
+)  # fmt: skip
+# what a source says about its own machine, or about names and text: nothing in it is a place.
+BARE = (
+    "view check", "view files", "block check", "block export", "block import", "note rm",
+    "settings", "doctor", "source list", "export", "pull", "init", "set", "source add",
+    "source rm", "reindex", "rm", "mv", "gc", "mcp install",
+)  # fmt: skip
+
+ANSWERS: dict[str, Answer] = (
+    {
+        a.kind: a
+        for a in (
+            Groups(),
+            Runs(),
+            Series(),
+            Data(),
+            Timeline(),
+            Notes(),
+            Keys(),
+            WaitAnswer(),
+            CompareAnswer(),
+            Card(),
+            Output(),
+            Resume(),
+            Status(),
+            Logs(),
+            Diagnose(),
+            Digest(),
+            PlanMissing(),
+            Check(),
+            Proposal(),
+            Memory(),
+            Note(),
+            File(),
+            BlockList(),
+            ViewOutdated(),
+        )
+    }
+    | {k: Written() for k in WRITES}
+    | {k: Grouped() for k in GROUPED}
+    | {k: Bare() for k in BARE}
+)
 
 
 def placed(answer: Any, source: str) -> Any:

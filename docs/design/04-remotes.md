@@ -127,7 +127,7 @@ beamtime pull cluster:scaling/lr-sweep
   A path in an answer that names a source stays as it is; one that names none, `@local/g` included, is placed on the remote (`@local/g` from `box` becomes `@box/g`), so placing twice changes nothing.
   What users wrote or logged (configs, a proposal's text, conditions) keeps its values, but a
   block's call (`method`, `params`, `scope`) is always a place, also under a key like `proposal`.
-  Placing an answer and merging a listing live in `ops/answers.py`, one `Answer` per answer kind, each naming its own places (a path column, a `group`, `run.path`; run ids, statuses, metric keys and what users wrote are never places); `remote/route.py` keeps the transport, the fan-out, snapshots and source states, and names no answer key.
+  **Answers own their places.** Per answer kind, a module beside the ops (`ops/answers.py`, one `Answer` per kind) says which fields are places (a path column, a `group`, `run.path`, a write's `path` and its line `wrote <path>`; run ids, statuses, metric keys, file paths a source reports about its own machine and what users wrote are never places), how a listing merges and in what order; a kind without an entry falls to a generic walk by key name, which only page methods still use. `remote/route.py` only forwards: it keeps the transport, the fan-out, snapshots and source states, and names no answer key, and the merged listing is paged once, locally.
   Operations on `.` that list (`groups`, `runs`, `series`, `data`, `timeline`, `notes`, `keys`) ask
   every source at once and merge; everything else stays local. Which operations list, write or
   work on drafts is a flag on each operation in the registry. A source that doesn't answer a listing
