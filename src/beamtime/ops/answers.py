@@ -99,7 +99,12 @@ class Groups(Answer):
     kind = "groups"
 
     def merged(self, answers: list[tuple[str, dict]], params: dict, caller: str) -> dict:
-        """Join the rows of every source."""
+        """Join the rows of every source.
+
+        :param answers: ``(source, answer)`` pairs, this machine first.
+        :param params: The call's parameters.
+        :param caller: Who asks (``cli``, ``mcp``, ``web``), for its default limits.
+        :return: The merged answer, without ``meta``."""
         first = dict(answers[0][1])
         first["rows"] = [x for _, a in answers for x in a.get("rows", [])]
         return first
@@ -111,7 +116,12 @@ class Data(Answer):
     kind = "data"
 
     def merged(self, answers: list[tuple[str, dict]], params: dict, caller: str) -> dict:
-        """Join the entries of every source."""
+        """Join the entries of every source.
+
+        :param answers: ``(source, answer)`` pairs, this machine first.
+        :param params: The call's parameters.
+        :param caller: Who asks (``cli``, ``mcp``, ``web``), for its default limits.
+        :return: The merged answer, without ``meta``."""
         first = dict(answers[0][1])
         first["entries"] = [x for _, a in answers for x in a.get("entries", [])]
         return first
@@ -125,7 +135,12 @@ class Runs(Answer):
     def merged(self, answers: list[tuple[str, dict]], params: dict, caller: str) -> dict:
         """Union the columns, sort again and cut to the limit.
 
-        Each source returned its top rows by the same sort, so the merged top rows are exact."""
+        Each source returned its top rows by the same sort, so the merged top rows are exact.
+
+        :param answers: ``(source, answer)`` pairs, this machine first.
+        :param params: The call's parameters.
+        :param caller: Who asks (``cli``, ``mcp``, ``web``), for its default limits.
+        :return: The merged answer, without ``meta``."""
         from beamtime.query.aggregate import sort_rows
         from beamtime.query.select import DEFAULTS
 
@@ -158,7 +173,12 @@ class Series(Answer):
     kind = "series"
 
     def merged(self, answers: list[tuple[str, dict]], params: dict, caller: str) -> dict:
-        """Join the curves; with several sources' curves, each group says its source."""
+        """Join the curves; with several sources' curves, each group says its source.
+
+        :param answers: ``(source, answer)`` pairs, this machine first.
+        :param params: The call's parameters.
+        :param caller: Who asks (``cli``, ``mcp``, ``web``), for its default limits.
+        :return: The merged answer, without ``meta``."""
         first = dict(answers[0][1])
         several = sum(1 for _, a in answers if a.get("curves")) > 1
         first["curves"] = [
@@ -179,7 +199,12 @@ class Timeline(Answer):
     kind = "timeline"
 
     def merged(self, answers: list[tuple[str, dict]], params: dict, caller: str) -> dict:
-        """Sort the entries by time and keep the latest ones."""
+        """Sort the entries by time and keep the latest ones.
+
+        :param answers: ``(source, answer)`` pairs, this machine first.
+        :param params: The call's parameters.
+        :param caller: Who asks (``cli``, ``mcp``, ``web``), for its default limits.
+        :return: The merged answer, without ``meta``."""
         from beamtime.query.select import DEFAULTS
 
         first = dict(answers[0][1])
@@ -196,7 +221,12 @@ class Notes(Answer):
     kind = "notes"
 
     def merged(self, answers: list[tuple[str, dict]], params: dict, caller: str) -> dict:
-        """Sort the entries newest first and keep one page."""
+        """Sort the entries newest first and keep one page.
+
+        :param answers: ``(source, answer)`` pairs, this machine first.
+        :param params: The call's parameters.
+        :param caller: Who asks (``cli``, ``mcp``, ``web``), for its default limits.
+        :return: The merged answer, without ``meta``."""
         from beamtime.ops.record import NOTES_PAGE
 
         first = dict(answers[0][1])
@@ -217,7 +247,12 @@ class Keys(Answer):
     kind = "keys"
 
     def merged(self, answers: list[tuple[str, dict]], params: dict, caller: str) -> dict:
-        """Unite names, add run counts and join value lists."""
+        """Unite names, add run counts and join value lists.
+
+        :param answers: ``(source, answer)`` pairs, this machine first.
+        :param params: The call's parameters.
+        :param caller: Who asks (``cli``, ``mcp``, ``web``), for its default limits.
+        :return: The merged answer, without ``meta``."""
         first = dict(answers[0][1])
         tables_of = [a for _, a in answers]
         first["runs"] = sum(a.get("runs", 0) for a in tables_of)
@@ -298,7 +333,9 @@ def merged(method: str, answers: list[tuple[str, dict]], params: dict, caller: s
     :param caller: Who asks (``cli``, ``mcp``, ``web``), for its default limits.
     :return: The merged answer.
     :raises ValueError: If the method's answers don't merge."""
-    out = ANSWERS.get(method, DEFAULT).merged(answers, params, caller)
+    if (merger := ANSWERS.get(method)) is None:
+        raise ValueError(f"no merge for {method!r}")
+    out = merger.merged(answers, params, caller)
     matched = sum(a.get("meta", {}).get("matched", 0) or 0 for _, a in answers)
     out["meta"] = {**out.get("meta", {}), "matched": matched, "source": "."}
     return out

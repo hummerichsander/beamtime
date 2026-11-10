@@ -1,6 +1,6 @@
 import pytest
 
-from beamtime.ops.answers import placed
+from beamtime.ops.answers import merged, placed
 
 
 def test_placed_leaves_what_users_wrote_alone() -> None:
@@ -39,11 +39,9 @@ def test_a_blocks_proposal_call_gets_the_source() -> None:
 
 def test_merged_sums_matches_and_refuses_what_does_not_federate() -> None:
     """A listing merges with local first; a kind that is not a listing raises."""
-    from beamtime.ops.answers import merged
-
     one = {"kind": "groups", "rows": [["@a"]], "meta": {"matched": 1}}
     two = {"kind": "groups", "rows": [["@b"]], "meta": {"matched": 2}}
     out = merged("groups", [("local", one), ("b", two)], {}, "cli")
     assert out["rows"] == [["@a"], ["@b"]] and out["meta"] == {"matched": 3, "source": "."}
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="no merge for 'card'"):
         merged("card", [("local", one)], {}, "cli")
