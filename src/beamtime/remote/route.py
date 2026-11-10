@@ -4,6 +4,7 @@ A target naming ``@x/...`` sends the call to ``x`` with the prefix stripped; pat
 it back. Listings over ``.`` ask every source of the running serve and merge. A run id the local
 log dir doesn't know is looked for on the remotes, since run ids are unique everywhere."""
 
+import dataclasses
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -24,7 +25,7 @@ AUTHORED = {op.tool for op in OPS if "author" in op.params.__struct_fields__}
 # a listing waits this long for a remote before it answers without it.
 LISTING_S = 20.0
 
-Local = Callable[[dict[str, Any]], Any]
+Local = Callable[[dict[str, Any], Context], Any]
 
 
 def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> Any:
@@ -34,7 +35,7 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
     :param method: The API method: an operation's MCP name or a page method (``view``, ...).
     :param params: Its parameters.
     :param ctx: The operation context.
-    :param local: Answers the call here.
+    :param local: Answers the call here, given the parameters and the context.
     :return: The answer."""
     from beamtime.remote.client import Unreachable
     from beamtime.remote.sources import client_for
@@ -51,7 +52,7 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
     if source is not None:
         # the draft stays with the agent; the op itself fetches from, or pushes to, the source.
         if method in DRAFTS:
-            return local(params)
+            return local(params, ctx)
         stripped = with_author(method, strip(params, source), ctx)
         try:
             answer = client_for(ctx, source).request(method, stripped, caller=ctx.caller)
@@ -59,7 +60,7 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
             return from_snapshot(method, strip(params, source), ctx, source, e)
         return answers.placed(answer, source)
     try:
-        return local(params)
+        return local(params, ctx)
     except OpError as e:
         if e.code != 4 or ctx.sources is None or (run := run_target(params)) is None:
             raise
@@ -123,7 +124,6 @@ def from_snapshot(
     :param source: The remote.
     :param unreachable: Why the remote can't answer, raised again without a snapshot.
     :return: The answer, marked with the snapshot's time."""
-    import dataclasses
     import time
 
     from beamtime.ops import call
@@ -232,10 +232,11 @@ def federate(method: str, params: dict[str, Any], ctx: Context, local: Local) ->
     :param method: A listing method.
     :param params: Its parameters (``from`` is ``.``).
     :param ctx: The operation context.
-    :param local: Answers the call here.
+    :param local: Answers the call here, given the parameters and the context.
     :return: The merged answer, cut once at the budget; ``meta.sources`` says which source
-        answered and which cut its own answer."""
+        answered and which could not answer whole."""
     assert ctx.sources is not None
+    whole = dataclasses.replace(ctx, whole=True)
     clients = list(ctx.sources.clients.items())
     cursor = params.get("cursor")
     params = strip_cursor(params)
@@ -243,11 +244,13 @@ def federate(method: str, params: dict[str, Any], ctx: Context, local: Local) ->
     def ask(name: str, client: Any) -> tuple[dict | None, dict[str, Any]]:
         scoped = params | {"from": client.spec.scope}
         try:
-            answer = client.request(method, scoped, caller=ctx.caller, timeout=LISTING_S)
+            answer = client.request(
+                method, scoped, caller=ctx.caller, timeout=LISTING_S, whole=True
+            )
             return answers.placed(answer, name), {"name": f"@{name}", "state": "connected"}
         except OpError as e:
             try:
-                snap = from_snapshot(method, scoped, ctx, name, e)
+                snap = from_snapshot(method, scoped, whole, name, e)
                 return snap, {"name": f"@{name}", "state": "snapshot", "error": str(e)}
             except OpError:
                 return None, {"name": f"@{name}", "state": "unreachable", "error": str(e)}
@@ -256,7 +259,7 @@ def federate(method: str, params: dict[str, Any], ctx: Context, local: Local) ->
     with ThreadPoolExecutor(max(1, len(clients))) as pool:
         asked = [pool.submit(ask, name, client) for name, client in clients]
         # a source is a named log dir; without local runs, local isn't one and is left out.
-        collected = [("local", local(params))] if ctx.has_local else []
+        collected = [("local", local(params, whole))] if ctx.has_local else []
         states = [{"name": ".", "state": "connected"}] if ctx.has_local else []
         if collected:
             drop_own_cut(collected[0][1], states[0])
@@ -292,7 +295,11 @@ def strip_cursor(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def drop_own_cut(answer: dict[str, Any], state: dict[str, Any]) -> None:
-    """Move a source's own budget cut from its answer to its state in ``meta.sources``.
+    """Move a source's cut from its answer to its state in ``meta.sources``.
+
+    Sources are asked for whole answers, so ``meta.next`` only remains for an old remote that
+    ignored that and cut at its budget, or an answer over the size cap. A cut at the ``limit``
+    has no ``next``: the merge applies the limit again.
 
     :param answer: The source's answer; its paging keys are removed.
     :param state: The source's entry in ``meta.sources``."""

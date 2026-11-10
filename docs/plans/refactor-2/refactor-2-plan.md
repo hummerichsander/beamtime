@@ -319,7 +319,7 @@ Behaviour-preserving: the code moves, nothing is fixed yet (R2–R4 fix).
    class a one-to-three-liner. Unknown fields pass through unchanged.
 2. Each class registered in `ANSWERS`; `DEFAULT` untouched.
 
-### R4b. Federated paging reaches every item (sonnet + review) — code
+### R4b. Federated paging reaches every item (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/ops/budget.py` (new `WHOLE_MAX_CHARS`, new `page`), `src/beamtime/ops/context.py`
   (`Context` 29, new field `whole`), `src/beamtime/ops/reading.py` (`page` 81–89),

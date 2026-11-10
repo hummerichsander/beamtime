@@ -7,6 +7,8 @@ from beamtime.ops.context import OpError
 
 # about 8k tokens at roughly four characters per token.
 MAX_CHARS = 32_000
+# what a federating serve takes from one source, about 2 MB.
+WHOLE_MAX_CHARS = 64 * MAX_CHARS
 LISTS = ("rows", "curves", "entries")
 
 
@@ -52,3 +54,19 @@ def cut(answer: dict[str, Any], offset: int, *, max_chars: int = MAX_CHARS) -> d
     if offset:
         meta["offset"] = offset
     return answer
+
+
+def page(answer: dict[str, Any], cursor: str | None, *, caller: str, whole: bool) -> dict[str, Any]:
+    """Page an answer for the one asking: whole for the web UI, near-whole for a federating serve.
+
+    :param answer: An answer with one item list.
+    :param cursor: A cursor from an earlier, cut answer, or ``None``.
+    :param caller: ``cli``, ``mcp`` or ``view``.
+    :param whole: Whether a federating serve asked for everything up to ``WHOLE_MAX_CHARS``.
+    :return: The answer; ``meta.next`` is set when items were left out."""
+    offset = offset_of(cursor)
+    if caller == "view":
+        return answer
+    if whole:
+        return cut(answer, offset, max_chars=WHOLE_MAX_CHARS)
+    return cut(answer, offset)

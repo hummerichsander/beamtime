@@ -10,8 +10,10 @@
   (no re-sort by creation time) and a `source` column says where each group comes from. A merged
   run table cut at its limit now says so (`meta.cut`), with `meta.shown` counting every source.
 - **Fixed** paging of listings over several sources: the cursor is applied once to the merged
-  answer, so following `meta.next` lists every item of every source once, local first. A source
-  that cut its own answer says so in `meta.sources[].cut`. `meta.groups` and `meta.means` are
+  answer, so following `meta.next` lists every item of every source once, local first: every source
+  answers whole (bounded by the `limit` and about 2 MB, asked by a `whole` flag on the request line
+  that older remotes ignore), and only an old remote or an answer over the cap says so in
+  `meta.sources[].cut`. `meta.groups` and `meta.means` are
   summed over the sources, like `meta.matched`.
 - **Changed** how answers name a source: `.` for this machine and `@name` for a remote, everywhere.
   `by.source` of federated `series` curves was `local`/`box` and is now `.`/`@box`;

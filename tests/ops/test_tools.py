@@ -52,7 +52,7 @@ def test_compare_needs_two_targets_and_one_source(ctx: Context) -> None:
     with pytest.raises(OpError, match="at least two"):
         call("compare", {"targets": ["scaling"]}, ctx)
     with pytest.raises(OpError, match="pull"):
-        routed("compare", {"targets": ["@a/x", "@b/y"]}, ctx, lambda p: {})
+        routed("compare", {"targets": ["@a/x", "@b/y"]}, ctx, lambda p, c: {})
 
 
 def test_digest_is_one_page_on_a_group(ctx: Context, roles: dict[str, str]) -> None:

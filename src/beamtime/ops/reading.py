@@ -21,8 +21,9 @@ from beamtime.format.run import (
 from beamtime.format.times import iso
 from beamtime.index.cache import daemon_status
 from beamtime.index.index import Index
+from beamtime.ops import budget
 from beamtime.ops import registry as r
-from beamtime.ops.budget import MAX_CHARS, cut, offset_of
+from beamtime.ops.budget import MAX_CHARS
 from beamtime.ops.context import Context, OpError
 from beamtime.query import QueryError
 from beamtime.query import run as run_query
@@ -85,8 +86,7 @@ def page(ctx: Context, answer: dict[str, Any], cursor: str | None) -> dict[str, 
     :param answer: The answer with one item list.
     :param cursor: A cursor from an earlier, cut answer.
     :return: The answer, with ``meta.next`` when items were left out."""
-    offset = offset_of(cursor)
-    return answer if ctx.caller == "view" else cut(answer, offset)
+    return budget.page(answer, cursor, caller=ctx.caller, whole=ctx.whole)
 
 
 def selection(p: r.Selection) -> dict[str, Any]:

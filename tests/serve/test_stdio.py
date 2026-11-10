@@ -28,15 +28,17 @@ class Session:
         self.events: list[dict] = []
         self.answers: dict[int, dict] = {}
 
-    def ask(self, method: str, **params) -> dict:
+    def ask(self, method: str, *, whole: bool = False, **params) -> dict:
         """Send a request and wait for its answer.
 
         :param method: The API method.
+        :param whole: Whether the request line asks for the whole answer.
         :param params: Its parameters.
         :return: The answer line."""
         self.next += 1
         rid = self.next
-        self.proc.stdin.write(json.dumps({"id": rid, "method": method, "params": params}) + "\n")
+        line = {"id": rid, "method": method, "params": params} | ({"whole": True} if whole else {})
+        self.proc.stdin.write(json.dumps(line) + "\n")
         self.proc.stdin.flush()
         while rid not in self.answers:
             self.read()
@@ -115,3 +117,21 @@ def test_files_list_and_read_from_an_offset(session: Session, project: Path) -> 
     assert base64.b64decode(part["data"]) == whole[10:30] and not part["eof"]
     assert part["size"] == len(whole) == metrics["size"]
     assert session.ask("files", read="../secret")["error"]["code"] == 2
+
+
+def test_whole_request_is_not_cut(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A listing a plain request cuts at the budget is answered whole when the line says so."""
+    import io
+
+    from beamtime.ops import budget
+    from beamtime.ops.context import Context
+    from beamtime.serve.stdio import Remote
+
+    monkeypatch.setitem(budget.cut.__kwdefaults__, "max_chars", 400)
+    out = io.StringIO()
+    remote = Remote(ctx=Context.make(caller="cli"), out=out)
+    for whole in (False, True):
+        line = {"id": 1, "method": "runs", "params": {"from": ".", "limit": 1000}}
+        remote.answer(json.dumps(line | ({"whole": True} if whole else {})))
+        meta = json.loads(out.getvalue().splitlines()[-1])["result"]["meta"]
+        assert ("next" in meta) is not whole

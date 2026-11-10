@@ -137,6 +137,7 @@ class RemoteClient:
         *,
         caller: str = "cli",
         timeout: float = TIMEOUT_S,
+        whole: bool = False,
     ) -> dict[str, Any]:
         """Send a request and wait for its answer.
 
@@ -144,18 +145,23 @@ class RemoteClient:
         :param params: Its parameters.
         :param caller: Whose defaults the remote applies (``cli``, ``mcp``, ``view``).
         :param timeout: Seconds to wait.
+        :param whole: Ask for the whole answer, bounded only by its limit and a hard cap; older
+            remotes ignore it.
         :return: The result.
         :raises OpError: With the remote's message, or why it can't be reached."""
         self.connect()
-        return self.send(method, params, caller, timeout)
+        return self.send(method, params, caller, timeout, whole)
 
-    def send(self, method: str, params: dict[str, Any], caller: str, timeout: float) -> Any:
+    def send(
+        self, method: str, params: dict[str, Any], caller: str, timeout: float, whole: bool = False
+    ) -> Any:
         """Write one request on the open connection and wait for its answer.
 
         :param method: The API method.
         :param params: Its parameters.
         :param caller: Whose defaults apply.
         :param timeout: Seconds to wait.
+        :param whole: Whether the request line asks for the whole answer.
         :return: The result."""
         with self.lock:
             proc = self.proc
@@ -164,7 +170,8 @@ class RemoteClient:
             self.next_id += 1
             rid = self.next_id
             waiting = self.pending[rid] = Pending()
-            line = json.dumps({"id": rid, "method": method, "params": params, "caller": caller})
+            request = {"id": rid, "method": method, "params": params, "caller": caller}
+            line = json.dumps(request | ({"whole": True} if whole else {}))
             try:
                 proc.stdin.write(line + "\n")
                 proc.stdin.flush()

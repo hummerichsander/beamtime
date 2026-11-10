@@ -64,4 +64,4 @@ def answer(name: str, params: dict[str, Any], ctx: Any) -> dict[str, Any]:
     if via_serve.involves_remotes(ctx, op.tool, params):
         if (found := via_serve.call(ctx, op.tool, params)) is not None:
             return found
-    return routed(op.tool, params, ctx, lambda given: call(name, given, ctx))
+    return routed(op.tool, params, ctx, lambda given, c: call(name, given, c))

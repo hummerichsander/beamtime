@@ -69,7 +69,7 @@ class Remote:
             self.send({"id": None, "error": error})
             return
         caller = request.get("caller") if request.get("caller") in ("cli", "mcp", "view") else "cli"
-        ctx = dataclasses.replace(self.ctx, caller=caller)
+        ctx = dataclasses.replace(self.ctx, caller=caller, whole=request.get("whole") is True)
         try:
             if method == "subscribe":
                 self.watched = {str(p) for p in params.get("paths") or []}

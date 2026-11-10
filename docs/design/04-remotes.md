@@ -138,10 +138,13 @@ beamtime pull cluster:scaling/lr-sweep
   names and adds run counts. Aggregated curves (`by`, `seeds`) are computed per source and labelled
   with it. `meta.matched`, `meta.groups` and `meta.means` are summed over the sources.
 - **A merged listing is paged once.** The cursor is not sent to the sources: each answers from its
-  start, the merged answer is cut at the size budget for agents (`answers.paged`) and its `meta.next`
-  continues in the merged order, local first. A source that cut its own answer at the budget shows
-  `meta.sources[i].cut: true` and the hint `narrow from or where to see all of @<name>`; items beyond
-  its cut are not reachable by paging. When any source cut and the merged answer has no `meta.next`,
+  start and answers whole: the request line carries `whole: true`, so a source (this machine
+  included) is bounded only by the query's `limit` and a hard cap of about 2 MB
+  (`budget.WHOLE_MAX_CHARS`), not by the agents' budget. The merged answer is cut at that budget
+  once (`answers.paged`) and its `meta.next` continues in the merged order, local first, so one paging
+  walk reaches every item. Only an old remote that ignores `whole` and cuts at its own budget, or an
+  answer over the cap, shows `meta.sources[i].cut: true` and the hint
+  `narrow from or where to see all of @<name>`. When any source cut and the merged answer has no `meta.next`,
   the merged `meta` says `cut: true` with the same hint naming every such source, which is what the
   CLI shows in place of `--limit to see more`. The web UI takes whole answers and is not cut.
 - **`cp` stays within one source**: `cp @au/a @au/b` is routed to `au`, which copies inside its own log dir
@@ -236,6 +239,9 @@ These methods exist only in the API:
 | `view_check`, `view_put`, `view_compile` | validate, save or compile a bundled view draft (`{group, draft, yaml, files, blocks}`) against this machine's own group; views on a remote ([layer 5](05-views.md#agent-loop)) |
 | `block_check`, `block_put` | validate or save a bundled block draft (`{group, block, blocks}`, and `against` for a save) against this machine's own group; library blocks on a remote |
 | `view_files` | read one of a page's view data or code files, for starting a draft from it |
+
+A request may carry `whole: true`, which asks for the answer bounded only by its limit and about
+2 MB instead of the agents' token budget; older remotes ignore it and cut at the budget.
 
 Compatibility: the same protocol major version on both sides; minor versions only add. `hello`
 carries the version, so a call to a method an older remote doesn't have (one of the bundle methods above,

@@ -36,6 +36,8 @@ class Context:
     caller: Caller = "cli"
     # listings of "." merge every source; the web UI's pages of this machine ask for it only here.
     merge: bool = True
+    # a federating serve asks for answers bounded only by their limit and `WHOLE_MAX_CHARS`.
+    whole: bool = False
     # the remotes a running serve holds connections to; a one-shot call has none.
     sources: "Sources | None" = None
     # the time run status is judged at: now, or a snapshot's time.

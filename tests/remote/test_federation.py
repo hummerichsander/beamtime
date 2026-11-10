@@ -1,4 +1,5 @@
 import dataclasses
+import json
 import sys
 import time
 from pathlib import Path
@@ -245,23 +246,40 @@ class FakeClient:
         """Remember what the source answers.
 
         :param rows: Its rows, or ``None`` for a source that is down.
-        :param cut: Whether it cut its own answer at its budget."""
-        self.rows, self.cut, self.asked = rows, cut, []
+        :param cut: Whether it is an old remote that ignores ``whole`` and cuts at its budget."""
+        self.rows, self.cut, self.asked, self.whole = rows, cut, [], []
         self.spec = SimpleNamespace(scope=".")
 
-    def request(self, method: str, params: dict, **_: Any) -> dict:
-        """Answer like a remote's ``groups``, or fail.
+    def request(
+        self, method: str, params: dict, *, caller: str = "cli", whole: bool = False, **_: Any
+    ) -> dict:
+        """Answer like a remote's ``groups``, or fail; a current remote cuts unless asked whole.
 
         :param method: The method.
         :param params: Its parameters, remembered.
+        :param caller: Whose defaults apply.
+        :param whole: Whether the request line asks for the whole answer.
         :return: The answer."""
         self.asked.append(params)
+        self.whole.append(whole)
         if self.rows is None:
             raise OpError("down", code=1)
         meta: dict[str, Any] = {"matched": len(self.rows)}
         if self.cut:
             meta |= {"cut": True, "next": "3", "hint": "answer cut"}
-        return {"kind": "groups", "columns": ["path"], "rows": self.rows, "meta": meta}
+        answer = {"kind": "groups", "columns": ["path"], "rows": list(self.rows), "meta": meta}
+        return answer if self.cut else budget.page(answer, None, caller=caller, whole=whole)
+
+
+def page_of(rows: list[list[Any]], ctx: Context) -> dict:
+    """Answer like this machine's ``groups``, paged for the context.
+
+    :param rows: The local rows.
+    :param ctx: The context the call runs in.
+    :return: The answer."""
+    answer = {"kind": "groups", "columns": ["path"], "rows": list(rows),
+              "meta": {"matched": len(rows)}}  # fmt: skip
+    return budget.page(answer, None, caller=ctx.caller, whole=ctx.whole)
 
 
 def paged_groups(
@@ -280,9 +298,8 @@ def paged_groups(
     seen: list[list[Any]] = []
     cursor = None
 
-    def local_answer(params: dict) -> dict:
-        return {"kind": "groups", "columns": ["path"], "rows": list(local),
-                "meta": {"matched": len(local)}}  # fmt: skip
+    def local_answer(params: dict, c: Context) -> dict:
+        return page_of(local, c)
 
     for pages in range(1, 50):
         params = {"from": "."} | ({"cursor": cursor} if cursor else {})
@@ -295,10 +312,10 @@ def paged_groups(
 
 @pytest.fixture
 def small_pages(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cut every answer at 400 characters.
+    """Cut every answer at 300 characters.
 
     :param monkeypatch: Pytest's monkeypatch."""
-    monkeypatch.setitem(budget.cut.__kwdefaults__, "max_chars", 400)
+    monkeypatch.setitem(budget.cut.__kwdefaults__, "max_chars", 300)
 
 
 def test_federated_pages_give_every_item_once(ctx: Context, small_pages: None) -> None:
@@ -309,6 +326,83 @@ def test_federated_pages_give_every_item_once(ctx: Context, small_pages: None) -
     rows, pages = paged_groups(ctx, local, one, two)
     assert pages > 1 and rows == [*local, *one.rows, *two.rows]
     assert all("cursor" not in p for p in one.asked + two.asked)
+    assert all(one.whole + two.whole)
+
+
+def test_paging_reaches_beyond_a_source_budget(ctx: Context, small_pages: None) -> None:
+    """Every answer is larger than the budget, yet one walk of meta.next gives each row once."""
+    from beamtime.remote.route import federate
+
+    local = [[f"local/{i:02d}"] for i in range(30)]
+    one = FakeClient([[f"@s0/{i:02d}"] for i in range(30)])
+    two = FakeClient([[f"@s1/{i:02d}"] for i in range(30)])
+    assert all(len(json.dumps(rows)) > 300 for rows in (local, one.rows, two.rows))
+    sources = SimpleNamespace(clients={"s0": one, "s1": two})
+    ctx = dataclasses.replace(ctx, sources=sources)
+    seen, cursor = [], None
+    for _ in range(50):
+        params = {"from": "."} | ({"cursor": cursor} if cursor else {})
+        page = federate("groups", params, ctx, lambda p, c: page_of(local, c))
+        assert not any("cut" in s for s in page["meta"]["sources"])
+        seen += page["rows"]
+        if (cursor := page["meta"].get("next")) is None:
+            break
+    else:
+        raise AssertionError("paging does not end")
+    assert seen == [*local, *one.rows, *two.rows]
+
+
+def test_federated_runs_page_through_local(box: Path, ctx: Context, small_pages: None) -> None:
+    """Paging runs over . gives every run of this machine and of @box exactly once."""
+    view = dataclasses.replace(ctx, caller="view")
+    reference = [
+        r[0]
+        for answer in (
+            call("runs", {"from": ".", "limit": 1000}, dataclasses.replace(view, sources=None)),
+            call("runs", {"from": "@box", "limit": 1000}, view),
+        )
+        for r in answer["rows"]
+    ]
+    seen, cursor = [], None
+    for _ in range(200):
+        params = {"from": ".", "limit": 1000} | ({"cursor": cursor} if cursor else {})
+        page = call("runs", params, ctx)
+        seen += [r[0] for r in page["rows"]]
+        if (cursor := page["meta"].get("next")) is None:
+            break
+    else:
+        raise AssertionError("paging does not end")
+    assert len(reference) > 40 and sorted(seen) == sorted(reference)
+    assert len(set(seen)) == len(seen)
+
+
+def test_whole_answer_is_capped(ctx: Context, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An answer over WHOLE_MAX_CHARS still carries meta.next, and the source is flagged cut."""
+    from beamtime.remote.route import federate
+
+    monkeypatch.setattr(budget, "WHOLE_MAX_CHARS", 200)
+    big = FakeClient([[f"@s0/{i:02d}"] for i in range(30)])
+    ctx = dataclasses.replace(ctx, sources=SimpleNamespace(clients={"s0": big}))
+    local = [["a"], ["b"]]
+    answer = federate("groups", {"from": "."}, ctx, lambda p, c: page_of(local, c))
+    assert "cut" not in answer["meta"]["sources"][0]
+    state = answer["meta"]["sources"][1]
+    assert state["cut"] is True and state["hint"] == "narrow from or where to see all of @s0"
+    assert answer["meta"]["cut"] is True and "next" not in answer["meta"]
+    assert answer["meta"]["hint"] == "narrow from or where to see all of @s0"
+
+
+def test_view_federation_is_whole(ctx: Context, small_pages: None, monkeypatch) -> None:
+    """The web UI gets every row of every source in one answer, whatever the budgets."""
+    from beamtime.remote.route import federate
+
+    monkeypatch.setattr(budget, "WHOLE_MAX_CHARS", 200)
+    local = [[f"local/{i:02d}"] for i in range(30)]
+    one = FakeClient([[f"@s0/{i:02d}"] for i in range(30)])
+    ctx = dataclasses.replace(ctx, caller="view", sources=SimpleNamespace(clients={"s0": one}))
+    answer = federate("groups", {"from": "."}, ctx, lambda p, c: page_of(local, c))
+    assert answer["rows"] == [*local, *one.rows]
+    assert "next" not in answer["meta"] and "cut" not in answer["meta"]
 
 
 def test_a_source_that_cut_itself_says_so(ctx: Context) -> None:
@@ -317,7 +411,7 @@ def test_a_source_that_cut_itself_says_so(ctx: Context) -> None:
 
     cut = FakeClient([["@s0/a"], ["@s0/b"], ["@s0/c"]], cut=True)
     ctx = dataclasses.replace(ctx, sources=SimpleNamespace(clients={"s0": cut}))
-    answer = federate("groups", {"from": "."}, ctx, lambda p: {
+    answer = federate("groups", {"from": "."}, ctx, lambda p, c: {
         "kind": "groups", "columns": ["path"], "rows": [["x"]], "meta": {"matched": 1}})  # fmt: skip
     state = answer["meta"]["sources"][1]
     assert state["cut"] is True and state["hint"] == "narrow from or where to see all of @s0"
@@ -334,7 +428,7 @@ def test_a_source_that_cut_itself_shows_in_the_cli_text(ctx: Context) -> None:
 
     cut = FakeClient([["@s0/a"], ["@s0/b"]], cut=True)
     ctx = dataclasses.replace(ctx, sources=SimpleNamespace(clients={"s0": cut}))
-    answer = federate("groups", {"from": "."}, ctx, lambda p: {
+    answer = federate("groups", {"from": "."}, ctx, lambda p, c: {
         "kind": "groups", "columns": ["path"], "rows": [["x"]], "meta": {"matched": 1}})  # fmt: skip
     last = render(answer).splitlines()[-1]
     assert last.endswith("narrow from or where to see all of @s0")
@@ -354,7 +448,7 @@ def test_bad_cursor(ctx: Context) -> None:
 
     ctx = dataclasses.replace(ctx, sources=SimpleNamespace(clients={"s0": FakeClient([["a"]])}))
     with pytest.raises(OpError) as raised:
-        federate("groups", {"from": ".", "cursor": "zz"}, ctx, lambda p: {
+        federate("groups", {"from": ".", "cursor": "zz"}, ctx, lambda p, c: {
             "kind": "groups", "columns": ["path"], "rows": [], "meta": {}})  # fmt: skip
     assert raised.value.code == 2
 

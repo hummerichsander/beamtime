@@ -14,7 +14,7 @@ from beamtime.format.times import stamp
 from beamtime.format.tree import to_trash
 from beamtime.ops import registry as r
 from beamtime.ops.authored import author_of, save, target_of, written
-from beamtime.ops.budget import cut, offset_of
+from beamtime.ops.budget import page
 from beamtime.ops.context import Context, OpError
 from beamtime.query.select import known_keys
 from beamtime.record import memory as mem
@@ -71,7 +71,7 @@ def notes(ctx: Context, p: r.NotesParams) -> dict[str, Any]:
     if more:
         older = entries[limit - 1]["id"] if limit else p.before
         answer["meta"] |= {"cut": True, "hint": f"older notes: before={older}"}
-    return answer if ctx.caller == "view" else cut(answer, offset_of(p.cursor))
+    return page(answer, p.cursor, caller=ctx.caller, whole=ctx.whole)
 
 
 def proposal_show(ctx: Context, p: r.GroupParams) -> dict[str, Any]:

@@ -51,7 +51,7 @@ def dispatch(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] 
     if method in ROUTED and not draft_local and (ctx.sources is not None or remote.targets(body)):
         from beamtime.remote.route import routed
 
-        return routed(method, body, here, lambda given: dispatch_here(here, method, given))
+        return routed(method, body, here, lambda given, c: dispatch_here(c, method, given))
     out = dispatch_here(here, method, body)
     # `set` reloads the settings on the copy; the next call starts from ctx.
     ctx.settings = here.settings
