@@ -182,7 +182,7 @@ and say why.
 MCP), M4 (research record), M5 (web UI shell), the UI refactor, M6 (views), M7 (custom blocks and
 the library) and M8 (remotes; tested on Docker, a real cluster run pending) are done; M9 (export, the view-task
 harness, docs site, release tooling) is done and 0.1.0 is on PyPI; milestones follow
-`docs/implementation-plan.md`. 0.2.0 (the first refactor, `docs/refactor-1-plan.md`: charts, sources, run
+`docs/plans/implementation/implementation-plan.md`. 0.2.0 (the first refactor, `docs/plans/refactor-1/refactor-1-plan.md`: charts, sources, run
 lifecycle, kit v2, agent guide and tools) is prepared in `CHANGELOG.md` and waits for the release.
 Each milestone implements the design sections it names; a deviation is decided and written back into
 the design before the code lands.
@@ -246,7 +246,7 @@ sync.
 
 ### Layout
 
-- `src/beamtime/`: one subpackage per layer (`docs/implementation-plan.md#package-layout`); `cli/` is the
+- `src/beamtime/`: one subpackage per layer (`docs/plans/implementation/implementation-plan.md#package-layout`); `cli/` is the
   `beamtime` entry point
 - `src/beamtime/format/`: file names, ids, the write protocol and readers for every file kind
 - `src/beamtime/synth/`: the seeded log-dir generator with planted effects; tests use it as fixture
