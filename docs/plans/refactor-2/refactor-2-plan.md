@@ -199,7 +199,7 @@ A value only; no call site changes yet.
 
 ## R. Answers own their places
 
-### R1. Carve the answer seam (sonnet + review) — code
+### R1. Carve the answer seam (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/ops/answers.py`, `src/beamtime/remote/route.py` (`prefix` 230–275 and
   `merge`/`merge_runs`/`merge_keys` 370–500 moved out; call sites 77, 162, 318, 339, 563),

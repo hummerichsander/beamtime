@@ -120,6 +120,7 @@ beamtime pull cluster:scaling/lr-sweep
   `from`) runs on that source with the prefix stripped; paths in its answer get the prefix back.
   What users wrote or logged (configs, a proposal's text, conditions) keeps its values, but a
   block's call (`method`, `params`, `scope`) is always a place, also under a key like `proposal`.
+  Placing an answer and merging a listing live in `ops/answers.py`, one `Answer` per answer kind; `remote/route.py` keeps the transport, the fan-out, snapshots and source states, and names no answer key.
   Operations on `.` that list (`groups`, `runs`, `series`, `data`, `timeline`, `notes`, `keys`) ask
   every source at once and merge; everything else stays local. Which operations list, write or
   work on drafts is a flag on each operation in the registry. A source that doesn't answer a listing

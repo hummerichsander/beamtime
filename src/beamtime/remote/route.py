@@ -10,6 +10,7 @@ from typing import Any
 
 from beamtime.format.ids import is_run_id
 from beamtime.format.place import Place
+from beamtime.ops import answers
 from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import OPS
 from beamtime.remote import TARGETS, places
@@ -22,25 +23,6 @@ WRITES = {op.tool for op in OPS if op.writes} | {"view_text", "save_view"}
 AUTHORED = {op.tool for op in OPS if "author" in op.params.__struct_fields__}
 # a listing waits this long for a remote before it answers without it.
 LISTING_S = 20.0
-PATH_KEYS = ("group", "from", "scope", "folder")
-# what users wrote or logged: its keys may be called group or path, and it is never a place.
-USER_CONTENT = (
-    "config",
-    "proposal",
-    "where",
-    "a",
-    "b",
-    "plan",
-    "by",
-    "fields",
-    "body",
-    "columns",
-    "text",
-    "description",
-    "values",
-    "tags",
-)
-PATH_COLUMNS = ("path", "run.group", "run.path")
 
 Local = Callable[[dict[str, Any]], Any]
 
@@ -75,7 +57,7 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
             answer = client_for(ctx, source).request(method, stripped, caller=ctx.caller)
         except Unreachable as e:
             return from_snapshot(method, strip(params, source), ctx, source, e)
-        return prefix(answer, source)
+        return answers.placed(answer, source)
     try:
         return local(params)
     except OpError as e:
@@ -160,7 +142,7 @@ def from_snapshot(
         answer = call(op.name, params, here)
     else:
         answer = dispatch_here(here, method, params)
-    answer = prefix(answer, source)
+    answer = answers.placed(answer, source)
     if isinstance(answer, dict):
         answer["meta"] = {**answer.get("meta", {}), "snapshot": record["at"], "snapshot_of": when}
     return answer
@@ -206,67 +188,6 @@ def strip(params: dict[str, Any], source: str | None) -> dict[str, Any]:
     return out
 
 
-def prefix(answer: Any, source: str) -> Any:
-    """Give the paths in an answer their source's prefix back.
-
-    :param answer: The remote's answer.
-    :param source: The source's name.
-    :return: The answer with ``@source/...`` paths."""
-
-    def p(v: Any) -> Any:
-        if (
-            not isinstance(v, str)
-            or Place.parse(v).source is not None
-            or v.startswith("/")
-            or "://" in v
-        ):
-            return v
-        return f"@{source}" if v in (".", "") else f"@{source}/{v}"
-
-    def walk(x: Any) -> Any:
-        if isinstance(x, list):
-            return [walk(v) for v in x]
-        if not isinstance(x, dict):
-            return x
-        # a file reference: its path is relative to the view, block or logged run it names.
-        entry = isinstance(x.get("run"), str) and "step" in x
-        ref = isinstance(x.get("view"), str) or "block" in x or "block_draft" in x or entry
-        out = {}
-        for k, v in x.items():
-            # a block's call sits under a user-content key like ``proposal``, but it is a place.
-            if k in USER_CONTENT and not is_call(v):
-                out[k] = v
-            elif k in PATH_KEYS or (k == "path" and not ref) or (k == "view" and ref):
-                out[k] = p(v)
-            elif k == "source" and v == "local":
-                out[k] = f"@{source}"
-            else:
-                out[k] = walk(v)
-        if isinstance(x.get("columns"), list) and isinstance(x.get("rows"), list):
-            at = [i for i, c in enumerate(x["columns"]) if c in PATH_COLUMNS]
-            out["rows"] = [[p(v) if i in at else v for i, v in enumerate(r)] for r in x["rows"]]
-        return out
-
-    out = walk(answer)
-    # a write says what it wrote, or where it copied to; the file is on the source.
-    if isinstance(answer, dict) and isinstance(path := answer.get("path"), str):
-        out["lines"] = [
-            line.replace(f"wrote {path}", f"wrote {p(path)}").replace(
-                f"to {path} ", f"to {p(path)} "
-            )
-            for line in out.get("lines", [])
-        ]
-    return out
-
-
-def is_call(v: Any) -> bool:
-    """Tell whether a value is a call a block makes, as ``views/compile.py:api`` builds it.
-
-    :param v: Any value.
-    :return: Whether it has a ``method`` and ``params``."""
-    return isinstance(v, dict) and isinstance(v.get("method"), str) and "params" in v
-
-
 def fans_out(params: dict[str, Any]) -> bool:
     """Tell whether a listing covers everything: ``from`` is ``.`` or left out.
 
@@ -299,7 +220,7 @@ def elsewhere(method: str, params: dict[str, Any], ctx: Context, run: str, missi
     params = with_author(method, params, ctx)
     for name, client in ctx.sources.clients.items():
         try:
-            return prefix(client.request(method, params, caller=ctx.caller), name)
+            return answers.placed(client.request(method, params, caller=ctx.caller), name)
         except OpError:
             continue
     raise missing
@@ -320,7 +241,7 @@ def federate(method: str, params: dict[str, Any], ctx: Context, local: Local) ->
         scoped = params | {"from": client.spec.scope}
         try:
             answer = client.request(method, scoped, caller=ctx.caller, timeout=LISTING_S)
-            return prefix(answer, name), {"name": f"@{name}", "state": "connected"}
+            return answers.placed(answer, name), {"name": f"@{name}", "state": "connected"}
         except OpError as e:
             try:
                 snap = from_snapshot(method, scoped, ctx, name, e)
@@ -332,156 +253,27 @@ def federate(method: str, params: dict[str, Any], ctx: Context, local: Local) ->
     with ThreadPoolExecutor(max(1, len(clients))) as pool:
         asked = [pool.submit(ask, name, client) for name, client in clients]
         # a source is a named log dir; without local runs, local isn't one and is left out.
-        answers = [("local", local(params))] if ctx.has_local else []
+        collected = [("local", local(params))] if ctx.has_local else []
         states = [{"name": "local", "state": "connected"}] if ctx.has_local else []
         for (name, _), future in zip(clients, asked, strict=True):
             answer, state = future.result()
             states.append(state)
             if answer is not None:
-                answers.append((name, answer))
-    if not answers and method == "groups":
+                collected.append((name, answer))
+    if not collected and method == "groups":
         # the tree still has a root per source, each saying why it can't answer.
         meta = {"source": ".", "matched": 0, "sources": states}
         return {"kind": "groups", "columns": ["path"], "rows": [], "meta": meta}
-    if not answers:
+    if not collected:
         reasons = "; ".join(f"{s['name']}: {s.get('error') or s['state']}" for s in states)
         raise OpError(f"no source could answer {method}: {reasons}", code=1)
-    merged = merge(method, answers, params, ctx)
-    merged["meta"] = {**answers[0][1].get("meta", {}), **merged.get("meta", {}), "sources": states}
+    merged = answers.merged(method, collected, params, ctx.caller)
+    merged["meta"] = {
+        **collected[0][1].get("meta", {}),
+        **merged.get("meta", {}),
+        "sources": states,
+    }
     return merged
-
-
-def merge(
-    method: str, answers: list[tuple[str, dict]], params: dict[str, Any], ctx: Context
-) -> dict:
-    """Combine one listing's answers from several sources.
-
-    :param method: The listing method.
-    :param answers: ``(source, answer)`` pairs, this machine first.
-    :param params: The call's parameters.
-    :param ctx: The operation context, for its caller's default limits.
-    :return: The merged answer."""
-    from beamtime.query.select import DEFAULTS
-
-    first = dict(answers[0][1])
-    defaults = DEFAULTS[ctx.caller]
-    matched = sum(a.get("meta", {}).get("matched", 0) or 0 for _, a in answers)
-    match method:
-        case "groups" | "data":
-            key = "rows" if method == "groups" else "entries"
-            first[key] = [x for _, a in answers for x in a.get(key, [])]
-        case "runs":
-            first |= merge_runs(
-                [a for _, a in answers], params, params.get("limit") or defaults["rows"]
-            )
-        case "series":
-            several = sum(1 for _, a in answers if a.get("curves")) > 1
-            first["curves"] = [
-                (
-                    {**c, "by": {"source": src, **c["by"]}}
-                    if several and isinstance(c.get("by"), dict)
-                    else c
-                )
-                for src, a in answers
-                for c in a.get("curves", [])
-            ]
-        case "timeline":
-            entries = sorted(
-                (e for _, a in answers for e in a.get("entries", [])),
-                key=lambda e: e.get("t") or "",
-            )
-            first["entries"] = entries[-(params.get("limit") or defaults["entries"]) :]
-        case "notes":
-            from beamtime.ops.record import NOTES_PAGE
-
-            limit = NOTES_PAGE if params.get("limit") is None else params["limit"]
-            entries = sorted(
-                (e for _, a in answers for e in a.get("entries", [])),
-                key=lambda e: e["id"],
-                reverse=True,
-            )
-            first["entries"] = entries[:limit]
-            first["more"] = len(entries) > limit or any(a.get("more") for _, a in answers)
-        case "keys":
-            first |= merge_keys([a for _, a in answers])
-        case other:
-            raise ValueError(f"no merge for {other!r}")
-    first["meta"] = {**first.get("meta", {}), "matched": matched, "source": "."}
-    return first
-
-
-def merge_runs(answers: list[dict], params: dict[str, Any], limit: int) -> dict[str, Any]:
-    """Merge run tables: union of columns, sorted again, cut to the limit.
-
-    Each source returned its top rows by the same sort, so the merged top rows are exact.
-
-    :param answers: The tables.
-    :param params: The call's parameters (``sort``).
-    :param limit: How many rows to keep.
-    :return: ``columns`` and ``rows``."""
-    from beamtime.query.aggregate import sort_rows
-
-    columns: list[str] = []
-    for a in answers:
-        columns += [c for c in a.get("columns", []) if c not in columns]
-    rows = [
-        dict(zip(a.get("columns", []), r, strict=False)) for a in answers for r in a.get("rows", [])
-    ]
-    sort = list(params.get("sort") or ["-run.created_at"])
-    # a run id starts with its creation time, so it sorts like run.created_at.
-    sort = [
-        s.replace("run.created_at", "run.id") if s.lstrip("-") not in columns else s for s in sort
-    ]
-    sort_rows(rows, sort)
-    return {"columns": columns, "rows": [[r.get(c) for c in columns] for r in rows[:limit]]}
-
-
-def merge_keys(answers: list[dict]) -> dict[str, Any]:
-    """Merge key listings: names united, run counts added, value lists joined.
-
-    :param answers: The listings.
-    :return: ``runs``, ``status`` and the merged tables."""
-    out: dict[str, Any] = {"runs": sum(a.get("runs", 0) for a in answers)}
-    status: dict[str, int] = {}
-    for a in answers:
-        for k, n in (a.get("status") or {}).items():
-            status[k] = status.get(k, 0) + n
-    out["status"] = status
-    for table in ("metrics", "config", "data"):
-        tables = [a[table] for a in answers if isinstance(a.get(table), dict)]
-        if not tables:
-            continue
-        columns = tables[0]["columns"]
-        rows: dict[str, list] = {}
-        for t in tables:
-            for r in t["rows"]:
-                if r[0] not in rows:
-                    rows[r[0]] = list(r)
-                    continue
-                kept = rows[r[0]]
-                for i, c in enumerate(columns):
-                    match c:
-                        case "runs" | "entries":
-                            kept[i] = (kept[i] or 0) + (r[i] or 0)
-                        case "last_step" | "points":
-                            steps = [x for x in (kept[i], r[i]) if x is not None]
-                            kept[i] = max(steps) if steps else None
-                        case "values" if isinstance(kept[i], list) and isinstance(r[i], list):
-                            kept[i] = kept[i] + [v for v in r[i] if v not in kept[i]]
-                        case "constant":
-                            kept[i] = kept[i] and r[i]
-                        case _:
-                            pass
-        out[table] = {"columns": columns, "rows": sorted(rows.values(), key=lambda r: r[0])}
-        if table == "config":
-            varying: list[str] = []
-            aliases: dict[str, str] = {}
-            for t in tables:
-                varying += [k for k in t.get("varying") or [] if k not in varying]
-                aliases.update(t.get("aliases") or {})
-            out[table]["varying"] = sorted(varying)
-            out[table]["aliases"] = aliases
-    return out
 
 
 FILE_LIMIT = 64 << 20
@@ -545,4 +337,4 @@ def on_source(method: str, target: str, ctx: Context, body: dict[str, Any]) -> A
                 code=2,
             ) from None
         raise
-    return prefix(answer, source)
+    return answers.placed(answer, source)

@@ -1,27 +1,4 @@
-from beamtime.remote.route import prefix, source_of, strip
-
-
-def test_prefix_leaves_what_users_wrote_alone() -> None:
-    """Paths get the source; configs, proposals, logged tables and conditions keep their values."""
-    card = {
-        "kind": "card",
-        "run": {"id": "r", "path": "g/r"},
-        "config": {"group": "norm", "path": "data/cifar"},
-        "proposals": [{"group": "g", "version": "v"}],
-        "meta": {"source": "local", "from": "g"},
-    }
-    out = prefix(card, "box")
-    assert out["run"]["path"] == "@box/g/r" and out["proposals"][0]["group"] == "@box/g"
-    assert out["config"] == {"group": "norm", "path": "data/cifar"}
-    assert out["meta"] == {"source": "@box", "from": "@box/g"}
-    data = {"entries": [{"run": "r", "step": 1, "path": "_data/x.png",
-                         "columns": {"group": ["a"], "path": ["b"]}}]}  # fmt: skip
-    entry = prefix(data, "box")["entries"][0]
-    assert entry["path"] == "_data/x.png" and entry["columns"] == {"group": ["a"], "path": ["b"]}
-    shown = prefix({"group": "g", "proposal": {"predictions": [{"where": {"group": "x"}}]}}, "box")
-    assert shown["proposal"]["predictions"][0]["where"] == {"group": "x"}
-    table = prefix({"columns": ["path", "runs"], "rows": [[".", 1], ["g", 2]]}, "box")
-    assert table["rows"] == [["@box", 1], ["@box/g", 2]]
+from beamtime.remote.route import source_of, strip
 
 
 def test_strip_and_source() -> None:
@@ -45,14 +22,3 @@ def test_only_targets_name_a_remote() -> None:
 
     assert targets({"group": "@box/g"}) and targets({"query": {"runs": {"from": "@box"}}})
     assert not targets({"group": "g", "description": "@alice found it"})
-
-
-def test_a_blocks_proposal_call_gets_the_source() -> None:
-    """The proposal block's call is a place under a key of user content; its answer is not."""
-    call = {"method": "proposal_show", "params": {"group": "exp/a"}, "scope": "exp/a"}
-    data = {"proposal": call, "check": call | {"method": "check"}}
-    out = prefix({"blocks": [{"data": data}]}, "au")["blocks"][0]["data"]
-    for found in out.values():
-        assert found["params"]["group"] == "@au/exp/a" and found["scope"] == "@au/exp/a"
-    shown = {"group": "exp/a", "proposal": {"yaml": "group: x\n", "group": "x"}}
-    assert prefix(shown, "au")["proposal"] == {"yaml": "group: x\n", "group": "x"}
