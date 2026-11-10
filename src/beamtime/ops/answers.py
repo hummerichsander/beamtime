@@ -170,6 +170,9 @@ class Runs(Answer):
         sort_rows(rows, sort)
         first["columns"] = columns
         first["rows"] = [[r.get(c) for c in columns] for r in rows[:limit]]
+        first["meta"] = {**first.get("meta", {}), "shown": len(first["rows"])}
+        if len(rows) > limit:
+            first["meta"] |= {"cut": True, "hint": "raise limit to see more"}
         return first
 
 

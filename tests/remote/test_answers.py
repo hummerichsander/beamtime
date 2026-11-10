@@ -141,3 +141,11 @@ def test_seeds_federated() -> None:
     answers = [("local", table("l", [0.3])), ("box", table("b", [0.2]))]
     out = merged("runs", answers, {"seeds": ["config.seed"]}, "cli")
     assert [r[1] for r in out["rows"]] == [".", "@box"]
+
+
+def test_limit_cut_is_flagged() -> None:
+    """Rows dropped at the merged limit, here every remote group, mark the answer cut."""
+    answers = [("local", table("l", [0.3, 0.1])), ("box", table("b", [0.2, 0.05]))]
+    out = merged("runs", answers, {"by": ["config.lr"], "limit": 2}, "cli")
+    assert [r[1] for r in out["rows"]] == [".", "."]
+    assert out["meta"]["cut"] is True and out["meta"]["shown"] == 2
