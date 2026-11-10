@@ -298,8 +298,52 @@ class Keys(Answer):
         return first
 
 
+class WaitAnswer(Answer):
+    """What a wait saw: run ids and statuses, so only a group is a place."""
+
+    kind = "wait"
+
+    def placed(self, answer: Any, at: Callable[[str], str]) -> Any:
+        """Place the group, if present; ``changed`` passes through untouched.
+
+        :param answer: The remote's answer.
+        :param at: Puts a source's prefix on one path.
+        :return: The answer with its group placed."""
+        out = dict(answer)
+        if isinstance(out.get("group"), str):
+            out["group"] = at(out["group"])
+        return out
+
+
+class CompareAnswer(Answer):
+    """The comparison of runs or groups: only its targets are places."""
+
+    kind = "compare"
+
+    def placed(self, answer: Any, at: Callable[[str], str]) -> Any:
+        """Place each target; the rest of the shape is unprefixed.
+
+        :param answer: The remote's answer.
+        :param at: Puts a source's prefix on one path.
+        :return: The answer with ``@source/...`` targets."""
+        out = dict(answer)
+        out["targets"] = [{**t, "target": at(t["target"])} for t in out.get("targets", [])]
+        return out
+
+
 ANSWERS: dict[str, Answer] = {
-    a.kind: a for a in (Groups(), Runs(), Series(), Data(), Timeline(), Notes(), Keys())
+    a.kind: a
+    for a in (
+        Groups(),
+        Runs(),
+        Series(),
+        Data(),
+        Timeline(),
+        Notes(),
+        Keys(),
+        WaitAnswer(),
+        CompareAnswer(),
+    )
 }
 
 
@@ -311,14 +355,11 @@ def placed(answer: Any, source: str) -> Any:
     :return: The answer with ``@source/...`` paths."""
 
     def at(v: Any) -> Any:
-        if (
-            not isinstance(v, str)
-            or Place.parse(v).source is not None
-            or v.startswith("/")
-            or "://" in v
-        ):
+        if not isinstance(v, str) or (place := Place.parse(v)).source is not None:
             return v
-        return f"@{source}" if v in (".", "") else f"@{source}/{v}"
+        if v.startswith("/") or "://" in v:
+            return v
+        return place.on(source).text
 
     kind = answer.get("kind") if isinstance(answer, dict) else None
     return ANSWERS.get(kind, DEFAULT).placed(answer, at)

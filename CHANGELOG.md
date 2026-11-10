@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 (unreleased)
+
+- **Fixed** `wait` and `compare` over a remote: `wait` no longer turns a status into a path
+  (`changed[].from` stays `running`, not `@box/running`), and `compare` names its targets as
+  `@box/...`. A path an answer carries as `@local/...` now maps onto the remote (`@box/...`)
+  instead of nesting as `@box/@local/...`.
+
 ## 0.2.2
 
 - **Fixed** a crash in the live-update hub when a stale page (an older tab left open) sent a watch

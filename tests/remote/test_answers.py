@@ -45,3 +45,57 @@ def test_merged_sums_matches_and_refuses_what_does_not_federate() -> None:
     assert out["rows"] == [["@a"], ["@b"]] and out["meta"] == {"matched": 3, "source": "."}
     with pytest.raises(ValueError, match="no merge for 'card'"):
         merged("card", [("local", one)], {}, "cli")
+
+
+def test_wait_keeps_statuses() -> None:
+    """A wait answer has no places in `changed`: `from` is a status and `run` a run id."""
+    wait = {
+        "kind": "wait",
+        "met": True,
+        "changed": [{"run": "20260101-aaaa", "name": "n", "from": "running", "to": "finished"}],
+        "runs": {"finished": 1},
+        "matching": ["20260101-aaaa"],
+        "meta": {},
+    }
+    out = placed(wait, "box")
+    assert out["changed"] == wait["changed"] and out["matching"] == wait["matching"]
+    assert out["runs"] == {"finished": 1}
+
+
+def test_compare_places_only_its_targets() -> None:
+    """A compare answer's targets are places; its statuses, metrics and differences are not."""
+    compare = {
+        "kind": "compare",
+        "targets": [
+            {"target": "scaling", "runs": 2, "status": {"finished": 2}, "code": ["abc"]},
+            {"target": "20260101-aaaa", "runs": 1, "status": {"running": 1}, "code": []},
+        ],
+        "same_code": False,
+        "differences": [{"key": "config.group", "values": ["a", "b"], "same_split_as": None}],
+        "rows": [{"metric": "loss", "values": [1.0, 2.0], "delta": 1.0}],
+        "meta": {"matched": 1},
+    }
+    out = placed(compare, "box")
+    assert [t["target"] for t in out["targets"]] == ["@box/scaling", "@box/20260101-aaaa"]
+    assert {k: v for k, v in out.items() if k != "targets"} == {
+        k: v for k, v in compare.items() if k != "targets"
+    }
+    assert [{k: v for k, v in t.items() if k != "target"} for t in out["targets"]] == [
+        {k: v for k, v in t.items() if k != "target"} for t in compare["targets"]
+    ]
+
+
+def test_compare_target_idempotent() -> None:
+    """A target that names a source stays; placing twice gives the same answer."""
+    compare = {"kind": "compare", "targets": [{"target": "@other/g"}, {"target": "g"}]}
+    once = placed(compare, "box")
+    assert [t["target"] for t in once["targets"]] == ["@other/g", "@box/g"]
+    assert placed(once, "box") == once
+
+
+def test_local_paths_map_onto_the_remote() -> None:
+    """A path that names no source, `@local/...` included, is placed on the remote, once."""
+    table = {"columns": ["path"], "rows": [["@local/g"], ["@local"], ["g"], ["@other/g"]]}
+    out = placed(table, "box")
+    assert out["rows"] == [["@box/g"], ["@box"], ["@box/g"], ["@other/g"]]
+    assert placed(out, "box") == out

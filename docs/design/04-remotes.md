@@ -118,6 +118,7 @@ beamtime pull cluster:scaling/lr-sweep
   Routing reads every place through `format.place.Place`: a source is matched by its whole name (`@box` never claims `@boxer/g`), and `@local/g` reads as the bare path `g`.
 - **Every operation whose target names a source** (`group`, `from`, `run`, a view or a query's
   `from`) runs on that source with the prefix stripped; paths in its answer get the prefix back.
+  A path in an answer that names a source stays as it is; one that names none, `@local/g` included, is placed on the remote (`@local/g` from `box` becomes `@box/g`), so placing twice changes nothing.
   What users wrote or logged (configs, a proposal's text, conditions) keeps its values, but a
   block's call (`method`, `params`, `scope`) is always a place, also under a key like `proposal`.
   Placing an answer and merging a listing live in `ops/answers.py`, one `Answer` per answer kind; `remote/route.py` keeps the transport, the fan-out, snapshots and source states, and names no answer key.

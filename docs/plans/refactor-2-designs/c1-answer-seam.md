@@ -21,7 +21,7 @@ Deletion test passes: deleting `prefix`/`merge`/`merge_keys` makes every op's an
 
 New module: `src/beamtime/ops/answers.py` — in-process, pure (dicts in, dicts out; no Context, no I/O), keyed by the `"kind"` field every op answer already carries. It sits beside the ops, so each op and the module that knows its answer's places live in the same package.
 
-Shared type: `Place = Callable[[str], str]` — turns a bare remote path into `@source/path` (`"."`/`""` → `@source`; strings starting `@`, `/`, or containing `://` unchanged — the idempotence rule, so snapshot re-prefixing stays safe).
+Shared type: `Place = Callable[[str], str]` — turns a bare remote path into `@source/path` (`"."`/`""` → `@source`; a string with a source, or starting `/`, or containing `://`, unchanged; one without a source, `@local/...` included, is placed on the remote — the idempotence rule, so snapshot re-prefixing stays safe).
 
 ### Shape A — declarative metadata per kind (rejected)
 
@@ -99,7 +99,7 @@ route.py no longer contains a single answer-shape key name.
 
 ## 4. What the implementation hides behind the seam
 
-- **Prefixing rules**: which fields of each kind are places (compare's `targets[].target`, digest's `group`, table columns `path`/`run.group`/`run.path`), that run ids/statuses/metric keys/user content never are, idempotence on `@`/`/`/`://` strings, the `source: "local" → "@name"` rewrite, and the `wrote <path>` line rewrite. PATH_KEYS/USER_CONTENT guessing survives only inside DEFAULT, which ends up serving page/bundle methods (no `kind`) alone.
+- **Prefixing rules**: which fields of each kind are places (compare's `targets[].target`, digest's `group`, table columns `path`/`run.group`/`run.path`), that run ids/statuses/metric keys/user content never are, idempotence on strings that carry a source, `/` or `://`, the `source: "local" → "@name"` rewrite, and the `wrote <path>` line rewrite. PATH_KEYS/USER_CONTENT guessing survives only inside DEFAULT, which ends up serving page/bundle methods (no `kind`) alone.
 - **Merge order and semantics**: local-first-then-configured-order as a stated invariant; per-kind item ordering (timeline by `t`, notes by `id` desc, runs re-sorted by the query's sort with the `run.created_at → run.id` trick); runs with `by`/`seeds` get a `source` column and **no** phantom default sort (mirroring kinds.py:58) — fixing the unlabelled-rows bug; `keys`' column algebra; `matched` summing.
 - **Paging**: cursor is *not* fanned out; each source answers from offset 0 at its own budget; one cut on the merged answer gives a correct `meta.next` over the deterministic merged order. A source that itself cut is surfaced as `meta.sources[i].cut: true` plus a hint ("narrow `from` or `where` to see all of @box") — honest about the N×budget boundary without inventing distributed cursors.
 - **Source labelling**: series `by.source` and the new runs `source` column live in SeriesAnswer/RunsAnswer, the only places that know when labelling applies.

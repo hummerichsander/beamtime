@@ -133,8 +133,10 @@ review: P1 P2 R1 R2 R3 R4 R5 R6 P3 P4 P5 O1 O2 O3 O4 S1 S2 S3 S4 S5 V1 V2 V3 V4 
 5. **Ticket letters P R O S V Q K X**: `ticket.py` finds a ticket's commit by subject across all history, and
    refactor 1 and the milestones already used A–H, M and Z.
 6. **`answers.py` takes a source name, not a `Place`**: `placed(answer, source)` builds
-   `at: Callable[[str], str]` from `format.place.Place` and hands `at` to each `Answer.placed(answer, at)`. `at`
-   leaves strings starting with `@` or `/`, or containing `://`, unchanged, so re-placing is idempotent.
+   `at: Callable[[str], str]` from `format.place.Place` and hands `at` to each `Answer.placed(answer, at)`. In `at`,
+   a string with a source stays as it is; a string without one, including `@local/...`, is placed on the remote
+   (`Place.parse(v).on(source).text`; a string starting with `/` or containing `://` is left alone), so re-placing
+   is idempotent.
    Rejected: c1's `Place` callable alias, because the name belongs to C7's value.
 7. **`OPS` stays as a derived list** (`[m for m in METHODS if m.params is not None]`), so the CLI parser, MCP
    tools and `docs/site/reference.py` keep their input. Rejected: renaming every consumer to `METHODS`.
@@ -229,7 +231,7 @@ Behaviour-preserving: the code moves, nothing is fixed yet (R2–R4 fix).
    Move `test_prefix_leaves_what_users_wrote_alone` and `test_a_blocks_proposal_call_gets_the_source` to
    `tests/remote/test_answers.py`, assertions unchanged.
 
-### R2. `wait` and `compare` over a remote (sonnet) — code
+### R2. `wait` and `compare` over a remote (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/ops/answers.py` (new `WaitAnswer`, `CompareAnswer`), `tests/remote/test_answers.py`,
   `CHANGELOG.md`.
