@@ -392,7 +392,9 @@ def test_whole_answer_is_capped(ctx: Context, monkeypatch: pytest.MonkeyPatch) -
     assert answer["meta"]["hint"] == "narrow from or where to see all of @s0"
 
 
-def test_view_federation_is_whole(ctx: Context, small_pages: None, monkeypatch) -> None:
+def test_view_federation_is_whole(
+    ctx: Context, small_pages: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The web UI gets every row of every source in one answer, whatever the budgets."""
     from beamtime.remote.route import federate
 
@@ -446,16 +448,18 @@ def test_bad_cursor(ctx: Context) -> None:
     """A cursor Beamtime did not give out is refused with code 2, as for one source."""
     from beamtime.remote.route import federate
 
-    ctx = dataclasses.replace(ctx, sources=SimpleNamespace(clients={"s0": FakeClient([["a"]])}))
+    source = FakeClient([["a"]])
+    ctx = dataclasses.replace(ctx, sources=SimpleNamespace(clients={"s0": source}))
     with pytest.raises(OpError) as raised:
         federate("groups", {"from": ".", "cursor": "zz"}, ctx, lambda p, c: {
             "kind": "groups", "columns": ["path"], "rows": [], "meta": {}})  # fmt: skip
-    assert raised.value.code == 2
+    assert raised.value.code == 2 and source.whole == [True]
 
 
 def test_down_source_paging(ctx: Context, small_pages: None) -> None:
     """A source that is down does not shift the others' items between pages."""
     local = [[f"local/{i:02d}"] for i in range(30)]
-    up = FakeClient([[f"@s1/{i:02d}"] for i in range(30)])
-    rows, pages = paged_groups(ctx, local, FakeClient(None), up)
+    down, up = FakeClient(None), FakeClient([[f"@s1/{i:02d}"] for i in range(30)])
+    rows, pages = paged_groups(ctx, local, down, up)
     assert pages > 1 and rows == [*local, *up.rows]
+    assert all(down.whole + up.whole)
