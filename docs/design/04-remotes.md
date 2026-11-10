@@ -74,7 +74,9 @@ The local `serve`, CLI and MCP send each query to every source in scope and comb
 
 - **Listings are merged**: run rows, curves, logged data, timeline entries, groups. Run ids are unique
   across machines, so merging is concatenation. Sorting is applied after merging; for `limit`, each
-  source returns its top `limit` rows by the same sort, so the merged top rows are exact.
+  source returns its top `limit` rows by the same sort, so the merged top rows are exact. Aggregated
+  listings (`runs` with `by` or `seeds`) are labelled by a `source` column and keep each source's
+  order, local first.
 - **Aggregates are computed per source**: group and seed means, `importance`, value ranges in `keys`,
   and prediction checks. A proposal belongs to a group and a group to one source, so checks never
   span sources. A query over several sources returns aggregates per source, labelled.

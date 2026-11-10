@@ -135,7 +135,8 @@ class Runs(Answer):
     def merged(self, answers: list[tuple[str, dict]], params: dict, caller: str) -> dict:
         """Union the columns, sort again and cut to the limit.
 
-        Each source returned its top rows by the same sort, so the merged top rows are exact.
+        Each source returned its top rows by the same sort, so the merged top rows are exact. Rows
+        aggregated by ``by`` or ``seeds`` keep each source's order and name their source.
 
         :param answers: ``(source, answer)`` pairs, this machine first.
         :param params: The call's parameters.
@@ -150,12 +151,17 @@ class Runs(Answer):
         columns: list[str] = []
         for a in tables:
             columns += [c for c in a.get("columns", []) if c not in columns]
+        aggregated = bool(params.get("by") or params.get("seeds"))
+        labelled = aggregated and len(answers) > 1 and "runs" in columns
+        if labelled:
+            columns.insert(columns.index("runs") + 1, "source")
         rows = [
             dict(zip(a.get("columns", []), r, strict=False))
-            for a in tables
+            | ({"source": "." if src == "local" else f"@{src}"} if labelled else {})
+            for src, a in answers
             for r in a.get("rows", [])
         ]
-        sort = list(params.get("sort") or ["-run.created_at"])
+        sort = list(params.get("sort") or ([] if aggregated else ["-run.created_at"]))
         # a run id starts with its creation time, so it sorts like run.created_at.
         sort = [
             s.replace("run.created_at", "run.id") if s.lstrip("-") not in columns else s

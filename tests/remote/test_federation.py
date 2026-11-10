@@ -219,3 +219,12 @@ def test_the_proposal_block_answers_through_a_remote(box: Path, ctx: Context) ->
     for call in blocks[0]["data"].values():
         assert call["params"]["group"] == f"@box/{SWEEP}" and call["scope"] == f"@box/{SWEEP}"
         assert dispatch(view, call["method"], call["params"])
+
+
+def test_aggregated_runs_name_their_source(box: Path, ctx: Context) -> None:
+    """runs --by over both sources keeps each source's groups and says where they come from."""
+    out = call("runs", {"from": ".", "by": ["config.lr"]}, ctx)
+    assert out["columns"][:2] == ["runs", "source"]
+    assert {r[1] for r in out["rows"]} == {".", "@box"}
+    sources = [r[1] for r in out["rows"]]
+    assert sources == sorted(sources, key=lambda s: s != ".")

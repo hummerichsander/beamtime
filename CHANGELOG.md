@@ -6,6 +6,8 @@
   (`changed[].from` stays `running`, not `@box/running`), and `compare` names its targets as
   `@box/...`. A path an answer carries as `@local/...` now maps onto the remote (`@box/...`)
   instead of nesting as `@box/@local/...`.
+- **Fixed** `runs --by` and `--seeds` over several sources: the rows keep each source's own order
+  (no re-sort by creation time) and a `source` column says where each group comes from.
 
 ## 0.2.2
 

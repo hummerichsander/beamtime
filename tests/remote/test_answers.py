@@ -99,3 +99,45 @@ def test_local_paths_map_onto_the_remote() -> None:
     out = placed(table, "box")
     assert out["rows"] == [["@box/g"], ["@box"], ["@box/g"], ["@other/g"]]
     assert placed(out, "box") == out
+
+
+def table(source: str, lr: list[float]) -> dict:
+    """An aggregated run table as one source answers it.
+
+    :param source: The source's name.
+    :param lr: One learning rate per group row.
+    :return: The answer, with a runs column and one aggregate column."""
+    rows = [[[f"{source}-{i}"], v, v * 2] for i, v in enumerate(lr)]
+    return {"kind": "runs", "columns": ["runs", "config.lr", "val/acc"], "rows": rows, "meta": {}}
+
+
+def test_by_labels_each_row_with_its_source() -> None:
+    """Aggregated rows get a source column after runs and keep each source's order, local first."""
+    answers = [("local", table("l", [0.3, 0.1])), ("box", table("b", [0.2, 0.05]))]
+    out = merged("runs", answers, {"by": ["config.lr"]}, "cli")
+    assert out["columns"] == ["runs", "source", "config.lr", "val/acc"]
+    assert [r[1] for r in out["rows"]] == [".", ".", "@box", "@box"]
+    assert [r[2] for r in out["rows"]] == [0.3, 0.1, 0.2, 0.05]
+
+
+def test_single_source_no_label() -> None:
+    """With one source there is nothing to tell apart."""
+    out = merged("runs", [("box", table("b", [0.2, 0.1]))], {"by": ["config.lr"]}, "cli")
+    assert out["columns"] == ["runs", "config.lr", "val/acc"]
+    assert [r[1] for r in out["rows"]] == [0.2, 0.1]
+
+
+def test_by_with_sort() -> None:
+    """A user sort applies to the aggregated columns, across sources."""
+    answers = [("local", table("l", [0.3, 0.1])), ("box", table("b", [0.2, 0.05]))]
+    params = {"by": ["config.lr"], "sort": ["config.lr"]}
+    out = merged("runs", answers, params, "cli")
+    assert [r[2] for r in out["rows"]] == [0.05, 0.1, 0.2, 0.3]
+    assert [r[1] for r in out["rows"]] == ["@box", ".", "@box", "."]
+
+
+def test_seeds_federated() -> None:
+    """seeds labels and keeps order like by."""
+    answers = [("local", table("l", [0.3])), ("box", table("b", [0.2]))]
+    out = merged("runs", answers, {"seeds": ["config.seed"]}, "cli")
+    assert [r[1] for r in out["rows"]] == [".", "@box"]

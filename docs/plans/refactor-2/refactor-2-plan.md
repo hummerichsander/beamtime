@@ -247,7 +247,7 @@ Behaviour-preserving: the code moves, nothing is fixed yet (R2–R4 fix).
 2. `CompareAnswer.placed`: `targets[].target` through `at`; nothing else in the shape.
 3. Write the regression tests first; register both kinds in `ANSWERS`; one CHANGELOG line (Fixed).
 
-### R3. Federated `runs --by` and `--seeds` (sonnet + review) — code
+### R3. Federated `runs --by` and `--seeds` (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/ops/answers.py` (`RunsAnswer.merged`), `tests/remote/test_answers.py`,
   `tests/remote/test_federation.py`, `docs/design/04-remotes.md`, `CHANGELOG.md`.
