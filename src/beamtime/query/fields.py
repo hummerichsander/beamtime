@@ -32,6 +32,7 @@ RUN_COLUMNS = {
     "path": "path",
     "group": "folder",
     "tags": "tags",
+    "last_logged": "metrics_mtime",
 }
 RUN_CARD = {
     "duration_s": "$.duration_s",
@@ -48,7 +49,7 @@ RUN_INFO = {
     "dirty": "$.git.dirty",
 }
 # computed from several RUN_INFO fields, so it has no single JSON path of its own.
-RUN_COMPUTED = ("code", "epoch", "progress")
+RUN_COMPUTED = ("code", "epoch", "progress", "attempts")
 # one comparable identity for a run's code: the short commit, plus the diff's short hash
 # when the checkout was dirty, so the same commit and the same changes compare equal.
 CODE_SQL = (
@@ -68,6 +69,8 @@ PROGRESS_SQL = (
     f"MIN(1.0, ({EPOCH_SQL} - 1) / (SELECT t.value FROM json_tree(config) t "
     "WHERE t.key = 'max_epochs' AND t.type IN ('integer', 'real') AND t.value > 0 LIMIT 1))"
 )
+# the attempts a run recorded; 0 for a run without any (older or still empty runs).
+ATTEMPTS_SQL = "COALESCE(json_array_length(info, '$.attempts'), 0)"
 PROPOSAL = ("status", "check", "progress", "verdict")
 # what people try for a run field that has another name.
 RUN_ALIASES = {
@@ -199,6 +202,8 @@ def sql(field: Field) -> str | None:
                 return EPOCH_SQL
             if name == "progress":
                 return PROGRESS_SQL
+            if name == "attempts":
+                return ATTEMPTS_SQL
             return f"json_extract(info, '{RUN_INFO[name]}')"
         case "config":
             return f"json_extract(config, '{json_path(field.path)}')"

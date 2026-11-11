@@ -2,6 +2,8 @@
 
 ## 0.3.0 (unreleased)
 
+- **Added** the run fields `run.attempts` (how many attempts a run recorded) and `run.last_logged` (when it
+  last wrote a metric), for `--where`, `--sort` and `--select`. The index cache rebuilds once (schema 3).
 - **Fixed** `beamtime export --html` and `--figures` printed a `KeyError` instead of the line naming the page
   they wrote. Every operation declares the kind of its answer and the text renderer for it in the
   operation set, and a test calls each read operation to check its text.

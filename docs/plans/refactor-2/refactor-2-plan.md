@@ -756,7 +756,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 1. `git mv` both modules; update importers; `parse_where(..., flag: str = "--where")`.
 2. The boundary test with `ast.walk` over `Import`/`ImportFrom`.
 
-### Q2. `run.attempts` and `run.last_logged` (sonnet + review) — code
+### Q2. `run.attempts` and `run.last_logged` (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/index/store.py` (`SCHEMA_VERSION` 9, `SCHEMA` 11), `src/beamtime/index/ingest.py`
   (97, 203), `src/beamtime/query/fields.py` (36–49), `tests/index/`, `tests/query/test_queries.py`,

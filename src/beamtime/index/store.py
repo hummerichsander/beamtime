@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
@@ -30,6 +30,7 @@ CREATE TABLE runs (
     events_offset INTEGER NOT NULL DEFAULT 0,
     data_offset INTEGER NOT NULL DEFAULT 0,
     metrics_size INTEGER NOT NULL DEFAULT 0,
+    metrics_mtime REAL,
     indexed_at REAL
 );
 CREATE INDEX runs_folder ON runs (folder);

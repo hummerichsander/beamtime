@@ -593,3 +593,26 @@ def test_grouped_series_of_single_point_runs_is_one_bucket(clocked) -> None:
     q = {"from": "x", "y": ["m"], "by": ["config.arm"], "x": "_elapsed", "steps": [0, 0]}
     (curve,) = clocked({"series": q | {"points": 5}})["curves"]
     assert curve["x"] == [0.0] and curve["n"] == [2] and curve["mean"] == [0.0]
+
+
+def test_attempts_after_requeue(ask, roles) -> None:
+    """A resumed run counts two attempts; a run that never resumed counts one."""
+    a = ask({"runs": {"from": ".", "where": {"run.attempts": {"gt": 1}}, "select": ["run.attempts"]}})
+    rows = table(a)
+    assert roles["resumed"] in [r["run.id"] for r in rows]
+    assert all(r["run.attempts"] > 1 for r in rows)
+    one = ask({"runs": {"from": roles["killed"], "select": ["run.attempts"]}})
+    assert table(one)[0]["run.attempts"] == 1
+
+
+def test_last_logged_sorts_and_matches_the_file(ask, logdir, roles) -> None:
+    """``run.last_logged`` is the metrics file's mtime and sorts newest first."""
+    a = ask(
+        {"runs": {"from": ".", "select": ["run.last_logged"], "sort": ["-run.last_logged"],
+                  "limit": 500}}
+    )  # fmt: skip
+    times = [r["run.last_logged"] for r in table(a) if r["run.last_logged"] is not None]
+    assert times == sorted(times, reverse=True) and times
+    run = next(p for p in logdir.rglob(roles["resumed"]) if p.is_dir())
+    one = ask({"runs": {"from": roles["resumed"], "select": ["run.last_logged"]}})
+    assert table(one)[0]["run.last_logged"] == (run / "_metrics.jsonl").stat().st_mtime

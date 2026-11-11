@@ -200,7 +200,14 @@ class Ingester:
             if (d := json.loads(raw)).get("resume_step") is not None:
                 attempts.append((d.get("metrics_offset", 0), d["resume_step"], started_at))
         consumed = self.ingest_metrics(run_dir, row["status"], sorted(attempts))
-        self.store.upsert_run(run_id, {"metrics_size": consumed, "indexed_at": time.time()})
+        self.store.upsert_run(
+            run_id,
+            {
+                "metrics_size": consumed,
+                "metrics_mtime": mtime(run_dir / c.METRICS),
+                "indexed_at": time.time(),
+            },
+        )
 
     def ingest_metrics(
         self, run_dir: Path, status: str, attempts: list[tuple[int, int, float | None]]

@@ -15,6 +15,7 @@ from beamtime.index.cache import SERVE_LOCK, FileLock, cache_dir, daemon_status
 from beamtime.index.columns import Column, ColumnWriter, open_columns
 from beamtime.index.daemon import Daemon
 from beamtime.index.index import Freshness, Index
+from beamtime.index.store import SCHEMA_VERSION
 
 
 @pytest.fixture
@@ -332,3 +333,41 @@ def test_cache_dir_respects_environment(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
     assert cache_dir(tmp_path / "x").parent == tmp_path / "xdg" / "beamtime"
     assert cache_dir(tmp_path / "x") != cache_dir(tmp_path / "y")
+
+
+def test_last_logged_no_metrics(index: Index, logdir: Path) -> None:
+    """A run without a metrics file has no last-logged time."""
+    run = next(iter_runs(logdir / "tokenizer"))
+    (run / "_metrics.jsonl").unlink(missing_ok=True)
+    os.utime(run / "_run.json")
+    index.catch_up(".", budget_s=float("inf"))
+    row = index.store.db.execute(
+        "SELECT metrics_mtime FROM runs WHERE id = ?", (run.name,)
+    ).fetchone()
+    assert row["metrics_mtime"] is None
+
+
+def test_last_logged_tracks_appends(index: Index, logdir: Path) -> None:
+    """The metrics file's mtime is stored on ingest and follows appended lines."""
+    index.catch_up(".", budget_s=float("inf"))
+    roles = json.loads((logdir / "_synth.json").read_text())["roles"]
+    run = next(p for p in iter_runs(logdir) if p.name == roles["running"])
+    metrics = run / "_metrics.jsonl"
+    query = "SELECT metrics_mtime FROM runs WHERE id = ?"
+    assert index.store.db.execute(query, (run.name,)).fetchone()[0] == metrics.stat().st_mtime
+    with metrics.open("ab") as f:
+        f.write(json_line({"_step": 5000, "_t": 1.0, "train/loss": 0.1}))
+    os.utime(metrics, (1.0e9, 1.0e9))
+    index.catch_up(".", budget_s=float("inf"))
+    assert index.store.db.execute(query, (run.name,)).fetchone()[0] == 1.0e9
+
+
+def test_old_schema_rebuilds_on_open(logdir: Path, tmp_path: Path) -> None:
+    """A cache of schema 2 is dropped and built again when the index opens."""
+    first = Index(logdir=logdir, cache=tmp_path / "cache")
+    first.catch_up(".", budget_s=float("inf"))
+    first.store.db.execute("UPDATE meta SET value = '2' WHERE key = 'schema'")
+    first.close()
+    second = Index(logdir=logdir, cache=tmp_path / "cache")
+    assert second.store.version() == SCHEMA_VERSION == 3 and second.store.rebuilt
+    second.close()

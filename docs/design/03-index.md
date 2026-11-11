@@ -214,7 +214,7 @@ Every value a query can filter, sort or show is a **field**, a dotted path with 
 
 | Namespace | Example | Source |
 |---|---|---|
-| `run.` | `run.id`, `run.name`, `run.status`, `run.created_at`, `run.duration_s`, `run.steps`, `run.tags`, `run.path`, `run.commit`, `run.branch`, `run.dirty`, `run.code`, `run.epoch`, `run.progress` | `_run.json`, run card |
+| `run.` | `run.id`, `run.name`, `run.status`, `run.created_at`, `run.duration_s`, `run.steps`, `run.tags`, `run.path`, `run.commit`, `run.branch`, `run.dirty`, `run.code`, `run.epoch`, `run.progress`, `run.attempts`, `run.last_logged` | `_run.json`, run card |
 | `config.` | `config.optimizer.lr` | `_config.json` |
 | `metric.` | `metric.val/acc.max`, `metric.train/loss.ema_last` | run card statistics |
 | `value.` | `value.test/acc` | explicit run card values |
@@ -241,6 +241,12 @@ metric, `run.progress` also without a positive `max_epochs`. The run's card (`be
 (`query/progress.py`): `epoch`, `in_epoch` and `steps_per_epoch` (the step distance between the
 last two changes, so an `epoch` logged every 50 steps with 100 steps per epoch gives 100), `total`
 and `fraction`.
+
+**`run.attempts`** is the number of attempts `_run.json` records (0 when it records none), so
+`run.attempts>1` finds the runs that were resumed. **`run.last_logged`** is the modification time of
+`_metrics.jsonl` as of the last ingest (the `metrics_mtime` column, beside `metrics_size`), `null`
+for a run that never logged a metric; sorted descending it puts the runs that logged most recently
+first.
 
 **Windowed statistics** are computed exactly from the column files, with a step window appended:
 `metric.val/acc.mean[1000:2000]`. They support `first`, `last`, `min`, `max`, `mean` and `count`.
@@ -496,7 +502,7 @@ Decided while building the index and the queries (milestone M2):
   `proposal.*`.
 - **Links** (M4): a `links` table (source note, kind, target) is filled at note ingest from the
   `[[...]]` links in bodies and from `evidence`, `resolves` and `supersedes`; it gives the backlinks of
-  runs and predictions. The index schema version is 2; older caches are rebuilt.
+  runs and predictions. The index schema version is 3; older caches are rebuilt.
 - **Change reports** (M5): `catch_up` lists the runs it ingested in `Freshness.changed`; the
   daemon's also lists groups whose `notes/`, `proposal/`, `memory/` or `view/` changed since its
   last poll. `Daemon(on_change=...)` receives them after every poll (every 2 s); `serve` turns them
