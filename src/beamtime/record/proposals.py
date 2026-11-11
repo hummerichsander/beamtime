@@ -378,20 +378,17 @@ class Target:
         version: str,
         where: dict[str, Any],
         fields: list[str],
-        *,
-        seeds: str | None = None,
     ) -> list[dict[str, Any]]:
         """Select the members of a version that match a condition, with field values.
 
         :param version: The version id.
         :param where: The condition, in the query syntax.
         :param fields: Fields to fetch.
-        :param seeds: The seed field, when seed groups are formed later.
         :return: One dict per run, as ``query.select.select_runs`` gives them."""
         ctx = Context(
             index=self.index, caller="cli", scope=".", run_id=None, now=self.now or time.time()
         )
-        sel = m.Selection(where=where, seeds=seeds)
+        sel = m.Selection(where=where)
         runs, _ = select_runs(ctx, sel, fields, config=True, restrict=self.membership(version))
         return runs
 

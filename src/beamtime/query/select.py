@@ -203,7 +203,7 @@ def select_runs(
     fields = [parse_field(t) for t in texts]
     check_known(ctx, fields)
     exprs = [(f, e) for f in fields if (e := sql(f)) is not None]
-    whole = "config" if config or sel.seeds else "NULL"
+    whole = "config" if config else "NULL"
     cols = ", ".join(["id", "path", "status", "heartbeat", whole, *[e for _, e in exprs]])
     cond, params = scope_condition(ctx, sel.depth)
     if restrict is not None:

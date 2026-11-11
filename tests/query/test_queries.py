@@ -1,5 +1,7 @@
 import json
 import math
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean
@@ -597,7 +599,9 @@ def test_grouped_series_of_single_point_runs_is_one_bucket(clocked) -> None:
 
 def test_attempts_after_requeue(ask, roles) -> None:
     """A resumed run counts two attempts; a run that never resumed counts one."""
-    a = ask({"runs": {"from": ".", "where": {"run.attempts": {"gt": 1}}, "select": ["run.attempts"]}})
+    a = ask(
+        {"runs": {"from": ".", "where": {"run.attempts": {"gt": 1}}, "select": ["run.attempts"]}}
+    )
     rows = table(a)
     assert roles["resumed"] in [r["run.id"] for r in rows]
     assert all(r["run.attempts"] > 1 for r in rows)
@@ -616,3 +620,24 @@ def test_last_logged_sorts_and_matches_the_file(ask, logdir, roles) -> None:
     run = next(p for p in logdir.rglob(roles["resumed"]) if p.is_dir())
     one = ask({"runs": {"from": roles["resumed"], "select": ["run.last_logged"]}})
     assert table(one)[0]["run.last_logged"] == (run / "_metrics.jsonl").stat().st_mtime
+
+
+@pytest.mark.parametrize("kind", ["keys", "data", "timeline", "groups"])
+def test_seeds_belongs_to_runs_and_series_only(ask, kind) -> None:
+    """``seeds`` on a kind that cannot aggregate is an error that lists the kind's fields."""
+    body = {"key": "x", "seeds": "config.seed"} if kind == "data" else {"seeds": "config.seed"}
+    with pytest.raises(QueryError, match="unknown field 'seeds'"):
+        ask({kind: body})
+
+
+def test_models_import_is_light() -> None:
+    """Importing the query structs loads neither the index nor the kinds."""
+    code = (
+        "import sys, beamtime.query.models; "
+        "bad = [n for n in ('beamtime.index.index', 'beamtime.query.kinds', 'beamtime.query.select') "
+        "if n in sys.modules]; "
+        "print(','.join(bad))"
+    )
+    done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.strip() == ""

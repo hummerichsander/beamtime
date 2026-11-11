@@ -2,12 +2,13 @@
 
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from beamtime.index.index import Index
-from beamtime.query.kinds import KIND_FUNCTIONS
 from beamtime.query.models import QueryError, parse
-from beamtime.query.select import Caller, Context, resolve_from
+
+if TYPE_CHECKING:
+    from beamtime.index.index import Index
+    from beamtime.query.select import Caller
 
 __all__ = ["QueryError", "run"]
 
@@ -16,10 +17,10 @@ def run(
     query: Any,
     *,
     logdir: Path,
-    caller: Caller = "cli",
+    caller: "Caller" = "cli",
     base: str = ".",
     budget_s: float = 0.2,
-    index: Index | None = None,
+    index: "Index | None" = None,
     now: float | None = None,
 ) -> dict[str, Any]:
     """Answer a query in its object form.
@@ -32,6 +33,10 @@ def run(
     :param index: An open index to reuse; by default one is opened and closed.
     :param now: The time run status is judged at; default now (a snapshot passes its own).
     :return: The canonical answer with ``meta``, including freshness."""
+    from beamtime.index.index import Index
+    from beamtime.query.kinds import KIND_FUNCTIONS
+    from beamtime.query.select import Context, resolve_from
+
     kind, q = parse(query)
     own = index is None
     index = index or Index(logdir=logdir)

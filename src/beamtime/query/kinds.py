@@ -57,7 +57,7 @@ def runs_kind(ctx: Context, q: m.Runs) -> dict[str, Any]:
     select = [*by, *[s for s in select if s not in by]]
     sort = q.sort or ([] if q.seeds or by else ["-run.created_at"])
     sorted_by = [s.lstrip("-") for s in sort]
-    runs, _ = select_runs(ctx, q, [*select, *sorted_by])
+    runs, _ = select_runs(ctx, q, [*select, *sorted_by], config=bool(q.seeds))
     if q.seeds or by:
         groups = group_by(runs, by) if by else seed_groups(runs, q.seeds)
         rows = []
@@ -222,7 +222,7 @@ def series_kind(ctx: Context, q: m.Series) -> dict[str, Any]:
     :return: ``{curves, meta}``."""
     by = list(q.by or [])
     fields = ["run.name", *[f"metric.{y}.count" for y in q.y], *by]
-    runs, _ = select_runs(ctx, q, fields)
+    runs, _ = select_runs(ctx, q, fields, config=bool(q.seeds))
     if q.steps and len(q.steps) != 2:
         raise QueryError("series: steps is [first, last], e.g. [0, 5000]")
     window = (q.steps[0], q.steps[1]) if q.steps else (None, None)

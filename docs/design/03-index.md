@@ -294,7 +294,8 @@ where:
 - **Filters** are a mapping from field to condition, combined with AND. A plain value means
   equality. Operators: `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in`, `nin`, `has` (list contains),
   `exists`, `glob` (string pattern). `any` and `not` combine conditions.
-- **Seeds** (`seeds: config.seed`) merge runs that agree on every field that distinguishes them
+- **Seeds** (`seeds: config.seed`, a field of `runs` and `series` only; any other kind refuses it as an
+  unknown field) merge runs that agree on every field that distinguishes them
   apart from that key (`config.varying` minus the seed and its aliases), exactly as in predictions.
   Values then come as mean, standard deviation and count.
 - **By** (`by: [config.lr]` on `runs`, as on `series`) makes one row per combination of the fields'

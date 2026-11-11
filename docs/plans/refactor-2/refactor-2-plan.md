@@ -826,7 +826,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 
 ## K. Query params declared once
 
-### K1. `seeds` where it is read; a lazy `query` package (sonnet) — code
+### K1. `seeds` where it is read; a lazy `query` package (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/query/models.py` (`Selection` 39–45, `Runs` 52–58, `Series` 67–76),
   `src/beamtime/query/__init__.py`, `tests/query/test_queries.py`, `docs/design/03-index.md`, `CHANGELOG.md`.

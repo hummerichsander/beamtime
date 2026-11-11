@@ -156,7 +156,7 @@ def predict(target: Target, version: str, pr: Prediction, level: float | None) -
     field = pr.reduce.field
     extra = [field, "run.status", *fields_of(pr.a or {}), *fields_of(pr.b or {})]
     try:
-        runs = target.select(version, pr.where, [*extra, *(pr.pair_by or [])], seeds=pr.seeds)
+        runs = target.select(version, pr.where, [*extra, *(pr.pair_by or [])])
     except QueryError as e:
         if e.code == "not_found":
             return head | {"result": "pending", "detail": str(e)}

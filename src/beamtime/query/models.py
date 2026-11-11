@@ -42,7 +42,6 @@ class Selection(Struct, kw_only=True):
     from_: str = msgspec.field(default=".", name="from")
     depth: Literal["all"] | int = "all"
     where: dict[str, Any] = msgspec.field(default_factory=dict)
-    seeds: str | None = None
 
 
 class Keys(Selection, kw_only=True):
@@ -56,6 +55,7 @@ class Runs(Selection, kw_only=True):
     sort: list[str] = msgspec.field(default_factory=list)
     limit: int | None = None
     by: list[str] | None = None
+    seeds: str | None = None
 
 
 class Smooth(Struct, kw_only=True):
@@ -73,6 +73,7 @@ class Series(Selection, kw_only=True):
     points: int | Literal["all"] | None = None
     smooth: Smooth | None = None
     by: list[str] | None = None
+    seeds: str | None = None
     band: Literal["minmax", "std", "stderr", "none"] = "minmax"
 
 

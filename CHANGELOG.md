@@ -2,6 +2,8 @@
 
 ## 0.3.0 (unreleased)
 
+- **Changed** `seeds` is a field of the `runs` and `series` queries only; on `keys`, `data`, `timeline`,
+  `groups` and `importance` it was silently ignored and is now an error naming the kind's fields.
 - **Changed** `logs` groups failed runs by the error the run's card recorded when there is one, and by
   the output's traceback otherwise (before: the traceback first). `wait`, `diagnose` and `logs` read run
   facts from the index instead of each run's files; `diagnose` checks the metrics file itself before it
