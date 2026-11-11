@@ -634,7 +634,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 
 1. Write the cases by hand from today's behaviour; Python generates nothing into the fixture.
 
-### S5. `compile.line` uses `wire_props` (sonnet) — code
+### S5. `compile.line` uses `wire_props` (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/views/settings.py` (`wire_props`), `src/beamtime/views/compile.py` (`line` 280–327),
   `docs/design/05-views.md`.

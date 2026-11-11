@@ -12,7 +12,7 @@ import pytest
 from beamtime.format.schema import SchemaError
 from beamtime.views import model as m
 from beamtime.views.compile import compile_view
-from beamtime.views.settings import SEEDS_FIELD, SETTINGS, line_defaults, settle
+from beamtime.views.settings import SEEDS_FIELD, SETTINGS, line_defaults, settle, wire_props
 
 FIXTURE = Path(__file__).parents[2] / "web" / "test" / "fixtures" / "chart-settings.json"
 CASES = json.loads(FIXTURE.read_text())
@@ -133,3 +133,10 @@ def test_settled_and_compiled_node_is_the_fixtures(case: dict[str, Any]) -> None
     node = tree["children"][0]
     node["props"] = {k: v for k, v in node["props"].items() if v is not None}
     assert node == case["node"]
+
+
+def test_wire_props_leave_out_defaults_and_the_series_call() -> None:
+    """Only what differs from the default stays, and not what the series call carries."""
+    assert wire_props(m.Line(y="val/loss", smooth=0.0, band="none", by="config.arm")) == {}
+    line = m.Line(y="val/loss", x="val/acc", smooth=0.6, raw=False, xlabel="acc", steps=[1, None])
+    assert wire_props(line) == {"x": "val/acc", "smooth": 0.6, "raw": False, "xlabel": "acc"}

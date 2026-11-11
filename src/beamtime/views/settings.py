@@ -20,6 +20,10 @@ SETTINGS = ("y",) + tuple(
     f.name for f in msgspec.structs.fields(m.Line) if f.name not in _NODE | {"y", *AUTHORED}
 )
 
+# the series call carries these (and scale is resolved by compile), so they are not node props.
+CALLED = ("y", "by", "band", "steps", "scale")
+PROPS = tuple(k for k in (*SETTINGS, "xlabel", "ylabel") if k not in CALLED)
+
 
 def line_defaults() -> dict[str, Any]:
     """The default of every setting that has one.
@@ -83,6 +87,19 @@ def settle(props: dict[str, Any], settings: dict[str, Any]) -> None:
     }
     props.clear()
     props.update(settled)
+
+
+def wire_props(n: m.Line) -> dict[str, Any]:
+    """The props a ``line`` node carries on the wire: every setting not at its default.
+
+    :param n: The line block.
+    :return: Prop name to value; the series call's settings and ``scale`` are left to compile."""
+    defaults = line_defaults()
+    return {
+        k: v
+        for k, v in msgspec.to_builtins(n).items()
+        if k in PROPS and not (k in defaults and v == defaults[k])
+    }
 
 
 def generated_ts() -> str:

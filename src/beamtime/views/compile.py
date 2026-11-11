@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from beamtime.format.ids import is_run_id
 from beamtime.format.schema import SchemaError
 from beamtime.views import model as m
+from beamtime.views import settings
 from beamtime.views.defaults import lower_is_better
 
 if TYPE_CHECKING:
@@ -311,17 +312,7 @@ class Compiler:
             data=data,
             y=ys[0] if len(ys) == 1 else ys,
             scale=scale,
-            smooth=n.smooth or None,
-            x=n.x if n.x != "_step" else None,
-            outliers=n.outliers or None,
-            ymin=n.ymin,
-            ymax=n.ymax,
-            raw=None if n.raw else False,
-            legend=None if n.legend else False,
-            color=n.color,
-            colormap=n.colormap,
-            xlabel=n.xlabel,
-            ylabel=n.ylabel,
+            **settings.wire_props(n),
             note=", ".join(note) or None,
             **common,
         )

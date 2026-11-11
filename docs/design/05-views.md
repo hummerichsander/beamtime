@@ -452,6 +452,12 @@ with hundreds of runs and thousands of points per curve.
   `histogram` write them; otherwise the x axis is `step`, `epoch`, `wall time`, `elapsed` or the
   metric's label, and the y axis is `label (unit)` from the view's `metrics`, the path several metrics
   share, or none.
+- **One owner for a line chart's settings.** The `line` struct (`m.Line`) is the only place a setting's name,
+  type and default is written. The web UI gets the defaults as generated constants
+  (`web/src/bt/chart-defaults.ts`, from `scripts/build-chart-defaults`), and compilation writes a node's props
+  with `views/settings.py` `wire_props`. The wire omits a setting at its default, except `scale`, which is
+  always resolved (the view's `metrics`, else log for losses, else linear); `band`, `by`, `seeds` and `steps`
+  travel in the series call.
 - **Drawings by custom code** (d3, SVG, canvas) use `bt.chart.Figure` ([the kit](#the-bt-kit-api)): the frame, settings, legend, hover and downloads are the same as a built-in chart's; only the plot is the block's own.
 - Wave-1 widgets beyond curves (`scatter`, `bar`, `histogram`) use uPlot's point and bar paths.
 
