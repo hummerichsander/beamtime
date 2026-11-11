@@ -651,7 +651,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 
 ## V. One curve shape
 
-### V1. Emit the envelope (sonnet + review) — code
+### V1. Emit the envelope (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/query/read.py` (`downsample` 102–151, `from_preview` 153–199),
   `src/beamtime/query/kinds.py` (`band_stats` 448–473, the grouped out-dicts 331–445), `tests/query/test_queries.py`,

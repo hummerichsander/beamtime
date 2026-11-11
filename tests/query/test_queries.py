@@ -219,6 +219,81 @@ def test_series_raw_downsampled_and_from_preview(ask, roles) -> None:
     assert curve["raw"] and curve["x"] == list(range(100, 120)) and curve["source"] == "columns"
 
 
+def finite_triples(curve: dict) -> list[tuple[float, float, float]]:
+    """Return the ``(lo, y, hi)`` triples of a curve where all three are numbers.
+
+    :param curve: A series curve with the envelope.
+    :return: The triples."""
+    triples = zip(curve["lo"], curve["y"], curve["hi"], strict=True)
+    return [t for t in triples if None not in t]
+
+
+def test_raw_envelope(ask, roles) -> None:
+    """A raw curve is its own envelope: ``y`` and no band."""
+    zoom = ask({"series": {"from": roles["killed"], "y": ["train/loss"], "steps": [100, 119]}})
+    (curve,) = zoom["curves"]
+    assert curve["raw"] and len(curve["y"]) == len(curve["x"]) == 20
+    assert not {"lo", "hi", "n"} & curve.keys()
+
+
+def test_downsampled_envelope(ask, roles) -> None:
+    """A downsampled curve answers ``y`` as last, ``lo`` as min, ``hi`` as max, ``n`` as count."""
+    q = {"from": roles["killed"], "y": ["train/loss"], "steps": [0, 10**6], "points": 10}
+    (curve,) = ask({"series": q})["curves"]
+    assert not curve["raw"] and curve["source"] == "columns"
+    assert curve["y"] == curve["last"] and curve["lo"] == curve["min"]
+    assert curve["hi"] == curve["max"] and curve["n"] == curve["count"]
+    assert len(curve["y"]) == len(curve["x"]) > 1
+    assert all(lo <= y <= hi for lo, y, hi in finite_triples(curve))
+
+
+def test_preview_envelope(ask, roles) -> None:
+    """A preview curve has the envelope although it keeps no ``first``."""
+    overview = ask({"series": {"from": "scaling/lr-sweep", "y": ["train/loss"], "points": 50}})
+    assert overview["meta"]["from_preview"] == overview["meta"]["curves"] > 0
+    for curve in overview["curves"]:
+        assert curve["first"][0] is None
+        assert None not in curve["y"] and curve["y"] == curve["last"]
+        assert curve["lo"] == curve["min"] and curve["hi"] == curve["max"]
+        assert curve["n"] == curve["count"]
+        assert all(lo <= y <= hi for lo, y, hi in finite_triples(curve))
+
+
+def test_grouped_envelope(ask) -> None:
+    """A grouped curve answers ``y`` as the mean of its runs."""
+    q = {"from": "tokenizer", "y": ["val/ppl"], "by": ["config.tokenizer"], "band": "minmax"}
+    for curve in ask({"series": q | {"points": 8}})["curves"]:
+        assert curve["y"] == curve["mean"] and len(curve["y"]) == len(curve["x"])
+        assert all(lo <= y <= hi for lo, y, hi in finite_triples(curve))
+    for curve in ask({"series": q | {"band": "none"}})["curves"]:
+        assert curve["y"] == curve["mean"]
+        assert curve["lo"] == [None] * len(curve["x"]) == curve["hi"]
+
+
+def test_single_point_envelope(clocked) -> None:
+    """A run cut to one step is a raw point; a group of them is one bucket with a band."""
+    q = {"from": "x", "y": ["m"], "steps": [0, 0]}
+    for curve in clocked({"series": q})["curves"]:
+        assert curve["raw"] and curve["x"] == [0] and curve["y"] == [0.0]
+    (curve,) = clocked({"series": q | {"by": ["config.arm"], "band": "minmax"}})["curves"]
+    assert curve["y"] == curve["mean"] == [0.0] and curve["lo"] == curve["hi"] == [0.0]
+
+
+def test_budget_envelope(ask) -> None:
+    """The envelope adds arrays but no points: the chart budget holds and the JSON stays under 2x."""
+    a = ask({"series": {"from": ".", "y": ["train/loss"], "points": 5000}}, caller="view")
+    assert a["meta"]["points"] * a["meta"]["curves"] <= 30_000 + a["meta"]["curves"]
+    assert any("lo" in c for c in a["curves"])
+    legacy = {
+        **a,
+        "curves": [
+            {k: v for k, v in c.items() if k not in ("y", "lo", "hi", "n") or c["raw"]}
+            for c in a["curves"]
+        ],
+    }
+    assert len(json.dumps(a)) < 2 * len(json.dumps(legacy))
+
+
 def test_series_x_axes_and_smoothing(ask, roles) -> None:
     """x by wall time, elapsed time or another metric; EMA smoothing narrows the band."""
     base = {"from": roles["resumed"], "y": ["train/loss"], "points": 10}

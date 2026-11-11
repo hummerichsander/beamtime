@@ -334,6 +334,15 @@ series:
 - Each curve comes back either **raw** (when it has at most `points` points in the window) or
   **downsampled** as min, max and last per bucket, with the bucket edges. The answer always says
   which.
+- **Every curve carries the drawing envelope** `x`, `y` and, unless raw, `lo`, `hi`, `n`, so a consumer
+  draws any curve from four names without telling the variants apart. A raw curve is its own envelope
+  (`x`, `y`, no band). A downsampled curve gains `y` = `last`, `lo` = `min`, `hi` = `max` and `n` =
+  `count`. A grouped curve gains `y` = `mean` (`lo`, `hi` and `n` already carry these names; with
+  `band: none` `lo` and `hi` are `null`). `len(y) == len(x)`, and `lo <= y <= hi` wherever all three are
+  numbers. The old fields (`raw`, `first`, `min`, `max`, `last`, `count`, `mean`) keep flowing for kit
+  blocks (kit v1) and older hubs, and `raw` and `by` stay honest facts about fidelity and grouping;
+  retiring the duplicates waits for the next protocol major. The cost is four extra arrays in a
+  downsampled answer (about 1.7x the JSON, bounded by the chart's point budget).
 - A metric as `x` (`read.x_values`) pairs each point with that metric's most recent value at or before
   the same step (none where it isn't finite), so x is always a value the run logged and a stair-logged
   `epoch` stays a stair.
@@ -459,8 +468,9 @@ Decided while building the index and the queries (milestone M2):
 - **Downsampling** covers finite values only, like the card and the preview. Buckets have the
   smallest power-of-two width that gives at most `points` buckets; edges sit at multiples of the
   width. A downsampled curve carries `x` (bucket start), `first` (first step with data), `min`,
-  `max`, `last` and `count`; a raw curve carries `x` and `y`, with `null` for non-finite values so
-  answers stay valid JSON.
+  `max`, `last` and `count` (and the envelope `y`, `lo`, `hi`, `n`, the same lists as `last`, `min`,
+  `max` and `count`); a raw curve carries `x` and `y`, with `null` for non-finite values so answers
+  stay valid JSON.
 - **Previews answer** full-range curves on `_step` without smoothing for runs that are not running,
   whenever the preview pins down the same bucket width; the answer is then identical to the one from
   the column files, and needs no ingest of the run's metrics.

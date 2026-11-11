@@ -50,6 +50,9 @@
 
 - **Fixed** a crash in the live-update hub when a stale page (an older tab left open) sent a watch
   request in an earlier shape: the entry is skipped now instead of taking the hub down.
+- **Added** a drawing envelope to every `series` curve: `x`, `y` and, unless the curve is raw, `lo`,
+  `hi` and `n` (a downsampled curve gets `y` = `last`, `lo` = `min`, `hi` = `max`, `n` = `count`; a grouped
+  curve `y` = `mean`). The old fields keep flowing, so kit v1 blocks and older hubs read the same answers.
 - **Steadied the browser tests** under CI load: the shared Playwright page fixture gets a longer
   default timeout, and matplotlib's font cache is warmed once per session so a view render's
   settle budget isn't spent building it. Test-only; nothing ships differently.

@@ -115,8 +115,9 @@ def downsample(
     :param points: The point budget of the curve.
     :param nonfinite: Whether the values may contain NaN or infinities.
     :return: ``{raw: True, x, y}`` (non-finite values as ``None``) or
-        ``{raw: False, width, x, first, min, max, last, count}``; ``x`` is the bucket
-        start and ``first`` the first step with data in it."""
+        ``{raw: False, width, x, first, min, max, last, count, y, lo, hi, n}``; ``x`` is
+        the bucket start and ``first`` the first step with data in it; ``y``, ``lo``,
+        ``hi`` and ``n`` are the same lists as ``last``, ``min``, ``max`` and ``count``."""
     lo, hi = window
     i = 0 if lo is None else bisect_left(steps, lo)
     j = len(steps) if hi is None else bisect_right(steps, hi)
@@ -129,6 +130,7 @@ def downsample(
     a, b = finite_range(steps, values, i, j, nonfinite)
     out: dict[str, Any] = {"raw": False, "width": 1, "x": [], "first": []}
     out |= {"min": [], "max": [], "last": [], "count": []}
+    out |= {"y": out["last"], "lo": out["min"], "hi": out["max"], "n": out["count"]}
     if a >= b:
         return out
     w = width_for(steps[a], steps[b - 1], points)
@@ -187,7 +189,7 @@ def from_preview(preview: MetricPreview, points: int) -> dict[str, Any] | None:
         else:
             m[0], m[1], m[2], m[3] = min(m[0], lo), max(m[1], hi), last, m[3] + cnt
     keys = sorted(merged)
-    return {
+    curve: dict[str, Any] = {
         "raw": False,
         "width": w,
         "x": [t * w for t in keys],
@@ -196,6 +198,12 @@ def from_preview(preview: MetricPreview, points: int) -> dict[str, Any] | None:
         "max": [merged[t][1] for t in keys],
         "last": [merged[t][2] for t in keys],
         "count": [merged[t][3] for t in keys],
+    }
+    return curve | {
+        "y": curve["last"],
+        "lo": curve["min"],
+        "hi": curve["max"],
+        "n": curve["count"],
     }
 
 

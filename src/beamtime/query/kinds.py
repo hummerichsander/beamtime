@@ -368,7 +368,7 @@ def grouped_curve(
         "metric": y,
     }
     if not series:
-        return out | {"x": [], "mean": [], "lo": [], "hi": [], "n": []}
+        return out | {"x": [], "mean": [], "y": [], "lo": [], "hi": [], "n": []}
     lo = min(s[4] for s in series)
     hi = max(s[5] for s in series)
     width = width_for(lo, hi, points)
@@ -430,7 +430,7 @@ def grouped_curve_by_x(
         "metric": y,
     }
     if not series:
-        return out | {"x": [], "mean": [], "lo": [], "hi": [], "n": []}
+        return out | {"x": [], "mean": [], "y": [], "lo": [], "hi": [], "n": []}
     lo = min(xs[0] for xs, _ in series)
     hi = max(xs[-1] for xs, _ in series)
     width = (hi - lo) / points
@@ -450,7 +450,7 @@ def band_stats(per_bucket: list[list[float]], band: str) -> dict[str, list[Any]]
 
     :param per_bucket: The per-run means of every bucket, in x order.
     :param band: ``minmax``, ``std``, ``stderr`` or ``none``.
-    :return: ``{mean, lo, hi, n}`` per bucket."""
+    :return: ``{mean, y, lo, hi, n}`` per bucket; ``y`` is the same list as ``mean``."""
     mean, lo, hi, n = [], [], [], []
     for vals in per_bucket:
         mu, sd = spread(vals)
@@ -470,7 +470,7 @@ def band_stats(per_bucket: list[list[float]], band: str) -> dict[str, list[Any]]
         lo.append(lo_v)
         hi.append(hi_v)
         n.append(len(vals))
-    return {"mean": mean, "lo": lo, "hi": hi, "n": n}
+    return {"mean": mean, "y": mean, "lo": lo, "hi": hi, "n": n}
 
 
 def data_kind(ctx: Context, q: m.Data) -> dict[str, Any]:
