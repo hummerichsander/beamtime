@@ -667,9 +667,7 @@ class McpInstallParams(Params, kw_only=True):
 
 @dataclass(frozen=True, kw_only=True)
 class Op:
-    """One method of the set: an operation, or a page method of the API (``params`` is ``None``).
-
-    A page method's ``impl`` takes ``(context, body)``; it is never a CLI command or MCP tool."""
+    """One method: an operation, or an API page method (no ``params``; ``impl(ctx, body)``)."""
 
     name: str
     impl: str
@@ -686,10 +684,11 @@ class Op:
     local: bool = False
     # parameters whose targets must all be on one source.
     one_source: tuple[str, ...] = ()
-    # False: answers where it arrives (hello, files, ...); ui: a user-only operation the web UI
-    # offers its user; a call with any of draft_params set is a draft and stays local.
+    # False: answers where it arrives (hello, files, ...).
     routed: bool = True
+    # a user-only operation the web UI offers its user.
     ui: bool = False
+    # a call with any of these set is a draft and stays local.
     draft_params: tuple[str, ...] = ()
 
     @property
