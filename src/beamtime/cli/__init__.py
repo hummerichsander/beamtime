@@ -224,8 +224,8 @@ def params_of(op_name: str, args: argparse.Namespace) -> dict[str, Any]:
     :return: Parameters by encoded name."""
     import msgspec
 
-    from beamtime.cli.conditions import parse_where
     from beamtime.ops.registry import BY_NAME
+    from beamtime.query.conditions import parse_where
 
     op = BY_NAME[op_name]
     if op_name == "query":

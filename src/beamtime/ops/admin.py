@@ -636,7 +636,7 @@ def mcp_install(ctx: Context, p: r.McpInstallParams) -> dict[str, Any]:
     :return: What was changed, or the command to run."""
     answered = register(ctx, p)
     if p.skills:
-        from beamtime.mcp.skills import write_skills
+        from beamtime.guide.skills import write_skills
 
         names = [str(f.relative_to(ctx.root)) for f in write_skills(ctx.root)]
         answered["lines"].append(f"wrote {', '.join(names)}")

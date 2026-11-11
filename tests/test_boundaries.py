@@ -67,3 +67,23 @@ def test_only_place_parses_the_source_prefix() -> None:
         if pattern.search(path.read_text())
     ]
     assert found == ["format/place.py"]
+
+
+@pytest.mark.parametrize("package", ["query", "index", "ops", "record", "remote", "format", "sdk"])
+def test_lower_layers_never_import_the_frontends(package: str) -> None:
+    """Frontends sit on top: no import in the layers below, function bodies included, names the CLI or MCP.
+
+    :param package: A package below the frontends."""
+    banned = ("beamtime.cli", "beamtime.mcp")
+    for path in (SRC / package).rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.Import):
+                names = [a.name for a in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                names = [node.module, *(f"{node.module}.{a.name}" for a in node.names)]
+            else:
+                continue
+            for name in names:
+                assert not any(name == b or name.startswith(f"{b}.") for b in banned), (
+                    f"{path.relative_to(SRC)} imports {name}"
+                )

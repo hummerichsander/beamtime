@@ -18,7 +18,7 @@ def build(out: Path) -> None:
     :param out: The directory to write."""
     sys.path.insert(0, str(ROOT / "src"))
     from beamtime import __version__
-    from beamtime.mcp.skills import SKILLS, skill_text
+    from beamtime.guide.skills import SKILLS, skill_text
 
     if out.exists():
         shutil.rmtree(out)

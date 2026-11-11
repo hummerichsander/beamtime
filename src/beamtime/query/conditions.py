@@ -1,4 +1,4 @@
-"""Compact ``--where`` strings such as ``config.lr<1e-3``, in the object form.
+"""Compact condition strings (``--where``) such as ``config.lr<1e-3``, in the object form.
 
 The operator is the first one outside quotes and brackets, so a field may be written
 ``config["a<b"]``; a quoted value stays text (``config.tag="1"``), and ``in`` takes a comma
@@ -35,10 +35,11 @@ def value_of(text: str) -> Any:
     return text
 
 
-def split_outside(text: str) -> list[tuple[int, str]]:
+def split_outside(text: str, flag: str = "--where") -> list[tuple[int, str]]:
     """List the characters of a string that are outside quotes and brackets.
 
     :param text: The string.
+    :param flag: The name an error message gives the string.
     :return: ``(position, character)`` pairs."""
     out, quote, depth = [], None, 0
     for i, ch in enumerate(text):
@@ -54,16 +55,17 @@ def split_outside(text: str) -> list[tuple[int, str]]:
         elif depth == 0:
             out.append((i, ch))
     if quote is not None:
-        raise ValueError(f"--where {text!r}: a quote is not closed")
+        raise ValueError(f"{flag} {text!r}: a quote is not closed")
     return out
 
 
-def operator(text: str) -> tuple[int, int, str]:
+def operator(text: str, flag: str = "--where") -> tuple[int, int, str]:
     """Find the first operator outside quotes and brackets.
 
     :param text: The condition.
+    :param flag: The name an error message gives the string.
     :return: Its start, its end and the operator as written (``in`` for the list form)."""
-    free = split_outside(text)
+    free = split_outside(text, flag)
     positions = {i for i, _ in free}
     for i, ch in free:
         two = text[i : i + 2]
@@ -74,7 +76,7 @@ def operator(text: str) -> tuple[int, int, str]:
         # ' in ' as a word, with whitespace on both sides.
         if ch.isspace() and text[i + 1 : i + 3] == "in" and text[i + 3 : i + 4].isspace():
             return i, i + 4, "in"
-    raise ValueError(f"--where {text!r}: {HELP}")
+    raise ValueError(f"{flag} {text!r}: {HELP}")
 
 
 def items(text: str) -> list[Any]:
@@ -87,34 +89,36 @@ def items(text: str) -> list[Any]:
     return [value_of(p.strip()) for p in parts]
 
 
-def parse_condition(text: str) -> tuple[str, str, Any]:
+def parse_condition(text: str, flag: str = "--where") -> tuple[str, str, Any]:
     """Split one condition string.
 
     :param text: E.g. ``run.status=finished``, ``config.lr in 1e-3,3e-4``.
+    :param flag: The name an error message gives the string.
     :return: Field, operator name and value."""
     text = text.strip()
-    start, end, op = operator(text)
+    start, end, op = operator(text, flag)
     field, value = text[:start].strip(), text[end:].strip()
     if not field:
-        raise ValueError(f"--where {text!r}: no field before {op!r}; {HELP}")
+        raise ValueError(f"{flag} {text!r}: no field before {op!r}; {HELP}")
     if not value:
         empty = f'{field}{op}""'
-        raise ValueError(f"--where {text!r}: no value after {op!r}; for empty text write {empty}")
+        raise ValueError(f"{flag} {text!r}: no value after {op!r}; for empty text write {empty}")
     if op == "in":
         return field, "in", items(value)
     return field, OPS[op], value_of(value)
 
 
-def parse_where(conditions: list[str]) -> dict[str, Any]:
-    """Combine ``--where`` strings into one condition (AND).
+def parse_where(conditions: list[str], flag: str = "--where") -> dict[str, Any]:
+    """Combine condition strings into one condition (AND).
 
     :param conditions: The strings.
+    :param flag: The name an error message gives the strings.
     :return: The condition in the object form."""
     where: dict[str, dict[str, Any]] = {}
     for text in conditions:
-        field, op, value = parse_condition(text)
+        field, op, value = parse_condition(text, flag)
         ops = where.setdefault(field, {})
         if op in ops:
-            raise ValueError(f"--where: {field} {op} is given twice")
+            raise ValueError(f"{flag}: {field} {op} is given twice")
         ops[op] = value
     return {f: ops["eq"] if list(ops) == ["eq"] else ops for f, ops in where.items()}

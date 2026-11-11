@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from beamtime.cli.conditions import parse_where
+from beamtime.query.conditions import parse_where
 from beamtime.cli.format import num, render, spark, table
 from beamtime.format.ids import new_run_id
 from beamtime.ops import call
@@ -54,7 +54,7 @@ def test_condition_strings() -> None:
 )
 def test_condition_syntax(text: str, expected: tuple) -> None:
     """Brackets and quotes protect operators; quoted values stay text; lists split outside quotes."""
-    from beamtime.cli.conditions import parse_condition
+    from beamtime.query.conditions import parse_condition
 
     assert parse_condition(text) == expected
 
@@ -70,10 +70,20 @@ def test_condition_syntax(text: str, expected: tuple) -> None:
 )
 def test_condition_errors(text: str, message: str) -> None:
     """Malformed conditions say what is missing."""
-    from beamtime.cli.conditions import parse_condition
+    from beamtime.query.conditions import parse_condition
 
     with pytest.raises(ValueError, match=message):
         parse_condition(text)
+
+
+def test_condition_errors_name_the_flag() -> None:
+    """The caller names the string in the message: ``--where`` by default, ``until`` for ``wait``."""
+    from beamtime.query.conditions import parse_where
+
+    with pytest.raises(ValueError, match="^--where 'x'"):
+        parse_where(["x"])
+    with pytest.raises(ValueError, match="^until 'x'"):
+        parse_where(["x"], flag="until")
 
 
 def test_settings_levels(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

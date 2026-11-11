@@ -586,13 +586,13 @@ def wait(ctx: Context, p: r.WaitParams) -> dict[str, Any]:
     :param p: The parameters.
     :return: ``met``, ``timed_out``, the seconds waited, the runs whose status changed or that
         appeared, the status counts now and, for a condition, the runs meeting it."""
-    from beamtime.cli.conditions import parse_where
+    from beamtime.query.conditions import parse_where
 
     limit = p.timeout if ctx.caller == "cli" else min(p.timeout, MCP_WAIT_S)
     try:
-        condition = None if p.until == "finished" else parse_where([p.until])
+        condition = None if p.until == "finished" else parse_where([p.until], flag="until")
     except ValueError as e:
-        raise OpError(f"until: {e}", code=2) from None
+        raise OpError(str(e), code=2) from None
     before = {m["id"]: m for m in members(ctx, p.from_, p.where, p.depth)}
     start = time.monotonic()
     while True:

@@ -441,8 +441,10 @@ beamtime series . -y train/loss --steps 0:5000 --points 200
 beamtime query query.yaml          # or --json '{...}': the object form directly
 ```
 
-Condition strings use `= != < <= > >=`, `~` for glob, and `in` with a comma list. Output is a
-readable table by default, `--json` gives the canonical answer.
+Condition strings use `= != < <= > >=`, `~` for glob, and `in` with a comma list. They belong to the
+query language, not to the CLI: `src/beamtime/query/conditions.py` parses them for the CLI's `--where` and
+for the operations that take one (`wait`'s `until`), and its error messages name the flag the caller
+gives it. Output is a readable table by default, `--json` gives the canonical answer.
 
 MCP has one tool per kind (`keys`, `runs`, `series`, `data`, `timeline`, `groups`, `importance`,
 `file`) plus `query` for the object form of any kind ([layer 8](08-cli-mcp.md)).

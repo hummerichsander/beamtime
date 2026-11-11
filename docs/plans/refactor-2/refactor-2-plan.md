@@ -737,7 +737,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 
 ## Q. Run facts from the index
 
-### Q1. Conditions belong to the query language (sonnet) — code
+### Q1. Conditions belong to the query language (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/cli/conditions.py` → new `src/beamtime/query/conditions.py`, `src/beamtime/cli/__init__.py`
   (227), `src/beamtime/ops/reading.py` (589), `src/beamtime/mcp/skills.py` → new `src/beamtime/guide/skills.py`,

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from beamtime.guide import TOPICS, read
 from beamtime.mcp.server import PROMPTS
-from beamtime.mcp.skills import SKILLS
+from beamtime.guide.skills import SKILLS
 from beamtime.ops import call
 from beamtime.ops.context import Context
 
