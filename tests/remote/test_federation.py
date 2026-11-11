@@ -294,6 +294,25 @@ def test_an_old_remotes_curves_reach_cli_and_mcp_with_values(
     )  # fmt: skip
 
 
+@pytest.mark.parametrize("caller", ["cli", "mcp"])
+def test_an_older_serves_curves_reach_cli_and_mcp_with_values(
+    ctx: Context, monkeypatch: pytest.MonkeyPatch, caller: str
+) -> None:
+    """A serve of 0.2 that is still running answers a CLI or MCP call with the old fields only;
+    the envelope is added before the strip, so the curves keep their values."""
+    from beamtime.remote import via_serve
+
+    old_answer = OldRemote().request("series", {})
+    monkeypatch.setattr(via_serve, "call", lambda *a: old_answer)
+    ctx = dataclasses.replace(ctx, caller=caller)
+    query = {"from": "@box/g", "y": ["train/loss"], "points": 5}
+    curves = call("series", query, ctx)["curves"]
+    assert len(curves) == 3
+    for c in curves:
+        assert not {"last", "min", "max", "count", "mean"} & set(c)
+        assert c["y"] and len(c["y"]) == len(c["x"])
+
+
 class FakeClient:
     """A source that answers one list of group rows, or is down."""
 

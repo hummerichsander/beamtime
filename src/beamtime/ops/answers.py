@@ -370,6 +370,16 @@ def upgrade_curve(c: dict[str, Any]) -> dict[str, Any]:
     return c
 
 
+def upgraded(answer: Any) -> Any:
+    """Give the curves of an answer from an older remote or serve the envelope.
+
+    :param answer: An answer of any kind.
+    :return: The answer, every curve with ``y``; an answer without curves as it is."""
+    if isinstance(answer, dict) and isinstance(curves := answer.get("curves"), list):
+        return {**answer, "curves": [upgrade_curve(c) for c in curves]}
+    return answer
+
+
 class Series(Bare):
     """Curves of metrics."""
 
@@ -381,9 +391,7 @@ class Series(Bare):
         :param answer: The remote's answer.
         :param at: Puts a source's prefix on one path.
         :return: The answer, every curve with ``y``."""
-        if isinstance(curves := answer.get("curves"), list):
-            answer = {**answer, "curves": [upgrade_curve(c) for c in curves]}
-        return super().placed(answer, at)
+        return super().placed(upgraded(answer), at)
 
     def merged(self, answers: list[tuple[str, dict]], params: dict, caller: str) -> dict:
         """Join the curves; with several sources' curves, each group says its source.

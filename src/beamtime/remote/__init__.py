@@ -74,10 +74,12 @@ def reach(name: str, params: dict[str, Any], ctx: Any) -> dict[str, Any]:
         if targets(params):
             raise OpError(f"{name} is a user command; run it on the remote itself (ssh)", code=2)
         return call(name, params, ctx)
+    from beamtime.ops.answers import upgraded
     from beamtime.remote import via_serve
     from beamtime.remote.route import routed
 
     if via_serve.involves_remotes(ctx, op.tool, params):
+        # an older serve still running answers curves with the old fields only.
         if (found := via_serve.call(ctx, op.tool, params)) is not None:
-            return found
+            return upgraded(found)
     return routed(op.tool, params, ctx, lambda given, c: call(name, given, c))
