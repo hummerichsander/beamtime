@@ -611,11 +611,11 @@ def save_page(
 
     pins = prefs.get("main")
     data = page_yaml(ctx, path, pins)
-    data["body"] = apply_prefs(data.get("body") or [], prefs)
-    if pins is not None:
-        apply_pins(data, pins)
-    data["title"], data["finding"] = title or None, finding or None
     try:
+        data["body"] = apply_prefs(data.get("body") or [], prefs)
+        if pins is not None:
+            apply_pins(data, pins)
+        data["title"], data["finding"] = title or None, finding or None
         view = m.parse(data, source="the page")
     except SchemaError as e:
         raise OpError(str(e), code=3) from None

@@ -193,6 +193,12 @@ def test_save_view_from_the_ui(api, project: Path) -> None:
     assert api("save_view", path="nope", prefs={}).status_code == 404
 
 
+def test_save_view_with_a_bad_setting(api, project: Path) -> None:
+    """A setting the chart can't take is refused with the setting named, not a server error."""
+    r = api("save_view", path="scaling/lr-sweep", prefs={"view": {"smooth": 1.5}})
+    assert r.status_code == 422 and "smooth" in r.json()["error"]
+
+
 @pytest.mark.parametrize(
     "figure",
     [
