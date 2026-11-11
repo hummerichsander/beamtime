@@ -26,9 +26,9 @@
 - **Fixed** a data file's `path` over a remote: it stays relative to the view (it was prefixed
   with `@box/`), and a table column called `path` in a logged file is no longer prefixed.
 - **Changed** how a run is named in `from`: one resolver answers for queries, writes and notes. A
-  run is found by its id, else (when no group of that name exists) by a unique id suffix or its
-  name, and an unknown group lists the top-level groups. The message for an unknown source now
-  names the configured remotes, like the CLI's.
+  run is found by its id, else (when no group of that name exists) by a unique id suffix (four
+  characters or more) or its name, and an unknown group lists the top-level groups. The message
+  for an unknown source now names the configured remotes, like the CLI's.
 
 ## 0.2.2
 

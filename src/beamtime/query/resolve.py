@@ -11,6 +11,7 @@ from beamtime.index.index import Index
 from beamtime.query.models import QueryError, closest
 
 TOP_GROUPS = 12
+MIN_SUFFIX = 4
 
 
 @dataclass(frozen=True)
@@ -113,15 +114,17 @@ def _run_by_suffix_or_name(index: Index, word: str, budget_s: float) -> tuple[st
     """Find the one run whose id ends in ``word`` or whose name is ``word``.
 
     :param index: The index.
-    :param word: The id suffix or run name.
+    :param word: The id suffix (at least ``MIN_SUFFIX`` characters) or run name.
     :param budget_s: Seconds to catch up for when nothing matches yet.
     :return: The run's path and id, or ``None``.
     :raises QueryError: If several runs match."""
+    # a shorter suffix matches by chance, so a mistyped group would name a run; NULL matches none.
+    args = (-len(word), word if len(word) >= MIN_SUFFIX else None, word)
     query = "SELECT path, id FROM runs WHERE substr(id, ?) = ? OR name = ?"
-    hits = index.store.db.execute(query, (-len(word), word, word)).fetchall()
+    hits = index.store.db.execute(query, args).fetchall()
     if not hits:
         index.catch_up(".", budget_s=budget_s)
-        hits = index.store.db.execute(query, (-len(word), word, word)).fetchall()
+        hits = index.store.db.execute(query, args).fetchall()
     if len(hits) > 1:
         raise QueryError(f"{word!r} matches {len(hits)} runs; give the full run id")
     return (hits[0][0], hits[0][1]) if hits else None

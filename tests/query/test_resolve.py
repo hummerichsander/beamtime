@@ -76,6 +76,13 @@ def test_run_by_suffix(index: Index, run_id: str) -> None:
     assert resolve(index, run_id[-8:]) == Resolved(path, run_id)
 
 
+def test_short_suffix_is_a_group(index: Index, run_id: str) -> None:
+    """A suffix under four characters is not a run, so a mistyped group never names one."""
+    with pytest.raises(QueryError, match=f"no group '{run_id[-3:]}' below the log dir") as e:
+        resolve(index, run_id[-3:])
+    assert e.value.code == "not_found"
+
+
 def test_run_by_name_and_ambiguous(index: Index, run_id: str) -> None:
     """A unique name names the run; a shared one is refused as invalid (code 2)."""
     others = [r[0] for r in index.store.db.execute("SELECT id FROM runs LIMIT 3")]
@@ -97,11 +104,11 @@ def test_unknown_run(index: Index) -> None:
 
 def test_group_wins_over_suffix(index: Index, logdir: Path, run_id: str) -> None:
     """A group of the same name as a run's id suffix is the group."""
-    (logdir / "scaling" / run_id[-6:]).mkdir()
+    (logdir / run_id[-6:]).mkdir()
     try:
-        assert resolve(index, f"scaling/{run_id[-6:]}") == Resolved(f"scaling/{run_id[-6:]}", None)
+        assert resolve(index, run_id[-6:]) == Resolved(run_id[-6:], None)
     finally:
-        (logdir / "scaling" / run_id[-6:]).rmdir()
+        (logdir / run_id[-6:]).rmdir()
 
 
 def test_moved_group_is_followed(index: Index) -> None:

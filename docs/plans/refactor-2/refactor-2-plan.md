@@ -168,6 +168,12 @@ review: P1 P2 R1 R2 R3 R4 R5 R4b R6 P3 P4 P5 O1 O2 O3 O4 S1 S2 S3 S4 S5 V1 V2 V3
     siblings and top-level groups; a run is found by id, unique id suffix or name; one catch-up budget, 0.2 s.
 15. **The version bump waits for the release** (your decision): tickets write under `## 0.3.0 (unreleased)`;
     `pyproject.toml`, `uv.lock` and `scripts/release.py` belong to the release, not to X1.
+16. **A run id suffix needs at least four characters** (P3 review; say if you want otherwise): with ids in
+    base36, a one- to three-character suffix matches a run by chance, so a mistyped or not yet created group
+    (`from: a`, `view save a`) named a random run and writes landed on it. `resolve` reads a shorter word as a
+    group (`resolve.MIN_SUFFIX`); a run name still matches at any length. P4's `find_run` inherits it, so
+    `card`, `output`, `mv` and `rm` stop accepting 1–3 character suffixes. Rejected: suffix lookup only for run
+    arguments (the design wants it everywhere) and no minimum (the failure above).
 
 ## P. Places
 
@@ -440,8 +446,10 @@ the local listing of `.` included, can't be reached by paging once any remote is
   `find_run`'s walk fallback when the index misses (`test_find_run_without_index`).
 
 1. `page_of(ctx, path)`: `resolve(index, path, sources=...)`; `QueryError` → `OpError` with the same code.
-2. `find_run(ctx, run_id) -> Path`: `ctx.logdir / resolve(index, run_id).path / run_id`.
-3. CHANGELOG (Changed: pages refuse reserved names).
+2. `find_run(ctx, run_id) -> Path`: `ctx.logdir / resolve(index, run_id).path` (`Resolved.path` of a run is
+   the run's own directory).
+3. CHANGELOG (Changed: pages refuse reserved names; run arguments need a suffix of four characters or more,
+   decision 16; update `docs/design/08-cli-mcp.md` l. 252 to say so).
 
 ### P5. Every call site parses through `Place` (sonnet) — code
 
