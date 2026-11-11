@@ -96,19 +96,15 @@ Targets = Annotated[
 CompareMetrics = Annotated[
     list[str] | None, msgspec.Meta(description="metric keys to tabulate; default: all logged")
 ]
-QueryBody = Annotated[
-    dict[str, Any],
-    msgspec.Meta(description="one kind: keys, runs, series, data, timeline, groups, file"),
-]
 ReadDraft = Annotated[str | None, msgspec.Meta(description="read from this draft instead")]
 
 
 class Selection(Struct, kw_only=True):
     """How every query kind selects runs."""
 
-    from_: str = msgspec.field(default=".", name="from")
+    from_: Group = msgspec.field(default=".", name="from")
     depth: Literal["all"] | int = "all"
-    where: dict[str, Any] = msgspec.field(default_factory=dict)
+    where: Where = msgspec.field(default_factory=dict)
 
 
 class Keys(Selection, kw_only=True):
@@ -118,11 +114,11 @@ class Keys(Selection, kw_only=True):
 class Runs(Selection, kw_only=True):
     """A run table."""
 
-    select: list[str] | None = None
-    sort: list[str] = msgspec.field(default_factory=list)
+    select: Fields = None
+    sort: Sort = msgspec.field(default_factory=list)
     limit: int | None = None
-    by: list[str] | None = None
-    seeds: str | None = None
+    by: RowsBy = None
+    seeds: Seeds = None
 
 
 class Smooth(Struct, kw_only=True):
@@ -134,13 +130,13 @@ class Smooth(Struct, kw_only=True):
 class Series(Selection, kw_only=True):
     """Curves of metrics."""
 
-    y: list[str]
-    x: str = "_step"
-    steps: list[int | None] | None = None
-    points: int | Literal["all"] | None = None
+    y: SeriesY
+    x: SeriesX = "_step"
+    steps: Steps = None
+    points: SeriesPoints = None
     smooth: Smooth | None = None
-    by: list[str] | None = None
-    seeds: str | None = None
+    by: AggregateBy = None
+    seeds: Seeds = None
     band: Literal["minmax", "std", "stderr", "none"] = "minmax"
 
 
@@ -189,6 +185,14 @@ KINDS: dict[str, type[Struct]] = {
     "file": File,
     "importance": Importance,
 }
+
+
+# importance answers only an error until v1.1, so the kinds a caller may ask for leave it out.
+LIVE_KINDS = tuple(kind for kind in KINDS if kind != "importance")
+QueryBody = Annotated[
+    dict[str, Any], msgspec.Meta(description=f"one kind: {', '.join(LIVE_KINDS)}")
+]
+Cursor = str | None
 
 
 def parse(query: Any) -> tuple[str, Struct]:

@@ -10,30 +10,22 @@ from typing import Annotated, Any, Literal
 import msgspec
 
 from beamtime.format.authored import NOTE_TYPES
+from beamtime.query import models as q
 from beamtime.query.models import (
-    AggregateBy,
     CompareMetrics,
     Context,
+    Cursor,
     DiagnoseMetrics,
     ExportTo,
-    Fields,
     Grep,
     Group,
     QueryBody,
     ReadDraft,
-    RowsBy,
     RunId,
-    Seeds,
-    SeriesPoints,
-    SeriesX,
-    SeriesY,
-    Sort,
-    Steps,
     Tail,
     Targets,
     Timeout,
     Until,
-    Where,
 )
 
 
@@ -48,33 +40,31 @@ class NoParams(Params, kw_only=True):
 class Page(Params, kw_only=True):
     """Paging for answers cut at the token budget."""
 
-    cursor: str | None = None
+    cursor: Cursor = None
 
 
-class Selection(Page, kw_only=True):
-    """Which runs an operation looks at."""
+class Selection(q.Selection, kw_only=True):
+    """Which runs an operation looks at, and the page to continue from."""
 
-    from_: Group = msgspec.field(default=".", name="from")
-    where: Where = msgspec.field(default_factory=dict)
-    depth: Literal["all"] | int = "all"
+    cursor: Cursor = None
 
 
-class KeysParams(Selection, kw_only=True):
+class KeysParams(q.Keys, kw_only=True):
     """Parameters of ``keys``."""
 
+    cursor: Cursor = None
 
-class GroupsParams(Selection, kw_only=True):
+
+class GroupsParams(q.Groups, kw_only=True):
     """Parameters of ``groups``."""
 
+    cursor: Cursor = None
 
-class RunsParams(Selection, kw_only=True):
+
+class RunsParams(q.Runs, kw_only=True):
     """Parameters of ``runs``."""
 
-    select: Fields = None
-    sort: Sort = msgspec.field(default_factory=list)
-    limit: int | None = None
-    seeds: Seeds = None
-    by: RowsBy = None
+    cursor: Cursor = None
     to: ExportTo = None
 
 
@@ -84,26 +74,18 @@ class CardParams(Params, kw_only=True):
     run: str
 
 
-class SeriesParams(Selection, kw_only=True):
+class SeriesParams(q.Series, kw_only=True):
     """Parameters of ``series``."""
 
-    y: SeriesY
-    x: SeriesX = "_step"
-    steps: Steps = None
-    points: SeriesPoints = None
-    by: AggregateBy = None
-    seeds: str | None = None
     smooth: float | None = None
-    band: Literal["minmax", "std", "stderr", "none"] = "minmax"
+    cursor: Cursor = None
     to: ExportTo = None
 
 
-class DataParams(Selection, kw_only=True):
+class DataParams(q.Data, kw_only=True):
     """Parameters of ``data``."""
 
-    key: str
-    step: Literal["last", "all"] | int | list[int] = "last"
-    limit: int | None = None
+    cursor: Cursor = None
 
 
 class FileParams(Params, kw_only=True):
@@ -151,13 +133,10 @@ class ResumeParams(Params, kw_only=True):
     run: RunId
 
 
-class TimelineParams(Selection, kw_only=True):
+class TimelineParams(q.Timeline, kw_only=True):
     """Parameters of ``timeline``."""
 
-    types: list[str] | None = None
-    since: str | None = None
-    limit: int | None = None
-    full: bool = False
+    cursor: Cursor = None
 
 
 class CompareParams(Page, kw_only=True):

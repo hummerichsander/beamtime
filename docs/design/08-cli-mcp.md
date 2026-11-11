@@ -245,7 +245,9 @@ Decided while building the CLI and MCP server (milestone M3):
 
 - **One registry** (`beamtime.ops.registry`) holds every operation: its CLI path, a msgspec parameter
   struct, a one-line summary and whether it is user-only. CLI flags and MCP tool schemas are generated
-  from the same structs; implementations are imported only when an operation runs, which keeps
+  from the same structs; the parameters of `keys`, `groups`, `runs`, `series`, `data` and `timeline`
+  subclass the query struct of that name (`query/models.py`) and add only `cursor`, `to` and, for
+  `series`, the flat `smooth`, so a query field is declared once; implementations are imported only when an operation runs, which keeps
   `beamtime runs` at about 100–120 ms. The registry also lists the page methods of the web UI's API
   (`view`, `summary`, `save_view`, `figure`, `view_put`, ...) as methods without a parameter struct, so
   they are no CLI command or MCP tool; the API looks every method up there, and what remote routing

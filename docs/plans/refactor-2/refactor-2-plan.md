@@ -855,7 +855,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 
 1. Move the `Annotated` aliases and `Meta(description=...)` into `models.py`; the registry imports them.
 
-### K3. Params subclass their query structs (sonnet + review) — code
+### K3. Params subclass their query structs (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/ops/registry.py` (`Selection` 42–50, `KeysParams` 52, `GroupsParams` 56,
   `RunsParams` 60–81, `SeriesParams` 90–114, `DataParams` 117–122, `TimelineParams` 183–189, `QueryParams`

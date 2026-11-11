@@ -26,8 +26,8 @@ beamtime keys [from]
 
 | Option | Default | |
 |---|---|---|
-| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--depth` | `all` | all, a number |
+| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 
 ### `beamtime groups`
 
@@ -39,8 +39,8 @@ beamtime groups [from]
 
 | Option | Default | |
 |---|---|---|
-| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--depth` | `all` | all, a number |
+| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 
 ### `beamtime runs`
 
@@ -52,13 +52,13 @@ beamtime runs [from]
 
 | Option | Default | |
 |---|---|---|
-| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--depth` | `all` | all, a number |
+| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--select` |  | fields such as run.name, config.lr, metric.val/acc.max |
 | `--sort` |  | fields; a leading - sorts descending |
 | `--limit` |  | a number |
-| `--seeds` |  | e.g. config.seed: average over seeds |
 | `--by` |  | one row per value of these fields, e.g. config.lr |
+| `--seeds` |  | e.g. config.seed: average over seeds |
 | `--to` |  | write all of it to this .csv or .json file below .beamtime/exports/ and answer the path (outside the token budget) |
 
 ### `beamtime card`
@@ -79,15 +79,15 @@ beamtime series [from]
 
 | Option | Default | |
 |---|---|---|
-| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--depth` | `all` | all, a number |
+| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--y` | required | metric keys, e.g. train/loss |
 | `--x` | `_step` | _step, _t, _elapsed or a metric key |
 | `--steps` |  | [first, last] step window |
 | `--points` |  | points per curve; all: every logged point, as exports ask |
-| `--by` |  | aggregate runs by these fields, e.g. config.lr |
-| `--seeds` |  |  |
 | `--smooth` |  | a number |
+| `--by` |  | aggregate runs by these fields, e.g. config.lr |
+| `--seeds` |  | e.g. config.seed: average over seeds |
 | `--band` | `minmax` | minmax, std, stderr, none |
 | `--to` |  | write all of it to this .csv or .json file below .beamtime/exports/ and answer the path (outside the token budget) |
 
@@ -101,8 +101,8 @@ beamtime data [from] <key>
 
 | Option | Default | |
 |---|---|---|
-| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--depth` | `all` | all, a number |
+| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--step` | `last` | last, all, a number |
 | `--limit` |  | a number |
 
@@ -142,8 +142,8 @@ beamtime logs [from]
 
 | Option | Default | |
 |---|---|---|
-| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--depth` | `all` | all, a number |
+| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--grep` |  | regular expression; show its matches |
 | `--tail` | `10` | lines (with grep: matches) per run |
 | `--context` | `0` | lines around each match |
@@ -159,8 +159,8 @@ beamtime wait [from]
 
 | Option | Default | |
 |---|---|---|
-| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--depth` | `all` | all, a number |
+| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--until` | `finished` | finished: no run is running; or a condition such as 'metric.val/acc.max>0.9' that one run meets |
 | `--timeout` | `300.0` | seconds; over MCP at most 45, then call again |
 
@@ -174,8 +174,8 @@ beamtime diagnose [from]
 
 | Option | Default | |
 |---|---|---|
-| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--depth` | `all` | all, a number |
+| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--metrics` |  | metrics a run must have; default: those most runs have |
 
 ### `beamtime resume`
@@ -208,8 +208,8 @@ beamtime timeline [from]
 
 | Option | Default | |
 |---|---|---|
-| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--depth` | `all` | all, a number |
+| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--types` |  |  |
 | `--since` |  |  |
 | `--limit` |  | a number |

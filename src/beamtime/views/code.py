@@ -6,9 +6,11 @@ masked, which is enough for what a block must not do. Syntax errors show in the 
 import re
 from typing import Any
 
+from beamtime.query.models import LIVE_KINDS
+
 KITS = (1, 2)
 LIBS = ("d3", "uplot", "katex")
-KINDS = ("keys", "runs", "series", "data", "timeline", "groups", "file")
+KINDS = LIVE_KINDS
 MAX_BYTES = 64_000
 MAX_NUMBERS = 200
 NETWORK = (
