@@ -477,7 +477,7 @@ Mechanical; behaviour unchanged.
 
 ## O. One descriptor per method
 
-### O1. Derived listings, one-source params, the MCP user-only list (sonnet) — code
+### O1. Derived listings, one-source params, the MCP user-only list (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/ops/registry.py` (`Op` 668–696: new field `one_source`), `src/beamtime/remote/via_serve.py`
   (`LISTINGS` 11 removed, 27), `src/beamtime/remote/route.py` (`check_one_source` 86–102, `routed` 60),

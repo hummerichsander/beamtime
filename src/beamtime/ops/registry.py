@@ -682,6 +682,8 @@ class Op:
     writes: bool = False
     drafts: bool = False
     local: bool = False
+    # parameters whose targets must all be on one source.
+    one_source: tuple[str, ...] = ()
 
     @property
     def tool(self) -> str:
@@ -800,6 +802,7 @@ OPS = [
     ),
     Op(
         name="compare",
+        one_source=("targets",),
         params=CompareParams,
         impl=f"{R}:compare",
         positional=("targets",),
@@ -1073,6 +1076,7 @@ OPS = [
     Op(
         name="cp",
         writes=True,
+        one_source=("source", "dest"),
         params=CpParams,
         impl=f"{C}:cp",
         positional=("source", "dest"),

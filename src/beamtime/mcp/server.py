@@ -13,7 +13,7 @@ from mcp.server.stdio import stdio_server
 
 from beamtime import remote
 from beamtime.ops.context import Context, OpError
-from beamtime.ops.registry import BY_TOOL, Op
+from beamtime.ops.registry import BY_TOOL, OPS, Op
 
 INSTRUCTIONS = (
     "Beamtime records ML experiments as runs in groups below a log dir. Start in an "
@@ -23,8 +23,9 @@ INSTRUCTIONS = (
     "(`note_add`), never claiming more than the check says. Writes are additive and pass "
     "`author` (your model id). Answers are cut at about 8k tokens; pass `cursor` from "
     "`meta.next` for more. To build a group's page, read `guide` and use the `view_*` "
-    "tools. User-only commands (serve, init, mv, rm, gc, settings, doctor, "
-    "reindex) are not tools: give the user the command."
+    "tools. User-only commands "
+    f"({', '.join(sorted(op.name for op in OPS if op.user_only))}) "
+    "are not tools: give the user the command."
 )
 
 

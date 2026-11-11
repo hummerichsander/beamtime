@@ -7,8 +7,7 @@ import urllib.request
 from typing import Any
 
 from beamtime.ops.context import Context, OpError
-
-LISTINGS = ("groups", "runs", "series", "data", "timeline", "notes", "keys")
+from beamtime.ops.registry import BY_TOOL
 
 
 def involves_remotes(ctx: Context, tool: str, params: dict[str, Any]) -> bool:
@@ -24,7 +23,8 @@ def involves_remotes(ctx: Context, tool: str, params: dict[str, Any]) -> bool:
     if remote.targets(params):
         return True
     everything = params.get("from", ".") in (".", "", None)
-    return bool(ctx.settings.get("remotes")) and tool in LISTINGS and everything
+    op = BY_TOOL.get(tool)
+    return bool(ctx.settings.get("remotes")) and op is not None and op.listing and everything
 
 
 def call(ctx: Context, tool: str, params: dict[str, Any]) -> dict[str, Any] | None:

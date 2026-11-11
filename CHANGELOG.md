@@ -2,6 +2,10 @@
 
 ## 0.3.0 (unreleased)
 
+- **Fixed** the MCP instructions named only eight of the eighteen user-only commands; they now list every
+  one, generated from the operation set. Which operations federate and which accept targets from one
+  source only is declared on the operation (`listing`, `one_source`) and no longer repeated in the
+  remote code.
 - **Fixed** `wait` and `compare` over a remote: `wait` no longer turns a status into a path
   (`changed[].from` stays `running`, not `@box/running`), and `compare` names its targets as
   `@box/...`. A path an answer carries as `@local/...` now maps onto the remote (`@box/...`)

@@ -13,7 +13,7 @@ from beamtime.format.ids import is_run_id
 from beamtime.format.place import Place
 from beamtime.ops import answers
 from beamtime.ops.context import Context, OpError
-from beamtime.ops.registry import OPS
+from beamtime.ops.registry import BY_TOOL, OPS, Op
 from beamtime.remote import TARGETS, places
 
 # from the registry: listings merge across sources, drafts stay in this project, snapshots refuse
@@ -41,8 +41,8 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
     from beamtime.remote.sources import client_for
 
     params = strip(params, None)
-    if method in ("cp", "compare"):
-        check_one_source(method, params, ctx)
+    if (op := BY_TOOL.get(method)) is not None and op.one_source:
+        check_one_source(op, params, ctx)
     source = source_of(params)
     fans = method in LISTINGS and ctx.sources is not None and ctx.merge and fans_out(params)
     if source is None and fans:
@@ -67,22 +67,21 @@ def routed(method: str, params: dict[str, Any], ctx: Context, local: Local) -> A
         return elsewhere(method, params, ctx, run, e)
 
 
-def check_one_source(method: str, params: dict[str, Any], ctx: Context) -> None:
+def check_one_source(op: Op, params: dict[str, Any], ctx: Context) -> None:
     """Refuse a call whose targets are not all on the same machine.
 
-    :param method: ``cp`` or ``compare``.
+    :param op: The operation, with the parameters that name its targets.
     :param params: The parameters.
     :param ctx: The operation context, for the default source a bare path means.
     :raises OpError: If the targets name different sources."""
-    keys = ("source", "dest") if method == "cp" else ("targets",)
     named = {
         source_of({"from": v}) or ctx.default_source
-        for key in keys
+        for key in op.one_source
         for v in places({key: params.get(key)})
     }
     if len(named) > 1:
-        then = "`beamtime pull` copies across sources" if method == "cp" else "pull one first"
-        raise OpError(f"{method} works within one source for now; {then}", code=2)
+        then = "`beamtime pull` copies across sources" if op.writes else "pull one first"
+        raise OpError(f"{op.name} works within one source for now; {then}", code=2)
 
 
 def with_default(method: str, params: dict[str, Any], source: str) -> dict[str, Any]:

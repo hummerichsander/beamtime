@@ -162,7 +162,9 @@ without a local Beamtime, the client runs `ssh cluster beamtime mcp`. Through a 
 
 ### Tools
 
-The tools are the operations above, without the user-only commands: about 35 small tools.
+The tools are the operations above, without the user-only commands: about 35 small tools. The server
+instructions list the user-only commands, generated from the registry (`user_only`), so the list cannot
+drift from the commands.
 
 - **Small definitions.** Each tool has a short description and a precise schema; how to use them well
   lives in `guide`, loaded on demand. All tool definitions together stay under about 6k tokens.
