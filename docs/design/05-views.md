@@ -897,6 +897,10 @@ Decided while building views (milestone M6):
   of a `line` fold in through `views/settings.py`, which derives their names and defaults from
   `m.Line`: the settings are merged into the node, decoded as a `line` and written with every
   default left out, except `scale`, which is always explicit; unknown settings are dropped.
+  The web side reads the same defaults from `web/src/bt/chart-defaults.ts`, generated from `m.Line` by
+  `scripts/build-chart-defaults`; `web/src/bt/chart-settings.ts` turns a node and the viewer's preferences into
+  the chart's settings and its series call, and a page's stored answers are found by the call with settings at
+  their default left out.
 - **History**: the version list, a line diff of two versions' YAML, and both rendered side by side;
   `?v=<version>` shows an older version.
 - **The renderer** is a client of `serve`: it serves the project on a free local port with a fresh

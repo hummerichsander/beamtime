@@ -10,7 +10,8 @@ import { Legend, ChartFrame, HEIGHT, type LegendItem } from "../bt/frame.ts";
 import { fileName } from "../bt/export.ts";
 import { host as page } from "../bt/host.ts";
 import { hovered, useTheme, type ViewContext } from "../bt/index.ts";
-import { effective, toggleRun, usePrefs, type ChartPrefs, type Effective } from "../bt/prefs.ts";
+import { BASE } from "../bt/chart-settings.ts";
+import { cascade, toggleRun, usePrefs, type ChartPrefs, type Effective } from "../bt/prefs.ts";
 import { swatch } from "../bt/theme.ts";
 import { Settings, type Field } from "../blocks/line-settings.ts";
 import { Store, useStore } from "../state.ts";
@@ -56,7 +57,7 @@ export function makeFigure(env: Env) {
     const id = props.id ?? own;
     const path = env.view.value.path;
     const all = usePrefs(path);
-    const prefs = effective(props.defaults ?? {}, all, id);
+    const prefs = cascade({ ...BASE, ...props.defaults }, all, id);
     const theme = useTheme();
     const active = useStore(hovered);
     const el = useRef<HTMLDivElement>(null);

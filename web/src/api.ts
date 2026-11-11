@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "preact/hooks";
 
+import { normalizeSeries } from "./bt/chart-settings.ts";
 import { EXPORTED, snapshot } from "./snapshot.ts";
 import { Store } from "./state.ts";
 
@@ -67,22 +68,10 @@ function frozen<T>(method: string, params: Record<string, unknown>): T {
   return hit.answer as T;
 }
 
-// how an exported page finds an answer: curves come at the export's resolution whatever width a
-// chart has now (sparklines apart), a zoom shows the stored curve's range, defaults count as
-// given, and key order doesn't matter.
+// how an exported page finds an answer: series calls are normalized, key order doesn't matter.
 export function frozenKey(method: string, params: Record<string, unknown>): string {
-  const p: Record<string, unknown> = { ...params };
-  if (method === "series") {
-    p.points = typeof p.points === "number" && p.points < SPARK ? "spark" : undefined;
-    delete p.steps;
-    if (p.x === "_step") delete p.x;
-    if (p.band === "minmax") delete p.band;
-  }
-  return `${method} ${stable(p)}`;
+  return `${method} ${stable(method === "series" ? normalizeSeries(params) : params)}`;
 }
-
-// sparklines ask for fewer points than this; charts for more.
-const SPARK = 100;
 
 function stable(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(stable).join(",")}]`;

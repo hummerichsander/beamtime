@@ -10,17 +10,18 @@ import { xTitle, yTitle } from "../bt/axes.ts";
 import { align, linthresh, reshape, robustRange, smooth, type Curve, type Curves } from "../bt/curves.ts";
 import { png, useChart } from "../bt/chart.ts";
 import { fileName, light, paper, recolor, type Background } from "../bt/export.ts";
+import { effective, metricsOf, seriesCall } from "../bt/chart-settings.ts";
 import { ChartFrame, expandedHeight, HEIGHT, Legend, type LegendItem } from "../bt/frame.ts";
 import { host } from "../bt/host.ts";
 import { duration, label, step, value } from "../bt/fmt.ts";
 import { lineChart, type LineSpec } from "../bt/plot.ts";
-import { effective, hideChart, higherIsBetter, setMain, toggleRun, update, usePrefs, type ChartPrefs, type Effective } from "../bt/prefs.ts";
+import { hideChart, higherIsBetter, setMain, toggleRun, update, usePrefs } from "../bt/prefs.ts";
 import { chartStyle, dashOf, groupColors, palette as paletteOf, stopsOf, swatch, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate } from "../router.ts";
 import { IconButton } from "../ui/primitives.ts";
+import { EXPORTED } from "../snapshot.ts";
 import { Notice, Panel } from "./common.ts";
 import { LINE_FIELDS, Settings } from "./line-settings.ts";
-import { EXPORTED } from "../snapshot.ts";
 
 const LEGEND_MAX = 12;
 
@@ -33,55 +34,11 @@ export function Line({ node }: { node: Node }) {
   </div>`;
 }
 
-// the series call a chart makes: the node's call with the viewer's settings applied.
-export function seriesCall(node: Node, prefs: Effective, zoom: [number, number] | null, width: number): Call {
-  const base = node.data!.main;
-  const params: Record<string, unknown> = { ...base.params };
-  params.y = prefs.y?.length ? prefs.y : metricsOf(node);
-  params.x = prefs.x;
-  params.points = Math.max(100, Math.min(1500, Math.round(width || 600)));
-  params.band = prefs.band;
-  delete params.seeds;
-  delete params.by;
-  delete params.steps;
-  if (prefs.by === "seeds") params.seeds = "config.seed";
-  else if (prefs.by) params.by = [prefs.by];
-  // an exported page has no server to ask for the window: it zooms into the stored curve.
-  if (zoom && prefs.x === "_step" && !EXPORTED) params.steps = [Math.floor(zoom[0]), Math.ceil(zoom[1])];
-  else if (prefs.steps && (prefs.steps[0] !== null || prefs.steps[1] !== null)) params.steps = prefs.steps;
-  return { ...base, params };
-}
-
 // the runs call that gives each run its value of a field, on the node's own runs.
 function colorsCall(node: Node, field: string): Call {
   const { params, scope } = node.data!.main;
   const { from, where, depth } = params;
   return { method: "runs", params: { from, where, depth, select: [field], limit: 10000 }, scope };
-}
-
-// a line node's metrics: one key, or several in an authored view.
-export function metricsOf(node: Node): string[] {
-  return Array.isArray(node.props.y) ? node.props.y : [node.props.y];
-}
-
-function defaultsOf(node: Node): ChartPrefs {
-  const params = node.data?.main.params ?? {};
-  const p = node.props;
-  return {
-    smooth: p.smooth ?? undefined,
-    x: p.x ?? undefined,
-    outliers: p.outliers ?? undefined,
-    raw: p.raw ?? undefined,
-    legend: p.legend ?? undefined,
-    color: p.color ?? undefined,
-    colormap: p.colormap ?? undefined,
-    ymin: p.ymin ?? undefined,
-    ymax: p.ymax ?? undefined,
-    scale: p.scale === "log" || p.scale === "symlog" ? p.scale : "linear",
-    by: params.seeds ? "seeds" : Array.isArray(params.by) ? (params.by as string[])[0] : null,
-    band: (params.band as ChartPrefs["band"]) ?? "minmax",
-    steps: Array.isArray(params.steps) ? (params.steps as [number | null, number | null]) : null,
-  };
 }
 
 function Chart(props: {
@@ -93,12 +50,12 @@ function Chart(props: {
 }) {
   const { node, path } = props;
   const all = usePrefs(path);
-  const prefs = effective(defaultsOf(node), all, node.id);
+  const prefs = effective(node, all);
   const [box, visible] = useVisible();
   const [width, setWidth] = useState(0);
   const [zoom, setZoom] = useState<[number, number] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const call = visible ? seriesCall(node, prefs, zoom, Math.round(width / 50) * 50) : null;
+  const call = visible ? seriesCall(node, prefs, { zoom, width: Math.round(width / 50) * 50 }) : null;
   const result = useCall(call);
   const theme = useTheme();
   const runs = useRunColors();

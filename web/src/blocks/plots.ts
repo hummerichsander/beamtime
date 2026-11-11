@@ -10,7 +10,8 @@ import { host } from "../bt/host.ts";
 import { hovered, useData, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { label, step, value } from "../bt/fmt.ts";
 import { plotChart, type PlotSpec } from "../bt/plot.ts";
-import { effective, hideChart, usePrefs } from "../bt/prefs.ts";
+import { BASE } from "../bt/chart-settings.ts";
+import { cascade, hideChart, usePrefs } from "../bt/prefs.ts";
 import { bars, extent, fit, histograms, logSplits, points, type Bar, type Point } from "../bt/shapes.ts";
 import { linthresh } from "../bt/curves.ts";
 import { fileName, light, paper, recolor, type Background } from "../bt/export.ts";
@@ -26,7 +27,7 @@ const HEIGHT = 260;
 // the colormap a scatter or bar uses: the viewer's for the page, else the view's.
 function useColormap(node: Node): [string | null, string[] | null] {
   const path = useContext(ViewCtx).path;
-  const name = effective({ colormap: node.props.colormap ?? undefined }, usePrefs(path), node.id).colormap ?? null;
+  const name = cascade({ ...BASE, colormap: node.props.colormap ?? undefined }, usePrefs(path), node.id).colormap ?? null;
   useStore(colormaps);
   return [name, stopsOf(name)];
 }

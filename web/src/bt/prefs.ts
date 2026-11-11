@@ -97,9 +97,8 @@ export function toggleRun(path: string, key: string, all: string[], solo = false
 export type Effective = Required<Pick<ChartPrefs, "x" | "smooth" | "raw" | "band" | "scale" | "outliers" | "legend">> & ChartPrefs;
 
 // the settings a chart uses: its node's defaults, the viewer's for the whole page, then for this chart.
-export function effective(defaults: ChartPrefs, prefs: ViewPrefs, id: string): Effective {
-  const base = { smooth: 0, raw: true, x: "_step", band: "minmax", scale: "linear", outliers: false, legend: true };
-  return { ...base, ...strip(defaults), ...strip(prefs.view), ...strip(prefs.charts[id] ?? {}) } as Effective;
+export function cascade<T extends ChartPrefs>(defaults: T, prefs: ViewPrefs, id: string): T {
+  return { ...defaults, ...strip(prefs.view), ...strip(prefs.charts[id] ?? {}) };
 }
 
 // one setting for every chart of the page: the chart's own choices of it give way.

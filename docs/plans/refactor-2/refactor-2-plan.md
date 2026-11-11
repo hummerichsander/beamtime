@@ -603,7 +603,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 2. The script writes `web/src/bt/chart-defaults.ts`, or with `--check` compares and exits 1 when stale.
 3. `"defaults": "cd .. && uv run python scripts/build-chart-defaults"` in `web/package.json`.
 
-### S3. `chart-settings.ts` owns the web side (sonnet) — code
+### S3. `chart-settings.ts` owns the web side (sonnet) — code — **done**
 
 - **Touches:** new `web/src/bt/chart-settings.ts`, `web/src/blocks/line.ts` (`seriesCall` 37–53, `defaultsOf`
   67–85), `web/src/bt/prefs.ts` (`effective` 97–103 → `cascade`), `web/src/api.ts` (`frozenKey` 73–82),
