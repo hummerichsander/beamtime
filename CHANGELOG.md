@@ -4,6 +4,7 @@
 
 - **Added** the run fields `run.attempts` (how many attempts a run recorded) and `run.last_logged` (when it
   last wrote a metric), for `--where`, `--sort` and `--select`. The index cache rebuilds once (schema 3).
+  The CLI text shows `run.last_logged` as its age (`3m ago`); `--json` and MCP keep the epoch.
 - **Fixed** `beamtime export --html` and `--figures` printed a `KeyError` instead of the line naming the page
   they wrote. Every operation declares the kind of its answer and the text renderer for it in the
   operation set, and a test calls each read operation to check its text.

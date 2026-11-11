@@ -774,7 +774,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 2. `run.attempts` → `json_array_length(info, '$.attempts')` (0 when absent); `run.last_logged` →
    `metrics_mtime`. CHANGELOG (Added; the cache rebuilds once).
 
-### Q3. `query/facts.py` (sonnet) — code
+### Q3. `query/facts.py` (sonnet) — code — **done**
 
 - **Touches:** new `src/beamtime/query/facts.py`, new `tests/query/test_facts.py`, `src/beamtime/ops/reading.py`
   (new `run_members`).

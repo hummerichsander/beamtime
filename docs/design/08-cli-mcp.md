@@ -259,7 +259,8 @@ Decided while building the CLI and MCP server (milestone M3):
 - **Exit codes**: an invalid query or bad flag is wrong usage (2); a missing group, run or key is 4.
 - **Text output** puts the run name first and the full run id last, so agents can copy ids; seed
   groups show how many runs they have (`--json` lists them); curves are one line each with first,
-  min, max, last, a trend arrow and a sparkline.
+  min, max, last, a trend arrow and a sparkline; `run.last_logged`, an epoch in the answer, shows
+  as its age (`45s ago`, `3m ago`, `2h ago`, `4d ago`).
 - **Runs can be named by a unique id suffix (four characters or more) or by name** in `card`,
   `output`, `mv` and `rm`; a shorter word is no run. They resolve through the one resolver
   (`query/resolve.py`), like web pages, which refuse reserved names.

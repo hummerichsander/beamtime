@@ -552,3 +552,21 @@ def test_curve_line_reads_the_envelope() -> None:
     line = curve_line(grouped)
     assert "min 1  max 2  last 1" in line and line.endswith("runs 2")
     assert curve_line(raw | {"y": [None]}).endswith("no data")
+
+
+def test_last_logged_shows_as_its_age_in_text_only(ctx: Context, roles: dict[str, str]) -> None:
+    """The CLI table shows ``run.last_logged`` as ``3m ago``; the answer keeps the epoch."""
+    from beamtime.cli.format import ago
+
+    now = 1_790_000_000.0
+    assert ago(now - 5, now) == "5s ago"
+    assert ago(now - 180, now) == "3m ago"
+    assert ago(now - 2 * 3600 - 5, now) == "2h ago"
+    assert ago(now - 4 * 86400, now) == "4d ago"
+    assert ago(now + 30, now) == "0s ago"
+
+    answer = call("runs", {"from": roles["resumed"], "select": ["run.id", "run.last_logged"]}, ctx)
+    assert isinstance(answer["rows"][0][1], float)
+    text = render(answer)
+    assert " ago" in text and "e9" not in text
+    assert table(["run.last_logged"], [[None]])[1] == "-"

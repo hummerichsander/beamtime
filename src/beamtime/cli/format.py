@@ -65,20 +65,35 @@ def table(columns: list[str], rows: list[list[Any]]) -> list[str]:
     order += [i for i, col in enumerate(columns) if col == "run.id"]
     cells = [[header(columns[i]) for i in order]]
     # seed means list their run ids; in text, how many is enough.
-    cells += [[count_or_num(columns[i], row[i]) for i in order] for row in rows]
+    cells += [[cell(columns[i], row[i]) for i in order] for row in rows]
     widths = [max(len(r[k]) for r in cells) for k in range(len(order))]
     return ["  ".join(c.ljust(w) for c, w in zip(r, widths, strict=True)).rstrip() for r in cells]
 
 
-def count_or_num(column: str, value: Any) -> str:
-    """Format a cell; the run ids of a seed group show as their count.
+def cell(column: str, value: Any) -> str:
+    """Format a cell; the run ids of a seed group show as their count, a time as its age.
 
     :param column: The column name.
     :param value: The cell.
     :return: The text."""
     if column == "runs" and isinstance(value, list):
         return str(len(value))
+    if column == "run.last_logged" and isinstance(value, (int, float)):
+        return ago(value)
     return num(value)
+
+
+def ago(epoch: float, now: float | None = None) -> str:
+    """Format a time as its age.
+
+    :param epoch: Seconds since the epoch.
+    :param now: The time to measure from; default the current time.
+    :return: E.g. ``45s ago``, ``3m ago``, ``2h ago``, ``4d ago``."""
+    seconds = max(0, int((time.time() if now is None else now) - epoch))
+    for unit, size in (("d", 86400), ("h", 3600), ("m", 60)):
+        if seconds >= size:
+            return f"{seconds // size}{unit} ago"
+    return f"{seconds}s ago"
 
 
 def spark(values: list[Any]) -> str:

@@ -6,7 +6,7 @@ import time
 from collections import Counter
 from pathlib import Path
 from statistics import median
-from typing import Any
+from typing import Any, Literal
 
 from beamtime.format import constants as c
 from beamtime.format.run import (
@@ -29,6 +29,7 @@ from beamtime.query import QueryError
 from beamtime.query import run as run_query
 from beamtime.query.aggregate import spread
 from beamtime.query.distinguish import distinguishing, flatten, is_seed, signature
+from beamtime.query.facts import RunFacts, failure_signature, run_facts
 from beamtime.query.kinds import describe_event
 from beamtime.query.progress import progress
 from beamtime.query.resolve import resolve
@@ -235,6 +236,43 @@ def members(
         }
         for row in table["rows"]
     ]
+
+
+def run_members(
+    ctx: Context,
+    target: str,
+    where: dict[str, Any] | None = None,
+    depth: Literal["all"] | int = "all",
+    *,
+    config: bool = False,
+    metrics: bool = False,
+) -> list[RunFacts]:
+    """List the runs of a group or the one run a target names, with their facts from the index.
+
+    :param ctx: The operation context.
+    :param target: A group below the log dir, or a run id, id suffix or name.
+    :param where: A condition the runs must meet.
+    :param depth: How many group levels below the target to look into.
+    :param config: Whether to include each run's flattened config.
+    :param metrics: Whether to include each run's card statistics by metric.
+    :return: One ``RunFacts`` per run."""
+    if not ctx.logdir.is_dir():
+        raise OpError(f"no log dir at {ctx.logdir}; `beamtime init` sets one up", code=4)
+    try:
+        with Index(logdir=ctx.logdir) as index:
+            found = resolve(index, target, sources=ctx.remotes)
+            return run_facts(
+                index,
+                scope=found.path,
+                run_id=found.run_id,
+                now=ctx.now or time.time(),
+                where=where,
+                depth=depth,
+                config=config,
+                metrics=metrics,
+            )
+    except QueryError as e:
+        raise OpError(str(e), code=4 if e.code == "not_found" else 2) from None
 
 
 def compare(ctx: Context, p: r.CompareParams) -> dict[str, Any]:
@@ -459,15 +497,6 @@ def failures(runs_: list[dict[str, Any]]) -> list[dict[str, Any]]:
         {"status": status, "signature": sig, "count": len(ids), "runs": ids[:DIGEST_NOTES]}
         for (status, sig), ids in ordered
     ]
-
-
-def failure_signature(text: str | None) -> str:
-    """Reduce an error to what runs of one failure share: its last line without numbers.
-
-    :param text: An error message or traceback, or ``None``.
-    :return: The signature; empty without an error."""
-    lines = [line.strip() for line in (text or "").splitlines() if line.strip()]
-    return re.sub(r"0x[0-9a-f]+|\d+(\.\d+)?", "#", lines[-1])[:120] if lines else ""
 
 
 def plan_points(target: Any, version: str, proposal: Any) -> dict[str, Any]:

@@ -248,6 +248,13 @@ and `fraction`.
 for a run that never logged a metric; sorted descending it puts the runs that logged most recently
 first.
 
+**Run facts** (`query/facts.py`) are what the group tools (`compare`, `digest`, `diagnose`, `logs`, `wait`)
+need to know about runs: `run_facts` selects them with the same machinery as `runs`, from the index alone
+(status judged at `now`, `attempts`, `last_logged`, and the flattened config and the card's metric
+statistics only when asked), after one catch-up. Only a run's output text is still read from its file.
+`failure_key(error, traceback)` is the one failure-signature rule: the signature of the error the card
+recorded, else of the output traceback's exception line. Signatures are grouping labels, not identifiers.
+
 **Windowed statistics** are computed exactly from the column files, with a step window appended:
 `metric.val/acc.mean[1000:2000]`. They support `first`, `last`, `min`, `max`, `mean` and `count`.
 This is the same reduction as a prediction's `reduce: {metric, stat, steps}`
