@@ -39,7 +39,7 @@ def x_titles(page) -> list[str]:
 
     :param page: The Playwright page.
     :return: The titles, in page order."""
-    page.wait_for_function("document.querySelectorAll('.chart-frame .uplot').length === 3")
+    page.wait_for_function("() => document.querySelectorAll('.chart-frame .uplot').length === 3")
     page.wait_for_timeout(500)
     return page.locator(".chart-frame .uplot").evaluate_all("(els) => els.map((e) => e.dataset.xlabel)")
 
@@ -147,4 +147,4 @@ def test_a_non_monotone_x_with_aggregation_says_so(server: str, page, project) -
     panel.get_by_role("option", name="sys/gpu_mem").click()
     page.wait_for_selector(".chart-frame .notice.error")
     assert "goes back on itself" in page.locator(".chart-frame .notice.error").inner_text()
-    assert page.locator(".chart-frame .chart-plot").count() == 0
+    page.wait_for_selector(".chart-frame .chart-plot", state="detached")

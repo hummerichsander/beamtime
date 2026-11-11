@@ -631,7 +631,7 @@ def test_epochs_are_a_fact_and_a_column_not_a_chart(
     token = server.split("token=")[1]
     page.goto(f"{base}/r/{roles['realistic_killed']}?token={token}")
     page.wait_for_selector(".facts")
-    page.wait_for_function("document.querySelector('.facts').innerText.includes('epoch')")
+    page.wait_for_function("() => document.querySelector('.facts').innerText.includes('epoch')")
     assert "epoch 2 of 5 · 38 % through" in page.locator(".facts").inner_text()
     assert page.locator(".chart .chart-title:text-is('epoch')").count() == 0
 
@@ -813,7 +813,7 @@ def test_hiding_works_outside_grids_and_add_a_chart_follows_the_charts(
         frame.hover()
         frame.locator("button[aria-label='Hide this chart']").click()
         page.wait_for_function(
-            f"![...document.querySelectorAll('.chart-title')].some(e => e.innerText === '{title}')"
+            f"() => ![...document.querySelectorAll('.chart-title')].some(e => e.innerText === '{title}')"
         )
     page.locator("button:has-text('1 hidden · show')").first.click()
     page.wait_for_selector(".chart-title:text-is('validation/loss')")
@@ -959,7 +959,7 @@ def test_figure_gets_the_chart_frame(project: Path, server: str, page) -> None:
     page.wait_for_selector("table.runs tr.hovered", timeout=5_000)
     first.dispatch_event("pointerleave")
     page.wait_for_function(
-        "document.querySelector('table.runs tr.hovered') === null", timeout=5_000
+        "() => document.querySelector('table.runs tr.hovered') === null", timeout=5_000
     )
     page.locator("table.runs tbody tr").nth(2).hover()
     frame.locator("path.curve[data-hot='1']").first.wait_for(timeout=5_000)
@@ -1065,7 +1065,7 @@ export default function render(root) {
     page.goto(f"{base}/f/local/scaling/lr-sweep?token={token}")
     frame = page.frame_locator(".custom-frame iframe")
     frame.locator("#fig").wait_for(timeout=30_000)
-    page.wait_for_function("document.querySelector('.custom-block > .chart-head') === null")
+    page.wait_for_function("() => document.querySelector('.custom-block > .chart-head') === null")
     figure_view(project, "scaling/lr-sweep", plain, {}, table=False)
     page.frame_locator(".custom-frame iframe").locator("#plain").wait_for(timeout=30_000)
     page.wait_for_timeout(500)
@@ -1094,12 +1094,19 @@ export default function render(root) {
     page.wait_for_selector("dialog.chart-dialog[open]", state="detached", timeout=5_000)
 
 
-def test_the_run_lifecycle_is_shown(server: str, page, project: Path, roles: dict, tmp_path) -> None:
-    """Attempts, a time limit, checkpoints, a copy and the code a run ran on are on its pages: a
-    resumed run's charts say where it resumed, a missing checkpoint says why, and the diff of a
-    dirty checkout is fetched only when opened."""
+@pytest.fixture
+def lifecycle(project: Path, roles: dict, tmp_path: Path) -> dict[str, str]:
+    """A project whose runs carry a time limit, a git remote, checkpoints and a copy, indexed.
+
+    The edits land before ``serve`` starts, so no change notice makes a page refetch later.
+
+    :param project: The project root.
+    :param roles: The generator's runs by role.
+    :param tmp_path: Pytest's temporary directory.
+    :return: The ids of the killed run, the dirty run and the dirty run's copy."""
     from beamtime.ops import call
     from beamtime.ops.context import Context
+    from tests.conftest import index_fully
 
     def edit(run_id: str, change) -> Path:
         path = next((project / "beamtime").glob(f"**/{run_id}/_run.json"))
@@ -1126,6 +1133,15 @@ def test_the_run_lifecycle_is_shown(server: str, page, project: Path, roles: dic
     ]
     (run_dir / "_artifacts.jsonl").write_text("".join(json.dumps(a) + "\n" for a in artifacts))
     copy = call("cp", {"source": dirty, "dest": "realistic/copies"}, Context.make())["id"]
+    index_fully(project / "beamtime")
+    return {"killed": killed, "dirty": dirty, "copy": copy}
+
+
+def test_the_run_lifecycle_is_shown(lifecycle: dict[str, str], server: str, page) -> None:
+    """Attempts, a time limit, checkpoints, a copy and the code a run ran on are on its pages: a
+    resumed run's charts say where it resumed, a missing checkpoint says why, and the diff of a
+    dirty checkout is fetched only when opened."""
+    killed, dirty, copy = lifecycle["killed"], lifecycle["dirty"], lifecycle["copy"]
 
     base = server.split("/f/local")[0]
     token = server.split("token=")[1]

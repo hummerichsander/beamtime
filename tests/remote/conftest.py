@@ -8,6 +8,7 @@ import pytest
 from beamtime.ops.context import Context
 from beamtime.remote.client import Spec
 from beamtime.remote.sources import Sources
+from tests.conftest import index_fully
 
 COMMAND = f"{sys.executable} -m beamtime.cli"
 
@@ -22,6 +23,7 @@ def box(project: Path, tmp_path: Path, fresh_logdir: Callable[[Path, int], None]
     :return: The remote's log dir."""
     logdir = tmp_path / "box" / "beamtime"
     fresh_logdir(logdir, 7)
+    index_fully(logdir)
     return logdir
 
 

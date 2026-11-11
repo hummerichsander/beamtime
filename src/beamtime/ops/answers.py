@@ -605,7 +605,7 @@ BARE = (
 )  # fmt: skip
 # the page methods' kinds: trees (a view's blocks) with places under any key, so the generic walk
 # serves them on purpose; a remote's page answers pass through ``placed`` with it.
-PAGES = ("hello", "files", "meta", "view", "summary", "code", "diff")
+PAGE_KINDS = ("hello", "files", "meta", "view", "summary", "code", "diff")
 
 ANSWERS: dict[str, Answer] = (
     {
@@ -640,7 +640,7 @@ ANSWERS: dict[str, Answer] = (
     | {k: Written() for k in WRITES}
     | {k: Grouped() for k in GROUPED}
     | {k: Bare() for k in BARE}
-    | {k: DEFAULT for k in PAGES}
+    | {k: DEFAULT for k in PAGE_KINDS}
 )
 
 

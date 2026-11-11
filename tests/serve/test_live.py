@@ -1,10 +1,12 @@
 import asyncio
 import json
+import shutil
 import time
 from pathlib import Path
 
 from beamtime.format.io import json_line
 from beamtime.format.tree import iter_runs
+from beamtime.index.cache import cache_dir
 from beamtime.index.daemon import Daemon
 from beamtime.index.index import Index
 from beamtime.serve.live import Hub, affects
@@ -82,10 +84,18 @@ def test_hub_filters_by_kind() -> None:
     assert asyncio.run(scenario()) == {"chart"}
 
 
+def forget_index(logdir: Path) -> None:
+    """Drop the project fixture's index, so that the first catch-up reports every run as changed.
+
+    :param logdir: The log dir."""
+    shutil.rmtree(cache_dir(logdir))
+
+
 def test_daemon_reports_changed_runs_and_groups(project: Path) -> None:
     """New metric lines, new group and run notes and new proposal versions are reported by path
     and kind."""
     logdir = project / "beamtime"
+    forget_index(logdir)
     seen: list[dict[str, set[str]]] = []
     daemon = Daemon(logdir=logdir, on_change=seen.append, poll_s=0.1)
     assert daemon.start()
@@ -128,6 +138,7 @@ def test_daemon_reports_changed_runs_and_groups(project: Path) -> None:
 
 def test_clients_collect_runs_but_not_groups(project: Path) -> None:
     """Outside the daemon, catch-up names ingested runs only."""
+    forget_index(project / "beamtime")
     index = Index(logdir=project / "beamtime")
     try:
         fresh = index.catch_up(".", budget_s=float("inf"))

@@ -105,7 +105,12 @@ def render(browser, theme: str, width: int, shots: Path) -> dict:
     page.goto(GALLERY.as_uri())
     while page.evaluate("document.documentElement.dataset.theme") != theme:
         page.click("#toggle")
-    page.evaluate("document.fonts.ready.then(() => null)")
+    # fonts.ready resolves at once when the page has not requested its fonts yet.
+    page.wait_for_function(
+        """() => ['XCharter', 'IBM Plex Sans', 'IBM Plex Mono'].every(
+          (name) => [...document.fonts].some((f) => f.family === name && f.status === 'loaded')
+        )"""
+    )
     page.screenshot(path=shots / f"gallery-{theme}-{width}.png", full_page=True)
     state = page.evaluate(
         """() => ({

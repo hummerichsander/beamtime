@@ -886,7 +886,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 
 ## X. Close
 
-### X1. Close (sonnet) — code
+### X1. Close (sonnet) — code — **done**
 
 - **Touches:** `CHANGELOG.md`, `CLAUDE.md`, `docs/design/`, `todo`.
 - **Read:** Breaking changes, Decisions and Not verified in this plan.

@@ -119,7 +119,7 @@ def test_an_export_opens_from_disk(chromium, ctx: Context, project: Path, tmp_pa
         assert "not part of this snapshot" not in frame.locator("body").inner_text()
         page.goto((images / "index.html").as_uri())
         page.wait_for_selector(".images img", timeout=15_000)
-        page.wait_for_function("[...document.querySelectorAll('.images img')].every(i => i.naturalWidth > 0)")
+        page.wait_for_function("() => [...document.querySelectorAll('.images img')].every(i => i.naturalWidth > 0)")
         browser.close()
     assert not errors and not network
 

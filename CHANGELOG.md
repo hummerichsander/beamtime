@@ -47,7 +47,7 @@
   with `"."`.
 - **Changed** a merged listing whose source cut its own answer now says so at the top: `meta.cut`
   and the hint `narrow from or where to see all of @<name>`, which the CLI prints in place of
-  `--limit to see more` (a limit would not show what a source's budget left out).
+  `--limit to see more` (a limit would not show an old remote's budget or the size cap).
 - **Added** a drawing envelope to every `series` curve: `x`, `y` and, unless the curve is raw, `lo`,
   `hi` and `n` (a downsampled curve gets `y` = `last`, `lo` = `min`, `hi` = `max`, `n` = `count`; a grouped
   curve `y` = `mean`). The web UI, `serve`'s HTTP API, `serve --stdio` and the kit keep the old fields next

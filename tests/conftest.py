@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from beamtime.format.constants import RUN
+from beamtime.index.index import Index
 from beamtime.ops.context import Context
 from beamtime.synth import Manifest, generate
 
@@ -40,6 +41,17 @@ def _warm_matplotlib() -> None:
         findfont(FontProperties())
     except ImportError:
         pass
+
+
+def index_fully(logdir: Path) -> None:
+    """Index every stream of a log dir.
+
+    A cold cache plus the 0.2 s catch-up budget leaves streams unindexed, so a test that needs
+    complete data would flake under load.
+
+    :param logdir: The log dir."""
+    with Index(logdir=logdir) as index:
+        index.catch_up(".", budget_s=float("inf"))
 
 
 @pytest.fixture
@@ -103,7 +115,7 @@ def fresh_logdir(tmp_path_factory: pytest.TempPathFactory) -> Callable[[Path, in
 def project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fresh_logdir: Callable[[Path, int], None]
 ) -> Path:
-    """A git project with a generated log dir, as the working directory.
+    """A git project with a generated log dir, fully indexed, as the working directory.
 
     :param tmp_path: Pytest's temporary directory.
     :param monkeypatch: Pytest's monkeypatch.
@@ -117,6 +129,7 @@ def project(
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("BEAMTIME_CACHE", str(tmp_path / "cache"))
     monkeypatch.delenv("BEAMTIME_LOGDIR", raising=False)
+    index_fully(root / "beamtime")
     return root
 
 
