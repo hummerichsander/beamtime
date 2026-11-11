@@ -2,6 +2,9 @@
 
 import math
 import time
+from collections.abc import Callable
+from functools import cache
+from importlib import import_module
 from typing import Any
 
 SPARKS = "▁▂▃▄▅▆▇█"
@@ -174,88 +177,139 @@ def meta_line(answer: dict[str, Any], noun: str, shown: int) -> str:
 
 
 def render(answer: dict[str, Any]) -> str:
-    """Render an answer as compact text.
+    """Render an answer as compact text, with the renderer its operation declares.
 
     :param answer: Any operation's answer.
+    :return: The text; an answer without a renderer prints its ``lines``."""
+    if (renderer := renderers().get(answer.get("kind"))) is not None:
+        return renderer(answer)
+    return "\n".join(answer.get("lines", [])) or str(answer)
+
+
+@cache
+def renderers() -> dict[str, Callable[[dict[str, Any]], str]]:
+    """Import the renderers the operations declare, once.
+
+    :return: Answer kind to renderer."""
+    from beamtime.ops.registry import METHODS
+
+    found = {}
+    for m in METHODS:
+        if m.render:
+            module, name = m.render.split(":")
+            found[m.kind] = getattr(import_module(module), name)
+    return found
+
+
+def render_table(answer: dict[str, Any]) -> str:
+    """Render a listing as a table with its meta line.
+
+    :param answer: A ``runs``, ``groups``, ``file``, ``settings``, ``doctor`` or ``source list``
+        answer.
     :return: The text."""
-    kind = answer.get("kind")
-    match kind:
-        case "runs" | "groups" | "file" | "settings" | "doctor" | "source list":
-            lines = table(answer["columns"], answer["rows"])
-            noun = {"runs": "runs", "groups": "groups"}.get(kind, "rows")
-            if kind == "runs" and answer["meta"].get("means") is not None:
-                noun = "seed means"
-            if kind == "runs" and answer["meta"].get("groups") is not None:
-                noun = "groups"
-            if kind in ("runs", "groups", "file"):
-                lines.append(meta_line(answer, noun, len(answer["rows"])))
-            for problem in answer.get("problems", []):
-                lines.append(f"problem: {problem}")
-            return "\n".join(lines)
-        case "series":
-            lines = [curve_line(c) for c in answer["curves"]]
-            lines.append(meta_line(answer, "curves", len(answer["curves"])))
-            return "\n".join(lines)
-        case "keys":
-            return render_keys(answer)
-        case "card":
-            return render_card(answer)
-        case "resume":
-            return render_resume(answer)
-        case "compare":
-            return render_compare(answer)
-        case "digest":
-            return render_digest(answer)
-        case "logs":
-            return render_logs(answer)
-        case "wait":
-            return render_wait(answer)
-        case "diagnose":
-            return render_diagnose(answer)
-        case "plan missing":
-            return render_plan_missing(answer)
-        case "export":
-            return f"wrote {answer['rows']} rows to {answer['path']} ({answer['bytes']} bytes)"
-        case "data":
-            lines = [render_entry(e) for e in answer["entries"]]
-            answer["meta"]["matched"] = answer["meta"].get("entries")
-            lines.append(meta_line(answer, "entries", len(answer["entries"])))
-            return "\n".join(lines)
-        case "timeline":
-            lines = [timeline_line(e) for e in answer["entries"]]
-            lines.append(meta_line(answer, "entries", len(answer["entries"])))
-            return "\n".join(lines)
-        case "output":
-            lines = list(answer["lines"])
-            meta = answer["meta"]
-            tail = f"{meta['shown']} of {meta['total_lines']} lines"
-            if meta.get("hint"):
-                tail += f" · {meta['hint']}"
-            return "\n".join([*lines, tail])
-        case "status":
-            return render_status(answer)
-        case "check":
-            return render_check(answer)
-        case "notes":
-            lines = [note_line(e) for e in answer["entries"]]
-            lines.append(meta_line(answer, "notes", len(answer["entries"])))
-            return "\n".join(lines)
-        case "proposal":
-            return render_proposal(answer)
-        case "memory":
-            return render_memory(answer)
-        case "guide":
-            return answer["text"]
-        case "view history":
-            rows = [
-                [e["version"], e["author"], e["title"], e["message"]] for e in answer["entries"]
-            ]
-            lines = table(["version", "author", "title", "message"], rows) if rows else []
-            return "\n".join([*lines, f"{len(rows)} version(s) of {answer['group']}'s view"])
-        case "view show" if answer.get("yaml"):
-            return f"# {answer['group']} view {answer['version']}\n{answer['yaml']}"
-        case _:
-            return "\n".join(answer.get("lines", [])) or str(answer)
+    kind = answer["kind"]
+    lines = table(answer["columns"], answer["rows"])
+    noun = {"runs": "runs", "groups": "groups"}.get(kind, "rows")
+    if kind == "runs" and answer["meta"].get("means") is not None:
+        noun = "seed means"
+    if kind == "runs" and answer["meta"].get("groups") is not None:
+        noun = "groups"
+    if kind in ("runs", "groups", "file"):
+        lines.append(meta_line(answer, noun, len(answer["rows"])))
+    for problem in answer.get("problems", []):
+        lines.append(f"problem: {problem}")
+    return "\n".join(lines)
+
+
+def render_series(answer: dict[str, Any]) -> str:
+    """Render curves, one line each.
+
+    :param answer: A ``series`` answer.
+    :return: The text."""
+    lines = [curve_line(c) for c in answer["curves"]]
+    lines.append(meta_line(answer, "curves", len(answer["curves"])))
+    return "\n".join(lines)
+
+
+def render_export(answer: dict[str, Any]) -> str:
+    """Render what an export wrote: a page's lines, or a file of an answer's table.
+
+    :param answer: An ``export`` answer.
+    :return: The text."""
+    if "lines" in answer:
+        return "\n".join(answer["lines"])
+    return f"wrote {answer['rows']} rows to {answer['path']} ({answer['bytes']} bytes)"
+
+
+def render_data(answer: dict[str, Any]) -> str:
+    """Render the entries of a data key.
+
+    :param answer: A ``data`` answer.
+    :return: The text."""
+    lines = [render_entry(e) for e in answer["entries"]]
+    answer["meta"]["matched"] = answer["meta"].get("entries")
+    lines.append(meta_line(answer, "entries", len(answer["entries"])))
+    return "\n".join(lines)
+
+
+def render_timeline(answer: dict[str, Any]) -> str:
+    """Render the timeline, one entry per line.
+
+    :param answer: A ``timeline`` answer.
+    :return: The text."""
+    lines = [timeline_line(e) for e in answer["entries"]]
+    lines.append(meta_line(answer, "entries", len(answer["entries"])))
+    return "\n".join(lines)
+
+
+def render_output(answer: dict[str, Any]) -> str:
+    """Render a run's output lines and how many were shown.
+
+    :param answer: An ``output`` answer.
+    :return: The text."""
+    meta = answer["meta"]
+    tail = f"{meta['shown']} of {meta['total_lines']} lines"
+    if meta.get("hint"):
+        tail += f" · {meta['hint']}"
+    return "\n".join([*answer["lines"], tail])
+
+
+def render_notes(answer: dict[str, Any]) -> str:
+    """Render notes, one per line.
+
+    :param answer: A ``notes`` answer.
+    :return: The text."""
+    lines = [note_line(e) for e in answer["entries"]]
+    lines.append(meta_line(answer, "notes", len(answer["entries"])))
+    return "\n".join(lines)
+
+
+def render_guide(answer: dict[str, Any]) -> str:
+    """Render a guide topic.
+
+    :param answer: A ``guide`` answer.
+    :return: Its text."""
+    return answer["text"]
+
+
+def render_history(answer: dict[str, Any]) -> str:
+    """Render the versions of a view.
+
+    :param answer: A ``view history`` answer.
+    :return: The text."""
+    rows = [[e["version"], e["author"], e["title"], e["message"]] for e in answer["entries"]]
+    lines = table(["version", "author", "title", "message"], rows) if rows else []
+    return "\n".join([*lines, f"{len(rows)} version(s) of {answer['group']}'s view"])
+
+
+def render_view_show(answer: dict[str, Any]) -> str:
+    """Render a shown view: its YAML, or its lines when it came without.
+
+    :param answer: A ``view show`` answer.
+    :return: The text."""
+    if answer.get("yaml"):
+        return f"# {answer['group']} view {answer['version']}\n{answer['yaml']}"
+    return "\n".join(answer.get("lines", [])) or str(answer)
 
 
 def timeline_line(entry: dict[str, Any]) -> str:

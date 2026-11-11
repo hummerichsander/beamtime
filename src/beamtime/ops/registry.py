@@ -672,6 +672,10 @@ class Op:
     name: str
     impl: str
     summary: str = ""
+    # the "kind" of its answer, which joins it to ``answers.ANSWERS``; None: bytes, or any kind.
+    kind: str | None = None
+    # ``module:function`` of the text renderer for ``kind``; None: the answer's ``lines``.
+    render: str | None = None
     params: type[Params] | None = None
     positional: tuple[str, ...] = ()
     user_only: bool = False
@@ -711,15 +715,20 @@ V = "beamtime.ops.views"
 B = "beamtime.ops.blocks"
 C = "beamtime.ops.copy"
 S = "beamtime.serve.api"
+F = "beamtime.cli.format"
 METHODS = [
     Op(
         name="status",
+        kind="status",
+        render=f"{F}:render_status",
         params=NoParams,
         impl=f"{R}:status",
         summary="Daemon, index and freshness; check before working with live runs.",
     ),
     Op(
         name="keys",
+        kind="keys",
+        render=f"{F}:render_keys",
         listing=True,
         params=KeysParams,
         impl=f"{R}:keys",
@@ -728,6 +737,8 @@ METHODS = [
     ),
     Op(
         name="groups",
+        kind="groups",
+        render=f"{F}:render_table",
         listing=True,
         params=GroupsParams,
         impl=f"{R}:groups",
@@ -736,6 +747,8 @@ METHODS = [
     ),
     Op(
         name="runs",
+        kind="runs",
+        render=f"{F}:render_table",
         listing=True,
         params=RunsParams,
         impl=f"{R}:runs",
@@ -744,6 +757,8 @@ METHODS = [
     ),
     Op(
         name="card",
+        kind="card",
+        render=f"{F}:render_card",
         params=CardParams,
         impl=f"{R}:card",
         positional=("run",),
@@ -751,6 +766,8 @@ METHODS = [
     ),
     Op(
         name="series",
+        kind="series",
+        render=f"{F}:render_series",
         listing=True,
         params=SeriesParams,
         impl=f"{R}:series",
@@ -759,6 +776,8 @@ METHODS = [
     ),
     Op(
         name="data",
+        kind="data",
+        render=f"{F}:render_data",
         listing=True,
         params=DataParams,
         impl=f"{R}:data",
@@ -767,6 +786,8 @@ METHODS = [
     ),
     Op(
         name="file",
+        kind="file",
+        render=f"{F}:render_table",
         params=FileParams,
         impl=f"{R}:file",
         draft_params=("draft",),
@@ -775,6 +796,8 @@ METHODS = [
     ),
     Op(
         name="output",
+        kind="output",
+        render=f"{F}:render_output",
         params=OutputParams,
         impl=f"{R}:output",
         positional=("run",),
@@ -782,6 +805,8 @@ METHODS = [
     ),
     Op(
         name="logs",
+        kind="logs",
+        render=f"{F}:render_logs",
         params=LogsParams,
         impl=f"{R}:logs",
         positional=("from_",),
@@ -789,6 +814,8 @@ METHODS = [
     ),
     Op(
         name="wait",
+        kind="wait",
+        render=f"{F}:render_wait",
         params=WaitParams,
         impl=f"{R}:wait",
         positional=("from_",),
@@ -796,6 +823,8 @@ METHODS = [
     ),
     Op(
         name="diagnose",
+        kind="diagnose",
+        render=f"{F}:render_diagnose",
         params=DiagnoseParams,
         impl=f"{R}:diagnose",
         positional=("from_",),
@@ -803,6 +832,8 @@ METHODS = [
     ),
     Op(
         name="resume",
+        kind="resume",
+        render=f"{F}:render_resume",
         params=ResumeParams,
         impl=f"{R}:resume",
         positional=("run",),
@@ -810,6 +841,8 @@ METHODS = [
     ),
     Op(
         name="compare",
+        kind="compare",
+        render=f"{F}:render_compare",
         one_source=("targets",),
         params=CompareParams,
         impl=f"{R}:compare",
@@ -818,6 +851,8 @@ METHODS = [
     ),
     Op(
         name="timeline",
+        kind="timeline",
+        render=f"{F}:render_timeline",
         listing=True,
         params=TimelineParams,
         impl=f"{R}:timeline",
@@ -826,6 +861,8 @@ METHODS = [
     ),
     Op(
         name="notes",
+        kind="notes",
+        render=f"{F}:render_notes",
         listing=True,
         params=NotesParams,
         impl=f"{W}:notes",
@@ -834,6 +871,8 @@ METHODS = [
     ),
     Op(
         name="proposal show",
+        kind="proposal",
+        render=f"{F}:render_proposal",
         params=GroupParams,
         impl=f"{W}:proposal_show",
         positional=("group",),
@@ -841,6 +880,8 @@ METHODS = [
     ),
     Op(
         name="check",
+        kind="check",
+        render=f"{F}:render_check",
         params=CheckParams,
         impl=f"{W}:check",
         positional=("group",),
@@ -848,6 +889,8 @@ METHODS = [
     ),
     Op(
         name="digest",
+        kind="digest",
+        render=f"{F}:render_digest",
         params=DigestParams,
         impl=f"{R}:digest",
         positional=("group",),
@@ -855,6 +898,8 @@ METHODS = [
     ),
     Op(
         name="plan missing",
+        kind="plan missing",
+        render=f"{F}:render_plan_missing",
         params=GroupParams,
         impl=f"{R}:plan_missing",
         positional=("group",),
@@ -862,6 +907,8 @@ METHODS = [
     ),
     Op(
         name="memory show",
+        kind="memory",
+        render=f"{F}:render_memory",
         params=GroupParams,
         impl=f"{W}:memory_show",
         positional=("group",),
@@ -869,6 +916,7 @@ METHODS = [
     ),
     Op(
         name="note add",
+        kind="note add",
         writes=True,
         params=NoteAddParams,
         impl=f"{W}:note_add",
@@ -878,6 +926,7 @@ METHODS = [
     ),
     Op(
         name="proposal set",
+        kind="proposal set",
         writes=True,
         params=ProposalSetParams,
         impl=f"{W}:proposal_set",
@@ -887,6 +936,7 @@ METHODS = [
     ),
     Op(
         name="memory update",
+        kind="memory update",
         writes=True,
         params=MemoryUpdateParams,
         impl=f"{W}:memory_update",
@@ -902,6 +952,8 @@ METHODS = [
     ),
     Op(
         name="guide",
+        kind="guide",
+        render=f"{F}:render_guide",
         params=GuideParams,
         impl="beamtime.guide:guide",
         positional=("part", "name"),
@@ -909,6 +961,7 @@ METHODS = [
     ),
     Op(
         name="view new",
+        kind="view new",
         drafts=True,
         params=ViewNewParams,
         impl=f"{V}:new",
@@ -917,6 +970,7 @@ METHODS = [
     ),
     Op(
         name="view validate",
+        kind="view validate",
         drafts=True,
         params=ViewValidateParams,
         impl=f"{V}:validate",
@@ -925,6 +979,7 @@ METHODS = [
     ),
     Op(
         name="view render",
+        kind="view render",
         drafts=True,
         params=ViewRenderParams,
         impl=f"{V}:render",
@@ -933,6 +988,7 @@ METHODS = [
     ),
     Op(
         name="view save",
+        kind="view save",
         drafts=True,
         params=ViewSaveParams,
         impl=f"{V}:save_draft",
@@ -941,6 +997,8 @@ METHODS = [
     ),
     Op(
         name="view show",
+        kind="view show",
+        render=f"{F}:render_view_show",
         params=ViewShowParams,
         impl=f"{V}:show",
         positional=("group",),
@@ -948,6 +1006,8 @@ METHODS = [
     ),
     Op(
         name="view history",
+        kind="view history",
+        render=f"{F}:render_history",
         params=ViewHistoryParams,
         impl=f"{V}:history",
         positional=("group",),
@@ -955,6 +1015,8 @@ METHODS = [
     ),
     Op(
         name="export",
+        kind="export",
+        render=f"{F}:render_export",
         local=True,
         params=ExportParams,
         impl=f"{V}:export",
@@ -963,6 +1025,7 @@ METHODS = [
     ),
     Op(
         name="view outdated",
+        kind="view outdated",
         params=ViewOutdatedParams,
         impl=f"{V}:outdated",
         positional=("group",),
@@ -970,6 +1033,7 @@ METHODS = [
     ),
     Op(
         name="view upgrade",
+        kind="view upgrade",
         writes=True,
         params=ViewUpgradeParams,
         impl=f"{V}:upgrade",
@@ -978,6 +1042,7 @@ METHODS = [
     ),
     Op(
         name="block list",
+        kind="block list",
         params=BlockListParams,
         impl=f"{B}:listing",
         positional=("group",),
@@ -985,6 +1050,7 @@ METHODS = [
     ),
     Op(
         name="block show",
+        kind="block show",
         params=BlockShowParams,
         impl=f"{B}:show",
         positional=("name",),
@@ -992,6 +1058,7 @@ METHODS = [
     ),
     Op(
         name="block promote",
+        kind="block promote",
         drafts=True,
         params=BlockPromoteParams,
         impl=f"{B}:promote",
@@ -1000,6 +1067,7 @@ METHODS = [
     ),
     Op(
         name="block fork",
+        kind="block fork",
         drafts=True,
         params=BlockForkParams,
         impl=f"{B}:fork",
@@ -1008,6 +1076,7 @@ METHODS = [
     ),
     Op(
         name="block validate",
+        kind="block validate",
         drafts=True,
         params=BlockValidateParams,
         impl=f"{B}:validate",
@@ -1016,6 +1085,7 @@ METHODS = [
     ),
     Op(
         name="block save",
+        kind="block save",
         drafts=True,
         params=BlockSaveParams,
         impl=f"{B}:save_draft",
@@ -1024,6 +1094,7 @@ METHODS = [
     ),
     Op(
         name="serve",
+        kind="serve",
         params=ServeParams,
         impl="beamtime.serve.server:serve",
         positional=("sources",),
@@ -1032,6 +1103,7 @@ METHODS = [
     ),
     Op(
         name="demo",
+        kind="serve",
         params=DemoParams,
         impl="beamtime.serve.server:demo",
         positional=("dir",),
@@ -1040,6 +1112,7 @@ METHODS = [
     ),
     Op(
         name="init",
+        kind="init",
         params=InitParams,
         impl=f"{A}:init",
         user_only=True,
@@ -1047,6 +1120,7 @@ METHODS = [
     ),
     Op(
         name="mcp install",
+        kind="mcp install",
         params=McpInstallParams,
         impl=f"{A}:mcp_install",
         user_only=True,
@@ -1054,6 +1128,8 @@ METHODS = [
     ),
     Op(
         name="settings",
+        kind="settings",
+        render=f"{F}:render_table",
         params=NoParams,
         impl=f"{A}:settings",
         user_only=True,
@@ -1061,6 +1137,7 @@ METHODS = [
     ),
     Op(
         name="set",
+        kind="set",
         params=SetParams,
         impl=f"{A}:set_setting",
         positional=("key", "value"),
@@ -1070,6 +1147,8 @@ METHODS = [
     ),
     Op(
         name="doctor",
+        kind="doctor",
+        render=f"{F}:render_table",
         params=NoParams,
         impl=f"{A}:doctor",
         user_only=True,
@@ -1077,6 +1156,7 @@ METHODS = [
     ),
     Op(
         name="reindex",
+        kind="reindex",
         params=NoParams,
         impl=f"{A}:reindex",
         user_only=True,
@@ -1084,6 +1164,7 @@ METHODS = [
     ),
     Op(
         name="cp",
+        kind="cp",
         writes=True,
         one_source=("source", "dest"),
         params=CpParams,
@@ -1093,6 +1174,7 @@ METHODS = [
     ),
     Op(
         name="mv",
+        kind="mv",
         params=MoveParams,
         impl=f"{A}:move",
         positional=("source", "to"),
@@ -1101,6 +1183,7 @@ METHODS = [
     ),
     Op(
         name="rm",
+        kind="rm",
         params=RemoveParams,
         impl=f"{A}:remove",
         positional=("target",),
@@ -1109,6 +1192,7 @@ METHODS = [
     ),
     Op(
         name="name",
+        kind="name",
         writes=True,
         params=NameParams,
         impl=f"{W}:name",
@@ -1117,6 +1201,7 @@ METHODS = [
     ),
     Op(
         name="block export",
+        kind="block export",
         params=BlockExportParams,
         impl=f"{B}:export",
         positional=("name",),
@@ -1125,6 +1210,7 @@ METHODS = [
     ),
     Op(
         name="block import",
+        kind="block import",
         params=BlockImportParams,
         impl=f"{B}:import_blocks",
         positional=("group",),
@@ -1133,6 +1219,7 @@ METHODS = [
     ),
     Op(
         name="pull",
+        kind="pull",
         local=True,
         params=PullParams,
         impl="beamtime.remote.pull:pull_op",
@@ -1142,6 +1229,7 @@ METHODS = [
     ),
     Op(
         name="note rm",
+        kind="note rm",
         writes=True,
         params=NoteRmParams,
         impl=f"{W}:note_rm",
@@ -1152,6 +1240,7 @@ METHODS = [
     ),
     Op(
         name="gc",
+        kind="gc",
         params=GcParams,
         impl=f"{A}:gc",
         user_only=True,
@@ -1159,6 +1248,7 @@ METHODS = [
     ),
     Op(
         name="source add",
+        kind="source add",
         params=SourceAddParams,
         impl=f"{A}:source_add",
         positional=("name", "remote"),
@@ -1167,6 +1257,8 @@ METHODS = [
     ),
     Op(
         name="source list",
+        kind="source list",
+        render=f"{F}:render_table",
         params=NoParams,
         impl=f"{A}:source_list",
         user_only=True,
@@ -1174,32 +1266,34 @@ METHODS = [
     ),
     Op(
         name="source rm",
+        kind="source rm",
         params=SourceRmParams,
         impl=f"{A}:source_rm",
         positional=("name",),
         user_only=True,
         summary="Remove a remote from wherever it is configured.",
     ),
-    Op(name="hello", impl=f"{S}:hello", routed=False),
-    Op(name="files", impl=f"{S}:files", routed=False),
-    Op(name="meta", impl=f"{S}:meta", routed=False),
-    Op(name="view", impl=f"{S}:view_page", draft_params=("draft", "block_draft")),
-    Op(name="summary", impl=f"{S}:summary_page"),
-    Op(name="save_view", impl=f"{S}:save_view", writes=True),
-    Op(name="view_text", impl=f"{S}:view_text", writes=True),
+    Op(name="hello", kind="hello", impl=f"{S}:hello", routed=False),
+    Op(name="files", kind="files", impl=f"{S}:files", routed=False),
+    Op(name="meta", kind="meta", impl=f"{S}:meta", routed=False),
+    Op(name="view", kind="view", impl=f"{S}:view_page", draft_params=("draft", "block_draft")),
+    Op(name="summary", kind="summary", impl=f"{S}:summary_page"),
+    Op(name="save_view", kind="view save", impl=f"{S}:save_view", writes=True),
+    Op(name="view_text", kind="view save", impl=f"{S}:view_text", writes=True),
     Op(name="figure", impl="beamtime.views.export:figure_pdf", routed=False),
     Op(
         name="code",
+        kind="code",
         impl="beamtime.views.store:code_text",
         draft_params=("draft", "block_draft"),
     ),
-    Op(name="run_diff", impl=f"{S}:run_diff"),
-    Op(name="view_check", impl=f"{V}:view_check", routed=False),
-    Op(name="view_put", impl=f"{V}:view_put", routed=False),
+    Op(name="run_diff", kind="diff", impl=f"{S}:run_diff"),
+    Op(name="view_check", kind="view check", impl=f"{V}:view_check", routed=False),
+    Op(name="view_put", kind="view save", impl=f"{V}:view_put", routed=False),
     Op(name="view_compile", impl=f"{V}:view_compile", routed=False),
-    Op(name="view_files", impl=f"{V}:view_files", routed=False),
-    Op(name="block_check", impl=f"{B}:block_check", routed=False),
-    Op(name="block_put", impl=f"{B}:block_put", routed=False),
+    Op(name="view_files", kind="view files", impl=f"{V}:view_files", routed=False),
+    Op(name="block_check", kind="block check", impl=f"{B}:block_check", routed=False),
+    Op(name="block_put", kind="block save", impl=f"{B}:block_put", routed=False),
 ]
 
 OPS = [m for m in METHODS if m.params is not None]

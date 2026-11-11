@@ -2,6 +2,9 @@
 
 ## 0.3.0 (unreleased)
 
+- **Fixed** `beamtime export --html` and `--figures` printed a `KeyError` instead of the line naming the page
+  they wrote. Every operation declares the kind of its answer and the text renderer for it in the
+  operation set, and a test calls each read operation to check its text.
 - **Fixed** the MCP instructions named only eight of the eighteen user-only commands; they now list every
   one, generated from the operation set. Which operations federate and which accept targets from one
   source only is declared on the operation (`listing`, `one_source`) and no longer repeated in the

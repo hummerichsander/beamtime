@@ -247,7 +247,11 @@ Decided while building the CLI and MCP server (milestone M3):
   `beamtime runs` at about 100–120 ms. The registry also lists the page methods of the web UI's API
   (`view`, `summary`, `save_view`, `figure`, `view_put`, ...) as methods without a parameter struct, so
   they are no CLI command or MCP tool; the API looks every method up there, and what remote routing
-  needs to know about one (`routed`, `writes`, `draft_params`) is declared on it.
+  needs to know about one (`routed`, `writes`, `draft_params`) is declared on it. Each method also
+  declares the `kind` of its answer (none for bytes and for `query`, which answers any kind), which
+  joins it to its entry in `ops/answers.py`, and the text `render` function for that kind
+  (`cli/format.py`, imported when first needed); a kind without one prints the answer's `lines`.
+  A registry test calls every read operation and checks that its text is never the raw dict.
 - **`beamtime query`** takes a file or an inline object as its argument (`beamtime query '{runs:
   {from: .}}'`), since `--json` is the global flag for JSON output.
 - **Exit codes**: an invalid query or bad flag is wrong usage (2); a missing group, run or key is 4.

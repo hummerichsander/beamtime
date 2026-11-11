@@ -527,7 +527,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
    op.draft_params)`; `ROUTED`, `WRITES` derived from `METHODS`.
 4. Registry test: `drafts` ⇒ `group` or `draft` among params; `params is None` ⇒ no `positional`/`stdin`.
 
-### O3. Answer kinds and table-driven rendering (sonnet) — code
+### O3. Answer kinds and table-driven rendering (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/ops/registry.py` (`Op.kind`, `Op.render`), `src/beamtime/cli/format.py` (`render`
   174–256), `tests/ops/test_registry.py`, `tests/ops/test_ops.py` (301–313).
