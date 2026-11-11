@@ -15,6 +15,7 @@ import msgspec
 
 from beamtime.format import constants as c
 from beamtime.format.io import write_created
+from beamtime.format.place import Place
 from beamtime.format.schema import SchemaError
 from beamtime.ops import call
 from beamtime.ops import registry as r
@@ -96,7 +97,7 @@ def promote(ctx: Context, p: r.BlockPromoteParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The draft's files and what to do next."""
-    if p.group.startswith("@"):
+    if Place.parse(p.group).source is not None:
         import yaml as _yaml
 
         from beamtime.ops.views import fetch_view_file
@@ -133,7 +134,7 @@ def promote(ctx: Context, p: r.BlockPromoteParams) -> dict[str, Any]:
         kit=node.kit,
         libs=node.libs,
     )
-    if path.startswith("@"):
+    if Place.parse(path).source is not None:
         source = fetch_view_file(ctx, path, node.code)
         if source is None:
             raise OpError(f"no code file {node.code!r} for block {p.block_id!r} in {path}", code=4)
@@ -160,7 +161,7 @@ def fork(ctx: Context, p: r.BlockForkParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The draft's files and what to do next."""
-    if p.group.startswith("@"):
+    if Place.parse(p.group).source is not None:
         import yaml as _yaml
 
         from beamtime.remote import answer as remote_answer
@@ -243,7 +244,7 @@ def validate(ctx: Context, p: r.BlockValidateParams) -> dict[str, Any]:
     from beamtime.ops.views import summary
 
     folder, group = open_draft(ctx, p.draft)
-    if group.startswith("@"):
+    if Place.parse(group).source is not None:
         from beamtime.ops.views import bundle_blocks
         from beamtime.remote.route import on_source
 
@@ -277,7 +278,7 @@ def save_draft(ctx: Context, p: r.BlockSaveParams) -> dict[str, Any]:
     :return: The new version."""
     folder, group = open_draft(ctx, p.draft)
     target = save_target(group, p.group)
-    if target.startswith("@"):
+    if Place.parse(target).source is not None:
         from beamtime.ops.views import bundle_blocks
         from beamtime.remote.route import on_source
 
@@ -300,20 +301,16 @@ def save_target(group: str, given: str) -> str:
     :param given: The ``--group`` to save to.
     :return: The group to save to, prefixed for another source.
     :raises OpError: If the given group is on another source than the draft's."""
-    source = group[1:].split("/", 1)[0] if group.startswith("@") else None
-    if given.startswith("@"):
-        if given[1:].split("/", 1)[0] != source:
-            on = f"@{source}" if source else "this machine"
-            raise OpError(
-                f"the block draft is checked against {group}, so it saves on {on}; "
-                "start a draft from a group of the other source to save it there",
-                code=2,
-            )
-        return given
-    if source is None:
-        return given
-    bare = given.strip("/")
-    return f"@{source}/{bare}" if bare not in ("", ".") else f"@{source}"
+    source = Place.parse(group).source
+    place = Place.parse(given)
+    if place.source is not None and place.source != source:
+        on = f"@{source}" if source else "this machine"
+        raise OpError(
+            f"the block draft is checked against {group}, so it saves on {on}; "
+            "start a draft from a group of the other source to save it there",
+            code=2,
+        )
+    return place.on(source).text
 
 
 def save_checked(

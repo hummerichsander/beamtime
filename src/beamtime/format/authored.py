@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from beamtime.format.ids import is_run_id, is_version_id
+from beamtime.format.place import Place
 from beamtime.format.schema import SchemaError, schema_of
 
 _FRONTMATTER = re.compile(r"---\r?\n(?P<front>.*?)\r?\n---[ \t]*(?:\r?\n|\Z)(?P<body>.*)", re.S)
@@ -108,7 +109,7 @@ def link_kind(target: str) -> str:
 
     :param target: The text between ``[[`` and ``]]``, or a plain id or path.
     :return: ``run``, ``note``, ``prediction``, ``view`` or ``folder``."""
-    if target.startswith("@"):
+    if Place.parse(target).source is not None:
         return "folder"
     if "#" in target:
         return "prediction"

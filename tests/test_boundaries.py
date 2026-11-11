@@ -1,4 +1,5 @@
 import ast
+import re
 import sys
 from pathlib import Path
 
@@ -53,3 +54,16 @@ def test_sdk_side_imports_only_stdlib_yaml_and_itself(package: str) -> None:
                 assert top in sys.stdlib_module_names or top == "yaml", (
                     f"{path.name} imports {name}"
                 )
+
+
+def test_only_place_parses_the_source_prefix() -> None:
+    """Every ``@source/path`` is read through ``Place``, nowhere else by hand.
+
+    :return: Nothing."""
+    pattern = re.compile(r'startswith\(f?"@')
+    found = [
+        path.relative_to(SRC).as_posix()
+        for path in SRC.rglob("*.py")
+        if pattern.search(path.read_text())
+    ]
+    assert found == ["format/place.py"]

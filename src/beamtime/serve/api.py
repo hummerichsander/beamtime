@@ -11,6 +11,7 @@ from typing import Any
 
 from beamtime.format.constants import ENV_DIR
 from beamtime.format.ids import is_run_id
+from beamtime.format.place import Place
 from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import BY_TOOL
@@ -261,7 +262,7 @@ def view(
     :return: ``{kind, path, run, view, source, version, ...}`` with the run's path resolved."""
     from beamtime.views.store import shown
 
-    if draft is not None and path.startswith("@"):
+    if draft is not None and Place.parse(path).source is not None:
         from beamtime.ops.views import draft_view
 
         return {"kind": "view", "path": path, "run": None} | draft_view(ctx, path, draft)

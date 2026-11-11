@@ -13,6 +13,7 @@ from beamtime.format import constants as c
 from beamtime.format.authored import file_hash, newest
 from beamtime.format.ids import new_run_id
 from beamtime.format.io import append_lines, json_line, read_json, write_replaced
+from beamtime.format.place import Place
 from beamtime.format.run import Artifact, read_artifacts
 from beamtime.format.times import iso
 from beamtime.format.tree import is_run, iter_runs
@@ -33,7 +34,7 @@ def cp(ctx: Context, p: r.CpParams) -> dict[str, Any]:
     :return: What was copied."""
     from beamtime.ops.reading import find_run
 
-    if p.source.startswith("@") or p.dest.startswith("@"):
+    if Place.parse(p.source).source is not None or Place.parse(p.dest).source is not None:
         raise OpError(
             "cp works within one source for now; `beamtime pull` copies across sources", code=2
         )

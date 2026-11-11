@@ -451,7 +451,7 @@ the local listing of `.` included, can't be reached by paging once any remote is
 3. CHANGELOG (Changed: pages refuse reserved names; run arguments need a suffix of four characters or more,
    decision 16; update `docs/design/08-cli-mcp.md` l. 252 to say so).
 
-### P5. Every call site parses through `Place` (sonnet) — code
+### P5. Every call site parses through `Place` (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/ops/blocks.py` (99, 136, 163, 246, 280–305 incl. `save_target`),
   `src/beamtime/ops/views.py` (33, 205, 515), `src/beamtime/ops/copy.py` (36), `src/beamtime/remote/pull.py`

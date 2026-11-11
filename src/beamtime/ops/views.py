@@ -13,6 +13,7 @@ from typing import Any
 from beamtime.format import constants as c
 from beamtime.format.ids import id_time
 from beamtime.format.io import write_created
+from beamtime.format.place import Place
 from beamtime.format.schema import SchemaError
 from beamtime.ops import registry as r
 from beamtime.ops.authored import author_of, save, target_of, written
@@ -30,7 +31,7 @@ def new(ctx: Context, p: r.ViewNewParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The draft's name and file."""
-    remote = p.group.startswith("@")
+    remote = Place.parse(p.group).source is not None
     if p.from_ is not None:
         from beamtime.guide import example, example_file
 
@@ -202,7 +203,7 @@ def validate(ctx: Context, p: r.ViewValidateParams) -> dict[str, Any]:
     :param p: The parameters.
     :return: The findings and whether it rendered."""
     d = store.draft(ctx, p.draft)
-    if d.group.startswith("@"):
+    if Place.parse(d.group).source is not None:
         from beamtime.remote.route import on_source
 
         ok, findings = True, on_source("view_check", d.group, ctx, bundle(ctx, d))["findings"]
@@ -512,7 +513,7 @@ def save_draft(ctx: Context, p: r.ViewSaveParams) -> dict[str, Any]:
     :param p: The parameters.
     :return: The new version."""
     d = store.draft(ctx, p.draft)
-    if d.group.startswith("@"):
+    if Place.parse(d.group).source is not None:
         from beamtime.remote.route import on_source
 
         author = p.author or author_of(ctx, None)[0]

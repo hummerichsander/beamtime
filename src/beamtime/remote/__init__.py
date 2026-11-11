@@ -6,6 +6,8 @@ operation context (``Context.sources``)."""
 
 from typing import Any
 
+from beamtime.format.place import Place
+
 # parameters that name a place: a group, a run, a page.
 TARGETS = ("group", "from", "run", "path", "view", "source", "to", "target", "dest", "targets")
 
@@ -30,11 +32,12 @@ def targets(params: dict[str, Any]) -> bool:
 
     :param params: An operation's parameters.
     :return: Whether a target (or a query's ``from``) starts with ``@``."""
-    if any(v.startswith("@") for v in places(params)):
+    if any(Place.parse(v).source is not None for v in places(params)):
         return True
     if isinstance(query := params.get("query"), dict):
         return any(
-            isinstance(q, dict) and str(q.get("from", "")).startswith("@") for q in query.values()
+            isinstance(q, dict) and Place.parse(str(q.get("from", ""))).source is not None
+            for q in query.values()
         )
     return False
 

@@ -20,6 +20,7 @@ from starlette.responses import (
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
+from beamtime.format.place import Place
 from beamtime.ops.context import Context, OpError
 from beamtime.serve.api import STATIC, dispatch, locate
 from beamtime.serve.live import Hub
@@ -74,8 +75,8 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
         run_id, rel = request.path_params["run"], request.path_params["path"]
         # a run on a remote: /api/file/@box/<id>/<path>, never this machine's copy of it.
         source = None
-        if run_id.startswith("@") and "/" in rel:
-            source, (run_id, rel) = run_id[1:], rel.split("/", 1)
+        if (place := Place.parse(run_id)).source is not None and "/" in rel:
+            source, (run_id, rel) = place.source, rel.split("/", 1)
         path = None if source else await run_in_threadpool(locate, ctx, run_id, rel)
         if path is None:
             from beamtime.remote.route import remote_file
@@ -177,8 +178,7 @@ def subscribe_remotes(hub: Hub, sources: "Sources | None") -> None:
     for name, client in sources.clients.items():
         if client.state != "connected":
             continue
-        own = [s for s in scopes if s == f"@{name}" or s.startswith(f"@{name}/")]
-        mine = {s[len(name) + 2 :] or "." for s in own}
+        mine = {p.path for s in scopes if (p := Place.parse(s)).source == name}
         if "." in scopes:
             mine.add(client.spec.scope)
         client.subscribe(sorted(mine))

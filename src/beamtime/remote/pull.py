@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from beamtime.format import constants as c
+from beamtime.format.place import Place
 from beamtime.ops.context import Context, OpError
 
 SNAPSHOT = "_snapshot.json"
@@ -165,10 +166,11 @@ def split_target(target: str) -> tuple[str, str]:
     :param target: ``cluster:scaling/lr-sweep``, ``@cluster/scaling`` or ``cluster``.
     :return: The remote and the group.
     :raises OpError: Without a remote name."""
-    if target.startswith("@"):
-        name, _, group = target[1:].partition("/")
+    if (place := Place.parse(target)).source is not None:
+        name, group = place.source, place.path
     else:
         name, _, group = target.partition(":")
+        group = group.strip("/") or "."
     if not name:
         raise OpError(f"pull {target!r}: name the remote, e.g. cluster:scaling/lr-sweep", code=2)
-    return name, group.strip("/") or "."
+    return name, group

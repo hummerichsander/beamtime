@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
+from beamtime.format.place import Place
 from beamtime.ops.context import Context
 from beamtime.views.store import Draft
 
@@ -32,12 +33,10 @@ def page_url(group: str) -> str:
 
     :param group: ``.`` or a bare path for local, ``@source/...`` for another source.
     :return: The URL path."""
-    if group.startswith("@"):
-        source, _, rest = group.partition("/")
-        tail = "/".join(quote(part) for part in rest.split("/")) if rest else ""
-        return f"/f/{source}" + (f"/{tail}" if tail else "")
-    tail = "/".join(quote(part) for part in group.split("/")) if group != "." else ""
-    return "/f/local" + (f"/{tail}" if tail else "")
+    place = Place.parse(group)
+    tail = "/".join(quote(part) for part in place.path.split("/")) if place.path != "." else ""
+    head = "local" if place.source is None else f"@{place.source}"
+    return f"/f/{head}" + (f"/{tail}" if tail else "")
 
 
 def render_draft(
