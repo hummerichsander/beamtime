@@ -667,12 +667,14 @@ class McpInstallParams(Params, kw_only=True):
 
 @dataclass(frozen=True, kw_only=True)
 class Op:
-    """One operation of the set."""
+    """One method of the set: an operation, or a page method of the API (``params`` is ``None``).
+
+    A page method's ``impl`` takes ``(context, body)``; it is never a CLI command or MCP tool."""
 
     name: str
-    params: type[Params]
-    summary: str
     impl: str
+    summary: str = ""
+    params: type[Params] | None = None
     positional: tuple[str, ...] = ()
     user_only: bool = False
     stdin: str | None = None
@@ -684,6 +686,11 @@ class Op:
     local: bool = False
     # parameters whose targets must all be on one source.
     one_source: tuple[str, ...] = ()
+    # False: answers where it arrives (hello, files, ...); ui: a user-only operation the web UI
+    # offers its user; a call with any of draft_params set is a draft and stays local.
+    routed: bool = True
+    ui: bool = False
+    draft_params: tuple[str, ...] = ()
 
     @property
     def tool(self) -> str:
@@ -704,7 +711,8 @@ A = "beamtime.ops.admin"
 V = "beamtime.ops.views"
 B = "beamtime.ops.blocks"
 C = "beamtime.ops.copy"
-OPS = [
+S = "beamtime.serve.api"
+METHODS = [
     Op(
         name="status",
         params=NoParams,
@@ -762,6 +770,7 @@ OPS = [
         name="file",
         params=FileParams,
         impl=f"{R}:file",
+        draft_params=("draft",),
         positional=("view", "path"),
         summary="A data file stored with a view.",
     ),
@@ -1057,6 +1066,7 @@ OPS = [
         impl=f"{A}:set_setting",
         positional=("key", "value"),
         user_only=True,
+        ui=True,
         summary="Set theme, theme_mode or figure_style in this project's beamtime.yaml.",
     ),
     Op(
@@ -1138,6 +1148,7 @@ OPS = [
         impl=f"{W}:note_rm",
         positional=("note",),
         user_only=True,
+        ui=True,
         summary="Move a note, with the earlier versions it replaced, into the trash.",
     ),
     Op(
@@ -1170,7 +1181,29 @@ OPS = [
         user_only=True,
         summary="Remove a remote from wherever it is configured.",
     ),
+    Op(name="hello", impl=f"{S}:hello", routed=False),
+    Op(name="files", impl=f"{S}:files", routed=False),
+    Op(name="meta", impl=f"{S}:meta", routed=False),
+    Op(name="view", impl=f"{S}:view_page", draft_params=("draft", "block_draft")),
+    Op(name="summary", impl=f"{S}:summary_page"),
+    Op(name="save_view", impl=f"{S}:save_view", writes=True),
+    Op(name="view_text", impl=f"{S}:view_text", writes=True),
+    Op(name="figure", impl="beamtime.views.export:figure_pdf", routed=False),
+    Op(
+        name="code",
+        impl="beamtime.views.store:code_text",
+        draft_params=("draft", "block_draft"),
+    ),
+    Op(name="run_diff", impl=f"{S}:run_diff"),
+    Op(name="view_check", impl=f"{V}:view_check", routed=False),
+    Op(name="view_put", impl=f"{V}:view_put", routed=False),
+    Op(name="view_compile", impl=f"{V}:view_compile", routed=False),
+    Op(name="view_files", impl=f"{V}:view_files", routed=False),
+    Op(name="block_check", impl=f"{B}:block_check", routed=False),
+    Op(name="block_put", impl=f"{B}:block_put", routed=False),
 ]
 
+OPS = [m for m in METHODS if m.params is not None]
 BY_NAME = {op.name: op for op in OPS}
 BY_TOOL = {op.tool: op for op in OPS if not op.user_only}
+BY_API = {m.tool: m for m in METHODS if not m.user_only or m.ui}

@@ -13,14 +13,14 @@ from beamtime.format.ids import is_run_id
 from beamtime.format.place import Place
 from beamtime.ops import answers
 from beamtime.ops.context import Context, OpError
-from beamtime.ops.registry import BY_TOOL, OPS, Op
+from beamtime.ops.registry import BY_TOOL, METHODS, OPS, Op
 from beamtime.remote import TARGETS, places
 
 # from the registry: listings merge across sources, drafts stay in this project, snapshots refuse
 # writes (and the web UI's own writes), writes that take an author get this machine's.
-LISTINGS = {op.tool for op in OPS if op.listing}
-DRAFTS = {op.tool for op in OPS if op.drafts}
-WRITES = {op.tool for op in OPS if op.writes} | {"view_text", "save_view"}
+LISTINGS = {m.tool for m in METHODS if m.listing}
+DRAFTS = {m.tool for m in METHODS if m.drafts}
+WRITES = {m.tool for m in METHODS if m.writes}
 AUTHORED = {op.tool for op in OPS if "author" in op.params.__struct_fields__}
 # a listing waits this long for a remote before it answers without it.
 LISTING_S = 20.0

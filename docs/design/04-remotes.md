@@ -130,7 +130,7 @@ beamtime pull cluster:scaling/lr-sweep
   **Answers own their places.** Per answer kind, a module beside the ops (`ops/answers.py`, one `Answer` per kind) says which fields are places (a path column, a `group`, `run.path`, a write's `path` and its line `wrote <path>`; run ids, statuses, metric keys, file paths a source reports about its own machine and what users wrote are never places), how a listing merges and in what order; a kind without an entry falls to a generic walk by key name, which only page methods still use. `remote/route.py` only forwards: it keeps the transport, the fan-out, snapshots and source states, and names no answer key, and the merged listing is paged once, locally.
   Operations on `.` that list (`groups`, `runs`, `series`, `data`, `timeline`, `notes`, `keys`) ask
   every source at once and merge; everything else stays local. Which operations list, write or
-  work on drafts is a flag on each operation in the registry. A source that doesn't answer a listing
+  work on drafts is a flag on each method in the registry, page methods included (`writes` for a page that saves, `draft_params` for the parameters that make a call a local draft, `routed` off for methods that answer where they arrive). A source that doesn't answer a listing
   within 20 s is left out of it (its snapshot answers if there is one) and marked in `meta.sources`.
 - **Merging by answer kind**: run rows are sorted again with the query's sort and cut to its limit,
   exact because each source returned its top rows by that sort; groups, curves and data entries are

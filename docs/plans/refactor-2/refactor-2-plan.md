@@ -498,7 +498,7 @@ Mechanical; behaviour unchanged.
 3. `INSTRUCTIONS` interpolates `", ".join(sorted(op.name for op in OPS if op.user_only))`. Note in
    `08-cli-mcp.md` that the list is generated. CHANGELOG (Fixed).
 
-### O2. Page methods are registered (sonnet + review) — code
+### O2. Page methods are registered (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/ops/registry.py` (`Op` fields `routed`, `ui`, `draft_params`; `METHODS`, `OPS`
   derived, `BY_API`; `BY_NAME`/`BY_TOOL` 1171–1172), `src/beamtime/serve/api.py` (`PAGES`/`ROUTED` 25–26,

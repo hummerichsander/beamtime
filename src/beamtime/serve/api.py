@@ -14,16 +14,15 @@ from beamtime.format.ids import is_run_id
 from beamtime.format.place import Place
 from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
-from beamtime.ops.registry import BY_TOOL
+from beamtime.ops.registry import BY_API, METHODS
 from beamtime.query.models import QueryError
 
 STATIC = Path(__file__).parent / "static"
 STARTED = time.time()
 PROTOCOL = 1
 READ_LIMIT = 4 << 20
-# page methods with a target; with the operations, what the API routes to remote sources.
-PAGES = ("view", "summary", "save_view", "view_text", "code", "run_diff")
-ROUTED = (*PAGES, *(op.tool for op in BY_TOOL.values() if not op.local))
+# what the API routes to remote sources: the page methods and operations that take a target.
+ROUTED = {m.tool for m in METHODS if m.routed and not m.local and not m.user_only}
 
 
 def dispatch(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] | bytes:
@@ -45,8 +44,8 @@ def dispatch(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] 
     elif "everywhere" in body:
         body = {k: v for k, v in body.items() if k != "everywhere"}
     # a draft is always local; its own view/code/file dispatch fetches from another source itself.
-    draft_local = method in ("view", "code", "file") and (
-        body.get("draft") is not None or body.get("block_draft") is not None
+    draft_local = (op := BY_API.get(method)) is not None and any(
+        body.get(p) is not None for p in op.draft_params
     )
     if method in ROUTED and not draft_local and (ctx.sources is not None or remote.targets(body)):
         from beamtime.remote.route import routed
@@ -65,62 +64,9 @@ def dispatch_here(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, 
     :param method: The method.
     :param body: Its parameters.
     :return: The answer."""
-    match method:
-        case "hello":
-            return hello(ctx, body)
-        case "files":
-            return files(ctx, body)
-        case "meta":
-            return meta(ctx)
-        case "view":
-            return view(
-                ctx,
-                body.get("path", "."),
-                body.get("version"),
-                body.get("draft"),
-                body.get("metrics"),
-            )
-        case "save_view":
-            return save_view(
-                ctx,
-                str(body.get("path", ".")),
-                body.get("prefs") or {},
-                body.get("title"),
-                body.get("finding"),
-            )
-        case "note_rm" | "set":
-            # user commands the UI offers its user (deleting a note, its settings page);
-            # agents never use this API.
-            return call(method.replace("_", " "), body, ctx)
-        case "view_text":
-            from beamtime.ops.views import edit_text
-
-            page = page_of(ctx, str(body.get("path", ".")))[0]
-            return edit_text(ctx, page, body.get("id"), str(body.get("text") or ""))
-        case "figure":
-            from beamtime.views.export import figure_pdf
-
-            return figure_pdf(ctx, body)
-        case "code":
-            from beamtime.views.store import code_text
-
-            return code_text(ctx, body)
-        case "view_check" | "view_put" | "view_compile" | "view_files":
-            from beamtime.ops import views
-
-            return getattr(views, method)(ctx, body)
-        case "block_check" | "block_put":
-            from beamtime.ops import blocks
-
-            return getattr(blocks, method)(ctx, body)
-        case "run_diff":
-            return run_diff(ctx, str(body.get("run", "")))
-        case "summary":
-            return summary_of(ctx, body.get("path", "."), body.get("metrics"))
-        case _ if (op := BY_TOOL.get(method)) is not None:
-            return call(op.name, body, ctx)
-        case _:
-            raise OpError(f"no API method {method!r}", code=4)
+    if (op := BY_API.get(method)) is None:
+        raise OpError(f"no API method {method!r}", code=4)
+    return call(op.name, body, ctx) if op.params is not None else op.function()(ctx, body)
 
 
 def hello(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
@@ -209,10 +155,11 @@ def bundle() -> str | None:
     return str(entry.stat().st_mtime_ns) if entry.is_file() else None
 
 
-def meta(ctx: Context) -> dict[str, Any]:
+def meta(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
     """Describe the project for the shell: name, version, theme pair.
 
     :param ctx: The operation context.
+    :param body: Unused.
     :return: The answer."""
     from beamtime.format.authored import NOTE_TYPES
     from beamtime.ops.admin import figure_styles, project_styles
@@ -243,6 +190,17 @@ def meta(ctx: Context) -> dict[str, Any]:
         "figure_styles": figure_styles() + project_styles(ctx.root),
         "sources": sources(ctx),
     }
+
+
+def view_page(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
+    """Answer the ``view`` call.
+
+    :param ctx: The operation context.
+    :param body: ``{path, version, draft, metrics}``.
+    :return: The view, as ``view`` answers."""
+    return view(
+        ctx, body.get("path", "."), body.get("version"), body.get("draft"), body.get("metrics")
+    )
 
 
 def view(
@@ -291,20 +249,38 @@ def page_of(ctx: Context, path: str) -> tuple[str, str | None]:
     return found.path, found.run_id
 
 
-def save_view(
-    ctx: Context, path: str, prefs: dict[str, Any], title: str | None, finding: str | None
-) -> dict[str, Any]:
+def save_view(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
     """Save what a page shows with the viewer's chart settings as a new view version.
 
     :param ctx: The operation context, with caller ``view``: the local account is the author.
-    :param path: A group path, or a run's path.
-    :param prefs: The viewer's ``{view, charts, added}`` for the page.
-    :param title: The view's title.
-    :param finding: The view's finding.
+    :param body: ``{path, prefs, title, finding}``: a group path or a run's path, the viewer's
+        ``{view, charts, added}`` for the page, and the view's title and finding.
     :return: The new version."""
     from beamtime.ops.views import save_page
 
-    return save_page(ctx, page_of(ctx, path)[0], prefs, title, finding)
+    path = page_of(ctx, str(body.get("path", ".")))[0]
+    return save_page(ctx, path, body.get("prefs") or {}, body.get("title"), body.get("finding"))
+
+
+def view_text(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
+    """Edit a written text of a page as a new version.
+
+    :param ctx: The operation context.
+    :param body: ``{path, id, text}``: the page, the text's node id and its new text.
+    :return: The answer of ``edit_text``."""
+    from beamtime.ops.views import edit_text
+
+    page = page_of(ctx, str(body.get("path", ".")))[0]
+    return edit_text(ctx, page, body.get("id"), str(body.get("text") or ""))
+
+
+def summary_page(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
+    """Answer the ``summary`` call.
+
+    :param ctx: The operation context.
+    :param body: ``{path, metrics}``.
+    :return: The summary, as ``summary_of`` answers."""
+    return summary_of(ctx, body.get("path", "."), body.get("metrics"))
 
 
 def summary_of(
@@ -332,15 +308,16 @@ def summary_of(
     return {"kind": "summary", "path": path, "summary": summary(ctx, path, found)}
 
 
-def run_diff(ctx: Context, run_id: str) -> dict[str, Any]:
+def run_diff(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
     """Read the uncommitted changes a run recorded, for the run page's code viewer.
 
     :param ctx: The operation context.
-    :param run_id: The run id.
+    :param body: ``{run}``: the run id.
     :return: ``{kind, run, text}``.
     :raises OpError: If the run recorded no diff."""
     from beamtime.ops.reading import find_run
 
+    run_id = str(body.get("run", ""))
     path = find_run(ctx, run_id) / ENV_DIR / "git.diff"
     if not path.is_file():
         raise OpError(f"run {run_id!r} recorded no git diff", code=4)

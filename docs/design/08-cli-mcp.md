@@ -244,7 +244,10 @@ Decided while building the CLI and MCP server (milestone M3):
 - **One registry** (`beamtime.ops.registry`) holds every operation: its CLI path, a msgspec parameter
   struct, a one-line summary and whether it is user-only. CLI flags and MCP tool schemas are generated
   from the same structs; implementations are imported only when an operation runs, which keeps
-  `beamtime runs` at about 100–120 ms.
+  `beamtime runs` at about 100–120 ms. The registry also lists the page methods of the web UI's API
+  (`view`, `summary`, `save_view`, `figure`, `view_put`, ...) as methods without a parameter struct, so
+  they are no CLI command or MCP tool; the API looks every method up there, and what remote routing
+  needs to know about one (`routed`, `writes`, `draft_params`) is declared on it.
 - **`beamtime query`** takes a file or an inline object as its argument (`beamtime query '{runs:
   {from: .}}'`), since `--json` is the global flag for JSON output.
 - **Exit codes**: an invalid query or bad flag is wrong usage (2); a missing group, run or key is 4.
@@ -282,7 +285,8 @@ Decided while building the CLI and MCP server (milestone M3):
 - **`gc` is a dry run** unless given `--yes`; `rm` and `mv` refuse runs whose heartbeat is fresh.
 - **`serve` and `demo`** (M5) are user-only operations in the registry. `serve` refuses to start
   when another `serve` holds the root's lock and names its URL; Ctrl-C and SIGTERM stop it cleanly.
-  The API of the web UI is the registry's non-user-only operations under their MCP names
+  The API of the web UI is the registry's non-user-only operations under their MCP names, its page
+  methods, and the two user-only operations the UI offers its user (`note rm`, `set`; flag `ui`)
   ([layer 7](07-web-ui.md#implementation-notes)).
 - **Remotes** (M8): operations route by the source their target names (`@cluster/...`), listings on
   `.` merge ([layer 4](04-remotes.md#routing-and-merging)). Writes to a remote group record the
