@@ -893,7 +893,10 @@ Decided while building views (milestone M6):
 - **`custom`** was accepted by the schema in M6 and runs since M7 (see above).
 - **Save as view** in the UI writes the charts with their settings (metrics, x axis, smoothing,
   aggregation, band, scale, outliers), the charts a viewer added, and the title and finding, as a
-  new version with the local account as author. Hidden runs stay the viewer's own.
+  new version with the local account as author. Hidden runs stay the viewer's own. The settings
+  of a `line` fold in through `views/settings.py`, which derives their names and defaults from
+  `m.Line`: the settings are merged into the node, decoded as a `line` and written with every
+  default left out, except `scale`, which is always explicit; unknown settings are dropped.
 - **History**: the version list, a line diff of two versions' YAML, and both rendered side by side;
   `?v=<version>` shows an older version.
 - **The renderer** is a client of `serve`: it serves the project on a free local port with a fresh

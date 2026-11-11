@@ -6,6 +6,7 @@ from typing import Any
 from beamtime.views import model as m
 from beamtime.views.defaults import lower_is_better
 from beamtime.views.model import yaml_walk
+from beamtime.views.settings import settle as settings_settle
 
 
 def apply_pins(data: dict[str, Any], pins: list[dict[str, Any]]) -> None:
@@ -126,52 +127,7 @@ def settle(props: dict[str, Any], settings: dict[str, Any]) -> None:
 
     :param props: The node's props; changed in place.
     :param settings: The settings, as the web UI names them."""
-    # an axis title written for the old x or metrics would be wrong for the new ones.
-    for key, title in (("x", "xlabel"), ("y", "ylabel")):
-        if key in settings:
-            props.pop(title, None)
-    for key, value in settings.items():
-        match key:
-            case "y":
-                if value:
-                    props["y"] = value[0] if len(value) == 1 else list(value)
-            case "by":
-                props.pop("seeds", None)
-                props.pop("by", None)
-                if value == "seeds":
-                    props["seeds"] = "config.seed"
-                elif value:
-                    props["by"] = [value]
-            case "scale":
-                # explicit, since a loss without a scale is drawn on a log axis.
-                props["scale"] = value
-            case "color" | "colormap":
-                if value:
-                    props[key] = value
-                else:
-                    props.pop(key, None)
-            case "steps":
-                if value and any(v is not None for v in value):
-                    props["steps"] = list(value)
-                else:
-                    props.pop("steps", None)
-            case "x" | "smooth" | "band" | "outliers" | "raw" | "legend" | "ymin" | "ymax":
-                default = {
-                    "x": "_step",
-                    "smooth": 0,
-                    "band": "minmax",
-                    "outliers": False,
-                    "raw": True,
-                    "legend": True,
-                    "ymin": None,
-                    "ymax": None,
-                }[key]
-                if value == default:
-                    props.pop(key, None)
-                else:
-                    props[key] = value
-            case _:
-                pass
+    settings_settle(props, settings)
 
 
 def settle_colormap(props: dict[str, Any], settings: dict[str, Any]) -> None:

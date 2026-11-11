@@ -563,7 +563,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 
 ## S. One owner for a line chart's settings
 
-### S1. `views/settings.py` and `settle` by round-trip (sonnet + review) — code
+### S1. `views/settings.py` and `settle` by round-trip (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/views/settings.py`, `src/beamtime/views/prefs.py` (`settle` 124–174 moved),
   new `tests/views/test_settings.py`.
