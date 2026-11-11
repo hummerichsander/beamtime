@@ -4,7 +4,8 @@
 
 - **Changed** the parameters of `keys`, `groups`, `runs`, `series`, `data` and `timeline` are their query structs
   plus `cursor`, `to` and `smooth`, so MCP tool schemas list the properties in the query's order (`from`, `depth`,
-  `where`, then the kind's own fields, then `cursor`/`to`), and `series` documents `seeds` like `runs` does.
+  `where`, then the kind's own fields, then `cursor`/`to`; `logs`, `wait` and `diagnose` list `cursor` after
+  `where`), and `series` documents `seeds` like `runs` does.
 - **Changed** `seeds` is a field of the `runs` and `series` queries only; on `keys`, `data`, `timeline`,
   `groups` and `importance` it was silently ignored and is now an error naming the kind's fields.
 - **Changed** `logs` groups failed runs by the error the run's card recorded when there is one, and by

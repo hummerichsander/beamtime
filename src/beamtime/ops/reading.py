@@ -31,6 +31,7 @@ from beamtime.query.aggregate import spread
 from beamtime.query.distinguish import distinguishing, is_seed, signature
 from beamtime.query.facts import RunFacts, failure_key, run_facts
 from beamtime.query.kinds import describe_event
+from beamtime.query.models import Selection
 from beamtime.query.progress import progress
 from beamtime.query.resolve import resolve
 from beamtime.query.select import Columns
@@ -90,7 +91,7 @@ def page(ctx: Context, answer: dict[str, Any], cursor: str | None) -> dict[str, 
     return budget.page(answer, cursor, caller=ctx.caller, whole=ctx.whole, wire=ctx.wire)
 
 
-def selection(p: r.Selection) -> dict[str, Any]:
+def selection(p: Selection) -> dict[str, Any]:
     """Turn the shared selection parameters into query fields.
 
     :param p: The parameters.

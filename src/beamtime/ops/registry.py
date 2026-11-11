@@ -618,7 +618,7 @@ class Op:
     kind: str | None = None
     # ``module:function`` of the text renderer for ``kind``; None: the answer's ``lines``.
     render: str | None = None
-    params: type[Params] | None = None
+    params: type[msgspec.Struct] | None = None
     positional: tuple[str, ...] = ()
     user_only: bool = False
     stdin: str | None = None
