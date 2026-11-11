@@ -235,24 +235,21 @@ const client = Math.random().toString(36).slice(2, 10);
 let watchTimer: ReturnType<typeof setTimeout> | null = null;
 
 // every kind a change can be: a run's metrics, its status, or an authored file (notes, proposal,
-// memory, view). A method not listed gets all three, so a new one never goes stale silently.
-const ALL_KINDS = ["metrics", "status", "authored"];
-const KINDS_BY_METHOD: Record<string, string[]> = {
-  // the default view's shape follows run counts and which metrics exist (status), besides an
-  // authored view file; only metric values changing (an ordinary tick) leaves its shape alone.
-  view: ["status", "authored"],
-  notes: ["authored"],
-  memory_show: ["authored"],
-  proposal_show: ["authored"],
-  series: ["metrics", "status"],
-  runs: ["metrics", "status"],
-  keys: ["metrics", "status"],
-  // the header's best follows the view's lead metric and the proposal's, both authored.
-  summary: ALL_KINDS,
-  groups: ALL_KINDS,
-  status: ALL_KINDS,
-  check: ALL_KINDS,
-};
+// memory, view). The server names each method's kinds in meta; until it has, and for a method it
+// doesn't name, all three, so a call never goes stale silently.
+type Kind = "metrics" | "status" | "authored";
+const ALL_KINDS: Kind[] = ["metrics", "status", "authored"];
+let kindsByMethod: Record<string, Kind[]> = {};
+
+export function kindsOf(method: string): Kind[] {
+  return kindsByMethod[method] ?? ALL_KINDS;
+}
+
+// the shell hands over meta's stale map; watches already sent are renewed with the narrower kinds.
+export function setStaleKinds(stale: Record<string, Kind[]> | undefined): void {
+  kindsByMethod = stale ?? {};
+  watchChanged();
+}
 
 function watchChanged(): void {
   if (remote || EXPORTED) return;
@@ -262,7 +259,7 @@ function watchChanged(): void {
     const watched: Record<string, [string, string[]]> = {};
     for (const e of entries.values()) {
       if (e.listeners.size && e.call.scope !== null) {
-        watched[e.id] = [e.call.scope, KINDS_BY_METHOD[e.call.method] ?? ALL_KINDS];
+        watched[e.id] = [e.call.scope, kindsOf(e.call.method)];
       }
     }
     post("watch", { client, watched }).catch(() => {});

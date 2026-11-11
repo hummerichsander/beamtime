@@ -690,6 +690,8 @@ class Op:
     one_source: tuple[str, ...] = ()
     # False: answers where it arrives (hello, files, ...).
     routed: bool = True
+    # which changes make its answer stale in the web UI: any of metrics, status, authored.
+    stale_on: tuple[str, ...] = ("metrics", "status", "authored")
     # a user-only operation the web UI offers its user.
     ui: bool = False
     # a call with any of these set is a draft and stays local.
@@ -727,6 +729,7 @@ METHODS = [
     ),
     Op(
         name="keys",
+        stale_on=("metrics", "status"),
         kind="keys",
         render=f"{F}:render_keys",
         listing=True,
@@ -747,6 +750,7 @@ METHODS = [
     ),
     Op(
         name="runs",
+        stale_on=("metrics", "status"),
         kind="runs",
         render=f"{F}:render_table",
         listing=True,
@@ -766,6 +770,7 @@ METHODS = [
     ),
     Op(
         name="series",
+        stale_on=("metrics", "status"),
         kind="series",
         render=f"{F}:render_series",
         listing=True,
@@ -861,6 +866,7 @@ METHODS = [
     ),
     Op(
         name="notes",
+        stale_on=("authored",),
         kind="notes",
         render=f"{F}:render_notes",
         listing=True,
@@ -871,6 +877,7 @@ METHODS = [
     ),
     Op(
         name="proposal show",
+        stale_on=("authored",),
         kind="proposal",
         render=f"{F}:render_proposal",
         params=GroupParams,
@@ -907,6 +914,7 @@ METHODS = [
     ),
     Op(
         name="memory show",
+        stale_on=("authored",),
         kind="memory",
         render=f"{F}:render_memory",
         params=GroupParams,
@@ -1276,7 +1284,15 @@ METHODS = [
     Op(name="hello", kind="hello", impl=f"{S}:hello", routed=False),
     Op(name="files", kind="files", impl=f"{S}:files", routed=False),
     Op(name="meta", kind="meta", impl=f"{S}:meta", routed=False),
-    Op(name="view", kind="view", impl=f"{S}:view_page", draft_params=("draft", "block_draft")),
+    # the default view's shape follows run counts and which metrics exist; only metric values
+    # changing (an ordinary tick) leaves it alone.
+    Op(
+        name="view",
+        kind="view",
+        impl=f"{S}:view_page",
+        draft_params=("draft", "block_draft"),
+        stale_on=("status", "authored"),
+    ),
     Op(name="summary", kind="summary", impl=f"{S}:summary_page"),
     Op(name="save_view", kind="view save", impl=f"{S}:save_view", writes=True),
     Op(name="view_text", kind="view save", impl=f"{S}:view_text", writes=True),

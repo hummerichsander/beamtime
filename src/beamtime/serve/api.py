@@ -189,6 +189,7 @@ def meta(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
         "colormaps": colormaps(),
         "figure_styles": figure_styles() + project_styles(ctx.root),
         "sources": sources(ctx),
+        "stale": {m.tool: list(m.stale_on) for m in METHODS if m.routed},
     }
 
 

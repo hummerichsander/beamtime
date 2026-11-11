@@ -139,6 +139,17 @@ def test_meta_has_the_theme_pair(api) -> None:
     assert "theory" in meta["note_types"] and "verdict" in meta["note_types"]
 
 
+def test_meta_names_the_stale_kinds_of_every_routed_method(api) -> None:
+    """The shell watches each call for the kinds meta names, so no routed method may be missing."""
+    from beamtime.ops.registry import METHODS
+
+    stale = api("meta").json()["stale"]
+    assert set(stale) == {m.tool for m in METHODS if m.routed}
+    assert stale["series"] == ["metrics", "status"]
+    assert stale["notes"] == ["authored"]
+    assert stale["groups"] == ["metrics", "status", "authored"]
+
+
 def test_a_set_setting_reaches_the_next_meta_with_remotes(project: Path) -> None:
     """With remotes each UI call runs on a copy of the context; a new setting must still show.
 

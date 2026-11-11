@@ -3,6 +3,7 @@
 import { html } from "htm/preact";
 import { useState } from "preact/hooks";
 
+import { setStaleKinds } from "../api.ts";
 import { Notice } from "../blocks/common.ts";
 import { applyTheme, mode, pair, useTheme } from "../bt/index.ts";
 import { colormaps } from "../bt/theme.ts";
@@ -26,6 +27,7 @@ const MODES = [
 // the shell takes a project's meta: its theme pair and mode.
 export function applyMeta(m: any): void {
   meta.set(m);
+  setStaleKinds(m.stale);
   pair.set(m.theme);
   colormaps.set(m.colormaps);
   if (m.settings?.theme_mode) mode.set(m.settings.theme_mode as Mode);

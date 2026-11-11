@@ -460,7 +460,8 @@ Decided while building the shell (milestone M5):
   of change it reads. The daemon reports changed run and group paths after every poll, each with its
   kinds (`metrics`, `status`, `authored`); a call is stale when a changed path is its scope, lies
   below it, or lies above it (a group's notes and proposal reach the runs below), *and* shares a
-  kind with what it reads. A call without a scope is immutable and never watched or refetched: a
+  kind with what it reads. The server names each method's kinds in `meta` (`stale`, from
+  `Op.stale_on`); the page uses all three until `meta` lands and for a method `meta` doesn't name. A call without a scope is immutable and never watched or refetched: a
   custom block's `code` is
   content-addressed and library blocks are pinned by version, so a frame's code is fetched once and
   its bridge survives every live tick. The

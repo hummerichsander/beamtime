@@ -545,7 +545,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
    the `lines` fallback.
 3. The two tests above in `tests/ops/test_registry.py`.
 
-### O4. Staleness comes from the server (sonnet) — code
+### O4. Staleness comes from the server (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/ops/registry.py` (`Op.stale_on`), `src/beamtime/serve/api.py` (`meta` 212),
   `web/src/api.ts` (`ALL_KINDS`/`KINDS_BY_METHOD` 239–255, 265), `tests/ops/test_registry.py`, `web/test/`,

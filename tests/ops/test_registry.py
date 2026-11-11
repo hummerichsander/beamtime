@@ -155,3 +155,14 @@ def test_export_renders_both_answers() -> None:
     assert render(page) == "wrote x/index.html: 3 answers"
     file = {"kind": "export", "path": "x.csv", "format": "csv", "rows": 4, "bytes": 90, "meta": {}}
     assert render(file) == "wrote 4 rows to x.csv (90 bytes)"
+
+
+def test_stale_kinds_are_declared() -> None:
+    """Every method names the changes that stale it, within the three kinds."""
+    kinds = {"metrics", "status", "authored"}
+    assert all(m.stale_on and set(m.stale_on) <= kinds for m in METHODS)
+    by_tool = {m.tool: m for m in METHODS}
+    assert by_tool["series"].stale_on == ("metrics", "status")
+    assert by_tool["notes"].stale_on == ("authored",)
+    assert by_tool["view"].stale_on == ("status", "authored")
+    assert by_tool["status"].stale_on == ("metrics", "status", "authored")
