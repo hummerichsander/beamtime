@@ -104,9 +104,12 @@ def test_calls_answer_and_errors_return_to_the_agent(project: Path) -> None:
         ok = await s.call_tool("runs", {"from": "scaling/lr-sweep", "limit": 2})
         bad = await s.call_tool("runs", {"from": "scalng"})
         prompt = await s.get_prompt("review", {"group": "scaling"})
-        return ok, bad, prompt
+        params = {"from": "scaling/lr-sweep", "y": ["train/loss"], "points": 20}
+        return ok, bad, prompt, await s.call_tool("series", params)
 
-    ok, bad, prompt = session(project, work)
+    ok, bad, prompt, series = session(project, work)
+    curve = json.loads(series.content[0].text)["curves"][0]
+    assert {"y", "lo", "hi", "n"} <= set(curve) and not {"last", "min", "max", "count"} & set(curve)
     answer = json.loads(ok.content[0].text)
     assert not ok.is_error and answer["kind"] == "runs" and len(answer["rows"]) == 2
     assert bad.is_error and "Did you mean 'scaling'" in bad.content[0].text

@@ -132,3 +132,10 @@ def test_whole_request_is_not_cut(project: Path, monkeypatch: pytest.MonkeyPatch
         remote.answer(json.dumps(line | ({"whole": True} if whole else {})))
         meta = json.loads(out.getvalue().splitlines()[-1])["result"]["meta"]
         assert ("next" in meta) is not whole
+
+
+def test_series_keeps_both_curve_fields_for_older_hubs(session: Session) -> None:
+    """A remote answers curves with the envelope and the old fields, though its caller is the CLI."""
+    params = {"from": SWEEP, "y": ["train/loss"], "points": 20}
+    curve = session.ask("series", **params)["result"]["curves"][0]
+    assert {"y", "lo", "hi", "n", "last", "min", "max", "count"} <= set(curve)

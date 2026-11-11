@@ -71,7 +71,7 @@ def notes(ctx: Context, p: r.NotesParams) -> dict[str, Any]:
     if more:
         older = entries[limit - 1]["id"] if limit else p.before
         answer["meta"] |= {"cut": True, "hint": f"older notes: before={older}"}
-    return page(answer, p.cursor, caller=ctx.caller, whole=ctx.whole)
+    return page(answer, p.cursor, caller=ctx.caller, whole=ctx.whole, wire=ctx.wire)
 
 
 def proposal_show(ctx: Context, p: r.GroupParams) -> dict[str, Any]:

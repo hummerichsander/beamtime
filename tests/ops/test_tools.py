@@ -267,6 +267,21 @@ def test_to_writes_curves_one_row_per_point(ctx: Context) -> None:
     assert len(data["curves"]) == out["rows"] == 17
 
 
+def test_series_csv_and_json_carry_the_envelope_only(ctx: Context) -> None:
+    """A downsampled and a grouped export write y, lo, hi, n and none of the old names."""
+    old = {"last", "min", "max", "count", "mean"}
+    exports = ctx.root / ".beamtime" / "exports"
+    query = {"from": "scaling/lr-sweep", "y": ["train/loss"], "points": 10}
+    for name, extra in (("down", {}), ("grouped", {"by": ["config.lr"]})):
+        call("series", query | extra | {"to": f"{name}.csv"}, ctx)
+        header = (exports / f"{name}.csv").read_text().splitlines()[0].split(",")
+        assert {"x", "y", "lo", "hi", "n"} <= set(header) and not old & set(header)
+        assert len(header) == len(set(header))
+        call("series", query | extra | {"to": f"{name}.json"}, ctx)
+        curve = json.loads((exports / f"{name}.json").read_text())["curves"][0]
+        assert {"y", "lo", "hi", "n"} <= set(curve) and not old & set(curve)
+
+
 def test_to_stays_under_the_exports_folder_and_never_overwrites(ctx: Context) -> None:
     """Paths leaving ``.beamtime/exports/``, other formats and existing files are refused."""
     for bad in ("../x.csv", "/tmp/x.csv", "a/../../x.csv", "x.txt", ""):

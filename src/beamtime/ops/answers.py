@@ -656,9 +656,10 @@ def paged(answer: dict, cursor: str | None) -> dict:
 
     :param answer: The merged answer.
     :param cursor: A cursor from an earlier page, or ``None`` for the first.
-    :return: The answer, with ``meta.next`` when items were left out.
+    :return: The answer, with ``meta.next`` when items were left out; curves carry the envelope
+        only, since a merged listing is for the CLI and MCP.
     :raises OpError: If the cursor is not one Beamtime gave out."""
-    return budget.cut(answer, budget.offset_of(cursor))
+    return budget.cut(budget.envelope_only(answer), budget.offset_of(cursor))
 
 
 def flagged(answer: dict) -> dict:

@@ -86,7 +86,7 @@ def page(ctx: Context, answer: dict[str, Any], cursor: str | None) -> dict[str, 
     :param answer: The answer with one item list.
     :param cursor: A cursor from an earlier, cut answer.
     :return: The answer, with ``meta.next`` when items were left out."""
-    return budget.page(answer, cursor, caller=ctx.caller, whole=ctx.whole)
+    return budget.page(answer, cursor, caller=ctx.caller, whole=ctx.whole, wire=ctx.wire)
 
 
 def selection(p: r.Selection) -> dict[str, Any]:
@@ -778,7 +778,8 @@ def export(ctx: Context, answer: dict[str, Any], to: str) -> dict[str, Any]:
         )
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.suffix == ".json":
-        path.write_text(json.dumps({k: v for k, v in answer.items() if k != "meta"}, default=str))
+        kept = {k: v for k, v in budget.envelope_only(answer).items() if k != "meta"}
+        path.write_text(json.dumps(kept, default=str))
         n = len(answer.get("rows") or answer.get("curves") or [])
     else:
         header, rows = table_of(answer)
@@ -802,7 +803,9 @@ def table_of(answer: dict[str, Any]) -> tuple[list[str], list[list[Any]]]:
 
     :param answer: The answer.
     :return: The header and the rows. A run table keeps its columns, a ``{mean, std, n}`` cell
-        becoming three columns; curves become one row per point, with the curve's labels."""
+        becoming three columns; curves become one row per point, with the curve's labels and the
+        envelope ``y``, ``lo``, ``hi``, ``n`` (not the old ``last``, ``min``, ``max``, ``count``,
+        ``mean``)."""
     if answer["kind"] == "runs":
         spread = {
             j for j, col in enumerate(answer["columns"])
@@ -833,6 +836,7 @@ def table_of(answer: dict[str, Any]) -> tuple[list[str], list[list[Any]]]:
         labels = {k: v for k, v in curve.items() if not isinstance(v, (list, dict))}
         labels |= {k: v for k, v in curve.get("by", {}).items()}
         arrays = {k: v for k, v in curve.items() if isinstance(v, list) and len(v) == points}
+        arrays = {k: v for k, v in arrays.items() if k not in budget.OLD_CURVE_FIELDS}
         names = [*labels, *arrays]
         if names != header:
             header = list(dict.fromkeys([*header, *names]))

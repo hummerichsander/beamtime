@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import shutil
 from pathlib import Path
@@ -8,9 +9,10 @@ from beamtime.cli.conditions import parse_where
 from beamtime.cli.format import num, render, spark, table
 from beamtime.format.ids import new_run_id
 from beamtime.ops import call
-from beamtime.ops.budget import cut
+from beamtime.ops.budget import OLD_CURVE_FIELDS, cut
 from beamtime.ops.context import Context, OpError
 from beamtime.query import run as run_query
+from beamtime.remote import answer
 from beamtime.settings import load
 
 
@@ -482,3 +484,61 @@ def test_find_run_without_index(ctx: Context, roles: dict, monkeypatch: pytest.M
     monkeypatch.setattr(Index, "catch_up", lambda *a, **k: None)
     monkeypatch.setattr(Index, "run_path", lambda *a, **k: None)
     assert find_run(ctx, roles["killed"]).name == roles["killed"]
+
+
+SERIES = {"from": "scaling/lr-sweep", "y": ["train/loss"], "points": 20}
+ENVELOPE = ("x", "y", "lo", "hi", "n")
+
+
+@pytest.mark.parametrize("caller", ["cli", "mcp"])
+@pytest.mark.parametrize("params", [SERIES, SERIES | {"by": ["config.lr"]}], ids=["runs", "by"])
+def test_cli_and_mcp_series_carry_the_envelope_only(ctx: Context, caller: str, params: dict) -> None:
+    """The CLI and MCP get y/lo/hi/n and none of last/min/max/count/mean."""
+    context = dataclasses.replace(ctx, caller=caller)
+    for got in (call("series", params, context), answer("series", params, context)):
+        assert got["curves"]
+        for curve in got["curves"]:
+            assert all(k in curve for k in ENVELOPE)
+            assert not set(OLD_CURVE_FIELDS) & set(curve)
+
+
+def test_web_and_wire_series_keep_both(ctx: Context) -> None:
+    """The web UI and a remote's answer (serve --stdio) keep the old fields next to the envelope."""
+    by = SERIES | {"by": ["config.lr"]}
+    for context in (
+        dataclasses.replace(ctx, caller="view"),
+        dataclasses.replace(ctx, caller="cli", wire=True),
+        dataclasses.replace(ctx, caller="cli", wire=True, whole=True),
+    ):
+        plain, grouped = call("series", SERIES, context), call("series", by, context)
+        assert all(set(OLD_CURVE_FIELDS[:4]) <= set(c) for c in plain["curves"])
+        assert all({"mean", "y"} <= set(c) for c in grouped["curves"])
+
+
+def test_the_page_fits_more_curves_without_the_old_fields(ctx: Context) -> None:
+    """The strip comes before the cut: the same budget holds more curves than with both."""
+    query = {"from": ".", "y": ["train/loss"], "points": 100}
+    both = call("series", query, dataclasses.replace(ctx, wire=True))
+    lean = call("series", query, ctx)
+    assert both["meta"].get("cut") and lean["meta"].get("cut")
+    assert len(lean["curves"]) > len(both["curves"])
+
+
+def test_curve_line_reads_the_envelope() -> None:
+    """One path over y, with the band from lo and hi when there is one."""
+    from beamtime.cli.format import curve_line
+
+    raw = {"run": "r1", "name": "alpha", "metric": "loss", "x": [0, 1, 2], "y": [3.0, 2.0, 1.0]}
+    assert curve_line(raw).startswith("alpha  loss  first 3  min 1  max 3  last 1  ")
+    binned = {
+        "run": "r1", "metric": "loss", "x": [0, 1], "y": [2.0, 1.0],
+        "lo": [1.5, 0.5], "hi": [3.0, 1.5], "n": [4, 4],
+    }  # fmt: skip
+    assert "min 0.5  max 3  last 1" in curve_line(binned)
+    grouped = {
+        "by": {"config.lr": 0.1}, "runs": ["a", "b"], "metric": "loss", "x": [0, 1],
+        "y": [2.0, 1.0], "lo": [None, None], "hi": [None, None], "n": [2, 2],
+    }  # fmt: skip
+    line = curve_line(grouped)
+    assert "min 1  max 2  last 1" in line and line.endswith("runs 2")
+    assert curve_line(raw | {"y": [None]}).endswith("no data")

@@ -10,6 +10,19 @@ MAX_CHARS = 32_000
 # what a federating serve takes from one source, about 2 MB.
 WHOLE_MAX_CHARS = 64 * MAX_CHARS
 LISTS = ("rows", "curves", "entries")
+# the curve fields the envelope (`y`, `lo`, `hi`, `n`) replaces for the CLI and MCP.
+OLD_CURVE_FIELDS = ("last", "min", "max", "count", "mean")
+
+
+def envelope_only(answer: dict[str, Any]) -> dict[str, Any]:
+    """Drop the old curve fields, leaving the envelope that carries the same values.
+
+    :param answer: An answer; only the curves of a ``series`` answer are touched.
+    :return: The same answer."""
+    for curve in answer.get("curves") or []:
+        for key in OLD_CURVE_FIELDS:
+            curve.pop(key, None)
+    return answer
 
 
 def offset_of(cursor: str | None) -> int:
@@ -56,17 +69,25 @@ def cut(answer: dict[str, Any], offset: int, *, max_chars: int = MAX_CHARS) -> d
     return answer
 
 
-def page(answer: dict[str, Any], cursor: str | None, *, caller: str, whole: bool) -> dict[str, Any]:
+def page(
+    answer: dict[str, Any], cursor: str | None, *, caller: str, whole: bool, wire: bool = False
+) -> dict[str, Any]:
     """Page an answer for the one asking: whole for the web UI, near-whole for a federating serve.
+
+    The CLI and MCP get the envelope only, before the cut, so more curves fit the page.
 
     :param answer: An answer with one item list.
     :param cursor: A cursor from an earlier, cut answer, or ``None``.
     :param caller: ``cli``, ``mcp`` or ``view``.
     :param whole: Whether a federating serve asked for everything up to ``WHOLE_MAX_CHARS``.
+    :param wire: Whether another Beamtime reads the answer (``serve --stdio``), which keeps the
+        old curve fields for older hubs.
     :return: The answer; ``meta.next`` is set when items were left out."""
     offset = offset_of(cursor)
     if caller == "view":
         return answer
+    if not wire:
+        envelope_only(answer)
     if whole:
         return cut(answer, offset, max_chars=WHOLE_MAX_CHARS)
     return cut(answer, offset)

@@ -15,7 +15,8 @@ The outcome this plan commits to, checked against at the end and in every review
 - **Done means:** remote answers carry their places per answer kind, so `wait`, `compare`, federated `runs --by`
   and federated paging answer correctly over remotes; every method (CLI ops and page methods) is one `Op` and no
   frontend keeps a hand list of methods; `@source/path` is parsed by one value and resolved by one function; a
-  line chart's settings have one owner (`m.Line`); every curve carries `y`/`lo`/`hi`/`n`; the agent tools take run
+  line chart's settings have one owner (`m.Line`); every curve carries `y`/`lo`/`hi`/`n`, and CLI and MCP answers
+  carry nothing else (decision 17); the agent tools take run
   facts from the index, with one failure-signature rule; query-op params subclass their query structs. All six bugs
   in Findings have regression tests. Nothing on disk changes format; every file and old remote still reads.
 - **Confirmed by:** the full checks and `uv run pytest -q -n0 tests/test_budgets.py`; `cd web && npm ci && npm test
@@ -70,8 +71,11 @@ What the tickets build together, so a session doesn't rediscover the design:
   `wire_props`, `generated_ts`); `scripts/build-chart-defaults` writes `web/src/bt/chart-defaults.ts`;
   `web/src/bt/chart-settings.ts` exports `effective`, `seriesCall`, `normalizeSeries`; `bt/prefs.ts` keeps
   `cascade`. The wire omits a setting at its default, except `scale`, which is always resolved.
-- **Curves** (V): every series curve carries `x`, `y` and, unless raw, `lo`, `hi`, `n`; the old fields keep flowing
-  (kit v1, older hubs). `upgrade_curve` in `SeriesAnswer.placed` lifts old remotes' curves. No consumer branches
+- **Curves** (V): every series curve carries `x`, `y` and, unless raw, `lo`, `hi`, `n`; the old fields (`last`, `min`,
+  `max`, `count`, `mean`) keep flowing to the web UI, `serve`'s HTTP API, `serve --stdio` and the kit (kit v1, older
+  hubs), but CLI and MCP answers and CSV exports carry the envelope only (decision 17): `budget.page` and
+  `answers.paged` strip them before the cut, and `remote.answer` once more for what a remote or a serve answered.
+  `upgrade_curve` in `SeriesAnswer.placed` lifts old remotes' curves. No consumer branches
   on `raw` or `by` to find values.
 - **Run facts** (Q): `query/conditions.py` (moved from `cli/`); fields `run.attempts`, `run.last_logged` (column
   `metrics_mtime`, index schema 3); `query/facts.py` `RunFacts`, `run_facts`, `failure_key`;
@@ -174,6 +178,16 @@ review: P1 P2 R1 R2 R3 R4 R5 R4b R6 P3 P4 P5 O1 O2 O3 O4 S1 S2 S3 S4 S5 V1 V2 V3
     group (`resolve.MIN_SUFFIX`); a run name still matches at any length. P4's `find_run` inherits it, so
     `card`, `output`, `mv` and `rm` stop accepting 1–3 character suffixes. Rejected: suffix lookup only for run
     arguments (the design wants it everywhere) and no minimum (the failure above).
+17. **CLI and MCP answers, and CSV exports, carry the envelope only** (your decision after the V1 review): with
+    both sets a series answer was about 1.7x larger and a page held about 40% fewer curves. For callers `cli`
+    and `mcp` the old fields (`last`, `min`, `max`, `count`, `mean`) are dropped from every curve, once, before
+    the budget cut (`budget.page`, `answers.paged`), not in the query layer; the web UI, `serve`'s HTTP API,
+    `serve --stdio` (`Context.wire`) and the kit keep both, because old clients and old remotes read them (V3 and
+    V4). A CLI or MCP call that a running serve or a remote answered is stripped again on arrival
+    (`remote.answer`), so it ends up envelope-only too; a single remote's page is still cut by the remote at its
+    size with both sets. `table_of` (CSV) writes `y`, `lo`, `hi`, `n` and none of the old names; the JSON export
+    is stripped the same way. `first` stays (it has no envelope name). Rejected: dropping the old fields
+    everywhere (kit v1 blocks and older hubs read them) and a flag per call.
 
 ## P. Places
 
@@ -671,7 +685,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 2. Grouped curves: add `y = mean`.
 3. `03-index.md` series spec (~329–331, 452–458): the envelope, and that the old fields stay.
 
-### V2. Python consumers read the envelope (sonnet) — code
+### V2. Python consumers read the envelope (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/cli/format.py` (`curve_line` 118–146), `src/beamtime/ops/reading.py` (`table_of`
   800–841), `src/beamtime/query/kinds.py` (319), `tests/ops/test_ops.py`, `tests/cli/test_commands.py`.
@@ -895,7 +909,8 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 | `logs` failure signatures (Q4) | from the output's last traceback | from the card's error when present | signatures are labels |
 | Federated `runs --by`/`--seeds` (R3) | unlabelled rows, arbitrary order | a `source` column, per-source order | none |
 | Federated listing paging (R4, R4b) | each source cut, local cursor reused | sources answer whole, merged answer cut once; `meta.sources[].cut` only for old remotes and answers over 2 MB | follow `meta.next` |
-| Series curves (V1) | three shapes | plus `y`/`lo`/`hi`/`n` on all; old fields stay | none |
+| Series curves (V1) | three shapes | plus `y`/`lo`/`hi`/`n` on all; web, serve API, stdio and kit keep the old fields | none |
+| Series in the CLI, MCP and CSV (V2) | `last`/`min`/`max`/`count`/`mean` (and `y`/`lo`/`hi`/`n` since V1) | `y`/`lo`/`hi`/`n` only | read `y`/`lo`/`hi`/`n` for `last`/`mean`, `min`, `max`, `count` |
 | MCP tool schemas (K3) | `cursor` first | `cursor` last | none |
 | MCP instructions (O1) | 8 user-only commands named | all 18 | none |
 

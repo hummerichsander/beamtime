@@ -38,6 +38,8 @@ class Context:
     merge: bool = True
     # a federating serve asks for answers bounded only by their limit and `WHOLE_MAX_CHARS`.
     whole: bool = False
+    # answering another Beamtime over `serve --stdio`: curves keep the old fields older hubs read.
+    wire: bool = False
     # the remotes a running serve holds connections to; a one-shot call has none.
     sources: "Sources | None" = None
     # the time run status is judged at: now, or a snapshot's time.

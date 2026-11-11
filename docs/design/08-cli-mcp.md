@@ -150,6 +150,8 @@ MCP server, started by an agent client).
 
 - **`--json`** gives the canonical answer of [layer 3](03-index.md#answers), identical to MCP.
 - **Curves in text** are a short summary per run (first, min, max, last, trend) with a sparkline.
+  The summary and `--json` read the envelope `y`, `lo`, `hi`, `n`; CLI and MCP `series` answers carry no
+  `last`, `min`, `max`, `count` or `mean` (`docs/design/03-index.md`, `series`).
 
 ## MCP
 

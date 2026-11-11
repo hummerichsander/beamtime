@@ -153,6 +153,19 @@ def test_a_run_copied_to_a_remote_is_told_apart(box: Path, ctx: Context, project
     assert page["path"] == f"@box/copied/{run}"
 
 
+def test_remote_series_end_up_envelope_only_for_the_cli(box: Path, ctx: Context) -> None:
+    """A remote answers with both field sets; the CLI and MCP get the envelope only, from one
+    source or merged, and the web UI keeps both."""
+    old = {"last", "min", "max", "count", "mean"}
+    for target in (f"@box/{SWEEP}", "."):
+        query = {"from": target, "y": ["train/loss"], "points": 20}
+        for caller in ("cli", "mcp"):
+            curves = call("series", query, dataclasses.replace(ctx, caller=caller))["curves"]
+            assert curves and all("y" in c and not old & set(c) for c in curves), (target, caller)
+        web = dispatch(dataclasses.replace(ctx, caller="view"), "series", query)["curves"]
+        assert all({"y", "last"} <= set(c) for c in web if not c.get("raw")), target
+
+
 def test_logged_files_of_remote_runs(box: Path, ctx: Context) -> None:
     """A remote's logged entries keep their run-relative paths; their files come from that remote."""
     from beamtime.remote.route import remote_file

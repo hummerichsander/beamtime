@@ -71,8 +71,10 @@ def test_flags_map_onto_queries(project: Path) -> None:
 
 def test_series_steps_and_query_argument(project: Path) -> None:
     """--steps takes first:last; query takes inline YAML flow or JSON."""
-    out = beamtime(project, "series", "tokenizer", "-y", "val/ppl", "--steps", "0:500", "--json")
-    assert all(max(c["x"]) <= 500 for c in json.loads(out.stdout)["curves"])
+    args = ("series", "tokenizer", "-y", "val/ppl", "--steps", "0:500", "--points", "10", "--json")
+    curves = json.loads(beamtime(project, *args).stdout)["curves"]
+    assert all(max(c["x"]) <= 500 for c in curves)
+    assert all({"y", "lo", "hi", "n"} <= set(c) and "last" not in c for c in curves)
     out = beamtime(project, "query", "{groups: {from: tokenizer}}")
     assert "bpe-vs-unigram" in out.stdout
     query = project / "q.yaml"

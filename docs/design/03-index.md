@@ -339,10 +339,17 @@ series:
   (`x`, `y`, no band). A downsampled curve gains `y` = `last`, `lo` = `min`, `hi` = `max` and `n` =
   `count`. A grouped curve gains `y` = `mean` (`lo`, `hi` and `n` already carry these names; with
   `band: none` `lo` and `hi` are `null`). `len(y) == len(x)`, and `lo <= y <= hi` wherever all three are
-  numbers. The old fields (`raw`, `first`, `min`, `max`, `last`, `count`, `mean`) keep flowing for kit
-  blocks (kit v1) and older hubs, and `raw` and `by` stay honest facts about fidelity and grouping;
-  retiring the duplicates waits for the next protocol major. The cost is four extra arrays in a
-  downsampled answer (about 1.7x the JSON, bounded by the chart's point budget).
+  numbers. The old fields (`raw`, `first`, `min`, `max`, `last`, `count`, `mean`) keep flowing
+  to the web UI, `serve`'s HTTP API, `serve --stdio` (what remotes answer) and the kit, because kit v1 blocks
+  and older hubs read them, and `raw` and `by` stay honest facts about fidelity and grouping; retiring the
+  duplicates waits for the next protocol major. The cost is four extra arrays in a downsampled answer (about
+  1.7x the JSON, bounded by the chart's point budget).
+- **The CLI and MCP get the envelope only.** For callers `cli` and `mcp` the answer drops `last`, `min`, `max`,
+  `count` and `mean` from every curve (`first`, `raw` and `width` stay), once and before the token cut
+  (`budget.page`, `answers.paged`), so a page holds more curves (about two thirds more); the query layer never strips.
+  A serve answering a CLI or MCP call (`x-beamtime-caller`) strips like the CLI, `serve --stdio` does not
+  (`Context.wire`), and `remote.answer` strips what a remote or a serve answered, so a federated call ends up
+  envelope-only too. A CSV export (`series --to`) writes `y`, `lo`, `hi`, `n` and none of the old names.
 - A metric as `x` (`read.x_values`) pairs each point with that metric's most recent value at or before
   the same step (none where it isn't finite), so x is always a value the run logged and a stair-logged
   `epoch` stays a stair.

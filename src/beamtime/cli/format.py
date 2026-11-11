@@ -123,28 +123,16 @@ def curve_line(curve: dict[str, Any]) -> str:
 
     :param curve: A curve of a ``series`` answer.
     :return: Label, first, min, max, last, trend and a sparkline."""
-    if "by" in curve:
-        label = num(curve["by"]) or "all"
-        ys = curve.get("mean", [])
-        extra = f"  runs {len(curve['runs'])}"
-    else:
-        label = curve.get("name") or curve["run"]
-        ys = curve["y"] if curve.get("raw") else curve.get("last", [])
-        extra = ""
-    if "by" in curve:
-        mins = maxs = ys
-    elif curve.get("raw"):
-        mins = maxs = ys
-    else:
-        mins, maxs = curve.get("min", []), curve.get("max", [])
+    label = num(curve["by"]) or "all" if "by" in curve else curve.get("name") or curve["run"]
+    extra = f"  runs {len(curve['runs'])}" if "runs" in curve else ""
+    ys = curve["y"]
     finite = [v for v in ys if v is not None]
     if not finite:
         return f"{label}  {curve['metric']}: no data"
-    lo = min(v for v in mins if v is not None)
-    hi = max(v for v in maxs if v is not None)
-    key = curve["metric"]
+    lo = min([v for v in curve.get("lo") or () if v is not None] or finite)
+    hi = max([v for v in curve.get("hi") or () if v is not None] or finite)
     return (
-        f"{label}  {key}  first {num(finite[0])}  min {num(lo)}  max {num(hi)}  "
+        f"{label}  {curve['metric']}  first {num(finite[0])}  min {num(lo)}  max {num(hi)}  "
         f"last {num(finite[-1])}  {trend(ys)} {spark(ys)}{extra}"
     )
 

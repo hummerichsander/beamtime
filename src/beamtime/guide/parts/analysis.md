@@ -12,7 +12,7 @@ Ask with the tools; never parse run files. Start with `keys` (what exists), then
 | Which runs look wrong (non-finite, diverging, stalled, restarted, short, missing a metric)? | `diagnose`, before any mean |
 | What happened in one run? | `card`, then `output` (tail, grep) |
 | What did the runs print, or why did they fail? | `logs` (one run or a group; `grep`, `context`; tracebacks grouped by signature) |
-| How did a metric evolve? | `series` (downsampled; aggregated with `by` or `seeds`) |
+| How did a metric evolve? | `series` (downsampled; aggregated with `by` or `seeds`). Each curve has `x`, `y` and, unless raw, `lo`, `hi`, `n` per point (`y` is the last value of a bucket, or the mean of a group) |
 | What is the best, mean or last value, per setting? | `runs` or `query` with `metric.<key>.<stat>` columns and `by` |
 | What did the runs log besides metrics? | `data` (tables, images, text) |
 | Which planned runs are still to launch? | `plan_missing` (CLI: `plan missing`): the config of each grid point without a run |

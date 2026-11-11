@@ -49,6 +49,19 @@ def answer(name: str, params: dict[str, Any], ctx: Any) -> dict[str, Any]:
     :param name: The operation.
     :param params: Its parameters.
     :param ctx: The operation context.
+    :return: The answer, its curves with the envelope only (a remote's answer arrives with the
+        old fields too)."""
+    from beamtime.ops.budget import envelope_only
+
+    return envelope_only(reach(name, params, ctx))
+
+
+def reach(name: str, params: dict[str, Any], ctx: Any) -> dict[str, Any]:
+    """Route an operation to this process, the running serve or the sources.
+
+    :param name: The operation.
+    :param params: Its parameters.
+    :param ctx: The operation context.
     :return: The answer."""
     from beamtime.ops import call
     from beamtime.ops.context import OpError

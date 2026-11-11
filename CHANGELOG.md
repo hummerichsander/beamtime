@@ -34,6 +34,19 @@
 - **Changed** a merged listing whose source cut its own answer now says so at the top: `meta.cut`
   and the hint `narrow from or where to see all of @<name>`, which the CLI prints in place of
   `--limit to see more` (a limit would not show what a source's budget left out).
+- **Added** a drawing envelope to every `series` curve: `x`, `y` and, unless the curve is raw, `lo`,
+  `hi` and `n` (a downsampled curve gets `y` = `last`, `lo` = `min`, `hi` = `max`, `n` = `count`; a grouped
+  curve `y` = `mean`). The web UI, `serve`'s HTTP API, `serve --stdio` and the kit keep the old fields next
+  to it, so kit v1 blocks and older hubs read the same answers.
+- **Breaking:** `series` answers of the CLI (`--json`) and MCP carry the envelope only: `last`, `min`,
+  `max`, `count` and, for grouped curves, `mean` are gone from every curve (read `y`, `lo`, `hi`, `n`;
+  `first`, `raw` and `width` stay). The answer is about 40% smaller and a page holds more curves. This
+  holds for calls answered through a running `serve` or over ssh too. The web UI, `serve`'s HTTP API and a
+  remote's answers keep the old fields, so older clients and older remotes still work.
+- **Breaking:** `beamtime series --to out.csv` writes `y`, `lo`, `hi`, `n` and no longer `last`, `min`,
+  `max`, `count` or `mean`; a `.json` export is stripped the same way.
+- **Changed** the one-line curve summary of `beamtime series` reads the envelope: a grouped curve's
+  min and max now come from its band (`lo`, `hi`) instead of repeating the mean.
 - **Fixed** a data file's `path` over a remote: it stays relative to the view (it was prefixed
   with `@box/`), and a table column called `path` in a logged file is no longer prefixed.
 - **Changed** how a run is named in `from`: one resolver answers for queries, writes and notes. A
@@ -50,9 +63,6 @@
 
 - **Fixed** a crash in the live-update hub when a stale page (an older tab left open) sent a watch
   request in an earlier shape: the entry is skipped now instead of taking the hub down.
-- **Added** a drawing envelope to every `series` curve: `x`, `y` and, unless the curve is raw, `lo`,
-  `hi` and `n` (a downsampled curve gets `y` = `last`, `lo` = `min`, `hi` = `max`, `n` = `count`; a grouped
-  curve `y` = `mean`). The old fields keep flowing, so kit v1 blocks and older hubs read the same answers.
 - **Steadied the browser tests** under CI load: the shared Playwright page fixture gets a longer
   default timeout, and matplotlib's font cache is warmed once per session so a view render's
   settle budget isn't spent building it. Test-only; nothing ships differently.

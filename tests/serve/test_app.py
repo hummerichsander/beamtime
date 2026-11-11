@@ -311,3 +311,13 @@ def test_subscribe_remotes_reads_the_scope_out_of_the_scope_kinds_pair() -> None
     sources = type("FakeSources", (), {"clients": {"box": FakeClient()}})()
     subscribe_remotes(hub, sources)
     assert sources.clients["box"].subscribed == [".", "g"]
+
+
+def test_web_answers_keep_the_old_curve_fields(api, client) -> None:
+    """The HTTP API keeps both for the web UI; a CLI call through it gets the envelope only."""
+    params = {"from": "scaling/lr-sweep", "y": ["train/loss"], "points": 20}
+    both = api("series", **params).json()["curves"][0]
+    assert {"y", "lo", "hi", "n", "last", "min", "max", "count"} <= set(both)
+    headers = {"authorization": f"Bearer {TOKEN}", "x-beamtime-caller": "cli"}
+    lean = client.post("/api/series", json=params, headers=headers).json()["curves"][0]
+    assert {"y", "lo", "hi", "n"} <= set(lean) and not {"last", "min", "max", "count"} & set(lean)
