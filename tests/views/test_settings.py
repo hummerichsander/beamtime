@@ -3,6 +3,7 @@
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+import json
 import subprocess
 import sys
 
@@ -10,7 +11,11 @@ import pytest
 
 from beamtime.format.schema import SchemaError
 from beamtime.views import model as m
+from beamtime.views.compile import compile_view
 from beamtime.views.settings import SEEDS_FIELD, SETTINGS, line_defaults, settle
+
+FIXTURE = Path(__file__).parents[2] / "web" / "test" / "fixtures" / "chart-settings.json"
+CASES = json.loads(FIXTURE.read_text())
 
 EVERYTHING: dict[str, Any] = {
     "y": ["val/loss", "val/acc"],
@@ -117,3 +122,14 @@ def test_chart_defaults_file_is_current() -> None:
     edited = "from beamtime.views import settings; settings.line_defaults = lambda: {'band': 'std'}; "
     code = f"import sys, runpy; {edited}sys.argv = ['x', '--check']; runpy.run_path({str(script)!r}, run_name='__main__')"
     assert subprocess.run([sys.executable, "-c", code], capture_output=True).returncode == 1
+
+
+@pytest.mark.parametrize("case", CASES, ids=[c["name"] for c in CASES])
+def test_settled_and_compiled_node_is_the_fixtures(case: dict[str, Any]) -> None:
+    """Settling the case's settings and compiling gives its node, the wire the web test starts from."""
+    props: dict[str, Any] = {"id": "c", "y": "val/loss"}
+    settle(props, case["settings"])
+    tree = compile_view(m.parse({"body": [{"line": props}]}, source="t"), path="g")
+    node = tree["children"][0]
+    node["props"] = {k: v for k, v in node["props"].items() if v is not None}
+    assert node == case["node"]

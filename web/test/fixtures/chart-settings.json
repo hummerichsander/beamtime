@@ -1,0 +1,170 @@
+[
+  {
+    "name": "defaults",
+    "settings": {},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/loss", "scale": "log"},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 300, "band": "minmax"}, "scope": "g"}}
+    },
+    "effective": {"band": "minmax", "by": null, "color": null, "colormap": null, "legend": true, "outliers": false, "raw": true, "scale": "log", "smooth": 0, "steps": null, "x": "_step", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 600, "band": "minmax"},
+    "frozen_key": {"from": "g", "y": ["val/loss"]}
+  },
+  {
+    "name": "settings at their default write nothing",
+    "settings": {"x": "_step", "band": "minmax", "smooth": 0, "raw": true, "legend": true, "outliers": false, "by": null, "steps": [null, null]},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/loss", "scale": "log"},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 300, "band": "minmax"}, "scope": "g"}}
+    },
+    "effective": {"band": "minmax", "by": null, "color": null, "colormap": null, "legend": true, "outliers": false, "raw": true, "scale": "log", "smooth": 0, "steps": null, "x": "_step", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 600, "band": "minmax"},
+    "frozen_key": {"from": "g", "y": ["val/loss"]}
+  },
+  {
+    "name": "log scale on an accuracy",
+    "settings": {"y": ["val/acc"], "scale": "log"},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/acc", "scale": "log"},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/acc"], "x": "_step", "points": 300, "band": "minmax"}, "scope": "g"}}
+    },
+    "effective": {"band": "minmax", "by": null, "color": null, "colormap": null, "legend": true, "outliers": false, "raw": true, "scale": "log", "smooth": 0, "steps": null, "x": "_step", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/acc"], "x": "_step", "points": 600, "band": "minmax"},
+    "frozen_key": {"from": "g", "y": ["val/acc"]}
+  },
+  {
+    "name": "linear scale on a loss stays explicit",
+    "settings": {"scale": "linear"},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/loss", "scale": "linear"},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 300, "band": "minmax"}, "scope": "g"}}
+    },
+    "effective": {"band": "minmax", "by": null, "color": null, "colormap": null, "legend": true, "outliers": false, "raw": true, "scale": "linear", "smooth": 0, "steps": null, "x": "_step", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 600, "band": "minmax"},
+    "frozen_key": {"from": "g", "y": ["val/loss"]}
+  },
+  {
+    "name": "two metrics",
+    "settings": {"y": ["val/loss", "val/acc"]},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": ["val/loss", "val/acc"], "scale": "log"},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/loss", "val/acc"], "x": "_step", "points": 300, "band": "minmax"}, "scope": "g"}}
+    },
+    "effective": {"band": "minmax", "by": null, "color": null, "colormap": null, "legend": true, "outliers": false, "raw": true, "scale": "log", "smooth": 0, "steps": null, "x": "_step", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/loss", "val/acc"], "x": "_step", "points": 600, "band": "minmax"},
+    "frozen_key": {"from": "g", "y": ["val/loss", "val/acc"]}
+  },
+  {
+    "name": "smooth",
+    "settings": {"smooth": 0.6},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/loss", "scale": "log", "smooth": 0.6},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 300, "band": "minmax"}, "scope": "g"}}
+    },
+    "effective": {"band": "minmax", "by": null, "color": null, "colormap": null, "legend": true, "outliers": false, "raw": true, "scale": "log", "smooth": 0.6, "steps": null, "x": "_step", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 600, "band": "minmax"},
+    "frozen_key": {"from": "g", "y": ["val/loss"]}
+  },
+  {
+    "name": "by a key",
+    "settings": {"by": "config.arm"},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/loss", "scale": "log"},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 300, "band": "minmax", "by": ["config.arm"]}, "scope": "g"}}
+    },
+    "effective": {"band": "minmax", "by": "config.arm", "color": null, "colormap": null, "legend": true, "outliers": false, "raw": true, "scale": "log", "smooth": 0, "steps": null, "x": "_step", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 600, "band": "minmax", "by": ["config.arm"]},
+    "frozen_key": {"from": "g", "y": ["val/loss"], "by": ["config.arm"]}
+  },
+  {
+    "name": "seeds",
+    "settings": {"by": "seeds"},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/loss", "scale": "log", "note": "seed mean and range"},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 300, "band": "minmax", "seeds": "config.seed"}, "scope": "g"}}
+    },
+    "effective": {"band": "minmax", "by": "seeds", "color": null, "colormap": null, "legend": true, "outliers": false, "raw": true, "scale": "log", "smooth": 0, "steps": null, "x": "_step", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 600, "band": "minmax", "seeds": "config.seed"},
+    "frozen_key": {"from": "g", "y": ["val/loss"], "seeds": "config.seed"}
+  },
+  {
+    "name": "band none",
+    "settings": {"band": "none"},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/loss", "scale": "log"},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 300, "band": "none"}, "scope": "g"}}
+    },
+    "effective": {"band": "none", "by": null, "color": null, "colormap": null, "legend": true, "outliers": false, "raw": true, "scale": "log", "smooth": 0, "steps": null, "x": "_step", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 600, "band": "none"},
+    "frozen_key": {"from": "g", "y": ["val/loss"], "band": "none"}
+  },
+  {
+    "name": "steps",
+    "settings": {"steps": [10, null]},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/loss", "scale": "log"},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 300, "band": "minmax", "steps": [10, null]}, "scope": "g"}}
+    },
+    "effective": {"band": "minmax", "by": null, "color": null, "colormap": null, "legend": true, "outliers": false, "raw": true, "scale": "log", "smooth": 0, "steps": [10, null], "x": "_step", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 600, "band": "minmax", "steps": [10, null]},
+    "frozen_key": {"from": "g", "y": ["val/loss"]}
+  },
+  {
+    "name": "raw off",
+    "settings": {"raw": false},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/loss", "scale": "log", "raw": false},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 300, "band": "minmax"}, "scope": "g"}}
+    },
+    "effective": {"band": "minmax", "by": null, "color": null, "colormap": null, "legend": true, "outliers": false, "raw": false, "scale": "log", "smooth": 0, "steps": null, "x": "_step", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 600, "band": "minmax"},
+    "frozen_key": {"from": "g", "y": ["val/loss"]}
+  },
+  {
+    "name": "x a metric",
+    "settings": {"x": "val/acc"},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/loss", "scale": "log", "x": "val/acc"},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/loss"], "x": "val/acc", "points": 300, "band": "minmax"}, "scope": "g"}}
+    },
+    "effective": {"band": "minmax", "by": null, "color": null, "colormap": null, "legend": true, "outliers": false, "raw": true, "scale": "log", "smooth": 0, "steps": null, "x": "val/acc", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/loss"], "x": "val/acc", "points": 600, "band": "minmax"},
+    "frozen_key": {"from": "g", "y": ["val/loss"], "x": "val/acc"}
+  },
+  {
+    "name": "legend off",
+    "settings": {"legend": false},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/loss", "scale": "log", "legend": false},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 300, "band": "minmax"}, "scope": "g"}}
+    },
+    "effective": {"band": "minmax", "by": null, "color": null, "colormap": null, "legend": false, "outliers": false, "raw": true, "scale": "log", "smooth": 0, "steps": null, "x": "_step", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 600, "band": "minmax"},
+    "frozen_key": {"from": "g", "y": ["val/loss"]}
+  },
+  {
+    "name": "limits and outliers",
+    "settings": {"ymin": 0.1, "ymax": 2, "outliers": true},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/loss", "scale": "log", "outliers": true, "ymin": 0.1, "ymax": 2},
+      "data": {"main": {"method": "series", "params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 300, "band": "minmax"}, "scope": "g"}}
+    },
+    "effective": {"band": "minmax", "by": null, "color": null, "colormap": null, "legend": true, "outliers": true, "raw": true, "scale": "log", "smooth": 0, "steps": null, "x": "_step", "ymax": 2, "ymin": 0.1},
+    "series_params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 600, "band": "minmax"},
+    "frozen_key": {"from": "g", "y": ["val/loss"]}
+  },
+  {
+    "name": "colored by a field",
+    "settings": {"color": "config.lr", "colormap": "magma"},
+    "node": {
+      "block": "line", "id": "c", "props": {"y": "val/loss", "scale": "log", "color": "config.lr", "colormap": "magma"},
+      "data": {
+        "main": {"method": "series", "params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 300, "band": "minmax"}, "scope": "g"},
+        "colors": {"method": "runs", "params": {"from": "g", "select": ["config.lr"], "limit": 10000}, "scope": "g"}
+      }
+    },
+    "effective": {"band": "minmax", "by": null, "color": "config.lr", "colormap": "magma", "legend": true, "outliers": false, "raw": true, "scale": "log", "smooth": 0, "steps": null, "x": "_step", "ymax": null, "ymin": null},
+    "series_params": {"from": "g", "y": ["val/loss"], "x": "_step", "points": 600, "band": "minmax"},
+    "frozen_key": {"from": "g", "y": ["val/loss"]}
+  }
+]

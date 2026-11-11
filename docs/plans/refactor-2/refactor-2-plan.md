@@ -620,7 +620,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
    `normalizeSeries(params)`: moved from `line.ts`/`prefs.ts`/`api.ts`, reading `DEFAULTS` and `SEEDS_FIELD`.
 2. `prefs.ts` keeps stores, `setChart`, `setView`, `changed`, and `cascade(defaults, prefs, id)`.
 
-### S4. The cross-wire fixture (sonnet) — code
+### S4. The cross-wire fixture (sonnet) — code — **done**
 
 - **Touches:** new `web/test/fixtures/chart-settings.json`, `tests/views/test_settings.py`, new
   `web/test/chart-settings.test.ts`.
