@@ -10,19 +10,31 @@ from typing import Annotated, Any, Literal
 import msgspec
 
 from beamtime.format.authored import NOTE_TYPES
-
-Where = Annotated[
-    dict[str, Any],
-    msgspec.Meta(
-        description="field -> value or {op: value}; ops eq ne lt le gt ge in nin has "
-        "exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, "
-        "metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc"
-    ),
-]
-Fields = Annotated[
-    list[str] | None,
-    msgspec.Meta(description="fields such as run.name, config.lr, metric.val/acc.max"),
-]
+from beamtime.query.models import (
+    AggregateBy,
+    CompareMetrics,
+    Context,
+    DiagnoseMetrics,
+    ExportTo,
+    Fields,
+    Grep,
+    Group,
+    QueryBody,
+    ReadDraft,
+    RowsBy,
+    RunId,
+    Seeds,
+    SeriesPoints,
+    SeriesX,
+    SeriesY,
+    Sort,
+    Steps,
+    Tail,
+    Targets,
+    Timeout,
+    Until,
+    Where,
+)
 
 
 class Params(msgspec.Struct, kw_only=True, forbid_unknown_fields=True):
@@ -42,9 +54,7 @@ class Page(Params, kw_only=True):
 class Selection(Page, kw_only=True):
     """Which runs an operation looks at."""
 
-    from_: Annotated[str, msgspec.Meta(description="group below the log dir, or a run id")] = (
-        msgspec.field(default=".", name="from")
-    )
+    from_: Group = msgspec.field(default=".", name="from")
     where: Where = msgspec.field(default_factory=dict)
     depth: Literal["all"] | int = "all"
 
@@ -61,24 +71,11 @@ class RunsParams(Selection, kw_only=True):
     """Parameters of ``runs``."""
 
     select: Fields = None
-    sort: Annotated[list[str], msgspec.Meta(description="fields; a leading - sorts descending")] = (
-        msgspec.field(default_factory=list)
-    )
+    sort: Sort = msgspec.field(default_factory=list)
     limit: int | None = None
-    seeds: Annotated[
-        str | None, msgspec.Meta(description="e.g. config.seed: average over seeds")
-    ] = None
-    by: Annotated[
-        list[str] | None,
-        msgspec.Meta(description="one row per value of these fields, e.g. config.lr"),
-    ] = None
-    to: Annotated[
-        str | None,
-        msgspec.Meta(
-            description="write all of it to this .csv or .json file below .beamtime/exports/ "
-            "and answer the path (outside the token budget)"
-        ),
-    ] = None
+    seeds: Seeds = None
+    by: RowsBy = None
+    to: ExportTo = None
 
 
 class CardParams(Params, kw_only=True):
@@ -90,28 +87,15 @@ class CardParams(Params, kw_only=True):
 class SeriesParams(Selection, kw_only=True):
     """Parameters of ``series``."""
 
-    y: Annotated[list[str], msgspec.Meta(description="metric keys, e.g. train/loss")]
-    x: Annotated[str, msgspec.Meta(description="_step, _t, _elapsed or a metric key")] = "_step"
-    steps: Annotated[
-        list[int | None] | None, msgspec.Meta(description="[first, last] step window")
-    ] = None
-    points: Annotated[
-        int | Literal["all"] | None,
-        msgspec.Meta(description="points per curve; all: every logged point, as exports ask"),
-    ] = None
-    by: Annotated[
-        list[str] | None, msgspec.Meta(description="aggregate runs by these fields, e.g. config.lr")
-    ] = None
+    y: SeriesY
+    x: SeriesX = "_step"
+    steps: Steps = None
+    points: SeriesPoints = None
+    by: AggregateBy = None
     seeds: str | None = None
     smooth: float | None = None
     band: Literal["minmax", "std", "stderr", "none"] = "minmax"
-    to: Annotated[
-        str | None,
-        msgspec.Meta(
-            description="write all of it to this .csv or .json file below .beamtime/exports/ "
-            "and answer the path (outside the token budget)"
-        ),
-    ] = None
+    to: ExportTo = None
 
 
 class DataParams(Selection, kw_only=True):
@@ -127,7 +111,7 @@ class FileParams(Params, kw_only=True):
 
     view: str
     path: str
-    draft: Annotated[str | None, msgspec.Meta(description="read from this draft instead")] = None
+    draft: ReadDraft = None
 
 
 class OutputParams(Params, kw_only=True):
@@ -142,42 +126,29 @@ class OutputParams(Params, kw_only=True):
 class LogsParams(Selection, kw_only=True):
     """Parameters of ``logs``."""
 
-    grep: Annotated[
-        str | None, msgspec.Meta(description="regular expression; show its matches")
-    ] = None
-    tail: Annotated[int, msgspec.Meta(description="lines (with grep: matches) per run")] = 10
-    context: Annotated[int, msgspec.Meta(description="lines around each match")] = 0
+    grep: Grep = None
+    tail: Tail = 10
+    context: Context = 0
     rank: int = 0
 
 
 class WaitParams(Selection, kw_only=True):
     """Parameters of ``wait``."""
 
-    until: Annotated[
-        str,
-        msgspec.Meta(
-            description="finished: no run is running; or a condition such as "
-            "'metric.val/acc.max>0.9' that one run meets"
-        ),
-    ] = "finished"
-    timeout: Annotated[
-        float, msgspec.Meta(description="seconds; over MCP at most 45, then call again")
-    ] = 300.0
+    until: Until = "finished"
+    timeout: Timeout = 300.0
 
 
 class DiagnoseParams(Selection, kw_only=True):
     """Parameters of ``diagnose``."""
 
-    metrics: Annotated[
-        list[str] | None,
-        msgspec.Meta(description="metrics a run must have; default: those most runs have"),
-    ] = None
+    metrics: DiagnoseMetrics = None
 
 
 class ResumeParams(Params, kw_only=True):
     """Parameters of ``resume``."""
 
-    run: Annotated[str, msgspec.Meta(description="the run id")]
+    run: RunId
 
 
 class TimelineParams(Selection, kw_only=True):
@@ -192,24 +163,16 @@ class TimelineParams(Selection, kw_only=True):
 class CompareParams(Page, kw_only=True):
     """Parameters of ``compare``."""
 
-    targets: Annotated[
-        list[str], msgspec.Meta(description="two or more runs or groups, on one source")
-    ]
-    metrics: Annotated[
-        list[str] | None, msgspec.Meta(description="metric keys to tabulate; default: all logged")
-    ] = None
+    targets: Targets
+    metrics: CompareMetrics = None
 
 
 class QueryParams(Page, kw_only=True):
     """Parameters of ``query``."""
 
-    query: Annotated[
-        dict[str, Any],
-        msgspec.Meta(description="one kind: keys, runs, series, data, timeline, groups, file"),
-    ]
+    query: QueryBody
 
 
-Group = Annotated[str, msgspec.Meta(description="group below the log dir, or a run id")]
 Author = Annotated[
     str | None,
     msgspec.Meta(
@@ -293,7 +256,7 @@ class NoteAddParams(Params, kw_only=True):
 class NameParams(Params, kw_only=True):
     """Parameters of ``name``."""
 
-    run: Annotated[str, msgspec.Meta(description="the run id")]
+    run: RunId
     name: Annotated[str, msgspec.Meta(description="the run's new display name")]
     author: Author = None
 

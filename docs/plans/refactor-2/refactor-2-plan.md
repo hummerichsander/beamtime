@@ -841,7 +841,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 2. `src/beamtime/query/__init__.py`: `QueryError` eager from `models`; `Index`, `KIND_FUNCTIONS`, `select` imported inside
    `run()`. CHANGELOG (Changed: `seeds` on other kinds is an error).
 
-### K2. Descriptions live with the query structs (haiku) — code
+### K2. Descriptions live with the query structs (haiku) — code — **done**
 
 - **Touches:** `src/beamtime/query/models.py`, `src/beamtime/ops/registry.py` (`Where`/`Fields` 14–26, field
   `Meta`s 42–209).
