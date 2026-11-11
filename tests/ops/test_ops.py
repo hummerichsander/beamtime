@@ -440,5 +440,45 @@ def test_page_of_finds_an_unindexed_copy_and_suggests_a_group(
     copy.parent.mkdir(parents=True)
     shutil.copytree(run, copy)
     assert page_of(ctx, copy.name) == (copy.relative_to(ctx.logdir).as_posix(), copy.name)
-    with pytest.raises(OpError, match=r"Did you mean 'lr-sweep'\?"):
+    with pytest.raises(OpError, match=r"Did you mean 'lr-sweep'\?.*Top-level groups: ") as e:
         page_of(ctx, "scaling/lr-sweeps")
+    assert e.value.code == 4
+
+
+def test_page_of_opens_a_run_by_suffix_and_refuses_reserved_names(ctx: Context, roles: dict) -> None:
+    """A run page opens by a unique id suffix of four characters or more; authored folders are no pages."""
+    from beamtime.serve.api import page_of
+
+    run = roles["killed"]
+    path, found = page_of(ctx, run[-8:])
+    assert found == run and path.endswith(run)
+    assert page_of(ctx, path) == (path, run)
+    with pytest.raises(OpError, match="authored or machine files") as e:
+        page_of(ctx, "scaling/lr-sweep/proposal")
+    assert e.value.code == 4
+
+
+def test_find_run_takes_a_suffix_of_four_characters_or_more(ctx: Context, roles: dict) -> None:
+    """Run arguments resolve like pages: id, unique suffix or name; a short suffix and a group are no run."""
+    from beamtime.ops.reading import find_run
+
+    run = roles["killed"]
+    expected = find_run(ctx, run)
+    assert expected.name == run
+    assert find_run(ctx, run[-4:]) == expected
+    call("name", {"run": run, "name": "warmup baseline"}, ctx)
+    assert find_run(ctx, "warmup baseline") == expected
+    for word in (run[-3:], "scaling", "../../etc/passwd"):
+        with pytest.raises(OpError, match="no run") as e:
+            find_run(ctx, word)
+        assert e.value.code == 4
+
+
+def test_find_run_without_index(ctx: Context, roles: dict, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A run the index does not know yet (catch-up unavailable) is found by walking the tree."""
+    from beamtime.index.index import Index
+    from beamtime.ops.reading import find_run
+
+    monkeypatch.setattr(Index, "catch_up", lambda *a, **k: None)
+    monkeypatch.setattr(Index, "run_path", lambda *a, **k: None)
+    assert find_run(ctx, roles["killed"]).name == roles["killed"]

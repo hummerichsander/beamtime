@@ -29,6 +29,11 @@
   run is found by its id, else (when no group of that name exists) by a unique id suffix (four
   characters or more) or its name, and an unknown group lists the top-level groups. The message
   for an unknown source now names the configured remotes, like the CLI's.
+- **Changed** run arguments and web pages resolve through the same resolver: `card`, `output`, `mv`
+  and `rm` take a run id, a unique id suffix of four characters or more, or a name (one- to
+  three-character suffixes matched runs by chance and are no longer accepted), and a page URL
+  naming a reserved folder (`proposal`, `notes`, ...) is refused. A run page opens by unique id
+  suffix, and an unknown group on a page lists the top-level groups.
 
 ## 0.2.2
 

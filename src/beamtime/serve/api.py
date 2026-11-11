@@ -14,8 +14,7 @@ from beamtime.format.ids import is_run_id
 from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import BY_TOOL
-from beamtime.query.models import closest
-from beamtime.sdk.paths import find_run
+from beamtime.query.models import QueryError
 
 STATIC = Path(__file__).parent / "static"
 STARTED = time.time()
@@ -273,39 +272,22 @@ def view(
 
 
 def page_of(ctx: Context, path: str) -> tuple[str, str | None]:
-    """Resolve a page: a group path, or a run by id or path.
+    """Resolve a page: a group path, or a run by id, unique id suffix or name.
 
     :param ctx: The operation context.
     :param path: The page as the URL names it.
     :return: The path below the log dir, and the run id for a run."""
     from beamtime.index.index import Index
+    from beamtime.query.resolve import resolve
 
-    path = path.strip("/") or "."
-    name = path.rsplit("/", 1)[-1]
-    run = name if is_run_id(name) else None
-    if run is not None:
-        if not ctx.logdir.is_dir():
-            raise OpError(f"no run {run!r}; no local log dir", code=4)
+    if not ctx.logdir.is_dir():
+        raise OpError("no local log dir", code=4)
+    try:
         with Index(logdir=ctx.logdir) as index:
-            if (found := index.run_path(run)) is None:
-                index.catch_up(".", budget_s=0)
-                found = index.run_path(run)
-        # a run created after the daemon's last walk is not indexed yet.
-        if found is None and (found := find_run(ctx.logdir, run)) is None:
-            raise OpError(f"no run {run!r} below the log dir", code=4)
-        path = found.relative_to(ctx.logdir).as_posix()
-    elif ".." in path.split("/"):
-        raise OpError(f"no group {path!r} below the log dir", code=4)
-    elif not (ctx.logdir / path).is_dir():
-        from beamtime.format.moves import current
-
-        # an old link to a moved group shows the group where it is now.
-        if not (ctx.logdir / (moved := current(ctx.logdir, path))).is_dir():
-            parent = (ctx.logdir / path).parent
-            options = [p.name for p in parent.iterdir() if p.is_dir()] if parent.is_dir() else []
-            raise OpError(f"no group {path!r} below the log dir.{closest(name, options)}", code=4)
-        path = moved
-    return path, run
+            found = resolve(index, path, sources=ctx.remotes)
+    except QueryError as e:
+        raise OpError(str(e), code=4) from None
+    return found.path, found.run_id
 
 
 def save_view(

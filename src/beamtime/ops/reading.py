@@ -31,10 +31,10 @@ from beamtime.query.aggregate import spread
 from beamtime.query.distinguish import distinguishing, flatten, is_seed, signature
 from beamtime.query.kinds import describe_event
 from beamtime.query.progress import progress
+from beamtime.query.resolve import resolve
 from beamtime.query.select import Columns
 from beamtime.record.check import rounded
 from beamtime.record.stats import mean
-from beamtime.sdk.paths import find_run as walk_for_run
 
 RECENT_EVENTS = 10
 COMPARE_METRICS = 20
@@ -842,25 +842,22 @@ def table_of(answer: dict[str, Any]) -> tuple[list[str], list[list[Any]]]:
 
 
 def find_run(ctx: Context, run_id: str) -> Path:
-    """Find a run by id (or a unique id suffix, or its name) after catching up.
+    """Find a run by id, unique id suffix (four characters or more) or name.
 
     :param ctx: The operation context.
-    :param run_id: The run id.
+    :param run_id: The run id, suffix or name.
     :return: The run directory."""
-    with Index(logdir=ctx.logdir) as index:
-        if (path := index.run_path(run_id)) is None:
-            index.catch_up(".", budget_s=0.2)
-            path = index.run_path(run_id)
-        if path is None:
-            hits = index.store.db.execute(
-                "SELECT path FROM runs WHERE id LIKE ? OR name = ?", (f"%{run_id}", run_id)
-            ).fetchall()
-            if len(hits) > 1:
-                raise OpError(f"{run_id!r} matches {len(hits)} runs; give the full run id", code=2)
-            path = ctx.logdir / hits[0][0] if hits else walk_for_run(ctx.logdir, run_id)
-    if path is None:
+    found = None
+    try:
+        with Index(logdir=ctx.logdir) as index:
+            if "/" not in run_id:
+                found = resolve(index, run_id, sources=ctx.remotes)
+    except QueryError as e:
+        if e.code == "invalid":
+            raise OpError(str(e), code=2) from None
+    if found is None or found.run_id is None:
         raise OpError(f"no run {run_id!r} below {ctx.logdir}; `beamtime runs` lists them", code=4)
-    return path
+    return ctx.logdir / found.path
 
 
 def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:

@@ -434,7 +434,7 @@ the local listing of `.` included, can't be reached by paging once any remote is
 3. `resolve_from(index, base, target)` returns `(r.path, r.run_id)` from `resolve`.
 4. These tests become the single home of the message strings. CHANGELOG (Changed: suffix/name lookup everywhere).
 
-### P4. Pages and run lookup resolve once (sonnet) — code
+### P4. Pages and run lookup resolve once (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/serve/api.py` (`page_of` 275–308), `src/beamtime/ops/reading.py` (`find_run`
   844–863 becomes a delegate), `tests/ops/test_ops.py` (page_of tests 333–444), `CHANGELOG.md`.
