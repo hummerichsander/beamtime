@@ -8,6 +8,7 @@ from beamtime.format.ids import is_run_id
 from beamtime.ops import call
 from beamtime.ops.context import Context
 from beamtime.views import model as m
+from beamtime.views.settings import SEEDS_FIELD
 
 OPEN_SECTIONS = 2
 SEED_GROUPING_ABOVE = 8
@@ -83,10 +84,10 @@ def group_body(ctx: Context, path: str, pins: list[dict[str, Any]]) -> list[m.Bl
         # curves show only the group's own runs; runs in subgroups belong to their groups.
         own = direct < runs
         own_keys = call("keys", {"from": path, "depth": 1}, ctx) if own else keys
-        many = "config.seed" in varying and direct > SEED_GROUPING_ABOVE
+        many = SEEDS_FIELD in varying and direct > SEED_GROUPING_ABOVE
         metrics = ordered_metrics(own_keys)
         main = [p["y"] for p in pins if p["y"] in metrics]
-        body += curves(metrics, "config.seed" if many else None, own, main)
+        body += curves(metrics, SEEDS_FIELD if many else None, own, main)
         if varying:
             body.append(m.Config(id="hyperparameters", title="Hyperparameters"))
         code = ["run.code"] if keys.get("codes") else []
@@ -173,7 +174,7 @@ def summary(
         return None
     stat = "min" if lower else "max"
     field = f"metric.{main}.{stat}"
-    varying = [k for k in varying_config(keys) if k != "config.seed"][:3]
+    varying = [k for k in varying_config(keys) if k != SEEDS_FIELD][:3]
     query = {
         "from": scope,
         "select": ["run.name", field, *varying],

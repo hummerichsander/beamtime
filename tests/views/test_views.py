@@ -785,3 +785,17 @@ def test_chart_frames_and_live_data_pass_the_code_lints() -> None:
     assert code.lints(figure) == [] and code.opens_with_heading(figure) is False
     phase = files("beamtime.guide").joinpath("examples/code/phase-map.js").read_text()
     assert code.lints(phase) == []
+
+
+def test_save_leaves_out_line_settings_at_their_default(ctx: Context, project: Path) -> None:
+    """A draft authoring smooth: 0 saves without it, like the web UI; the scale stays explicit."""
+    call("view new", {"group": SWEEP, "from": "sweep"}, ctx)
+    draft = project / ".beamtime" / "drafts" / "lr-sweep" / "view.yaml"
+    data = yaml.safe_load(draft.read_text())
+    line = next(p for b, p in yaml_walk(data["body"]) if b == "line")
+    line.update({"smooth": 0, "scale": "linear", "band": "minmax"})
+    draft.write_text(yaml.safe_dump(data, sort_keys=False))
+    call("view save", {"draft": "lr-sweep"}, ctx)
+    saved = yaml.safe_load(call("view show", {"group": SWEEP}, ctx)["yaml"])
+    props = next(p for b, p in yaml_walk(saved["body"]) if b == "line" and p["id"] == line["id"])
+    assert "smooth" not in props and "band" not in props and props["scale"] == "linear"

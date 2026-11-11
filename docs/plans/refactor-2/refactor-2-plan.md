@@ -586,7 +586,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
    dump with `omit_defaults`, write back; `scale` kept explicit.
 3. `prefs.settle` calls it; `apply_prefs` signature unchanged.
 
-### S2. Generated chart defaults (haiku) — code
+### S2. Generated chart defaults (haiku) — code — **done**
 
 - **Touches:** `src/beamtime/views/settings.py` (`generated_ts`), new `scripts/build-chart-defaults`, new
   `web/src/bt/chart-defaults.ts`, `web/package.json`, `tests/views/test_settings.py`,

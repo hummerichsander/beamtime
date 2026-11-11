@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""Generate web/src/bt/chart-defaults.ts from the settings of ``m.Line``.
+
+``scripts/build-chart-defaults`` writes the file; ``--check`` fails instead when the committed one is stale."""
+
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "web" / "src" / "bt" / "chart-defaults.ts"
+
+
+def main() -> None:
+    """Write the file, or with ``--check`` compare it."""
+    from beamtime.views.settings import generated_ts
+
+    text = generated_ts()
+    if "--check" not in sys.argv:
+        OUT.write_text(text, encoding="utf-8")
+    elif not OUT.exists() or OUT.read_text(encoding="utf-8") != text:
+        sys.exit("web/src/bt/chart-defaults.ts is stale: run scripts/build-chart-defaults")
+
+
+if __name__ == "__main__":
+    main()

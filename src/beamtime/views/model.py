@@ -545,6 +545,12 @@ def denormalize(node: dict[str, Any]) -> dict[str, Any]:
         name = node.pop("name")
         node |= node.pop("params", {})
     kids = [denormalize(k) for k in node.pop("children", [])]
+    if name == "line":
+        from beamtime.views.settings import line_defaults
+
+        # omit_defaults compares floats by identity, so an authored smooth of 0 would stay.
+        defaults = line_defaults()
+        node = {k: v for k, v in node.items() if not (k in defaults and v == defaults[k])}
     # id first and children last read best.
     props = {k: node[k] for k in ("id", "title") if k in node} | node
     if kids:

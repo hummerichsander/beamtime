@@ -22,6 +22,10 @@
   that older remotes ignore), and only an old remote or an answer over the cap says so in
   `meta.sources[].cut`. `meta.groups` and `meta.means` are
   summed over the sources, like `meta.matched`.
+- **Changed** a saved view leaves out every line-chart setting equal to its default, the same on
+  both paths: `view save` from a draft no longer keeps an authored `smooth: 0`, as saving from the
+  web UI never did. The only saved files that differ are views that spelled a float default out;
+  `scale` stays explicit.
 - **Changed** how answers name a source: `.` for this machine and `@name` for a remote, everywhere.
   `by.source` of federated `series` curves was `local`/`box` and is now `.`/`@box`;
   `meta.sources[].name` and `status`'s `sources` say `.` where they said `local`; `meta.source` of

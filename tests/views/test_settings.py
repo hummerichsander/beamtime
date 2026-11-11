@@ -1,7 +1,10 @@
 """The settings of a line chart: names and defaults from ``m.Line``, and ``settle``."""
 
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
+import subprocess
+import sys
 
 import pytest
 
@@ -104,3 +107,13 @@ def test_round_trip_law() -> None:
         [10, None],
     )
     assert line.by == ["config.arm"] and line.raw is False and line.legend is False
+
+
+def test_chart_defaults_file_is_current() -> None:
+    """The committed TypeScript defaults are what m.Line generates, and --check fails once a default changes."""
+    script = Path(__file__).parents[2] / "scripts" / "build-chart-defaults"
+    check = [sys.executable, script, "--check"]
+    assert subprocess.run(check).returncode == 0
+    edited = "from beamtime.views import settings; settings.line_defaults = lambda: {'band': 'std'}; "
+    code = f"import sys, runpy; {edited}sys.argv = ['x', '--check']; runpy.run_path({str(script)!r}, run_name='__main__')"
+    assert subprocess.run([sys.executable, "-c", code], capture_output=True).returncode == 1

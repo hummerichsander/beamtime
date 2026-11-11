@@ -1,6 +1,7 @@
 """The settings of a ``line`` chart, owned by ``m.Line``: their names, defaults and how a viewer's
 settings fold into a node's props."""
 
+import json
 from typing import Any
 
 import msgspec
@@ -82,3 +83,17 @@ def settle(props: dict[str, Any], settings: dict[str, Any]) -> None:
     }
     props.clear()
     props.update(settled)
+
+
+def generated_ts() -> str:
+    """Write the defaults as a TypeScript module for the web UI.
+
+    :return: The source of ``web/src/bt/chart-defaults.ts``."""
+    items = sorted(line_defaults().items())
+    line = ",\n".join(f"    {key}: {json.dumps(value)}" for key, value in items)
+    return (
+        "// Beamtime: generated from views/settings.py by scripts/build-chart-defaults. "
+        "Do not edit by hand.\n"
+        f"export const SEEDS_FIELD = {json.dumps(SEEDS_FIELD)};\n"
+        f"export const DEFAULTS = {{\n  line: {{\n{line},\n  }},\n}} as const;\n"
+    )

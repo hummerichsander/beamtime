@@ -14,6 +14,7 @@ from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import BY_TOOL
 from beamtime.views import model as m
 from beamtime.views.compile import compile_view, walk_tree
+from beamtime.views.settings import SEEDS_FIELD
 from beamtime.views.theme import colormaps
 
 MAX_CURVES = 8
@@ -375,7 +376,7 @@ def answer_checks(
                 rows = keys[scope]["config"]["rows"]
                 varying = {k for k, _, v in rows if isinstance(v, list) and len(v) > 1}
                 by = {n.by} if isinstance(n.by, str) else set(n.by)
-                other = sorted(varying - by - {"config.seed"})
+                other = sorted(varying - by - {SEEDS_FIELD})
                 if other:
                     out.append(
                         Finding(
