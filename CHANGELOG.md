@@ -2,6 +2,10 @@
 
 ## 0.3.0 (unreleased)
 
+- **Changed** `logs` groups failed runs by the error the run's card recorded when there is one, and by
+  the output's traceback otherwise (before: the traceback first). `wait`, `diagnose` and `logs` read run
+  facts from the index instead of each run's files; `diagnose` checks the metrics file itself before it
+  calls a running run stalled, so a lagging index never makes a live run look stalled.
 - **Added** the run fields `run.attempts` (how many attempts a run recorded) and `run.last_logged` (when it
   last wrote a metric), for `--where`, `--sort` and `--select`. The index cache rebuilds once (schema 3).
   The CLI text shows `run.last_logged` as its age (`3m ago`); `--json` and MCP keep the epoch.

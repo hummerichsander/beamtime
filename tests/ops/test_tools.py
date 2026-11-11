@@ -3,9 +3,11 @@ import os
 import shutil
 import threading
 import time
+from pathlib import Path
 
 import pytest
 
+from beamtime.index.index import Index
 from beamtime.ops import call
 from beamtime.ops.budget import MAX_CHARS
 from beamtime.ops.context import Context, OpError
@@ -20,6 +22,16 @@ def run_ids(ctx: Context, group: str) -> list[str]:
     :return: The run ids."""
     found = call("runs", {"from": group, "select": ["run.id"], "limit": 100}, ctx)
     return [row[0] for row in found["rows"]]
+
+
+def write_metrics_at(run: Path, t: float) -> None:
+    """Append an empty line to a run's metrics file, then set the file's modification time.
+
+    :param run: The run directory.
+    :param t: The modification time, Unix seconds."""
+    with (run / "_metrics.jsonl").open("a") as f:
+        f.write("\n")
+    os.utime(run / "_metrics.jsonl", (t, t))
 
 
 def test_compare_two_groups_names_what_differs(ctx: Context) -> None:
@@ -186,10 +198,23 @@ def test_diagnose_flags_a_running_run_that_stopped_logging(
     run = next(p for p in ctx.logdir.rglob(roles["running"]) if p.is_dir())
     before = call("diagnose", {"from": roles["running"]}, ctx)["entries"]
     assert not any("stalled" in e["flags"] for e in before)
-    old = time.time() - 3600
-    os.utime(run / "_metrics.jsonl", (old, old))
+    write_metrics_at(run, time.time() - 3600)
     [entry] = call("diagnose", {"from": roles["running"]}, ctx)["entries"]
     assert entry["flags"]["stalled"].startswith("no new metrics for 60 min")
+
+
+def test_diagnose_does_not_call_a_run_stalled_when_the_index_lags(
+    ctx: Context, roles: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The index's ``last_logged`` is old but the metrics file was just written: not stalled."""
+    run = next(p for p in ctx.logdir.rglob(roles["running"]) if p.is_dir())
+    write_metrics_at(run, time.time() - 3600)
+    [entry] = call("diagnose", {"from": roles["running"]}, ctx)["entries"]
+    assert "stalled" in entry["flags"]
+    monkeypatch.setattr(Index, "catch_up", lambda self, *args, **kwargs: None)
+    write_metrics_at(run, time.time())
+    entries = call("diagnose", {"from": roles["running"]}, ctx)["entries"]
+    assert not any("stalled" in e["flags"] for e in entries)
 
 
 def test_plan_missing_lists_grid_points_without_a_run(ctx: Context) -> None:

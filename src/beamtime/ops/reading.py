@@ -29,7 +29,7 @@ from beamtime.query import QueryError
 from beamtime.query import run as run_query
 from beamtime.query.aggregate import spread
 from beamtime.query.distinguish import distinguishing, flatten, is_seed, signature
-from beamtime.query.facts import RunFacts, failure_signature, run_facts
+from beamtime.query.facts import RunFacts, failure_key, failure_signature, run_facts
 from beamtime.query.kinds import describe_event
 from beamtime.query.progress import progress
 from beamtime.query.resolve import resolve
@@ -552,21 +552,18 @@ def logs(ctx: Context, p: r.LogsParams) -> dict[str, Any]:
         except re.error as e:
             raise OpError(f"grep: {p.grep!r} is not a regular expression: {e}", code=2) from None
     entries, crashes = [], {}
-    runs_ = members(ctx, p.from_, p.where, p.depth)
-    for m in runs_:
+    runs_ = run_members(ctx, p.from_, p.where, p.depth)
+    for f in runs_:
         lines = [
-            collapse(line)[:LOG_WIDTH] for line in read_output(m["dir"], rank=p.rank).splitlines()
+            collapse(line)[:LOG_WIDTH] for line in read_output(f.dir, rank=p.rank).splitlines()
         ]
         if shown := excerpt(lines, pattern, p.tail, p.context):
-            entries.append(
-                {"run": m["id"], "name": m["name"], "status": m["status"], "lines": shown}
-            )
-        if m["status"] == "failed":
+            entries.append({"run": f.id, "name": f.name, "status": f.status, "lines": shown})
+        if f.status == "failed":
             trace = last_traceback(lines)
-            error = read_card(m["dir"]).error if (m["dir"] / c.CARD).exists() else None
-            sig = failure_signature(trace[-1] if trace else error)
+            sig = failure_key(f.error, trace)
             crash = crashes.setdefault(sig, {"signature": sig, "runs": [], "traceback": trace})
-            crash["runs"].append(m["id"])
+            crash["runs"].append(f.id)
     answer = {
         "kind": "logs",
         "tracebacks": sorted(crashes.values(), key=lambda crash: -len(crash["runs"])),
@@ -622,30 +619,27 @@ def wait(ctx: Context, p: r.WaitParams) -> dict[str, Any]:
         condition = None if p.until == "finished" else parse_where([p.until], flag="until")
     except ValueError as e:
         raise OpError(str(e), code=2) from None
-    before = {m["id"]: m for m in members(ctx, p.from_, p.where, p.depth)}
+    before = {f.id: f.status for f in run_members(ctx, p.from_, p.where, p.depth)}
     start = time.monotonic()
     while True:
-        now = {m["id"]: m for m in members(ctx, p.from_, p.where, p.depth)}
         if condition is None:
+            now = run_members(ctx, p.from_, p.where, p.depth)
             hits = []
-            met = not any(m["status"] == "running" for m in now.values())
+            met = not any(f.status == "running" for f in now)
         else:
             both = conjunction(p.where, condition)
-            hits = [m["id"] for m in members(ctx, p.from_, both, p.depth)]
+            hits = [f.id for f in run_members(ctx, p.from_, both, p.depth)]
             met = bool(hits)
         waited = time.monotonic() - start
         if met or waited >= limit:
             break
         time.sleep(min(WAIT_POLL_S, limit - waited))
+    if condition is not None:
+        now = run_members(ctx, p.from_, p.where, p.depth)
     changed = [
-        {
-            "run": m["id"],
-            "name": m["name"],
-            "from": before.get(i, {}).get("status"),
-            "to": m["status"],
-        }
-        for i, m in now.items()
-        if before.get(i, {}).get("status") != m["status"]
+        {"run": f.id, "name": f.name, "from": before.get(f.id), "to": f.status}
+        for f in now
+        if before.get(f.id) != f.status
     ]
     return {
         "kind": "wait",
@@ -654,7 +648,7 @@ def wait(ctx: Context, p: r.WaitParams) -> dict[str, Any]:
         "waited_s": round(waited, 1),
         "capped": not met and limit < p.timeout,
         "changed": changed,
-        "runs": dict(Counter(m["status"] for m in now.values())),
+        "runs": dict(Counter(f.status for f in now)),
         "matching": hits,
         "meta": {},
     }
@@ -678,39 +672,34 @@ def diagnose(ctx: Context, p: r.DiagnoseParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: Per flagged run its ``flags``, and in ``meta`` how many runs each flag hit."""
-    runs_ = members(ctx, p.from_, p.where, p.depth)
-    cards = {m["id"]: read_card(m["dir"]) if (m["dir"] / c.CARD).exists() else None for m in runs_}
-    peers: dict[str, list[dict[str, Any]]] = {}
-    for m in runs_:
-        peers.setdefault(m["group"], []).append(m)
+    runs_ = run_members(ctx, p.from_, p.where, p.depth, metrics=True)
+    peers: dict[str, list[RunFacts]] = {}
+    for f in runs_:
+        peers.setdefault(f.group, []).append(f)
     now = ctx.now or time.time()
     entries = []
     for group in peers.values():
         # runs are judged against their own group: other experiments run for other lengths.
-        done = [cards[m["id"]].steps for m in group if m["status"] == "finished" and cards[m["id"]]]
+        done = [f.steps for f in group if f.status == "finished" and f.metrics]
         typical = median([n for n in done if n]) if len(done) >= 3 else None
-        counts = Counter(k for m in group if cards[m["id"]] for k in cards[m["id"]].metrics)
+        counts = Counter(k for f in group for k in f.metrics)
         wanted = p.metrics or [k for k, n in counts.items() if n > len(group) / 2]
-        for m in group:
-            card = cards[m["id"]]
+        for f in group:
             flags: dict[str, Any] = {}
-            metrics = card.metrics if card else {}
-            if bad := [k for k, s in metrics.items() if s.nonfinite]:
+            if bad := [k for k, s in f.metrics.items() if s.get("nonfinite")]:
                 flags["nonfinite"] = bad
-            if bad := [k for k, s in metrics.items() if diverges(s)]:
+            if bad := [k for k, s in f.metrics.items() if diverges(s)]:
                 flags["diverging"] = bad
-            if m["status"] == "running" and (age := now - mtime(m["dir"] / c.METRICS)) > STALLED_S:
+            if f.status == "running" and (age := idle_s(f, now)) is not None and age > STALLED_S:
                 flags["stalled"] = f"no new metrics for {age / 60:.0f} min"
-            if (restarts := len(read_run_info(m["dir"]).attempts) - 1) > 0:
+            if (restarts := f.attempts - 1) > 0:
                 flags["restarts"] = restarts
-            if card and typical and card.steps and card.steps < SHORT_RUN * typical:
-                flags["stopped_early"] = f"{card.steps} of about {typical:.0f} steps"
-            if card and (gone := [k for k in wanted if k not in metrics]):
+            if f.metrics and typical and f.steps and f.steps < SHORT_RUN * typical:
+                flags["stopped_early"] = f"{f.steps} of about {typical:.0f} steps"
+            if f.metrics and (gone := [k for k in wanted if k not in f.metrics]):
                 flags["missing"] = gone
             if flags:
-                entries.append(
-                    {"run": m["id"], "name": m["name"], "status": m["status"], "flags": flags}
-                )
+                entries.append({"run": f.id, "name": f.name, "status": f.status, "flags": flags})
     hit = Counter(flag for e in entries for flag in e["flags"])
     answer = {
         "kind": "diagnose",
@@ -720,15 +709,32 @@ def diagnose(ctx: Context, p: r.DiagnoseParams) -> dict[str, Any]:
     return page(ctx, answer, p.cursor)
 
 
-def diverges(stats: Any) -> bool:
+def diverges(stats: dict[str, Any]) -> bool:
     """Tell whether a metric grew away from zero over its last tenth by more than its mean level.
 
-    :param stats: The metric's ``MetricSummary``.
+    :param stats: The metric's statistics from the card.
     :return: Whether it diverges; ``False`` without the numbers to tell."""
-    if None in (stats.slope_last10pct, stats.last, stats.mean, stats.last_step):
+    slope, last = stats.get("slope_last10pct"), stats.get("last")
+    mean_, last_step = stats.get("mean"), stats.get("last_step")
+    if None in (slope, last, mean_, last_step):
         return False
-    change = stats.slope_last10pct * 0.1 * stats.last_step
-    return change * stats.last > 0 and abs(change) > abs(stats.mean)
+    change = slope * 0.1 * last_step
+    return change * last > 0 and abs(change) > abs(mean_)
+
+
+def idle_s(facts: RunFacts, now: float) -> float | None:
+    """Tell how long a running run has not written a metric.
+
+    The index's ``last_logged`` can lag behind the file, so a run that looks stalled by it gets
+    its metrics file looked at once before it is called stalled.
+
+    :param facts: The run's facts.
+    :param now: The time to measure at.
+    :return: Seconds since the last metric, or ``None`` for a run that never logged."""
+    last = facts.last_logged
+    if last is None or now - last > STALLED_S:
+        last = max(last or 0.0, mtime(facts.dir / c.METRICS))
+    return now - last if last else None
 
 
 def mtime(path: Path) -> float:

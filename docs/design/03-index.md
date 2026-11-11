@@ -254,6 +254,9 @@ need to know about runs: `run_facts` selects them with the same machinery as `ru
 statistics only when asked), after one catch-up. Only a run's output text is still read from its file.
 `failure_key(error, traceback)` is the one failure-signature rule: the signature of the error the card
 recorded, else of the output traceback's exception line. Signatures are grouping labels, not identifiers.
+`wait`, `diagnose` and `logs` take their runs from `run_members`. `last_logged` can lag behind the file
+(a daemon behind, or a busy run the catch-up budget deferred), so `diagnose` stats `_metrics.jsonl` once for
+a running run that looks stalled by it and judges by the fresher time; no other run costs a stat.
 
 **Windowed statistics** are computed exactly from the column files, with a step window appended:
 `metric.val/acc.mean[1000:2000]`. They support `first`, `last`, `min`, `max`, `mean` and `count`.

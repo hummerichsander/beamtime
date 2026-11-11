@@ -793,7 +793,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 3. `reading.run_members(ctx, target, where=None, depth="all", *, config=False, metrics=False) ->
    list[RunFacts]`: resolves `target` with `resolve`, maps `QueryError` to `OpError`, passes `ctx.now`.
 
-### Q4. `wait`, `diagnose` and `logs` on run facts (sonnet + review) — code
+### Q4. `wait`, `diagnose` and `logs` on run facts (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/ops/reading.py` (`wait` 581–643, `diagnose` 645–700, `logs` 511–579),
   `tests/ops/test_tools.py`, `docs/design/03-index.md`, `CHANGELOG.md`.
