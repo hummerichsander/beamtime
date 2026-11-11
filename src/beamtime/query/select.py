@@ -3,14 +3,10 @@
 The research record builds on this module (its checks select runs with ``select_runs``); the
 ``proposal.*`` fields in turn need the record's status, so ``research`` imports it at call time."""
 
-import posixpath
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from beamtime.format.ids import is_run_id
-from beamtime.format.moves import current
 from beamtime.format.run import derived_status
-from beamtime.format.tree import is_reserved
 from beamtime.index.columns import Column, open_columns
 from beamtime.index.index import Index
 from beamtime.index.store import in_scope
@@ -18,6 +14,7 @@ from beamtime.query import models as m
 from beamtime.query.fields import Field, decode_cell, parse_field, sql
 from beamtime.query.models import QueryError, closest
 from beamtime.query.read import window_stat
+from beamtime.query.resolve import resolve
 from beamtime.query.where import fields_of, matches, number
 
 Caller = Literal["cli", "mcp", "view"]
@@ -44,60 +41,15 @@ class Context:
         return DEFAULTS[self.caller]
 
 
-TOP_GROUPS = 12
-
-
 def resolve_from(index: Index, base: str, target: str) -> tuple[str, str | None]:
     """Resolve ``from`` to a group relative to the log dir, or to one run.
 
     :param index: The index.
     :param base: The group relative paths start from (a view's group; ``.`` for CLI).
-    :param target: The ``from`` value: a group, a run id, or ``@remote/...``.
+    :param target: The ``from`` value: a group, a run id, id suffix or name, or ``@remote/...``.
     :return: The group relative to the log dir, and the run id if one run was named."""
-    if target.startswith("@"):
-        raise QueryError(
-            f"from {target!r}: no remote source of that name is connected; configure it under "
-            "remotes: in the settings, and run `beamtime serve` or name it in the call"
-        )
-    name = target.rstrip("/").rsplit("/", 1)[-1]
-    if is_run_id(name):
-        if (path := index.run_path(name)) is None:
-            index.catch_up(".", budget_s=0)
-            path = index.run_path(name)
-        if path is None:
-            raise QueryError(f"no run {name!r} below the log dir", code="not_found")
-        return path.relative_to(index.logdir).as_posix(), name
-    rel = posixpath.normpath(posixpath.join(base, target.strip("/") or "."))
-    if rel == ".." or rel.startswith("../"):
-        raise QueryError(f"from {target!r} leaves the log dir")
-    if rel != "." and any(is_reserved(part) for part in rel.split("/")):
-        raise QueryError(
-            f"from {target!r}: {rel!r} holds authored or machine files, not runs; "
-            "name the group above it",
-            code="not_found",
-        )
-    if (
-        not index.folder_path(rel).is_dir()
-        and index.folder_path(moved := current(index.logdir, rel)).is_dir()
-    ):
-        # a path from before a group was moved names the group where it is now.
-        rel = moved
-    if not index.folder_path(rel).is_dir():
-        parent = index.folder_path(posixpath.dirname(rel) or ".")
-        options = [p.name for p in parent.iterdir() if p.is_dir()] if parent.is_dir() else []
-        top = sorted(
-            p.name
-            for p in index.logdir.iterdir()
-            if p.is_dir() and not p.name.startswith(".") and not is_reserved(p.name)
-        )
-        more = ", ..." if len(top) > TOP_GROUPS else ""
-        raise QueryError(
-            f"no group {rel!r} below the log dir."
-            + closest(posixpath.basename(rel), options)
-            + f" Top-level groups: {', '.join(top[:TOP_GROUPS])}{more}.",
-            code="not_found",
-        )
-    return rel, None
+    r = resolve(index, target, base=base)
+    return r.path, r.run_id
 
 
 class Columns:

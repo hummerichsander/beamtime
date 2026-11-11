@@ -406,7 +406,7 @@ the local listing of `.` included, can't be reached by paging once any remote is
 
 ## P. Places (continued)
 
-### P3. One resolver (sonnet + review) — code
+### P3. One resolver (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/query/resolve.py`, `src/beamtime/query/select.py` (`resolve_from` 50–100 becomes a
   delegate), new `tests/query/test_resolve.py`, tests pinning the messages in `tests/cli/test_commands.py`,

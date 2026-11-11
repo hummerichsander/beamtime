@@ -360,7 +360,7 @@ def test_file(ask) -> None:
         ({"runs": {"select": ["metric.val/accc.max"]}}, "not_found", "'val/acc'"),
         ({"runs": {"select": ["config.lrr"]}}, "not_found", "'lr'"),
         ({"data": {"from": ".", "key": "sample"}}, "not_found", "'samples'"),
-        ({"runs": {"from": "@cluster/x"}}, "invalid", "no remote source"),
+        ({"runs": {"from": "@cluster/x"}}, "invalid", "no source @cluster"),
         ({"runs": {"where": {"proposal.chek": "pass"}}}, "invalid", "proposal.check"),
         ({"groups": {"where": {"config.lr": 1}}}, "invalid", "proposal.*"),
         ({"importance": {"target": "metric.val/acc.max"}}, "invalid", "v1.1"),

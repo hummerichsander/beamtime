@@ -265,6 +265,10 @@ where:
     - config.warmup: 1000
 ```
 
+- **Runs.** A run is named by its id; when no group of that name exists, by a unique id suffix or
+  its run name (a name shared by several runs is refused). One resolver (`query/resolve.py`)
+  answers for queries, notes and proposals: it follows moved groups, refuses reserved names and
+  paths leaving the log dir, and lists the siblings and top-level groups for an unknown group.
 - **Paths.** In a view, `from` is relative to the viewed group (`.`, `..`, `lr-sweep`). In the CLI
   and MCP, it is relative to the log dir; `.` covers the local log dir and all connected remotes, and
   `@cluster/scaling` names a remote group ([layer 4](04-remotes.md#naming-remote-groups)).
