@@ -93,6 +93,15 @@ def test_digest_without_proposal_or_metric(ctx: Context) -> None:
         call("digest", {"group": "nope"}, ctx)
 
 
+def test_digest_best_skips_runs_without_the_metric(ctx: Context) -> None:
+    """A metric some finished runs never logged tabulates only the runs that have it."""
+    d = call("digest", {"group": ".", "metric": "val/acc"}, ctx)
+    finished = d["runs"]["finished"]
+    assert 0 < d["best"]["runs"] < finished
+    assert d["best"]["runs"] == call("digest", {"group": "scaling", "metric": "val/acc"}, ctx)["best"]["runs"]
+    assert call("digest", {"group": "tokenizer", "metric": "val/acc"}, ctx)["best"] is None
+
+
 def test_logs_group_tracebacks_by_signature(ctx: Context, roles: dict[str, str]) -> None:
     """Failed runs' last tracebacks are grouped by their exception line; runs show their tail."""
     a = call("logs", {"from": "scaling/lr-sweep", "tail": 2}, ctx)

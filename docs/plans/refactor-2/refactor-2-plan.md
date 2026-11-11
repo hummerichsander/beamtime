@@ -808,7 +808,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 1. Per c4 §3 usage: `wait` (no config/metrics), `diagnose` (metrics), `logs` (`read_output(f.dir, rank)` stays).
 2. CHANGELOG (Changed: `logs` signatures follow the card's error when there is one).
 
-### Q5. `compare` and `digest` on run facts; `members()` deleted (sonnet) — code
+### Q5. `compare` and `digest` on run facts; `members()` deleted (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/ops/reading.py` (`members` 214–237 removed, `compare` 240–347, `entity_config` 309,
   `last_values` 323, `digest` 349–509, `best_per_setting` 419–427, `failures` 447–461), `tests/ops/test_tools.py`,

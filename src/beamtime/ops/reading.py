@@ -28,8 +28,8 @@ from beamtime.ops.context import Context, OpError
 from beamtime.query import QueryError
 from beamtime.query import run as run_query
 from beamtime.query.aggregate import spread
-from beamtime.query.distinguish import distinguishing, flatten, is_seed, signature
-from beamtime.query.facts import RunFacts, failure_key, failure_signature, run_facts
+from beamtime.query.distinguish import distinguishing, is_seed, signature
+from beamtime.query.facts import RunFacts, failure_key, run_facts
 from beamtime.query.kinds import describe_event
 from beamtime.query.progress import progress
 from beamtime.query.resolve import resolve
@@ -212,32 +212,6 @@ def query(ctx: Context, p: r.QueryParams) -> dict[str, Any]:
     return ask(ctx, p.query, p.cursor)
 
 
-def members(
-    ctx: Context, target: str, where: dict[str, Any] | None = None, depth: Any = "all"
-) -> list[dict[str, Any]]:
-    """List the runs of a group or the one run a target names, whole and without a budget.
-
-    :param ctx: The operation context.
-    :param target: A group below the log dir, or a run id.
-    :param where: A condition the runs must meet.
-    :param depth: How many group levels below the target to look into.
-    :return: Per run: ``id``, ``name``, ``status``, ``code``, ``dir`` and ``group``."""
-    fields = ["run.name", "run.status", "run.code", "run.path", "run.group"]
-    query = {"from": target, "select": fields, "limit": 10**6, "where": where or {}, "depth": depth}
-    table = evaluate(ctx, {"runs": query})
-    return [
-        {
-            "id": row[0],
-            "name": row[1],
-            "status": row[2],
-            "code": row[3],
-            "dir": ctx.logdir / row[4],
-            "group": row[5],
-        }
-        for row in table["rows"]
-    ]
-
-
 def run_members(
     ctx: Context,
     target: str,
@@ -287,7 +261,7 @@ def compare(ctx: Context, p: r.CompareParams) -> dict[str, Any]:
         raise OpError("compare takes at least two runs or groups", code=2)
     entities = []
     for target in p.targets:
-        if not (runs_ := members(ctx, target)):
+        if not (runs_ := run_members(ctx, target, config=True, metrics=True)):
             raise OpError(f"{target!r} holds no runs to compare", code=4)
         entities.append((target, runs_))
 
@@ -303,7 +277,7 @@ def compare(ctx: Context, p: r.CompareParams) -> dict[str, Any]:
         if len(set(signature(configs, key))) > 1
     ]
 
-    lasts = [[last_values(m["dir"]) for m in runs_] for _, runs_ in entities]
+    lasts = [[last_values(f) for f in runs_] for _, runs_ in entities]
     found = sorted({k for per_run in lasts for last in per_run for k in last})
     keys = p.metrics or found[:COMPARE_METRICS]
     rows = []
@@ -314,14 +288,14 @@ def compare(ctx: Context, p: r.CompareParams) -> dict[str, Any]:
             delta = center(cells[1]) - center(cells[0])
         rows.append({"metric": key, "values": cells, "delta": delta})
 
-    codes = [sorted({m["code"] for m in runs_ if m["code"]}) for _, runs_ in entities]
+    codes = [sorted({f.code for f in runs_ if f.code}) for _, runs_ in entities]
     answer = {
         "kind": "compare",
         "targets": [
             {
                 "target": target,
                 "runs": len(runs_),
-                "status": dict(Counter(m["status"] for m in runs_)),
+                "status": dict(Counter(f.status for f in runs_)),
                 "code": codes[i],
             }
             for i, (target, runs_) in enumerate(entities)
@@ -337,15 +311,13 @@ def compare(ctx: Context, p: r.CompareParams) -> dict[str, Any]:
     return page(ctx, answer, p.cursor)
 
 
-def entity_config(runs_: list[dict[str, Any]]) -> dict[str, Any]:
+def entity_config(runs_: list[RunFacts]) -> dict[str, Any]:
     """Flatten the configs of one compared target: a run's own, a group's with differing values
     listed.
 
-    :param runs_: The target's runs, as ``members`` lists them.
+    :param runs_: The target's runs, with their configs.
     :return: Dotted key to its value, or to ``{"varies": [...]}`` when the runs disagree."""
-    per_run = [
-        flatten(read_config(m["dir"])) if (m["dir"] / c.CONFIG).exists() else {} for m in runs_
-    ]
+    per_run = [f.config or {} for f in runs_]
     out = {}
     for key in {k for cfg in per_run for k in cfg}:
         seen = {json.dumps(cfg.get(key), sort_keys=True): cfg.get(key) for cfg in per_run}
@@ -353,14 +325,12 @@ def entity_config(runs_: list[dict[str, Any]]) -> dict[str, Any]:
     return out
 
 
-def last_values(run_dir: Path) -> dict[str, float]:
-    """Read the last value of every metric of a run from its card.
+def last_values(facts: RunFacts) -> dict[str, float]:
+    """Give the last value of every metric of a run, from its indexed card.
 
-    :param run_dir: The run directory.
+    :param facts: The run's facts, with metrics.
     :return: Metric key to last value; metrics without a finite value are left out."""
-    if not (run_dir / c.CARD).exists():
-        return {}
-    return {k: m.last for k, m in read_card(run_dir).metrics.items() if m.last is not None}
+    return {k: s["last"] for k, s in (facts.metrics or {}).items() if s.get("last") is not None}
 
 
 def cell(values: list[float]) -> Any:
@@ -396,7 +366,7 @@ def digest(ctx: Context, p: r.DigestParams) -> dict[str, Any]:
     from beamtime.record.notes import listing
     from beamtime.record.proposals import current, load
 
-    runs_ = members(ctx, p.group)
+    runs_ = run_members(ctx, p.group, config=True, metrics=True)
     with target_of(ctx, p.group) as target:
         version = current(target.dir)
         proposal = load(target.dir, version) if version else None
@@ -413,7 +383,7 @@ def digest(ctx: Context, p: r.DigestParams) -> dict[str, Any]:
     return {
         "kind": "digest",
         "group": p.group,
-        "runs": dict(Counter(m["status"] for m in runs_)),
+        "runs": dict(Counter(f.status for f in runs_)),
         "proposal": None
         if proposal is None
         else {
@@ -444,25 +414,23 @@ def note_row(note: dict[str, Any]) -> dict[str, Any]:
     return {k: note[k] for k in ("id", "type", "description")}
 
 
-def best_per_setting(
-    runs_: list[dict[str, Any]], metric: str | None, stat: str
-) -> dict[str, Any] | None:
+def best_per_setting(runs_: list[RunFacts], metric: str | None, stat: str) -> dict[str, Any] | None:
     """Tabulate a metric of the finished runs per value of each config key that varies.
 
-    :param runs_: The group's runs, as ``members`` lists them.
+    :param runs_: The group's runs, with configs and metrics.
     :param metric: The metric key, or ``None`` for no table.
     :param stat: The statistic of the metric that stands for a run.
     :return: ``metric``, ``stat`` and per varying key (never a seed) its values with the number
         of runs and the mean, min and max; ``None`` without a metric or finished runs."""
-    done = [m for m in runs_ if m["status"] == "finished" and (m["dir"] / c.CARD).exists()]
-    values = [
-        getattr(card.metrics.get(metric), stat, None)
-        for card in (read_card(m["dir"]) for m in done)
+    kept = [
+        (f, v)
+        for f in runs_
+        if f.status == "finished" and f.steps is not None
+        if (v := (f.metrics or {}).get(metric, {}).get(stat)) is not None
     ]
-    kept = [(m, v) for m, v in zip(done, values, strict=True) if v is not None]
     if metric is None or not kept:
         return None
-    configs = [flatten(read_config(m["dir"])) for m, _ in kept]
+    configs = [f.config or {} for f, _ in kept]
     keys = [k for k in distinguishing(configs).varying if not is_seed(k)][:DIGEST_KEYS]
     by_key = {}
     for key in keys:
@@ -482,16 +450,15 @@ def best_per_setting(
     return {"metric": metric, "stat": stat, "runs": len(kept), "by": by_key}
 
 
-def failures(runs_: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def failures(runs_: list[RunFacts]) -> list[dict[str, Any]]:
     """Group the failed, killed and lost runs by how they ended.
 
-    :param runs_: The group's runs, as ``members`` lists them.
+    :param runs_: The group's runs.
     :return: Per signature: the signature, status, run ids; the biggest group first."""
     groups: dict[tuple[str, str], list[str]] = {}
-    for m in runs_:
-        if m["status"] in ("failed", "killed", "lost"):
-            error = read_card(m["dir"]).error if (m["dir"] / c.CARD).exists() else None
-            groups.setdefault((m["status"], failure_signature(error)), []).append(m["id"])
+    for f in runs_:
+        if f.status in ("failed", "killed", "lost"):
+            groups.setdefault((f.status, failure_key(f.error, None)), []).append(f.id)
     ordered = sorted(groups.items(), key=lambda item: -len(item[1]))
     return [
         {"status": status, "signature": sig, "count": len(ids), "runs": ids[:DIGEST_NOTES]}

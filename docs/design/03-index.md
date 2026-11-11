@@ -254,7 +254,9 @@ need to know about runs: `run_facts` selects them with the same machinery as `ru
 statistics only when asked), after one catch-up. Only a run's output text is still read from its file.
 `failure_key(error, traceback)` is the one failure-signature rule: the signature of the error the card
 recorded, else of the output traceback's exception line. Signatures are grouping labels, not identifiers.
-`wait`, `diagnose` and `logs` take their runs from `run_members`. `last_logged` can lag behind the file
+`compare`, `digest`, `diagnose`, `logs` and `wait` take their runs from `run_members` (`compare` and `digest`
+ask for config and metrics, `digest` for the failures by `failure_key(error, None)`), so a pulled snapshot
+answers them at its own time like any other read. `last_logged` can lag behind the file
 (a daemon behind, or a busy run the catch-up budget deferred), so `diagnose` stats `_metrics.jsonl` once for
 a running run that looks stalled by it and judges by the fresher time; no other run costs a stat.
 
@@ -525,6 +527,8 @@ Decided while building the index and the queries (milestone M2):
 - **Remote sources** (M8): `beamtime serve --stdio` on a remote catches up only the scope of each
   request, into a temporary cache unless one is configured; a configured cache on NFS, Lustre or
   GPFS is refused for the temporary one, and `status` says why.
+- **Run facts come from the index** (refactor 2): `compare` and `digest` read config, card statistics, code,
+  status and error from the indexed rows, not from each run's files; no `members()` listing remains.
 - **Not yet**: `importance` for v1.1.
 
 ## Decisions
