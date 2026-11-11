@@ -1,6 +1,7 @@
 """The SQLite part of the index: runs, folders, events, data entries, notes and links."""
 
 import json
+import shutil
 import sqlite3
 import time
 from pathlib import Path
@@ -88,12 +89,15 @@ def in_scope(column: str, scope: str) -> tuple[str, list[str]]:
 class Store:
     """Access to ``index.sqlite``; safe for many readers and one writer at a time."""
 
-    def __init__(self, *, path: Path) -> None:
+    def __init__(self, *, path: Path, derived: Path | None = None) -> None:
         """Open the database, rebuilding it if its schema is outdated.
 
-        :param path: The database file."""
+        :param path: The database file.
+        :param derived: A directory of files derived from the database, deleted with it on
+            a rebuild."""
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
+        self.derived = derived
         self.db = sqlite3.connect(path, timeout=10, isolation_level=None)
         self.db.row_factory = sqlite3.Row
         self.use_wal()
@@ -139,6 +143,9 @@ class Store:
 
     def create(self) -> None:
         """Drop every table and create the current schema; call inside a transaction."""
+        # before the commit, so no process sees the new schema while old derived files remain.
+        if self.derived is not None:
+            shutil.rmtree(self.derived, ignore_errors=True)
         tables = self.db.execute("SELECT name FROM sqlite_master WHERE type='table'")
         for (name,) in tables.fetchall():
             self.db.execute(f"DROP TABLE IF EXISTS {name}")

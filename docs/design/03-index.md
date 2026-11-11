@@ -493,8 +493,9 @@ Decided while building the index and the queries (milestone M2):
 - **Defaults per caller**: CLI and MCP 50 rows, 100 points per curve, 30 entries; views 1000 rows,
   1000 points, 200 entries. Run tables always start with `run.id`.
 - **Concurrency.** Schema creation re-checks the version inside an immediate transaction, so two
-  processes opening a new cache at once don't rebuild it under each other; switching to WAL retries
-  while another process holds the lock.
+  processes opening a new cache at once don't rebuild it under each other; the column files are
+  deleted inside that transaction too, so a process that sees the new schema never ingests into a
+  folder about to go. Switching to WAL retries while another process holds the lock.
 - **`proposal.*` fields** (M4) are computed in Python after the SQL selection, like windowed
   statistics: on a `runs` row they describe the run's own proposal (a blank one is `open`), on a
   `groups` row the group's current proposal. `proposal.progress` is a fraction from 0 to 1;

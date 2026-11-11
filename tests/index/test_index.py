@@ -2,6 +2,7 @@ import json
 import math
 import os
 import shutil
+import sqlite3
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -370,4 +371,36 @@ def test_old_schema_rebuilds_on_open(logdir: Path, tmp_path: Path) -> None:
     first.close()
     second = Index(logdir=logdir, cache=tmp_path / "cache")
     assert second.store.version() == SCHEMA_VERSION == 3 and second.store.rebuilt
+    second.close()
+
+
+def test_rebuild_clears_columns_before_the_new_schema_shows(
+    logdir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Old column files go before another process can see the new schema and ingest.
+
+    Otherwise a process opening the cache in between ingests runs, records their offsets,
+    and has its column files deleted, so their curves stay empty until a reindex."""
+    cache = tmp_path / "cache"
+    first = Index(logdir=logdir, cache=cache)
+    first.catch_up(".", budget_s=float("inf"))
+    first.store.db.execute("UPDATE meta SET value = '2' WHERE key = 'schema'")
+    first.close()
+    seen = []
+    rmtree = shutil.rmtree
+
+    def spy(path: Path, *args, **kwargs) -> None:
+        other = sqlite3.connect(cache / "index.sqlite")
+        seen.append(other.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone()[0])
+        other.close()
+        rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "rmtree", spy)
+    second = Index(logdir=logdir, cache=cache)
+    assert seen == ["2"] and not second.series.exists()
+    second.catch_up(".", budget_s=float("inf"))
+    run = next(iter_runs(logdir / "tokenizer"))
+    want = expected(run)
+    got = columns(second, run.name)
+    assert want and all(same(got[k], want[k]) for k in want)
     second.close()

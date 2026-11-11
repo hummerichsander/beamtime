@@ -97,10 +97,8 @@ class Index:
         :param cache: The cache directory; by default ``cache_dir(logdir)``."""
         self.logdir = logdir.resolve()
         self.cache = cache or cache_dir(self.logdir)
-        self.store = Store(path=self.cache / "index.sqlite")
         self.series = self.cache / "series"
-        if self.store.rebuilt:
-            shutil.rmtree(self.series, ignore_errors=True)
+        self.store = Store(path=self.cache / "index.sqlite", derived=self.series)
         self.lock = FileLock(path=self.cache / INDEX_LOCK)
         self.ingester = Ingester(store=self.store, logdir=self.logdir, series=self.series)
         self.authored: dict[str, tuple[float | None, ...]] = {}
@@ -277,7 +275,6 @@ class Index:
         :return: The freshness after the rebuild."""
         with self.lock:
             self.store.rebuild()
-            shutil.rmtree(self.series, ignore_errors=True)
         return self.catch_up(".", budget_s=float("inf"))
 
     def run_path(self, run_id: str) -> Path | None:
