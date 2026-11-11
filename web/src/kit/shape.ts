@@ -8,6 +8,9 @@ export type KitCurve = {
   group: unknown;
   x: number[];
   y?: (number | null)[];
+  lo?: (number | null)[];
+  hi?: (number | null)[];
+  n?: (number | null)[];
   min?: (number | null)[];
   max?: (number | null)[];
   last?: (number | null)[];
@@ -41,6 +44,9 @@ function curve(c: any): KitCurve {
   const out: KitCurve = { run: c.run ?? null, key: c.metric, group: c.by ?? null, x: c.x ?? [] };
   const fields: [keyof KitCurve, unknown][] = [
     ["y", c.y],
+    ["lo", c.lo],
+    ["hi", c.hi],
+    ["n", c.n],
     ["min", c.min ?? c.lo],
     ["max", c.max ?? c.hi],
     ["last", c.last],

@@ -31,39 +31,22 @@ export function reshape(answer: { curves: any[] }, opts: { log?: boolean } = {})
   const labels = aggregated ? byLabels(raw.map((c) => c.by)) : runLabels(raw);
   const metrics = new Set(raw.map((c) => c.metric)).size > 1;
   const positive = (v: number | null) => (opts.log && v !== null && v <= 0 ? null : v);
-  const curves = raw.map((c, i): Curve => {
-    const out: Curve = {
-      key: aggregated ? `g${i}:${c.metric}` : `${c.run}:${c.metric}`,
-      label: labels[i] + (metrics ? ` · ${c.metric}` : ""),
-      run: aggregated ? null : c.run,
-      metric: c.metric,
-      x: c.x ?? [],
-      y: [],
-      lo: null,
-      hi: null,
-      n: null,
-      monotone: c.monotone !== false,
-      step: c.step ?? null,
-      group: aggregated ? labels[i] : null,
-      runs: aggregated ? (c.runs ?? []) : [c.run],
-      resumes: c.resumes ?? [],
-    };
-    if (aggregated) {
-      out.y = c.mean ?? [];
-      out.lo = c.lo ?? null;
-      out.hi = c.hi ?? null;
-      out.n = c.n ?? null;
-    } else if (c.raw) {
-      out.y = c.y ?? [];
-    } else {
-      out.y = c.last ?? [];
-      out.lo = c.min ?? null;
-      out.hi = c.max ?? null;
-      out.n = c.count ?? null;
-    }
-    out.y = out.y.map(positive);
-    return out;
-  });
+  const curves = raw.map((c, i): Curve => ({
+    key: aggregated ? `g${i}:${c.metric}` : `${c.run}:${c.metric}`,
+    label: labels[i] + (metrics ? ` · ${c.metric}` : ""),
+    run: aggregated ? null : c.run,
+    metric: c.metric,
+    x: c.x ?? [],
+    y: (c.y ?? []).map(positive),
+    lo: c.lo ?? null,
+    hi: c.hi ?? null,
+    n: c.n ?? null,
+    monotone: c.monotone !== false,
+    step: c.step ?? null,
+    group: aggregated ? labels[i] : null,
+    runs: aggregated ? (c.runs ?? []) : [c.run],
+    resumes: c.resumes ?? [],
+  }));
   return { curves: opts.log ? clipBands(curves) : curves, aggregated };
 }
 

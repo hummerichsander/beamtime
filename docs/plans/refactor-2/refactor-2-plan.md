@@ -718,7 +718,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 2. `SeriesAnswer.placed` maps it over `curves` before placing.
 3. One line in `04-remotes.md` § Protocol: a newer hub upgrades older remotes' curves.
 
-### V4. Web and kit read the envelope (sonnet + review) — code
+### V4. Web and kit read the envelope (sonnet + review) — code — **done**
 
 - **Touches:** `web/src/bt/curves.ts` (`reshape` 28–68), `web/src/blocks/table.ts` (`sparks` 120),
   `web/src/kit/shape.ts` (`curve` 40–52), `web/test/curves.test.ts`, `web/test/kit.test.ts`,

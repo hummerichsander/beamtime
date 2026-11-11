@@ -45,6 +45,8 @@
   remote's answers keep the old fields, so older clients and older remotes still work.
 - **Breaking:** `beamtime series --to out.csv` writes `y`, `lo`, `hi`, `n` and no longer `last`, `min`,
   `max`, `count` or `mean`; a `.json` export is stripped the same way.
+- **Added** `y`, `lo`, `hi` and `n` to the curves custom blocks read (`bt.subscribe`, `data.curves`), beside
+  the kit v1 fields `min`, `max`, `last`, `mean` and `count`, which stay. The web UI draws from the envelope alone.
 - **Changed** the one-line curve summary of `beamtime series` reads the envelope: a grouped curve's
   min and max now come from its band (`lo`, `hi`) instead of repeating the mean.
 - **Fixed** a data file's `path` over a remote: it stays relative to the view (it was prefixed

@@ -8,7 +8,7 @@ test("raw and bucketed run curves", () => {
     curves: [
       { run: "r1", name: "a", metric: "loss", raw: true, x: [0, 1], y: [2, 1] },
       { run: "r2", name: "a", metric: "loss", raw: false, x: [0, 10], first: [0, 10],
-        min: [1, 0.5], max: [3, 1], last: [2, 0.7], count: [10, 10] },
+        y: [2, 0.7], lo: [1, 0.5], hi: [3, 1], n: [10, 10] },
     ],
   });
   assert.equal(out.aggregated, false);
@@ -23,7 +23,7 @@ test("aggregated curves are labelled by what differs", () => {
     byLabels([{ "config.lr": 0.001, "config.model": "r18" }, { "config.lr": 0.0003, "config.model": "r18" }]),
     ["lr=0.001", "lr=0.0003"],
   );
-  const out = reshape({ curves: [{ by: { "config.lr": 1 }, runs: ["a"], metric: "m", x: [0], mean: [1], lo: [0], hi: [2], n: [3] }] });
+  const out = reshape({ curves: [{ by: { "config.lr": 1 }, runs: ["a"], metric: "m", x: [0], y: [1], lo: [0], hi: [2], n: [3] }] });
   assert.equal(out.curves[0].label, "lr=1");
   assert.equal(out.aggregated, true);
   assert.equal(out.curves[0].run, null);
@@ -69,7 +69,7 @@ test("robust range ignores a diverging run", async () => {
 
 test("smoothing smooths the band with the curve", async () => {
   const { smooth } = await import("../src/bt/curves.ts");
-  const c = reshape({ curves: [{ by: { "config.lr": 1 }, runs: ["a", "b"], metric: "m", x: [0, 1, 2], mean: [0, 10, 0], lo: [0, 8, 0], hi: [0, 12, 0], n: [2, 2, 2] }] });
+  const c = reshape({ curves: [{ by: { "config.lr": 1 }, runs: ["a", "b"], metric: "m", x: [0, 1, 2], y: [0, 10, 0], lo: [0, 8, 0], hi: [0, 12, 0], n: [2, 2, 2] }] });
   const out = smooth(c, 0.5).curves[0];
   assert.ok(out.lo![2]! > 0 && out.hi![2]! > out.y[2]!, "the band follows the smoothed mean");
   assert.deepEqual(out.runs, ["a", "b"]);
@@ -101,8 +101,8 @@ test("sparse curves mark every finite point, dense ones none", () => {
   assert.deepEqual(markers(series(31).map((i) => (i % 15 === 0 ? i : null))), [0, 15, 30]);
 });
 
-const aggregated = (mean: (number | null)[], lo: number[], hi: number[]) => ({
-  curves: [{ metric: "m", by: { "config.arm": "a" }, runs: ["r1", "r2"], x: mean.map((_, i) => i), mean, lo, hi, n: mean.map(() => 3) }],
+const aggregated = (y: (number | null)[], lo: number[], hi: number[]) => ({
+  curves: [{ metric: "m", by: { "config.arm": "a" }, runs: ["r1", "r2"], x: y.map((_, i) => i), y, lo, hi, n: y.map(() => 3) }],
 });
 
 test("a band clips at the floor on a log axis instead of leaving holes", () => {
@@ -115,7 +115,7 @@ test("a band clips at the floor on a log axis instead of leaving holes", () => {
 });
 
 test("a min of zero clips too, and a band exists exactly where the curve does", () => {
-  const raw = { curves: [{ run: "r", metric: "m", x: [0, 1, 2], last: [1, 0, 4], min: [0, 0, 2], max: [2, 0, 5], count: [3, 3, 3] }] };
+  const raw = { curves: [{ run: "r", metric: "m", x: [0, 1, 2], y: [1, 0, 4], lo: [0, 0, 2], hi: [2, 0, 5], n: [3, 3, 3] }] };
   const { curves } = reshape(raw, { log: true });
   assert.deepEqual(curves[0].y, [1, null, 4]);
   assert.deepEqual(curves[0].lo, [1 / Math.sqrt(10), null, 2]);
@@ -123,7 +123,7 @@ test("a min of zero clips too, and a band exists exactly where the curve does", 
 });
 
 test("all-zero curves have no curve and no band", () => {
-  const raw = { curves: [{ run: "r", metric: "m", x: [0, 1], last: [0, 0], min: [0, 0], max: [0, 0], count: [1, 1] }] };
+  const raw = { curves: [{ run: "r", metric: "m", x: [0, 1], y: [0, 0], lo: [0, 0], hi: [0, 0], n: [1, 1] }] };
   const { curves } = reshape(raw, { log: true });
   assert.deepEqual([curves[0].y, curves[0].lo, curves[0].hi], [[null, null], [null, null], [null, null]]);
   assert.equal(logDomain(curves), null);
@@ -169,4 +169,14 @@ test("where a resumed run's attempts meet comes with its curve", () => {
     ],
   });
   assert.deepEqual(out.curves.map((c) => c.resumes), [[1], []]);
+});
+
+test("values come from the envelope alone, whatever the old fields say", () => {
+  const out = reshape({
+    curves: [
+      { run: "r", metric: "m", x: [0], y: [2], lo: [1], hi: [3], n: [4], last: [9], min: [9], max: [9], count: [9] },
+      { metric: "m", by: { "config.a": 1 }, runs: ["r"], x: [0], y: [5], lo: [4], hi: [6], n: [2], mean: [9] },
+    ],
+  });
+  assert.deepEqual(out.curves.map((c) => [c.y, c.lo, c.hi, c.n]), [[[2], [1], [3], [4]], [[5], [4], [6], [2]]]);
 });

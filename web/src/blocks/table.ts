@@ -117,7 +117,7 @@ function numeric(data: Record<string, any>[], c: string): boolean {
 
 function sparks(answer: { curves: any[] } | null): Map<string, (number | null)[]> {
   const out = new Map<string, (number | null)[]>();
-  for (const c of answer?.curves ?? []) out.set(c.run, c.raw ? c.y : c.last);
+  for (const c of answer?.curves ?? []) out.set(c.run, c.y);
   return out;
 }
 

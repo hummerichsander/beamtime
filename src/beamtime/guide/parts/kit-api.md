@@ -4,7 +4,7 @@
 |---|---|
 | `bt.useData(name, values?)` | hook: a declared query's result; re-renders on new data |
 | `bt.data(name, values?)`, `bt.subscribe(name, cb, values?)` | the same as a promise, or a callback per update |
-| result | `status` (`loading`, `ready`, `error`), `error`, `columns`, `rows` (objects keyed by field), `curves` (`{run, key, group, x, y \| min, max, last, mean, count}`), `data` (the raw answer); a `runs` answer's `columns` always start with `run.id`, selected or not |
+| result | `status` (`loading`, `ready`, `error`), `error`, `columns`, `rows` (objects keyed by field), `curves` (`{run, key, group, x, y, lo?, hi?, n?}`: `y` is the curve, `lo`/`hi` its band and `n` the points behind each value, none of the three on raw curves; the version 1 fields `min`, `max`, `last`, `mean`, `count` still come along), `data` (the raw answer); a `runs` answer's `columns` always start with `run.id`, selected or not |
 | `bt.chart.Line`, `Scatter`, `Bar`, `Histogram` | built-in charts: the props of their YAML form, plus `data` (a result) |
 | `bt.chart.Figure` | your own drawing in the chart frame: `id`, `title`, `xlabel`, `ylabel`, `series`, `settings`, `csv`, `draw(el, {width, height, prefs, hovered, hidden})` |
 | `bt.ui.Table`, `Stat`, `DataTable`, `Grid`, `Row`, `Section`, `Tabs`/`Tab`, `Note` | built-in blocks and layouts |

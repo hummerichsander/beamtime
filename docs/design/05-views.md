@@ -351,8 +351,11 @@ is handled by the kit's hooks.
 
 Results carry `status` (`ready`, `loading`, `error`) and `meta` (freshness, downsampled, truncated).
 The kit reshapes the columnar answers of layer 3 for code: runs as `{columns, rows}` with rows as
-objects keyed by field; curves as a list of `{run, key, group, x, y}` or, aggregated or downsampled,
-`{run, key, group, x, min, max, last, mean, count}`.
+objects keyed by field; curves as a list of `{run, key, group, x, y, lo?, hi?, n?}`: `y` is the curve, `lo`
+and `hi` its band and `n` the points behind each value (none of the three on raw curves). The version 1
+fields `min`, `max`, `last`, `mean` and `count` still reach custom blocks beside them, so blocks written
+for kit v1 keep working; new code reads the envelope. The shell itself reads the envelope alone (the
+answers it receives always carry it, remote ones upgraded on arrival).
 
 **Components.** `bt.ui` holds layout, tables, stats and context blocks (`Grid`, `Row`, `Tabs`,
 `Section`, `Table`, `Stat`, `Note`, `Config`, `Images`, …); `bt.chart` holds charts (`Line`, `Scatter`, `Bar`,

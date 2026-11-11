@@ -35,10 +35,12 @@ test("results as blocks see them", () => {
   assert.equal(runs.call, call);
   const curves = shape({ status: "ready", data: { curves: [
     { run: "a", metric: "loss", raw: true, x: [0, 1], y: [2, 1] },
-    { metric: "loss", by: { "config.lr": 0.1 }, x: [0], mean: [1], lo: [0.5], hi: [1.5], n: [3] },
+    { metric: "loss", by: { "config.lr": 0.1 }, x: [0], y: [1], mean: [1], lo: [0.5], hi: [1.5], n: [3], count: [3] },
+    { run: "b", metric: "loss", x: [0], y: [2], lo: [1], hi: [3], n: [4], last: [2], min: [1], max: [3] },
   ] }, error: null, refreshing: false }, null);  // prettier-ignore
   assert.deepEqual(curves.curves[0], { run: "a", key: "loss", group: null, x: [0, 1], y: [2, 1] });
-  assert.deepEqual(curves.curves[1], { run: null, key: "loss", group: { "config.lr": 0.1 }, x: [0], min: [0.5], max: [1.5], mean: [1], count: [3] });
+  assert.deepEqual(curves.curves[1], { run: null, key: "loss", group: { "config.lr": 0.1 }, x: [0], y: [1], lo: [0.5], hi: [1.5], n: [3], min: [0.5], max: [1.5], mean: [1], count: [3] });
+  assert.deepEqual(curves.curves[2], { run: "b", key: "loss", group: null, x: [0], y: [2], lo: [1], hi: [3], n: [4], min: [1], max: [3], last: [2], count: [4] });
   const loading = shape({ status: "loading", data: null, error: null, refreshing: false }, null);
   assert.deepEqual([loading.rows, loading.curves, loading.columns], [[], [], []]);
 });
