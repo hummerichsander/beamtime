@@ -84,7 +84,7 @@ function Phase() {
   };
   return html`<${bt.chart.Figure} id="phase" title="Phase portrait" xlabel="x" ylabel="p"
     series=${series} settings=${["scale", "colormap"]} draw=${draw}
-    csv=${orbit.curves.flatMap((c) => c.x.map((x, i) => ({ run: c.run, x, y: c.y?.[i] ?? c.last?.[i] })))} />`;
+    csv=${orbit.curves.flatMap((c) => c.x.map((x, i) => ({ run: c.run, x, y: c.y[i] })))} />`;
 }
 ```
 
