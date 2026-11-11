@@ -60,3 +60,15 @@ def test_query_tool_lists_the_kinds() -> None:
     assert QueryParams.__annotations__["query"] is models.QueryBody
     schema = next(t for t in tools() if t.name == "query").input_schema
     assert ", ".join(code.KINDS) in schema["properties"]["query"]["description"]
+
+
+def test_body_is_the_params_without_paging_and_export() -> None:
+    """``body`` encodes ``from`` under its query name and leaves out ``cursor`` and ``to``."""
+    from beamtime.ops.reading import body
+
+    p = msgspec.convert({"from": "g", "y": ["loss"], "cursor": "c", "to": "out.csv"}, SeriesParams)
+    q = body(p)
+    assert q["from"] == "g" and "from_" not in q
+    assert q["y"] == ["loss"] and q["smooth"] is None
+    assert not {"cursor", "to"} & q.keys()
+    models.parse({"series": q})

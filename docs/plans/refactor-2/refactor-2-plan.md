@@ -873,7 +873,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 1. `Cursor`, `To` aliases; `class RunsParams(q.Runs, kw_only=True)` etc.; `Selection(q.Selection)` + `cursor`
    for logs/wait/diagnose. `FileParams` stays as it is. CHANGELOG (Changed: MCP property order).
 
-### K4. The reading adapters collapse to `body()` (sonnet) — code
+### K4. The reading adapters collapse to `body()` (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/ops/reading.py` (`selection` 92–97 removed, `keys`, `groups`, `runs`, `series`,
   `data`, `timeline` 100–202).

@@ -8,6 +8,8 @@ from pathlib import Path
 from statistics import median
 from typing import Any, Literal
 
+import msgspec
+
 from beamtime.format import constants as c
 from beamtime.format.run import (
     derived_status,
@@ -31,7 +33,6 @@ from beamtime.query.aggregate import spread
 from beamtime.query.distinguish import distinguishing, is_seed, signature
 from beamtime.query.facts import RunFacts, failure_key, run_facts
 from beamtime.query.kinds import describe_event
-from beamtime.query.models import Selection
 from beamtime.query.progress import progress
 from beamtime.query.resolve import resolve
 from beamtime.query.select import Columns
@@ -91,12 +92,12 @@ def page(ctx: Context, answer: dict[str, Any], cursor: str | None) -> dict[str, 
     return budget.page(answer, cursor, caller=ctx.caller, whole=ctx.whole, wire=ctx.wire)
 
 
-def selection(p: Selection) -> dict[str, Any]:
-    """Turn the shared selection parameters into query fields.
+def body(p: msgspec.Struct) -> dict[str, Any]:
+    """Build a query from parameters: every field but the paging and export ones.
 
-    :param p: The parameters.
-    :return: ``from``, ``where`` and ``depth``."""
-    return {"from": p.from_, "where": p.where, "depth": p.depth}
+    :param p: The parameters of a query operation.
+    :return: The query in its object form."""
+    return {k: v for k, v in msgspec.to_builtins(p).items() if k not in ("cursor", "to")}
 
 
 def keys(ctx: Context, p: r.KeysParams) -> dict[str, Any]:
@@ -105,7 +106,7 @@ def keys(ctx: Context, p: r.KeysParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer."""
-    return ask(ctx, {"keys": selection(p)})
+    return ask(ctx, {"keys": body(p)})
 
 
 def groups(ctx: Context, p: r.GroupsParams) -> dict[str, Any]:
@@ -114,7 +115,7 @@ def groups(ctx: Context, p: r.GroupsParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer."""
-    return ask(ctx, {"groups": selection(p)}, p.cursor)
+    return ask(ctx, {"groups": body(p)}, p.cursor)
 
 
 def runs(ctx: Context, p: r.RunsParams) -> dict[str, Any]:
@@ -123,16 +124,9 @@ def runs(ctx: Context, p: r.RunsParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer."""
-    q = selection(p) | {
-        "select": p.select,
-        "sort": p.sort,
-        "limit": p.limit,
-        "seeds": p.seeds,
-        "by": p.by,
-    }
     if p.to is not None:
-        return export(ctx, evaluate(ctx, {"runs": q | {"limit": p.limit or 10**6}}), p.to)
-    return ask(ctx, {"runs": q}, p.cursor)
+        return export(ctx, evaluate(ctx, {"runs": body(p) | {"limit": p.limit or 10**6}}), p.to)
+    return ask(ctx, {"runs": body(p)}, p.cursor)
 
 
 def series(ctx: Context, p: r.SeriesParams) -> dict[str, Any]:
@@ -141,16 +135,7 @@ def series(ctx: Context, p: r.SeriesParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer."""
-    q = selection(p) | {
-        "y": p.y,
-        "x": p.x,
-        "steps": p.steps,
-        "points": p.points,
-        "by": p.by,
-        "seeds": p.seeds,
-        "band": p.band,
-        "smooth": {"ema": p.smooth} if p.smooth is not None else None,
-    }
+    q = body(p) | {"smooth": {"ema": p.smooth} if p.smooth is not None else None}
     if p.to is not None:
         return export(ctx, evaluate(ctx, {"series": q}), p.to)
     return ask(ctx, {"series": q}, p.cursor)
@@ -162,8 +147,7 @@ def data(ctx: Context, p: r.DataParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer."""
-    q = selection(p) | {"key": p.key, "step": p.step, "limit": p.limit}
-    return ask(ctx, {"data": q}, p.cursor)
+    return ask(ctx, {"data": body(p)}, p.cursor)
 
 
 def file(ctx: Context, p: r.FileParams) -> dict[str, Any]:
@@ -195,13 +179,7 @@ def timeline(ctx: Context, p: r.TimelineParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer."""
-    q = selection(p) | {
-        "types": p.types,
-        "since": p.since,
-        "limit": p.limit,
-        "full": p.full,
-    }
-    return ask(ctx, {"timeline": q}, p.cursor)
+    return ask(ctx, {"timeline": body(p)}, p.cursor)
 
 
 def query(ctx: Context, p: r.QueryParams) -> dict[str, Any]:
