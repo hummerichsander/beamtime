@@ -1,3 +1,4 @@
+import json
 import copy
 import re
 from pathlib import Path
@@ -6,7 +7,7 @@ from typing import Any
 import pytest
 
 import beamtime
-from beamtime.ops.answers import ANSWERS, flagged, merged, placed
+from beamtime.ops.answers import ANSWERS, flagged, merged, placed, upgrade_curve
 
 
 def test_placed_leaves_what_users_wrote_alone() -> None:
@@ -400,3 +401,45 @@ def test_wrote_line() -> None:
     assert placed(out, "box") == out
     upgrade = {"kind": "view upgrade", "group": "g", "lines": ["nothing to upgrade"], "meta": {}}
     assert placed(upgrade, "box")["group"] == "@box/g"
+
+
+OLD_SERIES = Path(__file__).parent / "fixtures" / "series-0.2.json"
+ENVELOPE = {"y", "lo", "hi", "n"}
+
+
+def old_series() -> dict:
+    """Read the series answer a 0.2 remote gave, pinned once by hand.
+
+    :return: The answer, in the old shape."""
+    return json.loads(OLD_SERIES.read_text())
+
+
+def test_upgrade_old_remote_series() -> None:
+    """Raw, downsampled and grouped curves of a 0.2 remote come out with the envelope."""
+    raw, down, grouped = placed(old_series(), "box")["curves"]
+    assert raw["y"] == [2.0, 1.5, None] and not ENVELOPE - {"y"} & set(raw)
+    assert (down["y"], down["lo"], down["hi"], down["n"]) == (
+        [0.15, 0.4], [0.1, 0.3], [0.2, 0.5], [2, 2]
+    )  # fmt: skip
+    assert down["last"] == [0.15, 0.4] and down["count"] == [2, 2]
+    assert grouped["y"] == grouped["mean"] == [2.0, 1.0] and grouped["lo"] == [1.5, 0.5]
+    assert grouped["n"] == [2, 2]
+
+
+def test_upgrade_idempotent() -> None:
+    """A curve with the envelope is returned as it is, so is an upgraded one."""
+    answer = placed(old_series(), "box")
+    for curve in answer["curves"]:
+        assert upgrade_curve(curve) is curve
+    assert placed(answer, "box")["curves"] == answer["curves"]
+    own = {"x": [0], "y": [1.0], "lo": [0.0], "hi": [2.0], "n": [3], "last": [9.0]}
+    assert upgrade_curve(own) is own
+
+
+def test_upgrade_grouped() -> None:
+    """A grouped curve gains ``y`` only; ``lo``, ``hi`` and ``n`` are not touched."""
+    grouped = old_series()["curves"][2]
+    out = upgrade_curve(grouped)
+    assert out == grouped | {"y": grouped["mean"]}
+    banded = grouped | {"lo": [None, None], "hi": [None, None]}
+    assert upgrade_curve(banded)["lo"] == [None, None]

@@ -252,6 +252,48 @@ def test_aggregated_runs_name_their_source(box: Path, ctx: Context) -> None:
     assert sources == sorted(sources, key=lambda s: s != ".")
 
 
+class OldRemote:
+    """A remote of 0.2: its series curves carry the old fields only."""
+
+    def __init__(self) -> None:
+        """Remember how a remote is addressed."""
+        self.spec = SimpleNamespace(scope=".")
+
+    def request(self, method: str, params: dict, **_: Any) -> dict:
+        """Answer every call with the pinned 0.2 series answer.
+
+        :param method: The method.
+        :param params: Its parameters.
+        :return: The answer, in the old shape."""
+        path = Path(__file__).parent / "fixtures" / "series-0.2.json"
+        return json.loads(path.read_text())
+
+    def close(self) -> None:
+        """Hold no connection."""
+
+
+@pytest.mark.parametrize("target", ["@box/g", "."])
+@pytest.mark.parametrize("caller", ["cli", "mcp"])
+def test_an_old_remotes_curves_reach_cli_and_mcp_with_values(
+    ctx: Context, target: str, caller: str
+) -> None:
+    """The envelope is added on arrival, before the strip of the old fields, so a CLI or MCP
+    caller gets values from a remote that only knows the old fields, single or federated."""
+    old = {"last", "min", "max", "count", "mean"}
+    ctx.sources.clients["box"] = OldRemote()
+    ctx = dataclasses.replace(ctx, caller=caller)
+    query = {"from": target, "y": ["train/loss"], "points": 5}
+    curves = call("series", query, ctx)["curves"]
+    remote = [c for c in curves if c.get("run") == "r0001aaaa" or c.get("runs")]
+    assert len(remote) == 3
+    for c in remote:
+        assert not old & set(c) and c["y"] and len(c["y"]) == len(c["x"])
+    down = next(c for c in remote if c["metric"] == "train/acc")
+    assert (down["y"], down["lo"], down["hi"], down["n"]) == (
+        [0.15, 0.4], [0.1, 0.3], [0.2, 0.5], [2, 2]
+    )  # fmt: skip
+
+
 class FakeClient:
     """A source that answers one list of group rows, or is down."""
 

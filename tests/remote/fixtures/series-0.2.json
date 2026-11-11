@@ -1,0 +1,40 @@
+{
+  "kind": "series",
+  "curves": [
+    {
+      "run": "r0001aaaa",
+      "metric": "train/loss",
+      "by": null,
+      "source": "column",
+      "raw": true,
+      "x": [0, 1, 2],
+      "y": [2.0, 1.5, null]
+    },
+    {
+      "run": "r0001aaaa",
+      "metric": "train/acc",
+      "by": null,
+      "source": "column",
+      "raw": false,
+      "width": 2,
+      "x": [0, 2],
+      "first": [0, 2],
+      "min": [0.1, 0.3],
+      "max": [0.2, 0.5],
+      "last": [0.15, 0.4],
+      "count": [2, 2]
+    },
+    {
+      "by": {"config.lr": 0.1},
+      "runs": ["r0001aaaa", "r0002bbbb"],
+      "metric": "train/loss",
+      "width": 1.0,
+      "x": [0.5, 1.5],
+      "mean": [2.0, 1.0],
+      "lo": [1.5, 0.5],
+      "hi": [2.5, 1.5],
+      "n": [2, 2]
+    }
+  ],
+  "meta": {"source": "local", "from": "g"}
+}

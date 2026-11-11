@@ -356,10 +356,34 @@ class Runs(Tabled):
         return first
 
 
+def upgrade_curve(c: dict[str, Any]) -> dict[str, Any]:
+    """Give a curve of an older remote the drawing envelope ``y``, ``lo``, ``hi``, ``n``.
+
+    :param c: One curve of a series answer.
+    :return: The curve itself if it has ``y`` already, else a copy with the envelope."""
+    if "y" in c:
+        return c
+    if "mean" in c:
+        return {**c, "y": c["mean"]}
+    if "last" in c:
+        return {**c, "y": c["last"], "lo": c["min"], "hi": c["max"], "n": c["count"]}
+    return c
+
+
 class Series(Bare):
     """Curves of metrics."""
 
     kind = "series"
+
+    def placed(self, answer: Any, at: Callable[[str], str]) -> Any:
+        """Place the meta and lift the curves of an older remote to the envelope.
+
+        :param answer: The remote's answer.
+        :param at: Puts a source's prefix on one path.
+        :return: The answer, every curve with ``y``."""
+        if isinstance(curves := answer.get("curves"), list):
+            answer = {**answer, "curves": [upgrade_curve(c) for c in curves]}
+        return super().placed(answer, at)
 
     def merged(self, answers: list[tuple[str, dict]], params: dict, caller: str) -> dict:
         """Join the curves; with several sources' curves, each group says its source.

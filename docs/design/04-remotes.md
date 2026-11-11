@@ -243,6 +243,9 @@ These methods exist only in the API:
 A request may carry `whole: true`, which asks for the answer bounded only by its limit and about
 2 MB instead of the agents' token budget; older remotes ignore it and cut at the budget.
 
+Curves follow the same rule: a newer hub upgrades an older remote's curves to the drawing envelope
+`y`, `lo`, `hi`, `n` when the answer arrives (`answers.upgrade_curve`), before CLI and MCP drop the old fields.
+
 Compatibility: the same protocol major version on both sides; minor versions only add. `hello`
 carries the version, so a call to a method an older remote doesn't have (one of the bundle methods above,
 on a remote built before they existed) answers with that version and the upgrade command, e.g. "`@au002a`

@@ -701,7 +701,7 @@ Page methods: `hello`, `files`, `meta`, `view`, `summary`, `save_view`, `view_te
 1. `curve_line`: one path over `y`, band from `lo`/`hi` else `y`.
 2. `table_of`: after flattening, drop a column whose values equal an earlier column's, keeping the envelope name.
 
-### V3. Old remotes' curves are upgraded (sonnet + review) — code
+### V3. Old remotes' curves are upgraded (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/ops/answers.py` (`SeriesAnswer.placed`, new `upgrade_curve`), new
   `tests/remote/fixtures/series-0.2.json`, `tests/remote/test_answers.py`, `docs/design/04-remotes.md`.
