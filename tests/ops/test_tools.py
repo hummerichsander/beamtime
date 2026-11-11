@@ -217,6 +217,30 @@ def test_diagnose_does_not_call_a_run_stalled_when_the_index_lags(
     assert not any("stalled" in e["flags"] for e in entries)
 
 
+def test_diagnose_flags_a_card_without_metrics_as_missing(ctx: Context) -> None:
+    """A finished run whose card holds no metrics misses what its peers logged."""
+    [run_id] = call(
+        "runs",
+        {
+            "from": "tokenizer",
+            "where": {"run.status": "finished"},
+            "select": ["run.id"],
+            "limit": 1,
+        },
+        ctx,
+    )["rows"][0]
+    run = next(p for p in ctx.logdir.rglob(run_id) if p.is_dir())
+    card = json.loads((run / "_run_card.json").read_text())
+    wanted = sorted(card["metrics"])
+    (run / "_run_card.json").write_text(json.dumps({**card, "metrics": {}}))
+    # the index rereads an ended run only when its _run.json changed.
+    os.utime(run / "_run.json", (time.time() + 1, time.time() + 1))
+    flagged = {
+        e["run"]: e["flags"] for e in call("diagnose", {"from": "tokenizer"}, ctx)["entries"]
+    }
+    assert sorted(flagged[run_id]["missing"]) == wanted
+
+
 def test_plan_missing_lists_grid_points_without_a_run(ctx: Context) -> None:
     """A grid point whose only run vanished is missing, with the config to launch."""
     assert call("plan missing", {"group": "scaling/lr-sweep"}, ctx)["missing"] == 0

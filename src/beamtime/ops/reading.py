@@ -680,7 +680,8 @@ def diagnose(ctx: Context, p: r.DiagnoseParams) -> dict[str, Any]:
     entries = []
     for group in peers.values():
         # runs are judged against their own group: other experiments run for other lengths.
-        done = [f.steps for f in group if f.status == "finished" and f.metrics]
+        # every card records steps, so a run has a card exactly when its steps are known.
+        done = [f.steps for f in group if f.status == "finished" and f.steps is not None]
         typical = median([n for n in done if n]) if len(done) >= 3 else None
         counts = Counter(k for f in group for k in f.metrics)
         wanted = p.metrics or [k for k, n in counts.items() if n > len(group) / 2]
@@ -694,9 +695,9 @@ def diagnose(ctx: Context, p: r.DiagnoseParams) -> dict[str, Any]:
                 flags["stalled"] = f"no new metrics for {age / 60:.0f} min"
             if (restarts := f.attempts - 1) > 0:
                 flags["restarts"] = restarts
-            if f.metrics and typical and f.steps and f.steps < SHORT_RUN * typical:
+            if typical and f.steps and f.steps < SHORT_RUN * typical:
                 flags["stopped_early"] = f"{f.steps} of about {typical:.0f} steps"
-            if f.metrics and (gone := [k for k in wanted if k not in f.metrics]):
+            if f.steps is not None and (gone := [k for k in wanted if k not in f.metrics]):
                 flags["missing"] = gone
             if flags:
                 entries.append({"run": f.id, "name": f.name, "status": f.status, "flags": flags})
