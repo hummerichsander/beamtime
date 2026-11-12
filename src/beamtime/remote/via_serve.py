@@ -24,7 +24,7 @@ def involves_remotes(ctx: Context, tool: str, params: dict[str, Any]) -> bool:
         return True
     everything = params.get("from", ".") in (".", "", None)
     op = BY_TOOL.get(tool)
-    return bool(ctx.settings.get("remotes")) and op is not None and op.listing and everything
+    return bool(ctx.settings.remotes) and op is not None and op.listing and everything
 
 
 def call(ctx: Context, tool: str, params: dict[str, Any]) -> dict[str, Any] | None:

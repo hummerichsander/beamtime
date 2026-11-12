@@ -1,6 +1,7 @@
 """Settings in levels, like VS Code: built-in, user, project, then flags."""
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -16,13 +17,101 @@ DEFAULTS: dict[str, Any] = {
     "figure_style": ["science", "nature"],
     # a folder (with {user}, ${VAR}, ~) or "memory"; None means the user cache dir.
     "cache": None,
+    # project-only: a style plus overrides of the knobs in AGENT_KEYS.
+    "agent": None,
     "remotes": {},
 }
 # what `beamtime set` (and the web UI's settings page) may write into beamtime.yaml.
 SETTABLE = ("theme", "theme_mode", "figure_style")
 MOVED = ("colormap", "colormap_diverging")
-REMOTE_KEYS = ("host", "command", "cache", "path", "transport")
-PROJECT_ONLY = ("logdir",)
+REMOTE_KEYS = ("host", "command", "cache", "path", "transport", "enabled")
+PROJECT_ONLY = ("logdir", "agent")
+
+STYLES = ("careful", "hands-on", "analysis", "custom")
+PRESETS: dict[str, dict[str, Any]] = {
+    "careful": {
+        "launch_runs": "ask",
+        "memory_updates": "after_verdicts",
+        "save_views": "save",
+        "research_record": "encouraged",
+        "seeds": 3,
+        "significance": 0.95,
+        "memory_tokens": 1500,
+        "render_rounds": 2,
+        "custom_blocks": "builtin_first",
+    },
+    "hands-on": {
+        "launch_runs": "allowed",
+        "memory_updates": "after_verdicts",
+        "save_views": "save",
+        "research_record": "encouraged",
+        "seeds": 3,
+        "significance": 0.95,
+        "memory_tokens": 1500,
+        "render_rounds": 2,
+        "custom_blocks": "builtin_first",
+    },
+    "analysis": {
+        "launch_runs": "ask",
+        "memory_updates": "suggest",
+        "save_views": "save",
+        "research_record": "off",
+        "seeds": 3,
+        "significance": 0.95,
+        "memory_tokens": 1500,
+        "render_rounds": 2,
+        "custom_blocks": "builtin_first",
+    },
+}
+PRESETS["custom"] = PRESETS["careful"]
+
+
+def positive_int(value: Any) -> bool:
+    """Check for an integer of at least 1 (booleans don't count).
+
+    :param value: The candidate.
+    :return: Whether it is one."""
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 1
+
+
+def probability(value: Any) -> bool:
+    """Check for a number strictly between 0 and 1.
+
+    :param value: The candidate.
+    :return: Whether it is one."""
+    return isinstance(value, int | float) and not isinstance(value, bool) and 0 < value < 1
+
+
+def nonempty_str(value: Any) -> bool:
+    """Check for a non-empty string.
+
+    :param value: The candidate.
+    :return: Whether it is one."""
+    return isinstance(value, str) and bool(value.strip())
+
+
+# each knob's allowed values, or a validator; the last four are detected conventions.
+AGENT_KEYS: dict[str, tuple[str, ...] | Callable[[Any], bool]] = {
+    "launch_runs": ("never", "ask", "allowed"),
+    "memory_updates": ("suggest", "after_verdicts"),
+    "save_views": ("draft", "save"),
+    "research_record": ("off", "encouraged", "required"),
+    "seeds": positive_int,
+    "significance": probability,
+    "memory_tokens": positive_int,
+    "render_rounds": positive_int,
+    "custom_blocks": ("builtin_first", "free"),
+    "main_metric": nonempty_str,
+    "direction": ("min", "max"),
+    "seed_key": nonempty_str,
+    "domain": ("ml", "simulation"),
+}
+VALIDATOR_HINTS: dict[Callable[[Any], bool], str] = {
+    positive_int: "an integer of at least 1",
+    probability: "a number between 0 and 1",
+    nonempty_str: "a non-empty string",
+}
+DETECTED_KEYS = ("main_metric", "direction", "seed_key", "domain")
 
 
 def expand_path(path: str, user: str | None = None) -> str:
@@ -45,6 +134,29 @@ def user_settings_path() -> Path:
     return (Path(base) if base else Path.home() / ".config") / "beamtime" / "settings.yaml"
 
 
+@dataclass(frozen=True, kw_only=True)
+class AgentSettings:
+    """The agent knobs of a project, resolved from the style and the project's overrides."""
+
+    style: str
+    launch_runs: str
+    memory_updates: str
+    save_views: str
+    research_record: str
+    seeds: int
+    significance: float
+    memory_tokens: int
+    render_rounds: int
+    custom_blocks: str
+    main_metric: str | None = None
+    direction: str | None = None
+    seed_key: str | None = None
+    domain: str | None = None
+    source: dict[str, Literal["default", "preset", "project", "detected"]] = field(
+        default_factory=dict
+    )
+
+
 @dataclass(kw_only=True)
 class Settings:
     """The effective settings, each value with the level it came from."""
@@ -60,6 +172,32 @@ class Settings:
         :param default: Returned when the key is missing.
         :return: The value."""
         return self.values.get(key, default)
+
+    @property
+    def remotes(self) -> dict[str, dict]:
+        """The remotes this machine uses: those not switched off with ``enabled: false``.
+
+        :return: Remote name to its fields."""
+        return {
+            name: conf
+            for name, conf in (self.values.get("remotes") or {}).items()
+            if isinstance(conf, dict) and conf.get("enabled", True)
+        }
+
+    @property
+    def agent(self) -> AgentSettings:
+        """The agent knobs: the style's preset, then the project's single keys.
+
+        :return: The resolved knobs, each with where it came from."""
+        given = self.values.get("agent") or {}
+        style = given.get("style", "careful")
+        knobs = dict(PRESETS[style])
+        source = dict.fromkeys(knobs, "preset" if "style" in given else "default")
+        for key in AGENT_KEYS:
+            if key in given:
+                knobs[key] = given[key]
+                source[key] = "detected" if key in DETECTED_KEYS else "project"
+        return AgentSettings(style=style, **knobs, source=source)
 
     def flat(self) -> list[tuple[str, Any, Level]]:
         """List every leaf setting with its level, for ``beamtime settings``.
@@ -124,6 +262,8 @@ def read_level(path: Path, level: Level, problems: list[str]) -> dict[str, Any]:
     if data.get("theme_mode", "system") not in ("system", "light", "dark"):
         problems.append(f"{path}: theme_mode is system, light or dark; ignored")
         del data["theme_mode"]
+    if "agent" in data:
+        data["agent"] = check_agent(path, data["agent"], problems)
     for name, remote in (data.get("remotes") or {}).items():
         if not isinstance(remote, dict):
             problems.append(f"{path}: remote {name!r} must be a mapping")
@@ -134,7 +274,45 @@ def read_level(path: Path, level: Level, problems: list[str]) -> dict[str, Any]:
                     f"{path}: remote {name!r} has unknown key {key!r}; "
                     f"known: {', '.join(REMOTE_KEYS)}"
                 )
+        if not isinstance(remote.get("enabled", True), bool):
+            problems.append(f"{path}: remote {name!r}: enabled is true or false; ignored")
+            del remote["enabled"]
     return data
+
+
+def check_agent(path: Path, agent: Any, problems: list[str]) -> dict[str, Any] | None:
+    """Keep the valid parts of the ``agent`` setting, reporting the rest.
+
+    :param path: The settings file.
+    :param agent: The value as written.
+    :param problems: Collects problems found.
+    :return: The style and knobs that are valid, or ``None`` without any."""
+    if not isinstance(agent, dict):
+        problems.append(f"{path}: agent is a mapping with a style and knobs; ignored")
+        return None
+    out = {}
+    for key, value in agent.items():
+        allowed = STYLES if key == "style" else AGENT_KEYS.get(key)
+        if allowed is None:
+            problems.append(
+                f"{path}: unknown agent setting {key!r}; known: style, {', '.join(AGENT_KEYS)}"
+            )
+        elif isinstance(allowed, tuple):
+            if value in allowed:
+                out[key] = value
+            else:
+                problems.append(
+                    f"{path}: agent.{key} is one of {', '.join(allowed)}, not {value!r}; "
+                    "using the preset"
+                )
+        elif allowed(value):
+            out[key] = value
+        else:
+            problems.append(
+                f"{path}: agent.{key} is {VALIDATOR_HINTS[allowed]}, not {value!r}; "
+                "using the preset"
+            )
+    return out or None
 
 
 def merge(

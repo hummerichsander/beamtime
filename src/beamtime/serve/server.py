@@ -217,7 +217,7 @@ def start_sources(ctx: Context, p: r.ServeParams, hub: Any) -> Any:
     :return: The sources, or ``None`` without remotes."""
     from beamtime.remote.sources import Sources, parse_arg, spec_of
 
-    configured = ctx.settings.get("remotes") or {}
+    configured = ctx.settings.remotes
     if p.sources:
         specs = [parse_arg(arg, configured) for arg in p.sources]
     else:

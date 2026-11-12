@@ -243,7 +243,7 @@ def serving(ctx: Context) -> Iterator[tuple[str, str]]:
     # a draft on another source needs its queries, and a remote-drafted group, routed; a call
     # already holding connections (a running serve) lends them rather than opening new ones.
     owned = ctx.sources is None
-    configured = ctx.settings.get("remotes") or {}
+    configured = ctx.settings.remotes
     sources = ctx.sources
     if sources is None and configured:
         sources = Sources([spec_of(n, c) for n, c in configured.items()])

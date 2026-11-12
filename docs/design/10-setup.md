@@ -293,7 +293,7 @@ a set of values; single keys override it.
 | `research_record` | `off`, `encouraged`, `required` | `encouraged` | `encouraged` | `off` |
 | `seeds` | an integer ≥ 1 | 3 | 3 | 3 |
 | `significance` | a number in (0, 1) | 0.95 | 0.95 | 0.95 |
-| `memory_tokens` | an integer | 1500 | 1500 | 1500 |
+| `memory_tokens` | an integer ≥ 1 | 1500 | 1500 | 1500 |
 | `render_rounds` | an integer ≥ 1 | 2 | 2 | 2 |
 | `custom_blocks` | `builtin_first`, `free` | `builtin_first` | `builtin_first` | `builtin_first` |
 | `main_metric`, `direction` | a metric key; `min` or `max` | detected | detected | detected |

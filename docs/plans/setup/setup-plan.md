@@ -178,7 +178,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 7. `cache_dir(logdir, settings=None) -> Path` stays, returning `resolve_cache(...).path`; the callers above pass
    `ctx.settings`. `doctor` prints the path, kind and `source`.
 
-### F12. Agent settings and disabled remotes (sonnet + review) — code
+### F12. Agent settings and disabled remotes (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/settings.py` (`DEFAULTS` 10, `REMOTE_KEYS` 22, `PROJECT_ONLY` 23, `read_level` 67,
   `Settings` 35; new `AGENT_KEYS`, `PRESETS`, `AgentSettings`), `src/beamtime/ops/context.py` (83),

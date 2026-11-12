@@ -80,7 +80,7 @@ class Context:
         :return: Their names, without ``@``."""
         if self.sources is not None:
             return list(self.sources.clients)
-        return list(self.settings.get("remotes") or {})
+        return list(self.settings.remotes)
 
     @classmethod
     def make(cls, *, root: str | Path | None = None, caller: Caller = "cli") -> "Context":

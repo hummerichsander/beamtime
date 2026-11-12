@@ -68,7 +68,7 @@ def reach(name: str, params: dict[str, Any], ctx: Any) -> dict[str, Any]:
     from beamtime.ops.registry import BY_NAME
 
     op = BY_NAME[name]
-    if op.local or ctx.sources is None and not targets(params) and not ctx.settings.get("remotes"):
+    if op.local or ctx.sources is None and not targets(params) and not ctx.settings.remotes:
         return call(name, params, ctx)
     if op.user_only:
         if targets(params):

@@ -1065,7 +1065,7 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         "runs": dict(counts),
         "daemon": daemon,
         "web_ui": f"http://localhost:{daemon['port']}" if daemon and daemon.get("port") else None,
-        "remotes": sorted(ctx.settings.get("remotes") or {}),
+        "remotes": sorted(ctx.settings.remotes),
         "sources": sources(ctx),
         "snapshots": snapshots(ctx),
         "memory": memory,

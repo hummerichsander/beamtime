@@ -97,7 +97,7 @@ def client_for(ctx: Context, name: str) -> RemoteClient:
     if ctx.sources is not None and name in ctx.sources.clients:
         return ctx.sources.get(name)
     if name not in opened:
-        configured = ctx.settings.get("remotes") or {}
+        configured = ctx.settings.remotes
         if name not in configured:
             known = ", ".join(f"@{n}" for n in sorted(configured)) or "none configured"
             # a pulled snapshot may still answer for a remote that isn't configured here.

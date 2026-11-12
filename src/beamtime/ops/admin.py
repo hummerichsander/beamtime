@@ -227,7 +227,7 @@ def doctor(ctx: Context, p: r.NoParams) -> dict[str, Any]:
     for problem in ctx.settings.problems:
         check("settings", False, problem)
     check("browser", *browser())
-    for name, conf in sorted((ctx.settings.get("remotes") or {}).items()):
+    for name, conf in sorted(ctx.settings.remotes.items()):
         for row in remote_checks(name, conf):
             check(*row)
     failed = [name for name, ok, _ in checks if ok is False]
