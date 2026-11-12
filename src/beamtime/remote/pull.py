@@ -31,7 +31,7 @@ def snapshots_dir(ctx: Context) -> Path:
     :return: ``<cache>/pulled``."""
     from beamtime.index.cache import cache_dir
 
-    return cache_dir(ctx.logdir) / "pulled"
+    return cache_dir(ctx.logdir, ctx.settings) / "pulled"
 
 
 def snapshot_of(ctx: Context, name: str) -> tuple[Path, dict[str, Any]] | None:

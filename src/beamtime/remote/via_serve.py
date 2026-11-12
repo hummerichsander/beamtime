@@ -37,7 +37,7 @@ def call(ctx: Context, tool: str, params: dict[str, Any]) -> dict[str, Any] | No
     from beamtime.index.cache import cache_dir, daemon_status
     from beamtime.serve.auth import TOKEN_FILE
 
-    cache = cache_dir(ctx.logdir)
+    cache = cache_dir(ctx.logdir, ctx.settings)
     status = daemon_status(cache) or {}
     if not status.get("port"):
         return None

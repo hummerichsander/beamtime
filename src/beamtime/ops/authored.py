@@ -32,7 +32,7 @@ def target_of(ctx: Context, group: str, *, create: bool = False) -> Iterator[Tar
         make_group(ctx, group)
     if not ctx.logdir.is_dir():
         raise OpError(f"no log dir at {ctx.logdir}; `beamtime init` sets one up", code=4)
-    with Index(logdir=ctx.logdir) as index:
+    with Index(logdir=ctx.logdir, settings=ctx.settings) as index:
         index.catch_up(".", 0.2)
         try:
             rel, run_id = resolve_from(index, ".", group)

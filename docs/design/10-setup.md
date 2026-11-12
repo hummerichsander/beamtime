@@ -161,15 +161,17 @@ cluster the CLI, MCP and `serve` could disagree on the cache. The cache becomes 
 by one function for every consumer (CLI, `serve`, MCP, `serve --stdio`, `pull`, `doctor`):
 
 ```python
-def resolve_cache(logdir: Path, settings: Settings) -> Cache:
+def resolve_cache(logdir: Path, settings: Settings | None = None) -> Cache:
     """Where the index of a log dir lives on this machine."""
 ```
 
-`Cache` has `path` (the directory for this log dir), `kind` (`disk` or `memory`) and `refused` (the
-filesystem type of a configured path that was refused, or `None`). The value comes from, first match:
+`Cache` has `path` (the directory for this log dir), `kind` (`disk` or `memory`), `refused` (the
+filesystem type of a configured path that was refused, or `None`) and `source` (what decided: `--cache`,
+`BEAMTIME_CACHE`, `project settings`, `user settings` or `default`). Without settings only the
+environment counts. The value comes from, first match:
 
-1. `BEAMTIME_CACHE` (a session override, as today), or `serve --stdio --cache` sent by the laptop
-   (`remotes.<name>.cache` in the laptop's settings);
+1. `serve --stdio --cache` sent by the laptop (`remotes.<name>.cache` in the laptop's settings; it is a
+   `flag`-level `cache` setting of that process), then `BEAMTIME_CACHE` (a session override, as today);
 2. the `cache` setting (project over user);
 3. the built-in default: `$XDG_CACHE_HOME/beamtime` or `~/.cache/beamtime`.
 
@@ -181,15 +183,18 @@ Then:
   applies to the built-in default too, so a cluster whose `$HOME` is on NFS gets memory without any
   setting.
 - **`memory`** means no index survives the process: each process indexes into its own temporary
-  directory on local disk (`tempfile.mkdtemp`), deleted when it exits. A `serve` with a memory cache
+  directory on local disk (`tempfile.mkdtemp`), deleted when that `Index` closes. A `serve` with a memory cache
   still publishes `serve.lock`, `serve.json` and its token, in `<tmp>/beamtime-<uid>/<logdir hash>/`
   (mode 0700), so a CLI call or MCP server on the same machine finds it and answers through it
   ([layer 3](03-index.md#freshness-the-daemon)).
 - `serve --stdio` keeps its behaviour: memory unless a cache is configured, now also from the remote
-  machine's own `cache` setting.
+  machine's own `cache` setting. It no longer sets `BEAMTIME_CACHE`, and the remote's own `BEAMTIME_CACHE` does not make its cache persistent: only `--cache` or the setting do. Its memory is one temporary
+  directory for the whole session (removed when stdin closes), so its requests share their index; an
+  `Index` per request would index again each time.
 
-`cache_dir()` remains as the path of `resolve_cache()` for callers that only need it. `doctor` shows
-the resolved cache and its source level.
+`cache_dir(logdir, settings=None)` remains as the path of `resolve_cache()` for callers that only need
+it. Every consumer passes its `ctx.settings` (`Index(settings=...)`, `Daemon(settings=...)`,
+`query.run(settings=...)`). `doctor` shows the resolved cache, its kind and its source.
 
 ## Remotes
 

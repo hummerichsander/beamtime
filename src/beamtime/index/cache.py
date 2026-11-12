@@ -5,27 +5,119 @@ import json
 import os
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
+
+from beamtime.settings import expand_path
+
+if TYPE_CHECKING:
+    from beamtime.settings import Settings
 
 INDEX_LOCK = "index.lock"
 SERVE_LOCK = "serve.lock"
 SERVE_JSON = "serve.json"
+MOUNTS = Path("/proc/mounts")
+NETWORK_FS = ("nfs", "nfs4", "lustre", "gpfs", "cifs", "smbfs", "smb3", "beegfs", "fuse.sshfs")
 
 
-def cache_dir(logdir: Path) -> Path:
+def runtime_dir(logdir: Path) -> Path:
+    """Locate where a memory cache publishes ``serve.lock``, ``serve.json`` and the token.
+
+    :param logdir: The log dir.
+    :return: ``<tmp>/beamtime-<uid>/<hash of the log dir>``, created with mode 0700."""
+    import getpass
+    import tempfile
+
+    uid = os.getuid() if hasattr(os, "getuid") else getpass.getuser()
+    base = Path(tempfile.gettempdir()) / f"beamtime-{uid}"
+    base.mkdir(mode=0o700, exist_ok=True)
+    base.chmod(0o700)
+    path = base / log_hash(logdir)
+    path.mkdir(mode=0o700, exist_ok=True)
+    return path
+
+
+def log_hash(logdir: Path) -> str:
+    """Name a log dir in the cache.
+
+    :param logdir: The log dir.
+    :return: The first 16 hex digits of the hash of its resolved path."""
+    return hashlib.sha256(str(logdir.resolve()).encode()).hexdigest()[:16]
+
+
+def network_fs(path: Path) -> str | None:
+    """Tell whether a folder is on a network or parallel filesystem, where SQLite is unsafe.
+
+    :param path: The folder (it may not exist yet).
+    :return: The filesystem type if it is one, else ``None``."""
+    try:
+        mounts = MOUNTS.read_text().splitlines()
+    except OSError:
+        return None
+    target = str(path.resolve())
+    best, kind = "", None
+    for line in mounts:
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        mount = parts[1]
+        below = target == mount or target.startswith(mount.rstrip("/") + "/")
+        if below and len(mount) > len(best):
+            best, kind = mount, parts[2]
+    return kind if kind in NETWORK_FS else None
+
+
+@dataclass(frozen=True)
+class Cache:
+    """Where the index of a log dir lives on this machine, and why."""
+
+    path: Path
+    kind: Literal["disk", "memory"]
+    refused: str | None
+    source: str
+
+
+def resolve_cache(logdir: Path, settings: "Settings | None" = None) -> Cache:
+    """Resolve the cache of a log dir, the one way every consumer does.
+
+    The first match wins: a ``--cache`` flag, ``BEAMTIME_CACHE``, the ``cache`` setting, the user
+    cache dir. A folder on a network filesystem is refused and becomes ``memory``.
+
+    :param logdir: The log dir.
+    :param settings: The effective settings; without them only the environment counts.
+    :return: For ``disk``, ``<cache>/<hash of the log dir>``; for ``memory``, ``runtime_dir``
+        (where ``serve`` publishes itself), while each index uses its own temporary folder."""
+    configured = settings.get("cache") if settings is not None else None
+    level = settings.levels.get("cache") if settings is not None else None
+    if configured and level == "flag":
+        value, source = configured, "--cache"
+    elif env := os.environ.get("BEAMTIME_CACHE"):
+        value, source = env, "BEAMTIME_CACHE"
+    elif configured:
+        value, source = configured, f"{level} settings"
+    else:
+        xdg = os.environ.get("XDG_CACHE_HOME")
+        value, source = (
+            str((Path(xdg).expanduser() if xdg else Path.home() / ".cache") / "beamtime"),
+            "default",
+        )
+    if value == "memory":
+        return Cache(runtime_dir(logdir), "memory", None, source)
+    root = Path(expand_path(value))
+    if refused := network_fs(root):
+        return Cache(runtime_dir(logdir), "memory", refused, source)
+    return Cache(root / log_hash(logdir), "disk", None, source)
+
+
+def cache_dir(logdir: Path, settings: "Settings | None" = None) -> Path:
     """Find the cache directory of a log dir: outside the repository, and on a cluster
     filesystem only if the user points it there.
 
     :param logdir: The log dir.
-    :return: ``<cache>/beamtime/<hash of the log dir>``."""
-    if base := os.environ.get("BEAMTIME_CACHE"):
-        root = Path(base).expanduser()
-    else:
-        xdg = os.environ.get("XDG_CACHE_HOME")
-        root = (Path(xdg).expanduser() if xdg else Path.home() / ".cache") / "beamtime"
-    digest = hashlib.sha256(str(logdir.resolve()).encode()).hexdigest()[:16]
-    return root / digest
+    :param settings: The effective settings.
+    :return: The path of ``resolve_cache``."""
+    return resolve_cache(logdir, settings).path
 
 
 class FileLock:

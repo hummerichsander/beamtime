@@ -6,13 +6,17 @@ import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from beamtime.format import constants as c
 from beamtime.format.tree import is_reserved
-from beamtime.index.cache import INDEX_LOCK, FileLock, cache_dir, daemon_status
+from beamtime.index.cache import INDEX_LOCK, FileLock, daemon_status, resolve_cache
 from beamtime.index.columns import open_columns
 from beamtime.index.ingest import Ingester, authored_mtime, mtime, read_notes
 from beamtime.index.store import Store
+
+if TYPE_CHECKING:
+    from beamtime.settings import Settings
 
 # mtimes can be a second coarse; folders changed around a walk are listed again.
 MTIME_SLACK_S = 2.0
@@ -90,16 +94,28 @@ def format_age(seconds: float) -> str:
 class Index:
     """The index of one log dir: a cache that can always be rebuilt from the files."""
 
-    def __init__(self, *, logdir: Path, cache: Path | None = None) -> None:
+    def __init__(
+        self, *, logdir: Path, cache: Path | None = None, settings: "Settings | None" = None
+    ) -> None:
         """Open (or create) the index of a log dir.
 
         :param logdir: The log dir.
-        :param cache: The cache directory; by default ``cache_dir(logdir)``."""
+        :param cache: The cache directory; by default the one ``resolve_cache`` finds.
+        :param settings: The effective settings, for the ``cache`` setting."""
         self.logdir = logdir.resolve()
-        self.cache = cache or cache_dir(self.logdir)
-        self.series = self.cache / "series"
-        self.store = Store(path=self.cache / "index.sqlite", derived=self.series)
-        self.lock = FileLock(path=self.cache / INDEX_LOCK)
+        self.scratch: Path | None = None
+        if cache is None:
+            resolved = resolve_cache(self.logdir, settings)
+            cache = resolved.path
+            if resolved.kind == "memory":
+                import tempfile
+
+                self.scratch = Path(tempfile.mkdtemp(prefix="beamtime-index-"))
+        self.cache = cache
+        data = self.scratch or self.cache
+        self.series = data / "series"
+        self.store = Store(path=data / "index.sqlite", derived=self.series)
+        self.lock = FileLock(path=data / INDEX_LOCK)
         self.ingester = Ingester(store=self.store, logdir=self.logdir, series=self.series)
         self.authored: dict[str, tuple[float | None, ...]] = {}
 
@@ -286,8 +302,10 @@ class Index:
         return self.logdir / row["path"] if row else None
 
     def close(self) -> None:
-        """Close the database connection."""
+        """Close the database connection, and delete a memory index."""
         self.store.db.close()
+        if self.scratch is not None:
+            shutil.rmtree(self.scratch, ignore_errors=True)
 
     def __enter__(self) -> "Index":
         """Use the index in a ``with`` block, which closes it.

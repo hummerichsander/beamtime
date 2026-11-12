@@ -19,7 +19,7 @@ from beamtime.format.io import read_json
 from beamtime.format.run import derived_status
 from beamtime.format.times import stamp
 from beamtime.format.tree import is_reserved, is_run, iter_runs, to_trash
-from beamtime.index.cache import cache_dir, daemon_status
+from beamtime.index.cache import daemon_status, resolve_cache
 from beamtime.index.index import Index
 from beamtime.ops import registry as r
 from beamtime.ops.context import Context, OpError
@@ -204,14 +204,18 @@ def doctor(ctx: Context, p: r.NoParams) -> dict[str, Any]:
           + ("" if ctx.logdir.is_dir() else "; created by the first run"))  # fmt: skip
     target = ctx.logdir if ctx.logdir.is_dir() else ctx.root
     check("write access", os.access(target, os.W_OK), str(target))
-    cache = cache_dir(ctx.logdir)
+    resolved = resolve_cache(ctx.logdir, ctx.settings)
+    cache = resolved.path
+    where = f"{cache} ({resolved.kind}, from {resolved.source})"
+    if resolved.refused:
+        where += f"; the configured folder is on {resolved.refused}, where SQLite is unsafe"
     try:
         cache.mkdir(parents=True, exist_ok=True)
         db = sqlite3.connect(":memory:")
         db.execute("SELECT json_extract('{\"a\": 1}', '$.a')")
-        check("cache", True, f"{cache} (SQLite {sqlite3.sqlite_version})")
+        check("cache", True, f"{where}; SQLite {sqlite3.sqlite_version}")
     except (OSError, sqlite3.Error) as e:
-        check("cache", False, f"{cache}: {e}")
+        check("cache", False, f"{where}: {e}")
     try:
         import mcp  # noqa: F401
 
@@ -413,7 +417,7 @@ def reindex(ctx: Context, p: r.NoParams) -> dict[str, Any]:
     :return: How long it took and how many runs it found."""
     if not ctx.logdir.is_dir():
         raise OpError(f"no log dir at {ctx.logdir}", code=4)
-    with Index(logdir=ctx.logdir) as index:
+    with Index(logdir=ctx.logdir, settings=ctx.settings) as index:
         t = time.perf_counter()
         freshness = index.reindex()
         n = index.store.db.execute("SELECT count(*) FROM runs").fetchone()[0]
@@ -537,7 +541,7 @@ def copies_of(ctx: Context, run_ids: list[str]) -> list[str]:
     :return: One line per referencing copy."""
     if not run_ids:
         return []
-    with Index(logdir=ctx.logdir) as index:
+    with Index(logdir=ctx.logdir, settings=ctx.settings) as index:
         index.catch_up(".", budget_s=0.2)
         placeholders = ",".join("?" * len(run_ids))
         rows = index.store.db.execute(

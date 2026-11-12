@@ -19,13 +19,14 @@ from typing import IO, Any
 
 import msgspec
 
+from beamtime.index.cache import resolve_cache
 from beamtime.ops.context import Context, OpError
+from beamtime.settings import expand_path
 
 WORKERS = 4
 WATCH_S = 2.0
 # which cache this session indexes into, for hello: its path, and why a configured one was refused.
 CACHE: dict[str, str | None] = {}
-NETWORK_FS = ("nfs", "nfs4", "lustre", "gpfs", "cifs", "smbfs", "smb3", "beegfs", "fuse.sshfs")
 
 
 class Remote:
@@ -102,7 +103,7 @@ class Remote:
         """Catch up the watched scopes every few seconds and report what changed, and how."""
         from beamtime.index.index import Index
 
-        with Index(logdir=self.ctx.logdir) as index:
+        with Index(logdir=self.ctx.logdir, settings=self.ctx.settings) as index:
             while not self.stopping.wait(WATCH_S):
                 changed: dict[str, set[str]] = {}
                 for scope in sorted(self.watched):
@@ -121,25 +122,30 @@ def run(*, logdir: str, cache: str | None = None) -> int:
     """Serve the API over stdin and stdout for one log dir.
 
     :param logdir: The remote log dir.
-    :param cache: A persistent cache on a local disk; default a temporary one.
+    :param cache: A persistent cache on a local disk; default the remote's own ``cache`` setting,
+        else a temporary one.
     :return: The exit code."""
-    path = Path(expand(logdir)).resolve()
-    own, reason = None, None
-    if cache is not None and (reason := network_fs(Path(expand(cache)))):
-        cache = None
-    if cache is None:
-        own = tempfile.mkdtemp(prefix="beamtime-remote-")
-        cache = own
-    os.environ["BEAMTIME_CACHE"] = expand(cache)
+    path = Path(expand_path(logdir)).resolve()
     os.environ["BEAMTIME_LOGDIR"] = str(path)
-    temporary = "yes" if own else None
-    CACHE.update(path=os.environ["BEAMTIME_CACHE"], temporary=temporary, refused=reason)
-    if reason:
-        print(f"beamtime: the cache is on {reason}; using a temporary one", file=sys.stderr)
+    ctx = Context.make(root=path.parent, caller="cli")
+    settings = ctx.settings
+    if cache is not None:
+        settings.values["cache"], settings.levels["cache"] = cache, "flag"
+    # the remote's own BEAMTIME_CACHE doesn't count: only --cache or the setting persist a cache.
+    resolved = resolve_cache(path, settings) if settings.get("cache") else None
+    refused = resolved.refused if resolved else None
+    own = None
+    if resolved is None or resolved.kind == "memory":
+        # one temporary cache for the whole session, so requests share their index.
+        own = tempfile.mkdtemp(prefix="beamtime-remote-")
+        settings.values["cache"], settings.levels["cache"] = own, "flag"
+        resolved = resolve_cache(path, settings)
+    CACHE.update(path=str(resolved.path), temporary="yes" if own else None, refused=refused)
+    if refused:
+        print(f"beamtime: the cache is on {refused}; using a temporary one", file=sys.stderr)
     # stdout carries the protocol: everything else an operation prints goes to stderr.
     out, sys.stdout = sys.stdout, sys.stderr
     try:
-        ctx = Context.make(root=path.parent, caller="cli")
         ctx = dataclasses.replace(ctx, logdir=path)
         Remote(ctx=ctx, out=out).serve(sys.stdin)
     finally:
@@ -147,35 +153,3 @@ def run(*, logdir: str, cache: str | None = None) -> int:
         if own is not None:
             shutil.rmtree(own, ignore_errors=True)
     return 0
-
-
-def expand(path: str) -> str:
-    """Expand a configured path on this machine: ``~``, ``${VAR}`` and ``{user}``.
-
-    :param path: The path as configured, e.g. ``/scratch/{user}/beamtime``.
-    :return: The path."""
-    import getpass
-
-    return str(Path(os.path.expandvars(path.replace("{user}", getpass.getuser()))).expanduser())
-
-
-def network_fs(path: Path) -> str | None:
-    """Tell whether a folder is on a network or parallel filesystem, where SQLite is unsafe.
-
-    :param path: The folder (it may not exist yet).
-    :return: The filesystem type if it is one, else ``None``."""
-    try:
-        mounts = Path("/proc/mounts").read_text().splitlines()
-    except OSError:
-        return None
-    target = str(path.resolve())
-    best, kind = "", None
-    for line in mounts:
-        parts = line.split()
-        if len(parts) < 3:
-            continue
-        mount = parts[1]
-        below = target == mount or target.startswith(mount.rstrip("/") + "/")
-        if below and len(mount) > len(best):
-            best, kind = mount, parts[2]
-    return kind if kind in NETWORK_FS else None

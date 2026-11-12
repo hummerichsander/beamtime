@@ -243,7 +243,7 @@ def page_of(ctx: Context, path: str) -> tuple[str, str | None]:
     if not ctx.logdir.is_dir():
         raise OpError("no local log dir", code=4)
     try:
-        with Index(logdir=ctx.logdir) as index:
+        with Index(logdir=ctx.logdir, settings=ctx.settings) as index:
             found = resolve(index, path, sources=ctx.remotes)
     except QueryError as e:
         raise OpError(str(e), code=4) from None
@@ -336,7 +336,7 @@ def locate(ctx: Context, run_id: str, rel: str) -> Path | None:
 
     if not is_run_id(run_id):
         return None
-    with Index(logdir=ctx.logdir) as index:
+    with Index(logdir=ctx.logdir, settings=ctx.settings) as index:
         run_dir = index.run_path(run_id)
     if run_dir is None:
         return None

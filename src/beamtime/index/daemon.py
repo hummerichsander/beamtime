@@ -6,9 +6,13 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from beamtime.index.cache import SERVE_JSON, SERVE_LOCK, FileLock, cache_dir
+from beamtime.index.cache import SERVE_JSON, SERVE_LOCK, FileLock, resolve_cache
 from beamtime.index.index import Index
+
+if TYPE_CHECKING:
+    from beamtime.settings import Settings
 
 POLL_S = 2.0
 
@@ -24,17 +28,25 @@ class Daemon:
         port: int | None = None,
         on_change: Callable[[dict[str, set[str]]], None] | None = None,
         poll_s: float = POLL_S,
+        settings: "Settings | None" = None,
     ):
         """Prepare the daemon; nothing runs before ``start``.
 
         :param logdir: The log dir; it may not exist yet.
-        :param cache: The cache directory; by default ``cache_dir(logdir)``.
+        :param cache: The cache directory; by default the one ``resolve_cache`` finds.
         :param port: The web UI's port, recorded in ``serve.json``.
         :param on_change: Called from the indexing thread with the run and folder
             paths (relative to the log dir) that changed in a poll, and how.
-        :param poll_s: Seconds between polls."""
+        :param poll_s: Seconds between polls.
+        :param settings: The effective settings, for the ``cache`` setting."""
         self.logdir = logdir.resolve()
-        self.cache = cache or cache_dir(self.logdir)
+        self.settings = settings
+        self.memory = False
+        if cache is None:
+            resolved = resolve_cache(self.logdir, settings)
+            cache, self.memory = resolved.path, resolved.kind == "memory"
+        # a memory cache holds only the serve files; each Index keeps its data in its own folder.
+        self.cache = cache
         self.port = port
         self.on_change = on_change
         self.poll_s = poll_s
@@ -73,7 +85,9 @@ class Daemon:
         while not self.logdir.is_dir():
             if self.stopping.wait(self.poll_s):
                 return
-        with Index(logdir=self.logdir, cache=self.cache) as index:
+        with Index(
+            logdir=self.logdir, cache=None if self.memory else self.cache, settings=self.settings
+        ) as index:
             while not self.stopping.is_set():
                 fresh = index.catch_up(".", budget_s=float("inf"), daemon=True)
                 self.write_status()

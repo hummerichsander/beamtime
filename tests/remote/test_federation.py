@@ -132,7 +132,7 @@ def test_remote_paths_expand_on_the_remote(monkeypatch: pytest.MonkeyPatch) -> N
     """~, ${VAR} and {user} expand where the remote end runs."""
     import getpass
 
-    from beamtime.serve.stdio import expand
+    from beamtime.settings import expand_path as expand
 
     monkeypatch.setenv("SCRATCH", "/scratch/x")
     assert expand("${SCRATCH}/{user}/bt") == f"/scratch/x/{getpass.getuser()}/bt"

@@ -140,7 +140,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 ## F. Foundations
 
-### F11. One cache setting for every consumer (sonnet + review) — code
+### F11. One cache setting for every consumer (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/index/cache.py` (`cache_dir` 16; new `Cache`, `resolve_cache`, `network_fs`,
   `runtime_dir`), `src/beamtime/settings.py` (`DEFAULTS` 10, `read_level` 67; new `expand_path`),

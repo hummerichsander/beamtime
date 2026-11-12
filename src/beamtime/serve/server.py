@@ -39,7 +39,7 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
         raise OpError(
             "beamtime serve needs the serve extra: pip install 'beamtime[serve]'"
         ) from None
-    from beamtime.index.cache import cache_dir, daemon_status
+    from beamtime.index.cache import daemon_status
     from beamtime.index.daemon import Daemon
 
     hub = Hub()
@@ -51,8 +51,8 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
             "`beamtime source add <name> <host:/path>`, or run `beamtime serve host:/path`",
             code=4,
         )
-    cache = cache_dir(ctx.logdir)
-    daemon = Daemon(logdir=ctx.logdir, cache=cache, on_change=hub.changed)
+    daemon = Daemon(logdir=ctx.logdir, on_change=hub.changed, settings=ctx.settings)
+    cache = daemon.cache
     sock = None if p.no_ui else bind(p.port)
     daemon.port = None if sock is None else sock.getsockname()[1]
     if not daemon.start():

@@ -75,7 +75,9 @@ def evaluate(ctx: Context, query: dict[str, Any]) -> dict[str, Any]:
             code=4,
         )
     try:
-        answer = run_query(query, logdir=ctx.logdir, caller=ctx.caller, now=ctx.now)
+        answer = run_query(
+            query, logdir=ctx.logdir, caller=ctx.caller, now=ctx.now, settings=ctx.settings
+        )
     except QueryError as e:
         raise OpError(str(e), code=4 if e.code == "not_found" else 2) from None
     answer["meta"] = {k: v for k, v in answer["meta"].items() if v is not None}
@@ -212,7 +214,7 @@ def run_members(
     if not ctx.logdir.is_dir():
         raise OpError(f"no log dir at {ctx.logdir}; `beamtime init` sets one up", code=4)
     try:
-        with Index(logdir=ctx.logdir) as index:
+        with Index(logdir=ctx.logdir, settings=ctx.settings) as index:
             found = resolve(index, target, sources=ctx.remotes)
             return run_facts(
                 index,
@@ -835,7 +837,7 @@ def find_run(ctx: Context, run_id: str) -> Path:
     :return: The run directory."""
     found = None
     try:
-        with Index(logdir=ctx.logdir) as index:
+        with Index(logdir=ctx.logdir, settings=ctx.settings) as index:
             if "/" not in run_id:
                 found = resolve(index, run_id, sources=ctx.remotes)
     except QueryError as e:
@@ -861,7 +863,7 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
     run_card = read_card(run_dir) if (run_dir / c.CARD).exists() else None
     config = read_config(run_dir) if (run_dir / c.CONFIG).exists() else {}
     epochs = None
-    with Index(logdir=ctx.logdir) as index:
+    with Index(logdir=ctx.logdir, settings=ctx.settings) as index:
         freshness = index.catch_up(run_dir.relative_to(ctx.logdir).as_posix(), 0.2)
         info = read_run_info(run_dir)
         proposals = run_proposals(index, run_dir, info.proposals)
@@ -1043,7 +1045,7 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer."""
-    with Index(logdir=ctx.logdir) as index:
+    with Index(logdir=ctx.logdir, settings=ctx.settings) as index:
         freshness = index.catch_up(".", 0.2) if ctx.logdir.is_dir() else None
         now = time.time()
         counts = Counter(

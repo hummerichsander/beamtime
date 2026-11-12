@@ -19,14 +19,15 @@ SWEEP = "scaling/lr-sweep"
 class Session:
     """A ``serve --stdio`` process and a way to talk to it."""
 
-    def __init__(self, logdir: Path, tmp: Path) -> None:
+    def __init__(self, logdir: Path, tmp: Path, args: tuple[str, ...] = ()) -> None:
         """Start the process.
 
         :param logdir: The log dir it serves.
-        :param tmp: Its TMPDIR, to see the temporary cache go."""
-        env = os.environ | {"TMPDIR": str(tmp)}
+        :param tmp: Its TMPDIR, to see the temporary cache go.
+        :param args: More arguments, e.g. ``--cache``."""
+        env = {k: v for k, v in os.environ.items() if k != "BEAMTIME_CACHE"} | {"TMPDIR": str(tmp)}
         self.proc = subprocess.Popen(
-            [sys.executable, "-m", "beamtime.cli", "serve", "--stdio", "--logdir", str(logdir)],
+            [sys.executable, "-m", "beamtime.cli", "serve", "--stdio", "--logdir", str(logdir), *args],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env,
         )  # fmt: skip
         self.next = 0
@@ -139,3 +140,30 @@ def test_series_keeps_both_curve_fields_for_older_hubs(session: Session) -> None
     params = {"from": SWEEP, "y": ["train/loss"], "points": 20}
     curve = session.ask("series", **params)["result"]["curves"][0]
     assert {"y", "lo", "hi", "n", "last", "min", "max", "count"} <= set(curve)
+
+
+def test_cache_comes_from_the_flag_then_the_remotes_setting_then_memory(
+    project: Path, tmp_path: Path
+) -> None:
+    """--cache beats the remote's own cache setting, which beats a temporary cache."""
+    tmp = tmp_path / "remote-tmp"
+    tmp.mkdir()
+    logdir = project / "beamtime"
+
+    def hello(*args: str) -> dict:
+        """Ask a session for its cache.
+
+        :param args: Arguments of the session.
+        :return: The ``cache`` field of hello."""
+        session = Session(logdir, tmp, args)
+        try:
+            return session.ask("hello", protocol=1)["result"]["cache"]
+        finally:
+            session.close()
+
+    own = hello()
+    assert own["temporary"] == "yes" and own["refused"] is None
+    (project / "beamtime.yaml").write_text(f"schema: 1\ncache: {tmp_path}/from-setting\n")
+    assert hello()["path"].startswith(f"{tmp_path}/from-setting/")
+    assert hello()["temporary"] is None
+    assert hello("--cache", f"{tmp_path}/from-flag")["path"].startswith(f"{tmp_path}/from-flag/")

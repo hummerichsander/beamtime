@@ -363,7 +363,7 @@ def locate_run(ctx: Context, run_id: str) -> Path | None:
     :param ctx: The operation context.
     :param run_id: The run id.
     :return: The run directory, or ``None``."""
-    with Index(logdir=ctx.logdir) as index:
+    with Index(logdir=ctx.logdir, settings=ctx.settings) as index:
         index.catch_up(".", budget_s=0.2)
         return index.run_path(run_id)
 

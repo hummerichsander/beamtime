@@ -14,6 +14,8 @@ DEFAULTS: dict[str, Any] = {
     "theme_mode": "system",
     # matplotlib style sheets for figures (scienceplots' and matplotlib's), as for plt.style.use.
     "figure_style": ["science", "nature"],
+    # a folder (with {user}, ${VAR}, ~) or "memory"; None means the user cache dir.
+    "cache": None,
     "remotes": {},
 }
 # what `beamtime set` (and the web UI's settings page) may write into beamtime.yaml.
@@ -21,6 +23,18 @@ SETTABLE = ("theme", "theme_mode", "figure_style")
 MOVED = ("colormap", "colormap_diverging")
 REMOTE_KEYS = ("host", "command", "cache", "path", "transport")
 PROJECT_ONLY = ("logdir",)
+
+
+def expand_path(path: str, user: str | None = None) -> str:
+    """Expand a configured path on this machine: ``{user}``, ``${VAR}`` and ``~``.
+
+    :param path: The path as configured, e.g. ``/scratch/{user}/beamtime``.
+    :param user: The user name for ``{user}``; default the current user.
+    :return: The path."""
+    import getpass
+
+    name = user or getpass.getuser()
+    return str(Path(os.path.expandvars(path.replace("{user}", name))).expanduser())
 
 
 def user_settings_path() -> Path:
@@ -104,6 +118,9 @@ def read_level(path: Path, level: Level, problems: list[str]) -> dict[str, Any]:
             f"{path}: figure_style is a list of style names, e.g. [science, nature]; ignored"
         )
         del data["figure_style"]
+    if "cache" in data and not (isinstance(data["cache"], str) and data["cache"].strip()):
+        problems.append(f"{path}: cache is a folder or memory; ignored")
+        del data["cache"]
     if data.get("theme_mode", "system") not in ("system", "light", "dark"):
         problems.append(f"{path}: theme_mode is system, light or dark; ignored")
         del data["theme_mode"]

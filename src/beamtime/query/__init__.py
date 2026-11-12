@@ -9,6 +9,7 @@ from beamtime.query.models import QueryError, parse
 if TYPE_CHECKING:
     from beamtime.index.index import Index
     from beamtime.query.select import Caller
+    from beamtime.settings import Settings
 
 __all__ = ["QueryError", "run"]
 
@@ -22,6 +23,7 @@ def run(
     budget_s: float = 0.2,
     index: "Index | None" = None,
     now: float | None = None,
+    settings: "Settings | None" = None,
 ) -> dict[str, Any]:
     """Answer a query in its object form.
 
@@ -32,6 +34,7 @@ def run(
     :param budget_s: Seconds to spend catching up on new data first.
     :param index: An open index to reuse; by default one is opened and closed.
     :param now: The time run status is judged at; default now (a snapshot passes its own).
+    :param settings: The effective settings, for the ``cache`` setting.
     :return: The canonical answer with ``meta``, including freshness."""
     from beamtime.index.index import Index
     from beamtime.query.kinds import KIND_FUNCTIONS
@@ -39,7 +42,7 @@ def run(
 
     kind, q = parse(query)
     own = index is None
-    index = index or Index(logdir=logdir)
+    index = index or Index(logdir=logdir, settings=settings)
     try:
         target = q.view if kind == "file" else q.from_
         scope, run_id = resolve_from(index, base, target)
