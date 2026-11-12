@@ -186,7 +186,8 @@ Then:
   directory on local disk (`tempfile.mkdtemp`), deleted when that `Index` closes. A `serve` with a memory cache
   still publishes `serve.lock`, `serve.json` and its token, in `<tmp>/beamtime-<uid>/<logdir hash>/`
   (mode 0700), so a CLI call or MCP server on the same machine finds it and answers through it
-  ([layer 3](03-index.md#freshness-the-daemon)).
+  ([layer 3](03-index.md#freshness-the-daemon)). Its daemon and its requests share one temporary index for the
+  session (removed when it stops), as `serve --stdio` does.
 - `serve --stdio` keeps its behaviour: memory unless a cache is configured, now also from the remote
   machine's own `cache` setting. It no longer sets `BEAMTIME_CACHE`, and the remote's own `BEAMTIME_CACHE` does not make its cache persistent: only `--cache` or the setting do. Its memory is one temporary
   directory for the whole session (removed when stdin closes), so its requests share their index; an

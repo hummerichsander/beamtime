@@ -129,6 +129,25 @@ def test_memory_is_per_process(clean: Path) -> None:
     assert not two.scratch.exists()
 
 
+def test_serve_with_memory_shares_one_index(clean: Path) -> None:
+    """A memory serve's requests see the runs its daemon indexed, and serve.json stays in runtime_dir."""
+    from beamtime.serve.server import share_memory
+
+    run = clean / "g" / "20260101-000000-abcdefgh"
+    run.mkdir(parents=True)
+    (run / "_run.json").write_text(
+        json.dumps({"schema": 1, "id": run.name, "name": "a", "status": "finished"})
+    )
+    ctx = Context(root=clean.parent, root_reason="--root", settings=configured("memory"), logdir=clean)
+    daemon = Daemon(logdir=clean, settings=ctx.settings)
+    own = share_memory(ctx, daemon)
+    assert daemon.cache == runtime_dir(clean) and own is not None
+    with Index(logdir=clean, settings=ctx.settings) as index:
+        index.catch_up(".", budget_s=float("inf"))
+    with Index(logdir=clean, settings=ctx.settings) as request:
+        assert request.run_path(run.name) == run
+
+
 def test_serve_with_memory_is_found_by_via_serve(clean: Path, tmp_path: Path) -> None:
     """A daemon with a memory cache publishes serve.json under runtime_dir, and via_serve.call finds it."""
 

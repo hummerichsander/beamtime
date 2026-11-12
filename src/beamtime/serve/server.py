@@ -2,17 +2,22 @@
 
 import dataclasses
 import os
+import shutil
 import signal
 import socket
 import sys
+import tempfile
 import threading
 import time
 import webbrowser
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from beamtime.ops import registry as r
 from beamtime.ops.context import Context, OpError
+
+if TYPE_CHECKING:
+    from beamtime.index.daemon import Daemon
 
 PORT_TRIES = 10
 WATCH_S = 1.0
@@ -53,11 +58,14 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
         )
     daemon = Daemon(logdir=ctx.logdir, on_change=hub.changed, settings=ctx.settings)
     cache = daemon.cache
+    own = share_memory(ctx, daemon)
     sock = None if p.no_ui else bind(p.port)
     daemon.port = None if sock is None else sock.getsockname()[1]
     if not daemon.start():
         if sock is not None:
             sock.close()
+        if own is not None:
+            shutil.rmtree(own, ignore_errors=True)
         running = daemon_status(cache) or {}
         where = f" at http://localhost:{running['port']}" if running.get("port") else ""
         raise OpError(
@@ -96,8 +104,25 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
             sources.close()
         if sock is not None:
             sock.close()
+        if own is not None:
+            shutil.rmtree(own, ignore_errors=True)
         if restart.is_set():
             again(daemon.port)
+
+
+def share_memory(ctx: Context, daemon: "Daemon") -> str | None:
+    """Give a serve with a memory cache one temporary index for the session.
+
+    Without it each request would open an empty ``Index`` of its own and find no runs.
+
+    :param ctx: The operation context; its settings get the folder as a ``flag``-level cache.
+    :param daemon: The daemon, before it starts.
+    :return: The temporary folder to remove when serve stops, or ``None`` for a disk cache."""
+    if not daemon.memory:
+        return None
+    own = tempfile.mkdtemp(prefix="beamtime-serve-")
+    ctx.settings.values["cache"], ctx.settings.levels["cache"] = own, "flag"
+    return own
 
 
 def demo(ctx: Context, p: r.DemoParams) -> dict[str, Any]:

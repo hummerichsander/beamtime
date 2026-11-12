@@ -111,8 +111,8 @@ def resolve_cache(logdir: Path, settings: "Settings | None" = None) -> Cache:
 
 
 def cache_dir(logdir: Path, settings: "Settings | None" = None) -> Path:
-    """Find the cache directory of a log dir: outside the repository, and on a cluster
-    filesystem only if the user points it there.
+    """Find the cache directory of a log dir: outside the repository, never on a network
+    filesystem.
 
     :param logdir: The log dir.
     :param settings: The effective settings.
