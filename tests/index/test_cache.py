@@ -193,3 +193,73 @@ def test_invalid_cache_setting_is_reported(tmp_path: Path) -> None:
     assert "cache" in problems[0]
     path.write_text("schema: 1\ncache: memory\n")
     assert read_level(path, "project", problems) == {"cache": "memory"}
+
+
+def test_index_records_its_logdir(clean: Path, tmp_path: Path, monkeypatch) -> None:
+    """Opening an index records its log dir, and known_logdirs finds it and drops deleted ones.
+
+    :param clean: A clean log dir.
+    :param tmp_path: Pytest's temporary directory.
+    :param monkeypatch: Pytest's monkeypatch."""
+    from beamtime.index.cache import known_logdirs
+
+    root = tmp_path / "root"
+    monkeypatch.setenv("BEAMTIME_CACHE", str(root))
+    with Index(logdir=clean):
+        pass
+    assert known_logdirs(root) == [clean.resolve()]
+    assert known_logdirs() == [clean.resolve()]
+    gone = tmp_path / "gone"
+    gone.mkdir()
+    with Index(logdir=gone):
+        pass
+    gone.rmdir()
+    assert known_logdirs(root) == [clean.resolve()]
+
+
+def test_store_rewrites_a_changed_logdir(tmp_path: Path) -> None:
+    """A database that now indexes another log dir records the new one.
+
+    :param tmp_path: Pytest's temporary directory."""
+    from beamtime.index.store import Store
+
+    path = tmp_path / "index.sqlite"
+    Store(path=path, logdir=tmp_path / "one").db.close()
+    store = Store(path=path, logdir=tmp_path / "two")
+    assert store.db.execute("SELECT value FROM meta WHERE key = 'logdir'").fetchone()[0] == str(
+        tmp_path / "two"
+    )
+    store.db.close()
+
+
+def test_known_skips_locked(tmp_path: Path) -> None:
+    """A cache that is locked is skipped, not waited on.
+
+    :param tmp_path: Pytest's temporary directory."""
+    import sqlite3
+    import time
+
+    from beamtime.index.cache import known_logdirs
+
+    db = tmp_path / "root" / "abc" / "index.sqlite"
+    db.parent.mkdir(parents=True)
+    writer = sqlite3.connect(db, isolation_level=None)
+    writer.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+    writer.execute("INSERT INTO meta VALUES ('logdir', ?)", (str(tmp_path),))
+    writer.execute("BEGIN EXCLUSIVE")
+    start = time.monotonic()
+    assert known_logdirs(tmp_path / "root") == []
+    assert time.monotonic() - start < 5
+    writer.execute("COMMIT")
+    writer.close()
+
+
+def test_known_reads_only(tmp_path: Path) -> None:
+    """Listing known log dirs never creates a cache folder.
+
+    :param tmp_path: Pytest's temporary directory."""
+    from beamtime.index.cache import known_logdirs
+
+    root = tmp_path / "missing"
+    assert known_logdirs(root) == []
+    assert not root.exists()

@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import sqlite3
 import sys
 import time
 from dataclasses import dataclass
@@ -78,6 +79,61 @@ class Cache:
     source: str
 
 
+def cache_value(settings: "Settings | None" = None) -> tuple[str, str]:
+    """Choose the cache setting that applies, before any log dir is known.
+
+    :param settings: The effective settings; without them only the environment counts.
+    :return: The value (a folder, or ``memory``) and where it came from."""
+    configured = settings.get("cache") if settings is not None else None
+    level = settings.levels.get("cache") if settings is not None else None
+    if configured and level == "flag":
+        return configured, "--cache"
+    if env := os.environ.get("BEAMTIME_CACHE"):
+        return env, "BEAMTIME_CACHE"
+    if configured:
+        return configured, f"{level} settings"
+    xdg = os.environ.get("XDG_CACHE_HOME")
+    return str((Path(xdg).expanduser() if xdg else Path.home() / ".cache") / "beamtime"), "default"
+
+
+def known_logdirs(root: Path | None = None) -> list[Path]:
+    """List the log dirs that have a disk cache, without creating anything.
+
+    A cache that is locked or unreadable is skipped, and so is a log dir that no longer exists.
+
+    :param root: The disk cache root; by default the one the environment or the defaults name,
+        and none when that is ``memory``.
+    :return: The log dirs, sorted by their cache folder."""
+    if root is None:
+        value, _ = cache_value()
+        if value == "memory":
+            return []
+        root = Path(expand_path(value))
+    found = []
+    for db in sorted(root.glob("*/index.sqlite")):
+        if (logdir := _recorded_logdir(db)) is not None and logdir.is_dir():
+            found.append(logdir)
+    return found
+
+
+def _recorded_logdir(db: Path) -> Path | None:
+    """Read the log dir a cache database records, read-only and without waiting.
+
+    :param db: The index database.
+    :return: The log dir, or ``None`` if it is not recorded, locked or unreadable."""
+    try:
+        connection = sqlite3.connect(f"{db.as_uri()}?mode=ro", uri=True, timeout=0.1)
+    except sqlite3.Error:
+        return None
+    try:
+        row = connection.execute("SELECT value FROM meta WHERE key = 'logdir'").fetchone()
+    except sqlite3.Error:
+        return None
+    finally:
+        connection.close()
+    return Path(row[0]) if row else None
+
+
 def resolve_cache(logdir: Path, settings: "Settings | None" = None) -> Cache:
     """Resolve the cache of a log dir, the one way every consumer does.
 
@@ -88,20 +144,7 @@ def resolve_cache(logdir: Path, settings: "Settings | None" = None) -> Cache:
     :param settings: The effective settings; without them only the environment counts.
     :return: For ``disk``, ``<cache>/<hash of the log dir>``; for ``memory``, ``runtime_dir``
         (where ``serve`` publishes itself), while each index uses its own temporary folder."""
-    configured = settings.get("cache") if settings is not None else None
-    level = settings.levels.get("cache") if settings is not None else None
-    if configured and level == "flag":
-        value, source = configured, "--cache"
-    elif env := os.environ.get("BEAMTIME_CACHE"):
-        value, source = env, "BEAMTIME_CACHE"
-    elif configured:
-        value, source = configured, f"{level} settings"
-    else:
-        xdg = os.environ.get("XDG_CACHE_HOME")
-        value, source = (
-            str((Path(xdg).expanduser() if xdg else Path.home() / ".cache") / "beamtime"),
-            "default",
-        )
+    value, source = cache_value(settings)
     if value == "memory":
         return Cache(runtime_dir(logdir), "memory", None, source)
     root = Path(expand_path(value))

@@ -114,7 +114,7 @@ class Index:
         self.cache = cache
         data = self.scratch or self.cache
         self.series = data / "series"
-        self.store = Store(path=data / "index.sqlite", derived=self.series)
+        self.store = Store(path=data / "index.sqlite", derived=self.series, logdir=self.logdir)
         self.lock = FileLock(path=data / INDEX_LOCK)
         self.ingester = Ingester(store=self.store, logdir=self.logdir, series=self.series)
         self.authored: dict[str, tuple[float | None, ...]] = {}

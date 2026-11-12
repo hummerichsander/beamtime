@@ -89,12 +89,15 @@ def in_scope(column: str, scope: str) -> tuple[str, list[str]]:
 class Store:
     """Access to ``index.sqlite``; safe for many readers and one writer at a time."""
 
-    def __init__(self, *, path: Path, derived: Path | None = None) -> None:
+    def __init__(
+        self, *, path: Path, derived: Path | None = None, logdir: Path | None = None
+    ) -> None:
         """Open the database, rebuilding it if its schema is outdated.
 
         :param path: The database file.
         :param derived: A directory of files derived from the database, deleted with it on
-            a rebuild."""
+            a rebuild.
+        :param logdir: The log dir this database indexes; recorded in ``meta`` when it changes."""
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
         self.derived = derived
@@ -109,6 +112,10 @@ class Store:
                 if self.version() != SCHEMA_VERSION:
                     self.create()
                     self.rebuilt = True
+        if logdir is not None:
+            row = self.db.execute("SELECT value FROM meta WHERE key = 'logdir'").fetchone()
+            if row is None or row[0] != str(logdir):
+                self.db.execute("INSERT OR REPLACE INTO meta VALUES ('logdir', ?)", (str(logdir),))
 
     def use_wal(self) -> None:
         """Switch to write-ahead logging, so readers never wait for writers.

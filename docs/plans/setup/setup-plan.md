@@ -204,7 +204,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 4. `Settings.agent -> AgentSettings` and `Settings.remotes -> dict[str, dict]` as properties; switch the listed call
    sites to `Settings.remotes`.
 
-### F13. The cache knows its log dir (haiku) — code
+### F13. The cache knows its log dir (haiku) — code — **done**
 
 - **Touches:** `src/beamtime/index/store.py` (`create` 144–155, `Store.__init__` 92), `src/beamtime/index/index.py`
   (`Index.__init__` 93), `src/beamtime/index/cache.py` (new `known_logdirs`), `tests/index/test_cache.py`.
