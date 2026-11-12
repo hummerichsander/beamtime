@@ -1,0 +1,1673 @@
+<title>Beamtime Setup Wizard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: a lab-notebook page; the terminal is the specimen, the margin column annotates the current step. */
+:root {
+  --paper: #faf9f6; --surface: #f2f0eb; --line: #e3e0d8; --border: #868176;
+  --ink: #1c1d20; --muted: #64625c; --accent: #2f5aa8; --good: #3f7d3a; --warn: #8f5d08; --bad: #b8433a;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --serif: Charter, "Bitstream Charter", XCharter, "Iowan Old Style", Georgia, serif;
+  /* the terminal is its own world: a dark terminal by default, a light one on request. */
+  --t-bg: #151514; --t-bar: #222220; --t-edge: #33322e; --t-fg: #e6e4de; --t-muted: #8f8b83;
+  --t-rail: #4f4d47; --t-accent: #86a8e8; --t-good: #7fb77a; --t-warn: #d9a548; --t-bad: #e77a6f;
+  --t-sel: rgba(134, 168, 232, 0.13);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #1e1e1c; --surface: #252523; --line: #393834; --border: #77736b;
+    --ink: #eceae4; --muted: #a19d94; --accent: #86a8e8; --good: #7fb77a; --warn: #d9a548; --bad: #e77a6f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #1e1e1c; --surface: #252523; --line: #393834; --border: #77736b;
+  --ink: #eceae4; --muted: #a19d94; --accent: #86a8e8; --good: #7fb77a; --warn: #d9a548; --bad: #e77a6f;
+  color-scheme: dark;
+}
+.term.light {
+  --t-bg: #fdfcf9; --t-bar: #ebe8e1; --t-edge: #d9d5cc; --t-fg: #1c1d20; --t-muted: #6b685f;
+  --t-rail: #c4c0b5; --t-accent: #2f5aa8; --t-good: #3f7d3a; --t-warn: #8f5d08; --t-bad: #b8433a;
+  --t-sel: rgba(47, 90, 168, 0.09);
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+}
+.page { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+
+header.top { display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 13px; color: var(--muted); letter-spacing: 0.02em; }
+.brand svg { width: 20px; height: 20px; }
+.brand svg rect { fill: var(--accent); }
+h1 { margin: 0; font-family: var(--sans); font-weight: 600; font-size: 28px; line-height: 1.2; text-wrap: balance; }
+.lede { margin: 0; font-family: var(--serif); font-style: italic; font-size: 17px; color: var(--muted); max-width: 66ch; }
+
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button { font: 500 13px var(--sans); color: var(--muted); background: transparent; border: 0; padding: 7px 13px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { color: var(--accent); background: var(--surface); }
+.seg button:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 32px; align-items: start; }
+@media (max-width: 940px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+.stage { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.term {
+  background: var(--t-bg); color: var(--t-fg); border: 1px solid var(--t-edge); border-radius: 10px; overflow: hidden;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 12px 32px -18px rgba(0,0,0,0.45);
+}
+.term:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.bar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--t-bar); border-bottom: 1px solid var(--t-edge); }
+.dot { width: 11px; height: 11px; border-radius: 50%; background: var(--t-rail); }
+.bar .ttl { flex: 1; text-align: center; font: 12px var(--mono); color: var(--t-muted); margin-right: 52px; }
+.screen {
+  height: 620px; overflow: auto; padding: 14px 18px 18px; font-family: var(--mono); font-size: 13px; line-height: 1.6;
+  scrollbar-color: var(--t-rail) transparent;
+}
+@media (max-width: 600px) { .screen { font-size: 12px; height: 520px; padding: 12px; } }
+.ln { white-space: pre; min-height: 1.6em; }
+.ln.opt { cursor: pointer; border-radius: 3px; }
+.ln.opt:hover { background: var(--t-sel); }
+.ln.opt.on { background: var(--t-sel); }
+.r { color: var(--t-rail); }
+.m { color: var(--t-muted); }
+.a { color: var(--t-accent); }
+.g { color: var(--t-good); }
+.w { color: var(--t-warn); }
+.b { color: var(--t-bad); }
+.t { color: var(--t-fg); font-weight: 500; }
+.k { color: var(--t-muted); }
+.c { color: var(--t-fg); }
+.inv { color: var(--t-bg); background: var(--t-accent); padding: 0 0.35em; border-radius: 2px; }
+.tin {
+  font: inherit; color: var(--t-fg); background: transparent; border: 0; border-bottom: 1px solid var(--t-accent);
+  padding: 0; width: 46ch; max-width: 70%; outline: none; caret-color: var(--t-accent);
+}
+.tin::placeholder { color: var(--t-muted); }
+.blink { animation: blink 1.1s steps(1) infinite; color: var(--t-accent); }
+@keyframes blink { 50% { opacity: 0; } }
+
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.btn { font: 500 13px var(--sans); color: var(--accent); background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.btn:hover { background: var(--surface); }
+.btn[disabled] { opacity: 0.4; cursor: default; }
+.keys { font: 12px var(--mono); color: var(--muted); }
+kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; color: var(--ink); background: var(--surface); }
+
+aside.notes { display: flex; flex-direction: column; gap: 18px; border-left: 1px solid var(--line); padding-left: 20px; min-width: 0; }
+@media (max-width: 940px) { aside.notes { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 20px; } }
+.note { display: flex; flex-direction: column; gap: 4px; }
+.lab { font: 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.why { font-family: var(--serif); font-size: 16px; line-height: 1.5; margin: 0; }
+.flag { font: 12.5px var(--mono); color: var(--ink); background: var(--surface); border-radius: 4px; padding: 6px 8px; overflow-wrap: anywhere; }
+.store { font: 12.5px var(--mono); color: var(--ink); overflow-wrap: anywhere; }
+.stepname { font: 600 15px var(--sans); }
+pre.cmd { margin: 0; font: 12px/1.55 var(--mono); background: var(--surface); border-radius: 6px; padding: 10px 12px; overflow-x: auto; color: var(--ink); }
+.cmdhead { display: flex; justify-content: space-between; align-items: baseline; }
+.copy { font: 12px var(--sans); color: var(--accent); background: none; border: 0; cursor: pointer; padding: 0; }
+
+section.principles { border-top: 1px solid var(--line); padding-top: 22px; display: flex; flex-direction: column; gap: 14px; }
+h2 { margin: 0; font: 600 18px var(--sans); }
+.plist { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px 28px; margin: 0; padding: 0; list-style: none; }
+.plist li { display: flex; flex-direction: column; gap: 3px; }
+.plist .lab { color: var(--accent); }
+.plist p { margin: 0; font-family: var(--serif); font-size: 15.5px; line-height: 1.5; max-width: 60ch; }
+
+@media (prefers-reduced-motion: reduce) { .blink { animation: none; } }
+</style>
+
+<div class="page">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="2" y="15" width="12" height="3" rx="1.5" transform="rotate(-35 8 16.5)"/>
+        <rect x="7" y="10" width="12" height="3" rx="1.5" transform="rotate(-35 13 11.5)"/>
+        <rect x="12" y="5" width="12" height="3" rx="1.5" transform="rotate(-35 18 6.5)"/>
+      </svg>
+      beamtime init · draft 3
+    </div>
+    <h1>The first five minutes with Beamtime</h1>
+    <p class="lede">A clickable draft of the setup wizard. Pick a scenario and answer with the keyboard or the mouse; the margin explains each step, its flag and where the answer is stored. Lists that come from detection take your own entries too: try “+ Add a path” and “+ Add a host”. Draft 3 adds the agent rules, Beamtime log dirs as a source of past work, and the update path for older setups.</p>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Scenario" id="scenarios">
+        <button data-sc="first" aria-pressed="true">First setup on a laptop</button>
+        <button data-sc="mate" aria-pressed="false">A teammate joins</button>
+        <button data-sc="cluster" aria-pressed="false">On a cluster login node</button>
+        <button data-sc="upgrade" aria-pressed="false">Updating an older setup</button>
+      </div>
+      <div class="seg" role="group" aria-label="Terminal colors" id="tmode">
+        <button data-t="dark" aria-pressed="true">dark terminal</button>
+        <button data-t="light" aria-pressed="false">light terminal</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="stage">
+      <div class="term" id="term" tabindex="0" aria-label="Wizard terminal; use arrow keys, space and enter">
+        <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="ttl" id="ttl">zsh</span></div>
+        <div class="screen" id="screen" aria-live="polite"></div>
+      </div>
+      <div class="controls">
+        <button class="btn" id="back">Back</button>
+        <button class="btn" id="go">Continue</button>
+        <button class="btn" id="restart">Restart</button>
+        <span class="keys"><kbd>↑</kbd><kbd>↓</kbd> move · <kbd>space</kbd> select · <kbd>←</kbd><kbd>→</kbd> change · <kbd>enter</kbd> confirm · <kbd>esc</kbd> back</span>
+      </div>
+    </div>
+
+    <aside class="notes" id="notes" aria-live="polite">
+      <div class="note"><span class="lab">step</span><span class="stepname" id="n-step"></span></div>
+      <div class="note"><span class="lab">why it is asked this way</span><p class="why" id="n-why"></p></div>
+      <div class="note" id="n-flag-w"><span class="lab">flag</span><span class="flag" id="n-flag"></span></div>
+      <div class="note" id="n-store-w"><span class="lab">stored in</span><span class="store" id="n-store"></span></div>
+      <div class="note">
+        <div class="cmdhead"><span class="lab">same setup as one command</span><button class="copy" id="copy">Copy</button></div>
+        <pre class="cmd" id="n-cmd"></pre>
+      </div>
+    </aside>
+  </div>
+
+  <section class="principles">
+    <h2>What the draft commits to</h2>
+    <ul class="plist">
+      <li><span class="lab">look first</span><p>Every default comes from the project: git, the Python environment, past logs, notes, agents and ssh hosts. A typical project answers most questions with Enter.</p></li>
+      <li><span class="lab">yours to extend</span><p>Detection only preselects. Every list it fills also takes your own entries, such as another log dir, a notes folder, memory files or a host, and a typed entry is checked the same way as a found one.</p></li>
+      <li><span class="lab">many remotes</span><p>Pick any number of machines. They are checked together, then each gets its own path and, if needed, an install. Each becomes a source, such as @juwels or @lab-gpu.</p></li>
+      <li><span class="lab">no trace</span><p>Nothing is written before the review. ctrl-c at any point leaves the project as it was. Remote installs and imports wait for the review too.</p></li>
+      <li><span class="lab">one command</span><p>Every answer is a flag. The wizard can end by printing the same setup as one command, for another machine, a script, or an agent to hand to you.</p></li>
+      <li><span class="lab">two places</span><p>Each answer says where it lands: beamtime.yaml for the team, ~/.config/beamtime for this machine. A teammate who clones the project gets only this machine's questions.</p></li>
+      <li><span class="lab">presets</span><p>Agent behaviour starts from three presets, and Careful is today's behaviour. Single settings are one step further, for those who want them.</p></li>
+      <li><span class="lab">the record</span><p>The agent rules say plainly that Beamtime holds the experimental record: agents look things up there and write findings there, not into CLAUDE.md, loose notes or their private memory. The block is generated from the agent settings, so the two never disagree.</p></li>
+      <li><span class="lab">one command to update</span><p>Data never migrates: every file reads in every later version. What an upgrade changes is the setup around the data (rules, MCP config, skills, settings, remote installs), so rerunning beamtime init is the update, not a separate wizard. In CI or for an agent, beamtime init --check lists what is stale without asking.</p></li>
+      <li><span class="lab">judgment to agents</span><p>Turning old notes and memory files into typed, linked notes needs judgment. The wizard hands that to the agent you chose and starts it if you ask; it never calls a model by itself.</p></li>
+      <li><span class="lab">any terminal</span><p>Arrow keys, space and Enter, with numbers as shortcuts. Without a terminal it asks nothing and takes the flags or the defaults. Standard library only, so the CLI stays fast to start.</p></li>
+      <li><span class="lab">voice</span><p>The app's voice: plain and short, states in lowercase, no emoji and no exclamation marks.</p></li>
+    </ul>
+  </section>
+</div>
+
+<script>
+const RM = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const SCR = "$" + "{SCRATCH}";
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const sp = (cls, t) => `<span class="${cls}">${t}</span>`;
+const RAIL = sp("r", "│");
+const ln = (h = "") => `<div class="ln">${h}</div>`;
+const rl = (h = "") => ln(h ? `${RAIL}  ${h}` : RAIL);
+const pad = (s, n) => s + " ".repeat(Math.max(1, n - s.length));
+const ok = (k, v) => `${sp("g", "✓")} ${pad(k, 15)}${sp("m", v)}`;
+const fact = (k, v) => `${sp("m", pad(k, 11))}${v}`;
+const files = n => `${n} ${n === 1 ? "file" : "files"}`;
+
+/* ---------- shared vocabulary ---------- */
+const AGENTS = [
+  { v: "claude-code", label: "Claude Code", files: ".mcp.json · CLAUDE.md rules · 6 skills", start: 'claude "/beamtime:migrate"' },
+  { v: "codex", label: "Codex", files: "~/.codex/config.toml · AGENTS.md rules", start: 'codex "Run the beamtime migrate prompt"' },
+  { v: "cursor", label: "Cursor", files: ".cursor/mcp.json · AGENTS.md rules" },
+  { v: "vscode", label: "VS Code (Copilot)", files: ".vscode/mcp.json · AGENTS.md rules" },
+  { v: "gemini", label: "Gemini CLI", files: ".gemini/settings.json · GEMINI.md rules", start: 'gemini "Run the beamtime migrate prompt"' },
+  { v: "opencode", label: "opencode", files: "opencode.json · AGENTS.md rules" },
+  { v: "windsurf", label: "Windsurf", files: "~/.codeium/windsurf/mcp_config.json · AGENTS.md rules" },
+  { v: "other", label: "Another agent", hint: "prints its MCP config to paste", files: "MCP config printed at the end · AGENTS.md rules" },
+  { v: "none", label: "None", hint: "I use Beamtime without an agent", excl: true },
+];
+const agent = v => AGENTS.find(x => x.v === v);
+const hasAgents = a => (a.agents || []).length && !(a.agents || []).includes("none");
+
+const TUNE = [
+  { k: "launch_runs", label: "launch runs", vals: ["never", "ask", "allowed"] },
+  { k: "memory", label: "memory updates", vals: ["suggest", "after verdicts"] },
+  { k: "views", label: "save views", vals: ["draft for me", "save"] },
+  { k: "record", label: "research record", vals: ["off", "encouraged", "required"] },
+  { k: "seeds", label: "seeds per point", vals: ["2", "3", "5"] },
+  { k: "significance", label: "significance", vals: ["0.90", "0.95", "0.99"] },
+  { k: "memory_tokens", label: "memory budget", vals: ["1k", "1.5k", "3k"] },
+  { k: "render_rounds", label: "render rounds", vals: ["1", "2", "3"] },
+  { k: "custom_blocks", label: "custom blocks", vals: ["built-in first", "free"] },
+  { k: "main_metric", label: "main metric", vals: ["val/loss ↓", "val/energy_mae ↓", "val/force_mae ↓"], det: true },
+  { k: "seed_key", label: "seed key", vals: ["config.seed", "config.data_seed"], det: true },
+  { k: "domain", label: "domain", vals: ["ml", "simulation"], det: true },
+];
+const BASE = { main_metric: "val/loss ↓", seed_key: "config.seed", domain: "ml", seeds: "3", significance: "0.95", memory_tokens: "1.5k", render_rounds: "2", custom_blocks: "built-in first" };
+const PRESETS = {
+  careful: { ...BASE, launch_runs: "ask", memory: "after verdicts", views: "save", record: "encouraged" },
+  handson: { ...BASE, launch_runs: "allowed", memory: "after verdicts", views: "save", record: "encouraged" },
+  light: { ...BASE, launch_runs: "ask", memory: "suggest", views: "save", record: "off" },
+};
+const RULE_FILE = { "claude-code": "CLAUDE.md", gemini: "GEMINI.md" };
+const ruleFiles = a => [...new Set((a.agents || []).filter(x => x !== "none").map(x => RULE_FILE[x] || "AGENTS.md"))];
+const RULES = [
+  { v: "record", label: "Write the rules", hint: "Beamtime is the record" },
+  { v: "none", label: "Skip", hint: "only the MCP server; agents find the tools on their own" },
+];
+function rulesPreview(a, v) {
+  const t = tuned(a);
+  const launch = { never: "Never launch runs", ask: "Ask before you launch a run", allowed: "You may launch runs" }[t.launch_runs];
+  const q = s => `  ${sp("c", s)}`;
+  if (v === "none") return [sp("m", "No block is written. Agents get the MCP server and find `guide` on their own,"), sp("m", "but nothing tells them where findings belong. A later beamtime init offers it again.")];
+  return [sp("m", `Written to ${ruleFiles(a).join(" and ")}, between beamtime markers:`), "",
+    q("## Experiments: Beamtime is the record"),
+    q("This project's experimental record lives in Beamtime: runs, proposals,"),
+    q("notes and memory. Look things up there, and write findings there."),
+    q("- Start each session with `memory_show`, then `status`."),
+    q("- Questions about past experiments: answer from `notes`, `memory_show`"),
+    q("  and `runs`, not from recollection or loose files."),
+    q("- Results, conclusions, dead ends and open questions go into a note on"),
+    q("  the run or group (`note_add`); what should outlive the session goes"),
+    q("  into the memory. Not into this file, NOTES.md or your own memory."),
+    q(`- Before a run: a proposal with predictions (${t.record}), ${t.seeds} seeds.`),
+    q(`- ${launch}. Main metric ${t.main_metric}, seeds in ${t.seed_key}.`),
+    q("- Writes add new files; never edit or delete in the log dir."),
+  ];
+}
+function rulesStep({ conflict = null, isNew = false } = {}) {
+  return {
+    id: "rules", kind: "select", when: hasAgents,
+    title: a => `Tell agents that Beamtime is the record?`,
+    hint: () => isNew ? "New since your setup: the rules say where findings belong." : "Agents read this block at the start of every session.",
+    body: a => {
+      const v = S.id === "rules" ? (RULES[S.cur] || RULES[0]).v : a.rules;
+      const L = rulesPreview(a, v);
+      if (conflict && v === "record") L.push("", `${sp("w", "!")} ${conflict}`, sp("m", "  Your agent folds that section into Beamtime notes after setup and shows you the diff."));
+      return L;
+    },
+    options: () => RULES,
+    def: () => "record",
+    summary: (v, a) => v === "none" ? "skipped" : `yes · ${ruleFiles(a).join(", ")}`,
+    note: {
+      name: "Agent rules",
+      why: "Agents follow their instruction file more closely than any tool description, so this is where Beamtime says plainly that it holds the record. There is one stance, not a menu: with Beamtime as the record, findings don't scatter over CLAUDE.md, NOTES.md and each agent's private memory, which teammates and other agents can't read. The agent's own memory keeps coding preferences. The block is generated from the agent settings above, so text and settings always agree; a rerun replaces only the block, and your text around it stays.",
+      flag: "--no-rules",
+      store: "A marked block in each agent's instruction file (CLAUDE.md, AGENTS.md, GEMINI.md).",
+    },
+  };
+}
+function styleStep(nRuns, isNew = false) {
+  return {
+    id: "style", kind: "select", when: hasAgents,
+    title: () => "How much should agents do on their own?",
+    hint: () => isNew ? "New since your setup: one preset instead of rules spelled out by hand." : "",
+    options: () => [
+      { v: "careful", label: "Careful", hint: "propose and analyze; you launch runs" },
+      { v: "handson", label: "Hands-on", hint: "may also launch runs" },
+      { v: "light", label: "Analysis only", hint: "no proposals; tables, charts and views" },
+      { v: "fine", label: "Choose each setting" },
+    ],
+    body: () => [sp("m", `Detected: main metric ${sp("c", "val/loss ↓")}, seeds in ${sp("c", "config.seed")} (from ${nRuns} runs).`)],
+    def: () => "careful",
+    summary: v => `${styleName({ style: v })} · val/loss ↓ · config.seed`,
+    note: {
+      name: "Agent behaviour",
+      why: "Three presets instead of a dozen settings. Careful is exactly today's behaviour. The project's main metric and seed key are read from the runs, so the agent guide speaks the project's language.",
+      flag: "--agent-style careful|hands-on|analysis",
+      store: "beamtime.yaml: agent (shared, so every agent on the team works the same way)",
+    },
+  };
+}
+const styleName = a =>({ careful: "careful", handson: "hands-on", light: "analysis only", fine: "custom" }[a.style] || "careful");
+const tuned = a => a.style === "fine" ? (a.tune || PRESETS.careful) : PRESETS[a.style] || PRESETS.careful;
+
+/* ---------- remotes: found in ~/.ssh/config, or added by hand ---------- */
+const hostsOf = a => a.where === "here" ? [] : (a.hosts || []);
+const missing = h => h === "lab-gpu";
+const defPath = h => h === "juwels" ? `${SCR}/egnn-md/beamtime` : "~/egnn-md/beamtime";
+const rpathOf = (a, h) => a[`rpath:${h}`] || defPath(h);
+function probeLine(h) {
+  const name = sp("c", pad(h, 12));
+  if (h === "juwels") return `${name}${sp("g", "✓")} ssh  ${sp("g", "✓")} beamtime 0.3.0  ${sp("m", `· ${SCR} is gpfs, index in memory`)}`;
+  if (h === "lab-gpu") return `${name}${sp("g", "✓")} ssh  ${sp("b", "✗")} beamtime not found  ${sp("m", "· python 3.12 there")}`;
+  return `${name}${sp("g", "✓")} ssh  ${sp("g", "✓")} beamtime 0.3.0  ${sp("m", "· key login, no prompt")}`;
+}
+function detectHost(t) {
+  const h = t.trim();
+  return { v: h, label: h, hint: /@/.test(h) ? "added · used as given" : "added · not in ~/.ssh/config, ssh resolves it", user: true };
+}
+
+/* ---------- past work: found in the project, or added by hand ---------- */
+const IMPORTS = [
+  { v: "lightning_logs", label: "14 TensorBoard runs", kind: "runs", n: 14, src: "TensorBoard", path: "lightning_logs/" },
+  { v: "wandb", label: "6 W&B offline runs", kind: "runs", n: 6, src: "W&B", path: "wandb/" },
+  { v: "NOTES.md", label: "NOTES.md", kind: "notes", n: 1, path: "NOTES.md" },
+  { v: "notebook", label: "notebook/", kind: "notes", n: 12, path: "notebook/" },
+  { v: "claude-memory", label: "Claude Code memory", kind: "memory", n: 9, path: "~/.claude/projects/…/memory/" },
+  { v: "egnn-v1", label: "96 Beamtime runs", kind: "beamtime", n: 96, src: "Beamtime", path: "~/research/egnn-v1/beamtime/", dest: "imported/egnn-v1", other: true },
+];
+const isRuns = x => x.kind === "runs" || x.kind === "beamtime";
+const allImports = a => [...IMPORTS, ...(a["import+"] || [])];
+const chosenImports = a => allImports(a).filter(x => (a.import || []).includes(x.v));
+const destOf = x => x.dest || `imported/${x.v.replace(/\/+$/, "").split("/").pop().replace(/\.csv$/, "")}`;
+function importHint(x, a) {
+  if (x.kind === "none") return x.hint;
+  const ag = hasAgents(a);
+  const h = x.kind === "beamtime" ? `${x.path}  →  ${destOf(x)} · with its notes`
+    : x.kind === "runs" ? `${x.path}  →  ${destOf(x)}`
+    : x.kind === "notes" ? `${files(x.n)}  →  ${ag ? "typed notes, by your agent" : "one note per file, as written"}`
+    : `${files(x.n)}  →  ${ag ? "the project memory, by your agent" : "one note per file, as written"}`;
+  return x.user ? `${h}  · added` : h;
+}
+function detectPath(t) {
+  const p = t.trim().replace(/\/+$/, "");
+  const base = p.split("/").pop();
+  const n = 3 + (p.length % 9);
+  const isFile = /\.(md|csv)$/i.test(p);
+  const it = o => ({ v: p, path: isFile ? p : `${p}/`, user: true, ...o });
+  if (/beamtime|_run\.json/i.test(p)) {
+    const segs = p.replace(/\/_run\.json$/, "").split("/");
+    const name = segs.length > 1 && /beamtime/i.test(segs[segs.length - 1]) ? segs[segs.length - 2] : segs[segs.length - 1];
+    return it({ kind: "beamtime", n: 7 * n, src: "Beamtime", label: `${7 * n} Beamtime runs`, dest: `imported/${name.replace(/^~$/, "home")}` });
+  }
+  if (/mlruns/i.test(p)) return it({ kind: "runs", n, src: "MLflow", label: `${n} MLflow runs` });
+  if (/wandb/i.test(p)) return it({ kind: "runs", n, src: "W&B", label: `${n} W&B offline runs` });
+  if (/\.csv$/i.test(p)) return it({ kind: "runs", n: 1, src: "CSV", label: `1 run from ${base}` });
+  if (/memory|claude\.md|agents\.md/i.test(p)) return it({ kind: "memory", n: isFile ? 1 : n, label: isFile ? base : `${base}/` });
+  if (/\.md$|notes|notebook|journal|wiki/i.test(p)) return it({ kind: "notes", n: isFile ? 1 : n, label: isFile ? base : `${base}/` });
+  if (/log|run|tb|tensorboard|events|outputs/i.test(p)) return it({ kind: "runs", n, src: "TensorBoard", label: `${n} TensorBoard runs` });
+  return it({ kind: "none", bad: true, label: p, hint: "no runs, notes or memory files found here" });
+}
+
+/* ---------- scenario 1: first setup on a laptop ---------- */
+const FIRST = {
+  cwd: "~/research/egnn-md",
+  intro: [
+    `${sp("m", "~/research/egnn-md $")} ${sp("c", "beamtime init")}`,
+    "",
+    `${sp("a", "///")} ${sp("t", "beamtime")} ${sp("m", "0.3.0")}`,
+    sp("r", "┌"),
+    `${RAIL}  Set up Beamtime for ${sp("c", "~/research/egnn-md")}.`,
+    `${RAIL}  ${sp("m", "Nothing is written until you confirm at the end; ctrl-c leaves no trace.")}`,
+    RAIL,
+  ],
+  steps: [
+    {
+      id: "scan", kind: "task", took: "0.4 s",
+      title: () => "Looking around ~/research/egnn-md",
+      lines: () => [
+        { d: 260, h: fact("git", `main ${sp("m", "· clean")}`) },
+        { d: 200, h: fact("python", `3.12 in .venv (uv) ${sp("w", "· beamtime is not installed there")}`) },
+        { d: 220, h: fact("code", `train.py uses PyTorch Lightning ${sp("m", "· jobs/train.sbatch (SLURM)")}`) },
+        { d: 300, h: fact("past runs", `14 TensorBoard runs in lightning_logs/ ${sp("m", "·")} 6 W&B offline runs in wandb/`) },
+        { d: 240, h: fact("beamtime", `96 runs in ~/research/egnn-v1/beamtime ${sp("m", "· another project this machine has indexed")}`) },
+        { d: 240, h: fact("notes", `NOTES.md ${sp("m", "·")} notebook/ (12 files) ${sp("m", "·")} Claude Code memory (9 files)`) },
+        { d: 200, h: fact("agents", `Claude Code (.claude/, CLAUDE.md) ${sp("m", "·")} codex on PATH`) },
+        { d: 200, h: fact("rules", `CLAUDE.md line 24 keeps results in NOTES.md`) },
+        { d: 200, h: fact("ssh hosts", `juwels ${sp("m", "·")} lab-gpu ${sp("m", "(from ~/.ssh/config)")}`) },
+      ],
+      note: {
+        name: "Look around",
+        why: "Every default below comes from this scan. It reads local files only, takes under a second, and uses no network or ssh. Beamtime log dirs are found in the project and among the log dirs this machine's index cache already knows. What it finds is preselected later, and every one of those lists also takes your own entries.",
+        store: "Nothing.",
+      },
+    },
+    {
+      id: "where", kind: "select",
+      title: () => "Where do your runs happen?",
+      options: () => [
+        { v: "here", label: "On this machine" },
+        { v: "remote", label: "On other machines", hint: "clusters or workstations; I look from here" },
+        { v: "both", label: "Both", hint: "jobs/train.sbatch and two ssh hosts found" },
+      ],
+      def: () => "both",
+      note: {
+        name: "Where runs happen",
+        why: "One question decides the shape of the rest: a local log dir, remotes, or both. It is preselected from what the scan found (a SLURM script and ssh hosts), so most people press Enter.",
+        flag: "--runs here|remote|both",
+        store: "Nothing directly; it decides which questions follow.",
+      },
+    },
+    {
+      id: "logdir", kind: "text", when: a => a.where !== "remote",
+      title: () => "Where should runs on this machine go?",
+      hint: () => "In the project and kept out of git. A path elsewhere (~/data/egnn) gets a link here.",
+      def: () => "beamtime/",
+      note: {
+        name: "Log dir",
+        why: "The default keeps runs next to the code, as TensorBoard does. Large data can live elsewhere: an outside path is linked into the project, so scripts and agents still find runs in the same place.",
+        flag: "--logdir <path>",
+        store: "beamtime.yaml: logdir (the project's, shared through git)",
+      },
+    },
+    {
+      id: "hosts", kind: "multi", when: a => a.where !== "here",
+      title: () => "Which machines?",
+      hint: () => "Each becomes a source: @juwels in the sidebar, in queries and for agents.",
+      options: () => [
+        { v: "juwels", label: "juwels", hint: "~/.ssh/config · named in jobs/train.sbatch" },
+        { v: "lab-gpu", label: "lab-gpu", hint: "~/.ssh/config" },
+      ],
+      add: { label: "Add a host", prompt: "an ssh alias or user@host", detect: detectHost },
+      def: () => ["juwels"],
+      note: {
+        name: "Remotes",
+        why: "Any number of machines. Hosts come from ~/.ssh/config, so your aliases, keys and jump hosts keep working; a host you type is used as given. Listings merge all sources; each keeps its own name.",
+        flag: "--remote <host>:<path>   (repeat for each)",
+        store: "~/.config/beamtime/settings.yaml: remotes.<name>.host (this machine)",
+      },
+    },
+    {
+      expand: a => {
+        const hs = hostsOf(a);
+        if (!hs.length) return [];
+        const out = [{
+          id: "probe", kind: "task", took: `${(0.8 + 0.4 * hs.length).toFixed(1)} s`,
+          title: () => `Checking ${hs.length === 1 ? hs[0] : `${hs.length} machines`}`,
+          lines: () => hs.map((h, i) => ({ d: 650 + 180 * i, h: probeLine(h) })),
+          note: {
+            name: "Check the machines",
+            why: "All machines are checked at once, one line each, before anything is asked about them. Problems show where they happen: a missing install, a different version, a login that asks for a code.",
+            store: "Nothing.",
+          },
+        }];
+        hs.forEach(h => {
+          if (missing(h)) out.push({
+            id: `install:${h}`, kind: "select",
+            title: () => `Install Beamtime on ${h}?`,
+            body: () => [sp("m", `ssh ${h} 'python3 -m pip install --user beamtime==0.3.0'`)],
+            options: () => [
+              { v: "yes", label: "Install it", hint: "after you confirm, as the last step" },
+              { v: "show", label: "Show me the command" },
+              { v: "skip", label: `Skip ${h} for now` },
+            ],
+            def: () => "yes",
+            note: {
+              name: `Install on ${h}`,
+              why: "Installing on another machine is a change outside this project, so the wizard shows the exact command and runs it only after the review.",
+              flag: `--install-remote ${h}`,
+              store: `${h}: ~/.local (pip --user)`,
+            },
+          });
+          out.push({
+            id: `rpath:${h}`, kind: "text", when: a2 => a2[`install:${h}`] !== "skip",
+            title: () => `Where do runs go on ${h}?`,
+            hint: () => `~ and ${SCR.replace("SCRATCH", "VAR")} expand on ${h}.${hs.length > 1 ? `  ${hs.indexOf(h) + 1} of ${hs.length}` : ""}`,
+            def: () => defPath(h),
+            note: {
+              name: `Log dir on ${h}`,
+              why: "One path per machine. Variables expand on that machine, not here, so the same value works for everyone on the team. Scratch is the default where it exists.",
+              flag: `--remote ${h}:<path>`,
+              store: `beamtime.yaml: remotes.${h}.path (shared); host and command go to this machine's settings.`,
+            },
+          });
+        });
+        return out;
+      },
+    },
+    {
+      id: "agents", kind: "multi",
+      title: () => "Which coding agents should know about Beamtime?",
+      hint: () => "Each gets the MCP server and Beamtime's rules in its instruction file.",
+      options: () => AGENTS.map(x => ({ ...x, hint: x.v === "claude-code" ? "found .claude/" : x.v === "codex" ? "on PATH" : x.hint })),
+      def: () => ["claude-code", "codex"],
+      summary: v => v.includes("none") ? "none" : v.map(x => agent(x).label).join(", "),
+      note: {
+        name: "Agents",
+        why: "Agents found on this machine are preselected. Another agent gets its MCP config printed to paste. None is a first-class path: Beamtime works fully without an agent, and the agent questions are skipped.",
+        flag: "--agents claude-code,codex | --no-agents",
+        store: "Each agent's own config (.mcp.json, ~/.codex/config.toml, ...) and a marked block in CLAUDE.md or AGENTS.md.",
+      },
+    },
+    styleStep(14),
+    {
+      id: "tune", kind: "form", when: a => hasAgents(a) && a.style === "fine",
+      title: () => "Agent settings",
+      hint: () => "Starts from Careful. Detected values are marked.",
+      rows: () => TUNE,
+      def: () => ({ ...PRESETS.careful }),
+      summary: v => {
+        const changed = TUNE.filter(r => v[r.k] !== PRESETS.careful[r.k]).map(r => `${r.label} ${v[r.k]}`);
+        return changed.length ? `custom: ${changed.join(", ")}` : "same as careful";
+      },
+      note: {
+        name: "Agent settings",
+        why: "Every knob that `beamtime guide` and the agent rules read. The three rules that protect your data stay fixed: writes add new files, agents never run your commands, and they ask through the tools.",
+        flag: "--agent-set launch_runs=allowed,seeds=5",
+        store: "beamtime.yaml: agent.* (shared)",
+      },
+    },
+    rulesStep({ conflict: "CLAUDE.md line 24 says to keep results in NOTES.md." }),
+    {
+      id: "import", kind: "multi",
+      title: () => "Bring in past work?",
+      hint: () => "Runs are copied; the originals stay where they are.",
+      options: () => IMPORTS,
+      decorate: (x, a) => ({ ...x, hint: importHint(x, a) }),
+      add: { label: "Add a path", prompt: "a log dir, a notes folder or memory files", detect: detectPath },
+      def: () => IMPORTS.filter(x => !x.other).map(x => x.v),
+      summary: (v, a) => {
+        const xs = allImports(a).filter(x => v.includes(x.v));
+        const runs = xs.filter(isRuns).reduce((s, x) => s + x.n, 0);
+        const docs = xs.filter(x => x.kind === "notes" || x.kind === "memory").reduce((s, x) => s + x.n, 0);
+        return [runs && `${runs} runs`, docs && `${files(docs)} of notes and memory`].filter(Boolean).join(" · ") || "nothing";
+      },
+      note: {
+        name: "Past work",
+        why: "What lies in this project is preselected; Beamtime runs from another project are offered but not ticked. + Add a path takes any other log dir (TensorBoard, W&B, MLflow, CSV or Beamtime), notes folder or memory file and checks it right away. Beamtime runs come with their proposals, notes and memory and need no conversion, since every version reads forever. Notes and memory files from elsewhere need judgment, so they go to your agent after setup, or come in as written without one.",
+        flag: "--import <path>  --import-notes <path>  --import-memory <path>   (each repeatable)",
+        store: "Run folders under the log dir, each recording where it came from.",
+      },
+    },
+    {
+      id: "git", kind: "select",
+      title: () => "Keep the research record in git?",
+      options: () => [
+        { v: "record", label: "Yes", hint: "proposals, notes, memory and views are committed; run data stays out" },
+        { v: "none", label: "No", hint: "the whole log dir stays out of git" },
+      ],
+      def: () => "record",
+      note: {
+        name: "Git",
+        why: "Today the whole log dir is ignored, which also hides proposals, notes and memory from git. Those are small, written by people and agents, and worth reviewing in a pull request.",
+        flag: "--git record|none",
+        store: ".gitignore",
+      },
+    },
+    {
+      id: "sdk", kind: "select",
+      title: () => "Add the Beamtime SDK to this project's environment?",
+      options: () => [
+        { v: "yes", label: "Yes", hint: "uv add beamtime" },
+        { v: "no", label: "No", hint: "I install it myself" },
+      ],
+      body: () => [sp("m", "train.py runs in .venv, which does not have beamtime yet.")],
+      def: () => "yes",
+      note: {
+        name: "SDK",
+        why: "A common first failure: the CLI is installed globally but the training script's environment lacks the SDK. The wizard uses the project's own tool (uv here, pip or conda elsewhere).",
+        flag: "--sdk | --no-sdk",
+        store: "pyproject.toml and uv.lock",
+      },
+    },
+    {
+      id: "review", kind: "select",
+      title: () => "Ready. Nothing has been written yet.",
+      body: a => reviewFirst(a),
+      options: () => [
+        { v: "write", label: "Write it" },
+        { v: "change", label: "Change an answer" },
+        { v: "command", label: "Show the command and quit" },
+      ],
+      def: () => "write",
+      note: {
+        name: "Review",
+        why: "Grouped by where each change lands: the project (shared through git), this machine, and other machines. Defaults that aren't written are shown, so nothing is hidden.",
+        store: "Nothing until you choose Write it.",
+      },
+    },
+    changeStep(),
+    {
+      id: "apply", kind: "task", when: a => a.review === "write", took: "7.0 s",
+      title: () => "Setting up",
+      lines: a => applyFirst(a),
+      note: {
+        name: "Write",
+        why: "One line per change, in the order of the review. If a step fails, the wizard stops there, names what was already done, and a rerun picks up where it stopped.",
+        store: "Everything listed in the review.",
+      },
+    },
+    {
+      id: "handoff", kind: "select",
+      when: a => a.review === "write" && hasAgents(a) && (a.rules === "record" || chosenImports(a).some(x => x.kind === "notes" || x.kind === "memory")),
+      title: () => "Hand the notes and memory to your agent now?",
+      body: a => {
+        const docs = chosenImports(a).filter(x => x.kind === "notes" || x.kind === "memory").reduce((s, x) => s + x.n, 0);
+        const L = docs ? [
+          `${agent(a.agents[0]).label} reads the ${files(docs)}, writes them as typed notes linked to the`,
+          "imported runs, and drafts a first memory for the project. Its writes are",
+          "new files; nothing you have is changed.",
+        ] : [];
+        if (a.rules === "record") L.push(...(docs ? [""] : []), "It also moves the experiment section of CLAUDE.md (line 24) into Beamtime", "and shows you the diff before it touches CLAUDE.md.");
+        return L;
+      },
+      options: a => [
+        ...a.agents.filter(x => agent(x).start).map(x => ({ v: x, label: `Start ${agent(x).label} now`, hint: agent(x).start })),
+        { v: "copy", label: "Copy the prompt", hint: "for an editor-based agent" },
+        { v: "later", label: "Later", hint: "beamtime init --migrate brings this back" },
+      ],
+      def: a => a.agents.find(x => agent(x).start) || "copy",
+      note: {
+        name: "Hand-off",
+        why: "The only step that involves a model, and it's yours to start. Starting one opens the agent's normal interactive session in this terminal with the migrate prompt, so you watch it work and can steer.",
+        flag: "--migrate-with claude-code",
+        store: "New notes and a memory, written by the agent.",
+      },
+    },
+    {
+      id: "done", kind: "done",
+      title: () => "",
+      lines: a => doneFirst(a),
+      note: {
+        name: "Done",
+        why: "Three next steps, in the order people need them, with the code to paste for this project's framework (Lightning here). The one-line command reproduces this setup anywhere.",
+      },
+    },
+  ],
+  cmd: a => {
+    const f = [];
+    if (a.where) f.push(`--runs ${a.where}`);
+    if (a.logdir && a.where !== "remote") f.push(`--logdir ${a.logdir}`);
+    hostsOf(a).forEach(h => {
+      if (a[`install:${h}`] === "skip") return;
+      if (a[`rpath:${h}`] !== undefined) f.push(`--remote ${h}:'${a[`rpath:${h}`]}'`);
+      if (a[`install:${h}`] === "yes") f.push(`--install-remote ${h}`);
+    });
+    if (a.agents) f.push(hasAgents(a) ? `--agents ${a.agents.join(",")}` : "--no-agents");
+    if (a.style && hasAgents(a)) f.push(`--agent-style ${a.style === "fine" ? "careful" : { careful: "careful", handson: "hands-on", light: "analysis" }[a.style]}`);
+    if (a.tune && a.style === "fine") {
+      const ch = TUNE.filter(r => a.tune[r.k] !== PRESETS.careful[r.k]).map(r => `${r.k}=${a.tune[r.k].replace(/ ↓/, "").replace(/ /g, "-")}`);
+      if (ch.length) f.push(`--agent-set ${ch.join(",")}`);
+    }
+    if (a.rules === "none" && hasAgents(a)) f.push("--no-rules");
+    if (a.import) {
+      const xs = chosenImports(a);
+      const q = x => /[ …]/.test(x.path) ? `'${x.path}'` : x.path;
+      xs.filter(isRuns).forEach(x => f.push(`--import ${q(x)}`));
+      xs.filter(x => x.kind === "notes").forEach(x => f.push(`--import-notes ${q(x)}`));
+      xs.filter(x => x.kind === "memory").forEach(x => f.push(`--import-memory ${q(x)}`));
+    }
+    if (a.git) f.push(`--git ${a.git}`);
+    if (a.sdk) f.push(a.sdk === "yes" ? "--sdk" : "--no-sdk");
+    return f;
+  },
+};
+
+function reviewFirst(a) {
+  const L = [];
+  const h = (file, scope) => `${sp("c", file)}  ${sp("m", scope)}`;
+  const kv = (k, v) => `  ${sp("m", pad(k, 18))}${v}`;
+  const hs = hostsOf(a).filter(x => a[`install:${x}`] !== "skip");
+  L.push(h("beamtime.yaml", "project · shared through git"));
+  if (a.where !== "remote") L.push(kv("logdir", a.logdir || "beamtime/"));
+  if (hasAgents(a)) {
+    const t = tuned(a);
+    L.push(kv("agent", `${styleName(a)} · main metric ${t.main_metric} · seeds ${t.seed_key}`));
+  }
+  hs.forEach(x => L.push(kv(`remotes.${x}`, `path ${rpathOf(a, x)}`)));
+  L.push("");
+  L.push(h("~/.config/beamtime/settings.yaml", "this machine"));
+  hs.forEach(x => L.push(kv(`remotes.${x}`, `host ${x} · command ~/.local/bin/beamtime`)));
+  L.push(kv("cache", `~/.cache/beamtime ${sp("m", "(default, local disk, not written)")}`));
+  L.push("");
+  L.push(h("in the project", ""));
+  L.push(kv(".gitignore", a.git === "record" ? "run data out; proposals, notes, memory, views in" : "the log dir out"));
+  if (a.sdk === "yes") L.push(kv(".venv", "uv add beamtime"));
+  if (hasAgents(a)) a.agents.forEach(x => L.push(kv(agent(x).label, agent(x).files)));
+  if (hasAgents(a) && a.rules && a.rules !== "none") L.push(kv("agent rules", `Beamtime is the record → ${ruleFiles(a).join(", ")}`));
+  const xs = chosenImports(a);
+  if (xs.length) {
+    L.push("");
+    L.push(h("imports", ""));
+    xs.forEach(x => L.push(kv(x.label, isRuns(x) ? `${x.path} → ${destOf(x)}` : importHint(x, a).split("→")[1].trim().replace(/\s+· added$/, ""))));
+  }
+  const inst = hostsOf(a).filter(x => a[`install:${x}`] === "yes");
+  if (inst.length) {
+    L.push("");
+    L.push(h("other machines", ""));
+    inst.forEach(x => L.push(kv(x, "pip install --user beamtime==0.3.0")));
+  }
+  L.push("");
+  return L;
+}
+
+function applyFirst(a) {
+  const L = [];
+  L.push({ d: 260, h: ok("beamtime.yaml", "written") });
+  L.push({ d: 200, h: ok(".gitignore", a.git === "record" ? "research record kept, run data ignored" : "log dir ignored") });
+  if (a.sdk === "yes") L.push({ d: 900, h: ok(".venv", "uv add beamtime (0.3.0)") });
+  if (hasAgents(a)) a.agents.forEach(x => L.push({ d: 320, h: ok(agent(x).label, agent(x).files) }));
+  if (hasAgents(a) && a.rules && a.rules !== "none") L.push({ d: 200, h: ok("agent rules", `${ruleFiles(a).join(", ")} · marked block`) });
+  hostsOf(a).forEach(x => {
+    if (a[`install:${x}`] === "skip") return;
+    if (a[`install:${x}`] === "yes") L.push({ d: 1400, h: ok(x, "beamtime 0.3.0 installed") });
+    L.push({ d: 240, h: ok(x, "added as a source") });
+  });
+  chosenImports(a).filter(isRuns).forEach(x => L.push({
+    bar: true, label: x.src, n: x.n, ms: Math.min(1800, 300 + 90 * x.n), done: ok(x.src, `${x.n} runs → ${destOf(x)}${x.kind === "beamtime" ? " · with notes and memory" : ""}`),
+  }));
+  if (!hasAgents(a)) {
+    const docs = chosenImports(a).filter(x => x.kind === "notes" || x.kind === "memory").reduce((s, x) => s + x.n, 0);
+    if (docs) L.push({ d: 400, h: ok("notes", `${docs} notes, as written`) });
+  }
+  L.push({ d: 700, h: ok("doctor", `${10 + hostsOf(a).length} checks passed`) });
+  return L;
+}
+
+function doneFirst(a) {
+  if (a.review === "command") {
+    return [
+      "Nothing was written. This command makes the same setup:",
+      "",
+      ...cmdLines(FIRST.cmd(a)).map(x => sp("c", esc(x))),
+    ];
+  }
+  const t = hasAgents(a);
+  const L = [
+    sp("t", "Beamtime is set up."),
+    "",
+    sp("m", "Next"),
+    `${sp("a", "1")}  Log a run. In train.py:`,
+    `     ${sp("c", "from beamtime.lightning import BeamtimeLogger")}`,
+    `     ${sp("c", 'trainer = Trainer(logger=BeamtimeLogger(dir="egnn/baseline"))')}`,
+    `${sp("a", "2")}  Look at your runs:  ${sp("c", "beamtime serve --open")}`,
+    t ? `${sp("a", "3")}  Ask your agent:     ${sp("c", '"Propose the next experiment for egnn."')}`
+      : `${sp("a", "3")}  Before the next run, write down what you expect:  ${sp("c", "beamtime proposal set egnn")}`,
+    "",
+  ];
+  const st = a.handoff && agent(a.handoff) && agent(a.handoff).start;
+  if (st) {
+    const paths = chosenImports(a).filter(x => x.kind === "notes" || x.kind === "memory").map(x => x.path).join(" ");
+    L.push(sp("m", `Starting ${agent(a.handoff).label} with the migrate prompt.`));
+    L.push("");
+    L.push(`${sp("m", "~/research/egnn-md $")} ${sp("c", esc(st))} ${sp("m", esc(paths))}`);
+    L.push(sp("blink", "▍"));
+  } else {
+    if (a.handoff === "copy") L.push(sp("m", "The migrate prompt is on your clipboard."), "");
+    L.push(`${sp("m", "~/research/egnn-md $")} ${sp("blink", "▍")}`);
+  }
+  return L;
+}
+
+/* ---------- scenario 2: a teammate joins ---------- */
+const MATE = {
+  cwd: "~/code/egnn-md",
+  intro: [
+    `${sp("m", "~/code/egnn-md $")} ${sp("c", "beamtime init")}`,
+    "",
+    `${sp("a", "///")} ${sp("t", "beamtime")} ${sp("m", "0.3.0")}`,
+    sp("r", "┌"),
+    `${RAIL}  This project uses Beamtime already. Only this machine's part is left.`,
+    `${RAIL}  ${sp("m", "Nothing is written until you confirm at the end.")}`,
+    RAIL,
+  ],
+  steps: [
+    {
+      id: "scan", kind: "task", took: "0.3 s",
+      title: () => "Looking around ~/code/egnn-md",
+      lines: () => [
+        { d: 260, h: fact("project", `beamtime.yaml ${sp("m", "·")} logdir beamtime ${sp("m", "·")} agents careful`) },
+        { d: 220, h: fact("remotes", `juwels ${sp("m", "·")} lab-gpu ${sp("m", "(from beamtime.yaml)")}`) },
+        { d: 220, h: fact("python", `3.12 in .venv (uv) ${sp("m", "· beamtime 0.3.0")}`) },
+        { d: 220, h: fact("agents", `cursor on PATH ${sp("m", "· .mcp.json in the repo (Claude Code)")}`) },
+        { d: 200, h: fact("ssh hosts", `juwels ${sp("m", "(from ~/.ssh/config; lab-gpu is not there)")}`) },
+      ],
+      note: {
+        name: "Look around",
+        why: "The project's answers are already in beamtime.yaml and come through git, including its two remotes. The wizard says so up front and skips every project question.",
+        store: "Nothing.",
+      },
+    },
+    {
+      id: "agents", kind: "multi",
+      title: () => "Which coding agents do you use on this machine?",
+      hint: () => "The project's agent settings (careful) come from beamtime.yaml.",
+      options: () => AGENTS.map(x => ({ ...x, hint: x.v === "cursor" ? "on PATH" : x.v === "claude-code" ? ".mcp.json is in the repo" : x.hint })),
+      def: () => ["cursor"],
+      summary: v => v.includes("none") ? "none" : v.map(x => agent(x).label).join(", "),
+      note: {
+        name: "Your agents",
+        why: "Agent choice is personal; agent behaviour is the team's. A teammate on Cursor and one on Claude Code get the same rules.",
+        flag: "--agents cursor",
+        store: "Each agent's own config; the rules block is already in AGENTS.md.",
+      },
+    },
+    {
+      id: "hosts", kind: "multi",
+      title: () => "Which of the project's machines do you use?",
+      hint: () => "The project names two. Pick yours; you can add your own too.",
+      options: () => [
+        { v: "juwels", label: "juwels", hint: "beamtime.yaml · in ~/.ssh/config" },
+        { v: "lab-gpu", label: "lab-gpu", hint: "beamtime.yaml · not in ~/.ssh/config" },
+      ],
+      add: { label: "Add a host", prompt: "an ssh alias or user@host", detect: detectHost },
+      def: () => ["juwels", "lab-gpu"],
+      note: {
+        name: "Project remotes",
+        why: "The project lists its remotes; each person picks the ones they can reach and may add private ones. A host you add goes to your own settings, not the team's file.",
+        flag: "--remote <host>  --skip-remote <name>",
+        store: "~/.config/beamtime/settings.yaml (this machine)",
+      },
+    },
+    {
+      id: "probe", kind: "task", when: a => (a.hosts || []).length > 0,
+      took: "2.4 s",
+      title: a => `Checking ${a.hosts.length === 1 ? a.hosts[0] : `${a.hosts.length} machines`}`,
+      lines: a => a.hosts.map((h, i) => ({
+        d: 800 + 200 * i,
+        h: h === "juwels" ? `${sp("c", pad(h, 12))}${sp("w", "!")} ssh  ${sp("m", "asks for a password and a one-time code")}`
+          : h === "lab-gpu" ? `${sp("c", pad(h, 12))}${sp("w", "!")} ssh  ${sp("m", "no such host here; add it to ~/.ssh/config or type user@host")}`
+          : probeLine(h),
+      })),
+      note: {
+        name: "Check the machines",
+        why: "Clusters with a second factor would ask on every Beamtime request, and a teammate's host alias may not exist here. The wizard notices both instead of hanging.",
+        store: "Nothing.",
+      },
+    },
+    {
+      id: "ssh", kind: "select", when: a => (a.hosts || []).includes("juwels"),
+      title: () => "Log in to juwels once per session?",
+      body: () => [
+        "Adds to ~/.ssh/config:",
+        sp("c", "  Host juwels"),
+        sp("c", "    ControlMaster auto"),
+        sp("c", "    ControlPath ~/.ssh/cm-%r@%h-%p"),
+        sp("c", "    ControlPersist 12h"),
+        sp("m", "Then one login (password and code) lasts while you work; Beamtime reuses it."),
+      ],
+      options: () => [
+        { v: "add", label: "Add these lines and log in now" },
+        { v: "show", label: "Show them; I'll add them myself" },
+        { v: "skip", label: "Skip juwels for now" },
+      ],
+      def: () => "add",
+      note: {
+        name: "Second factor",
+        why: "The one ssh setting that makes remotes pleasant on 2FA clusters. It changes a file outside the project, so it's offered, shown in full and confirmed.",
+        flag: "--ssh-share juwels",
+        store: "~/.ssh/config",
+      },
+    },
+    {
+      id: "labhost", kind: "text", when: a => (a.hosts || []).includes("lab-gpu"),
+      title: () => "How do you reach lab-gpu?",
+      hint: () => "user@host or an alias; leave empty to skip lab-gpu.",
+      def: () => "jdoe@lab-gpu.physik.example.org",
+      note: {
+        name: "A teammate's alias",
+        why: "The project's name for the machine stays lab-gpu; only how this person reaches it is personal.",
+        flag: "--remote lab-gpu=<user@host>",
+        store: "~/.config/beamtime/settings.yaml: remotes.lab-gpu.host (this machine)",
+      },
+    },
+    {
+      id: "login", kind: "task", when: a => a.ssh === "add" || (a.hosts || []).includes("lab-gpu"), took: "9.4 s",
+      title: () => "Logging in",
+      lines: a => [
+        ...(a.ssh === "add" ? [
+          { d: 600, h: `${sp("m", "juwels password:")} ${sp("c", "••••••••••")}` },
+          { d: 1100, h: `${sp("m", "one-time code:")} ${sp("c", "••••••")}` },
+          { d: 900, h: `${sp("c", pad("juwels", 12))}${sp("g", "✓")} ssh  ${sp("g", "✓")} beamtime 0.3.0  ${sp("m", "· shared for 12h")}` },
+        ] : []),
+        ...((a.hosts || []).includes("lab-gpu") ? [
+          { d: 700, h: `${sp("c", pad("lab-gpu", 12))}${sp("g", "✓")} ssh  ${sp("g", "✓")} beamtime 0.3.0  ${sp("m", `· as ${esc(a.labhost || "jdoe@lab-gpu.physik.example.org")}`)}` },
+        ] : []),
+      ],
+      note: {
+        name: "Log in",
+        why: "ssh asks in this same terminal; the wizard never sees the password. Afterwards every Beamtime request reuses the login.",
+        store: "Nothing; ssh keeps the session.",
+      },
+    },
+    {
+      id: "review", kind: "select",
+      title: () => "Ready. Nothing has been written yet.",
+      body: a => {
+        const kv = (k, v) => `  ${sp("m", pad(k, 18))}${v}`;
+        const hs = a.hosts || [];
+        const L = [`${sp("c", "~/.config/beamtime/settings.yaml")}  ${sp("m", "this machine")}`];
+        if (hs.includes("juwels") && a.ssh !== "skip") L.push(kv("remotes.juwels", "host juwels · command ~/.local/bin/beamtime"));
+        if (hs.includes("lab-gpu")) L.push(kv("remotes.lab-gpu", `host ${esc(a.labhost || "jdoe@lab-gpu.physik.example.org")}`));
+        hs.filter(x => x !== "juwels" && x !== "lab-gpu").forEach(x => L.push(kv(`remotes.${x}`, `host ${esc(x)} · yours only`)));
+        ["juwels", "lab-gpu"].filter(x => !hs.includes(x) || (x === "juwels" && a.ssh === "skip")).forEach(x => L.push(kv(`remotes.${x}`, sp("m", "skipped here"))));
+        if (a.ssh === "add") { L.push(""); L.push(`${sp("c", "~/.ssh/config")}  ${sp("m", "this machine")}`); L.push(kv("Host juwels", "ControlMaster, 12h")); }
+        if (hasAgents(a)) { L.push(""); L.push(sp("c", "agents")); a.agents.forEach(x => L.push(kv(agent(x).label, agent(x).files.replace(" · AGENTS.md rules", " · AGENTS.md has the rules")))); }
+        L.push(""); L.push(`${sp("c", "beamtime.yaml")}  ${sp("m", "unchanged")}`); L.push("");
+        return L;
+      },
+      options: () => [
+        { v: "write", label: "Write it" },
+        { v: "change", label: "Change an answer" },
+        { v: "command", label: "Show the command and quit" },
+      ],
+      def: () => "write",
+      note: {
+        name: "Review",
+        why: "A teammate's review touches only their machine. The shared file is listed as unchanged so nobody worries about a stray diff.",
+        store: "Nothing until you choose Write it.",
+      },
+    },
+    changeStep(),
+    {
+      id: "apply", kind: "task", when: a => a.review === "write", took: "1.1 s",
+      title: () => "Setting up",
+      lines: a => [
+        ...(a.hosts || []).filter(x => !(x === "juwels" && a.ssh === "skip")).map(x => ({ d: 240, h: ok(x, "added as a source") })),
+        ...(a.ssh === "add" ? [{ d: 200, h: ok("~/.ssh/config", "ControlMaster for juwels") }] : []),
+        ...(hasAgents(a) ? a.agents.map(x => ({ d: 300, h: ok(agent(x).label, agent(x).files.split(" · ")[0]) })) : []),
+        { d: 600, h: ok("doctor", "9 checks passed") },
+      ],
+      note: { name: "Write", why: "Same as on a first setup: one line per change, stop on the first failure.", store: "Everything listed in the review." },
+    },
+    {
+      id: "done", kind: "done", title: () => "",
+      lines: a => a.review === "command" ? ["Nothing was written. This command makes the same setup:", "", ...cmdLines(MATE.cmd(a)).map(x => sp("c", esc(x)))] : [
+        sp("t", "Beamtime is set up on this machine."),
+        "",
+        `${sp("a", "1")}  See the team's runs from every source:  ${sp("c", "beamtime serve --open")}`,
+        `${sp("a", "2")}  Ask your agent:  ${sp("c", '"What does the project memory say about the egnn sweeps?"')}`,
+        "",
+        `${sp("m", "~/code/egnn-md $")} ${sp("blink", "▍")}`,
+      ],
+      note: { name: "Done", why: "A teammate's first useful thing is the existing record, so the next steps point there instead of to logging a run." },
+    },
+  ],
+  cmd: a => {
+    const f = [];
+    if (a.agents) f.push(hasAgents(a) ? `--agents ${a.agents.join(",")}` : "--no-agents");
+    if (a.hosts) {
+      ["juwels", "lab-gpu"].filter(x => !a.hosts.includes(x)).forEach(x => f.push(`--skip-remote ${x}`));
+      a.hosts.filter(x => x !== "juwels" && x !== "lab-gpu").forEach(x => f.push(`--remote ${x}`));
+    }
+    if (a.ssh === "add") f.push("--ssh-share juwels");
+    if (a.ssh === "skip") f.push("--skip-remote juwels");
+    if (a.labhost !== undefined) f.push(`--remote lab-gpu=${a.labhost}`);
+    return f;
+  },
+};
+
+/* ---------- scenario 3: on a cluster login node ---------- */
+const CLUSTER = {
+  cwd: "~/egnn-md",
+  intro: [
+    `${sp("m", "jwlogin07:~/egnn-md $")} ${sp("c", "beamtime init")}`,
+    "",
+    `${sp("a", "///")} ${sp("t", "beamtime")} ${sp("m", "0.3.0")}`,
+    sp("r", "┌"),
+    `${RAIL}  This looks like a cluster login node. Setup here is short.`,
+    `${RAIL}  ${sp("m", "Nothing is written until you confirm at the end.")}`,
+    RAIL,
+  ],
+  steps: [
+    {
+      id: "scan", kind: "task", took: "0.6 s",
+      title: () => "Looking around ~/egnn-md",
+      lines: () => [
+        { d: 260, h: fact("machine", `jwlogin07 ${sp("m", "·")} SLURM (sbatch) ${sp("m", "· no browser")}`) },
+        { d: 220, h: fact("project", `beamtime.yaml from git ${sp("m", "· logdir beamtime")}`) },
+        { d: 240, h: fact("disks", `$HOME is nfs ${sp("m", "·")} ${SCR} = /p/scratch/cegnn (gpfs) ${sp("m", "·")} /tmp is local`) },
+        { d: 200, h: fact("python", `3.11 ${sp("m", "· beamtime 0.3.0 in ~/.local")}`) },
+      ],
+      note: {
+        name: "Look around",
+        why: "Filesystem types matter on a cluster: runs belong on scratch, and the index (SQLite) must never sit on nfs or gpfs. The scan finds both before any question.",
+        store: "Nothing.",
+      },
+    },
+    {
+      id: "role", kind: "select",
+      title: () => "What should this machine do?",
+      options: () => [
+        { v: "record", label: "Record runs", hint: "I look at them from my laptop" },
+        { v: "also", label: "Record runs and look at them here", hint: "agents and the CLI on this node" },
+      ],
+      def: () => "record",
+      note: {
+        name: "Role",
+        why: "Most people only record on the cluster and look from a laptop. Choosing that skips the agent questions here entirely.",
+        flag: "--role record|full",
+        store: "Nothing directly.",
+      },
+    },
+    {
+      id: "runs", kind: "select",
+      title: () => "Where should runs go on this cluster?",
+      options: () => [
+        { v: "link", label: `Link beamtime/ to ${SCR}/egnn-md/beamtime`, hint: "recommended" },
+        { v: "keep", label: "Keep runs in the checkout", hint: "$HOME has a small quota" },
+        { v: "other", label: "Another place" },
+      ],
+      def: () => "link",
+      note: {
+        name: "Runs on scratch",
+        why: "A link leaves beamtime.yaml as the team wrote it: scripts, jobs and agents still find runs at beamtime/, and the data lives on scratch.",
+        flag: "--link-logdir <path>",
+        store: "A link in this checkout (beamtime/ → scratch)",
+      },
+    },
+    {
+      id: "runsother", kind: "text", when: a => a.runs === "other",
+      title: () => "Where?", hint: () => "~ and $VARS expand.", def: () => "/p/project/cegnn/egnn-md/beamtime",
+      note: { name: "Another place", why: "Any path works; the wizard links it into the checkout.", flag: "--link-logdir <path>", store: "A link in this checkout" },
+    },
+    {
+      id: "cache", kind: "select",
+      title: () => "Keep an index on this cluster between connections?",
+      options: () => [
+        { v: "memory", label: "No", hint: "index in memory per connection (default)" },
+        { v: "tmp", label: "Yes, in /tmp/{user}/beamtime-cache", hint: "local disk on jwlogin07" },
+      ],
+      body: () => [sp("m", "Your laptop's view of these runs starts faster with one, if you connect to the same node.")],
+      def: () => "memory",
+      note: {
+        name: "Index cache",
+        why: "The cache setting from beamtime.yaml or your settings, shared by the CLI, serve, MCP and serve --stdio. {user} and $VARS keep one value valid for everyone; nfs and gpfs paths are refused.",
+        flag: "--cache memory|<path>",
+        store: "~/.config/beamtime/settings.yaml: cache (this machine)",
+      },
+    },
+    {
+      id: "agents", kind: "multi", when: a => a.role === "also",
+      title: () => "Which coding agents run on this node?",
+      options: () => ["claude-code", "codex", "gemini", "other", "none"].map(agent),
+      def: () => ["claude-code"],
+      summary: v => v.includes("none") ? "none" : v.map(x => agent(x).label).join(", "),
+      note: { name: "Agents here", why: "Only terminal agents make sense on a login node.", flag: "--agents claude-code", store: "Each agent's own config." },
+    },
+    {
+      id: "review", kind: "select",
+      title: () => "Ready. Nothing has been written yet.",
+      body: a => {
+        const kv = (k, v) => `  ${sp("m", pad(k, 18))}${v}`;
+        const target = a.runs === "other" ? esc(a.runsother || "/p/project/cegnn/egnn-md/beamtime") : "/p/scratch/cegnn/egnn-md/beamtime";
+        const L = [sp("c", "this checkout")];
+        L.push(kv("beamtime/", a.runs === "keep" ? "a folder in the checkout" : `→ ${target}`));
+        L.push(""); L.push(`${sp("c", "~/.config/beamtime/settings.yaml")}  ${sp("m", "this machine")}`);
+        L.push(kv("cache", a.cache === "tmp" ? "/tmp/{user}/beamtime-cache" : sp("m", "memory (default, not written)")));
+        if (hasAgents(a)) { L.push(""); L.push(sp("c", "agents")); a.agents.forEach(x => L.push(kv(agent(x).label, agent(x).files))); }
+        L.push(""); L.push(`${sp("c", "beamtime.yaml")}  ${sp("m", "unchanged")}`); L.push("");
+        return L;
+      },
+      options: () => [
+        { v: "write", label: "Write it" },
+        { v: "change", label: "Change an answer" },
+        { v: "command", label: "Show the command and quit" },
+      ],
+      def: () => "write",
+      note: { name: "Review", why: "Everything here is about this machine; the shared file is untouched.", store: "Nothing until you choose Write it." },
+    },
+    changeStep(),
+    {
+      id: "apply", kind: "task", when: a => a.review === "write", took: "0.9 s",
+      title: () => "Setting up",
+      lines: a => [
+        ...(a.runs !== "keep" ? [{ d: 300, h: ok("beamtime/", "linked to scratch") }] : []),
+        ...(a.cache === "tmp" ? [{ d: 250, h: ok("cache", "/tmp/jdoe/beamtime-cache, local disk") }] : []),
+        ...(hasAgents(a) ? a.agents.map(x => ({ d: 300, h: ok(agent(x).label, agent(x).files.split(" · ")[0]) })) : []),
+        { d: 600, h: ok("doctor", "7 checks passed") },
+      ],
+      note: { name: "Write", why: "One line per change.", store: "Everything listed in the review." },
+    },
+    {
+      id: "done", kind: "done", title: () => "",
+      lines: a => a.review === "command" ? ["Nothing was written. This command makes the same setup:", "", ...cmdLines(CLUSTER.cmd(a)).map(x => sp("c", esc(x)))] : [
+        sp("t", "Beamtime is set up on this cluster."),
+        "",
+        `${sp("a", "1")}  Jobs need no change: ${sp("c", "beamtime.init()")} finds the project and writes to scratch.`,
+        `   ${sp("m", "A requeued job continues its run.")}`,
+        `${sp("a", "2")}  On your laptop, in the project:`,
+        `     ${sp("c", "beamtime source add juwels juwels:/p/scratch/cegnn/egnn-md/beamtime")}`,
+        `   ${sp("m", "or run beamtime init there; it finds juwels in ~/.ssh/config.")}`,
+        "",
+        `${sp("m", "jwlogin07:~/egnn-md $")} ${sp("blink", "▍")}`,
+      ],
+      note: { name: "Done", why: "The useful next step happens on the laptop, so the wizard prints the exact command for it." },
+    },
+  ],
+  cmd: a => {
+    const f = [];
+    if (a.role) f.push(`--role ${a.role === "also" ? "full" : "record"}`);
+    if (a.runs === "link") f.push(`--link-logdir '${SCR}/egnn-md/beamtime'`);
+    if (a.runs === "other") f.push(`--link-logdir ${a.runsother || "/p/project/cegnn/egnn-md/beamtime"}`);
+    if (a.cache) f.push(`--cache ${a.cache === "tmp" ? "'/tmp/{user}/beamtime-cache'" : "memory"}`);
+    if (a.agents && a.role === "also") f.push(hasAgents(a) ? `--agents ${a.agents.join(",")}` : "--no-agents");
+    return f;
+  },
+};
+
+/* ---------- scenario 4: updating an older setup ---------- */
+const UPDATES = [
+  { v: "rules", label: "Agent rules in CLAUDE.md", hint: "0.1.1 → 0.3.0 · your text outside the block stays" },
+  { v: "mcp", label: "Claude Code's MCP server", hint: ".mcp.json → uv run beamtime mcp (follows .venv)" },
+  { v: "skills", label: "Claude Code skills", hint: "6 new, in .claude/skills/" },
+  { v: "settings", label: "beamtime.yaml", hint: "drop colormap; charts choose their own now" },
+  { v: "sdk", label: "SDK in .venv", hint: "0.1.1 → 0.3.0 · uv add beamtime==0.3.0" },
+  { v: "juwels", label: "Beamtime on juwels", hint: "0.1.1 → 0.3.0 · pip install --user -U, after you confirm" },
+  { v: "runs-old", label: "18 Beamtime runs in runs-old/", hint: "copy into beamtime/runs-old · the originals stay", kind: "beamtime", n: 18, path: "runs-old/" },
+];
+const upd = a => [...UPDATES, ...(a["updates+"] || [])].filter(x => (a.updates || []).includes(x.v));
+const UPGRADE = {
+  seed: { agents: ["claude-code"] },
+  cwd: "~/research/egnn-md",
+  intro: [
+    `${sp("m", "~/research/egnn-md $")} ${sp("c", "beamtime init")}`,
+    "",
+    `${sp("a", "///")} ${sp("t", "beamtime")} ${sp("m", "0.3.0")}`,
+    sp("r", "┌"),
+    `${RAIL}  This project uses Beamtime already; its setup is from 0.1.1.`,
+    `${RAIL}  Runs, notes and views need nothing. Only what surrounds them is updated.`,
+    `${RAIL}  ${sp("m", "Nothing is written until you confirm at the end; ctrl-c leaves no trace.")}`,
+    RAIL,
+  ],
+  steps: [
+    {
+      id: "scan", kind: "task", took: "0.5 s",
+      title: () => "Looking around ~/research/egnn-md",
+      lines: () => [
+        { d: 260, h: fact("beamtime", `0.3.0 here ${sp("w", "· the project was set up with 0.1.1")}`) },
+        { d: 240, h: fact("log dir", `beamtime/ ${sp("m", "·")} 214 runs, 31 notes, 4 proposals, 2 memories`) },
+        { d: 240, h: fact("more runs", `runs-old/ ${sp("m", "·")} 18 Beamtime runs outside the log dir`) },
+        { d: 220, h: fact("settings", `beamtime.yaml sets colormap ${sp("m", "(gone since 0.2)")}`) },
+        { d: 220, h: fact("rules", `CLAUDE.md has the 0.1.1 agent rules ${sp("m", "· 0.3.0 differs in 12 lines")}`) },
+        { d: 200, h: fact("agents", `.mcp.json runs ~/.venvs/egnn/bin/beamtime ${sp("w", "· that file is gone")}`) },
+        { d: 200, h: fact("python", `3.12 in .venv (uv) ${sp("m", "· beamtime 0.1.1")}`) },
+        { d: 200, h: fact("remotes", `juwels ${sp("m", "(from beamtime.yaml)")}`) },
+      ],
+      note: {
+        name: "Look around",
+        why: "The same scan as a first setup, run in a project that has one. The rules block is compared with the text every release wrote, so the wizard knows which version set the project up without stamping files. After an upgrade, `beamtime status` prints one line when a project's setup is older: \"set up with 0.1.1; beamtime init updates it\".",
+        store: "Nothing.",
+      },
+    },
+    {
+      id: "data", kind: "task", took: "0.8 s",
+      title: () => "Checking runs, notes and views",
+      lines: () => [
+        { d: 380, h: ok("214 runs", "read as they are · schema 1") },
+        { d: 260, h: ok("notes, proposals", "read as they are") },
+        { d: 260, h: ok("views", "3 views · one pins a kit v1 block, which still works") },
+        { d: 300, h: ok("index", "rebuilds once in the background (schema 3)") },
+      ],
+      note: {
+        name: "Your data",
+        why: "The first worry after an upgrade is whether the data must be migrated. It never must: every file states its schema and every version reads forever. The wizard still checks and says so before asking anything, and a log dir alone never makes init write.",
+        store: "Nothing; runs are never rewritten.",
+      },
+    },
+    {
+      id: "probe", kind: "task", took: "1.2 s",
+      title: () => "Checking juwels",
+      lines: () => [{ d: 800, h: `${sp("c", pad("juwels", 12))}${sp("g", "✓")} ssh  ${sp("w", "!")} beamtime 0.1.1  ${sp("m", "· views and blocks over ssh need 0.2")}` }],
+      note: { name: "Check the machines", why: "A remote on an older version keeps answering queries, but some tools need a newer one there. The check names which.", store: "Nothing." },
+    },
+    {
+      id: "updates", kind: "multi",
+      title: () => "What should be brought up to 0.3.0?",
+      hint: () => "Everything the scan found is ticked. Untick what you want to keep as it is.",
+      options: () => UPDATES,
+      add: { label: "Add a path", prompt: "another log dir, notes folder or memory files", detect: detectPath },
+      decorate: (x, a) => x.user ? { ...x, hint: importHint(x, a) } : x,
+      def: () => UPDATES.map(x => x.v),
+      summary: v => `${v.length} of ${UPDATES.length + Math.max(0, v.length - UPDATES.length)} things`,
+      note: {
+        name: "What to update",
+        why: "An upgrade is a list of concrete, stale things, each with its before and after, rather than a separate migrate command. Beamtime runs that sit outside the log dir are found too and offered like any import, and + Add a path takes more of them.",
+        flag: "--update rules,mcp,skills,settings,sdk,remote:juwels  --import runs-old/",
+        store: "Shown per item in the review.",
+      },
+    },
+    styleStep(214, true),
+    {
+      id: "tune", kind: "form", when: a => hasAgents(a) && a.style === "fine",
+      title: () => "Agent settings",
+      hint: () => "Starts from Careful. Detected values are marked.",
+      rows: () => TUNE,
+      def: () => ({ ...PRESETS.careful }),
+      summary: v => {
+        const changed = TUNE.filter(r => v[r.k] !== PRESETS.careful[r.k]).map(r => `${r.label} ${v[r.k]}`);
+        return changed.length ? `custom: ${changed.join(", ")}` : "same as careful";
+      },
+      note: { name: "Agent settings", why: "The same knobs as on a first setup.", flag: "--agent-set launch_runs=allowed,seeds=5", store: "beamtime.yaml: agent.* (shared)" },
+    },
+    rulesStep({ isNew: true }),
+    {
+      id: "review", kind: "select",
+      title: () => "Ready. Nothing has been written yet.",
+      body: a => {
+        const kv = (k, v) => `  ${sp("m", pad(k, 18))}${v}`;
+        const u = upd(a).map(x => x.v);
+        const L = [`${sp("c", "your data")}  ${sp("m", "nothing is rewritten")}`];
+        L.push(kv("beamtime/", "214 runs, 31 notes, 4 proposals, 2 memories · as they are"));
+        L.push("");
+        L.push(`${sp("c", "beamtime.yaml")}  ${sp("m", "project · shared through git")}`);
+        if (u.includes("settings")) L.push(kv("colormap", "removed"));
+        if (hasAgents(a)) L.push(kv("agent", `${styleName(a)} · main metric ${tuned(a).main_metric} ${sp("m", "(new)")}`));
+        L.push("");
+        L.push(`${sp("c", "in the project")}`);
+        if (u.includes("rules") && a.rules !== "none") L.push(kv("CLAUDE.md", "rules 0.1.1 → 0.3.0 · Beamtime is the record"));
+        if (u.includes("rules") && a.rules === "none") L.push(kv("CLAUDE.md", "the 0.1.1 block is removed"));
+        if (u.includes("mcp")) L.push(kv(".mcp.json", "uv run beamtime mcp"));
+        if (u.includes("skills")) L.push(kv(".claude/skills/", "6 skills"));
+        if (u.includes("sdk")) L.push(kv(".venv", "beamtime 0.1.1 → 0.3.0"));
+        upd(a).filter(isRuns).forEach(x => L.push(kv(destOf(x.v === "runs-old" ? { dest: "beamtime/runs-old" } : x), `${x.n} runs copied from ${x.path}`)));
+        upd(a).filter(x => x.user && !isRuns(x) && x.kind !== "none").forEach(x => L.push(kv(x.label, importHint(x, a).split("→")[1].trim().replace(/\s+· added$/, ""))));
+        if (u.includes("juwels")) { L.push(""); L.push(sp("c", "other machines")); L.push(kv("juwels", "pip install --user -U beamtime==0.3.0")); }
+        const kept = UPDATES.filter(x => !u.includes(x.v));
+        if (kept.length) { L.push(""); L.push(`${sp("c", "kept as they are")}  ${sp("m", kept.map(x => x.label).join(" · "))}`); }
+        return L;
+      },
+      options: () => [
+        { v: "write", label: "Write it" },
+        { v: "change", label: "Change an answer" },
+        { v: "command", label: "Show the command and quit" },
+      ],
+      def: () => "write",
+      note: { name: "Review", why: "It opens with the data, untouched, because that is what people check first. What was unticked is listed as kept, so a later rerun can offer it again.", store: "Nothing until you choose Write it." },
+    },
+    changeStep(),
+    {
+      id: "apply", kind: "task", when: a => a.review === "write", took: "4.2 s",
+      title: () => "Updating",
+      lines: a => {
+        const u = upd(a).map(x => x.v);
+        const L = [];
+        if (u.includes("settings") || hasAgents(a)) L.push({ d: 240, h: ok("beamtime.yaml", [u.includes("settings") && "colormap removed", hasAgents(a) && "agent added"].filter(Boolean).join(" · ")) });
+        if (u.includes("rules")) L.push({ d: 220, h: ok("CLAUDE.md", a.rules === "none" ? "rules block removed" : "rules 0.3.0, your text kept") });
+        if (u.includes("mcp")) L.push({ d: 220, h: ok(".mcp.json", "uv run beamtime mcp") });
+        if (u.includes("skills")) L.push({ d: 260, h: ok(".claude/skills/", "6 skills") });
+        if (u.includes("sdk")) L.push({ d: 900, h: ok(".venv", "beamtime 0.3.0") });
+        if (u.includes("juwels")) L.push({ d: 1400, h: ok("juwels", "beamtime 0.3.0 installed") });
+        upd(a).filter(isRuns).forEach(x => L.push({ bar: true, label: "Beamtime", n: x.n, ms: 300 + 60 * x.n, done: ok("Beamtime", `${x.n} runs → ${x.v === "runs-old" ? "beamtime/runs-old" : destOf(x)}`) }));
+        L.push({ d: 700, h: ok("doctor", "12 checks passed") });
+        return L;
+      },
+      note: { name: "Write", why: "One line per change, stop on the first failure; a rerun finds what is still stale and offers only that.", store: "Everything listed in the review." },
+    },
+    {
+      id: "done", kind: "done", title: () => "",
+      lines: a => a.review === "command" ? ["Nothing was written. This command makes the same update:", "", ...cmdLines(UPGRADE.cmd(a)).map(x => sp("c", esc(x)))] : [
+        sp("t", "Beamtime 0.3.0 is set up. Nothing in beamtime/ was rewritten."),
+        "",
+        sp("m", "Changed since 0.1.1, where you may notice it"),
+        `${sp("a", "·")}  Charts: pin main metrics in the UI; a colormap is chosen per chart.`,
+        `${sp("a", "·")}  ${sp("c", "series --json")} gives each curve y, lo, hi and n.`,
+        `${sp("a", "·")}  A run is named by its id, its name, or an id suffix of four characters or more.`,
+        `   ${sp("m", "All of it: beamtime.dev/changelog, 0.2.0 to 0.3.0")}`,
+        "",
+        ...(hasAgents(a) && a.rules !== "none" ? ["Agents read the new rules from their next session on.", ""] : []),
+        `${sp("m", "~/research/egnn-md $")} ${sp("blink", "▍")}`,
+      ],
+      note: { name: "Done", why: "An upgrade ends with the few changes a person would trip over, not the whole changelog. In CI or from an agent, `beamtime init --check` lists what is stale without asking anything and exits non-zero if something is." },
+    },
+  ],
+  cmd: a => {
+    const f = [];
+    if (a.updates) {
+      const u = a.updates.filter(x => x !== "runs-old" && UPDATES.some(y => y.v === x)).map(x => x === "juwels" ? "remote:juwels" : x);
+      if (u.length) f.push(`--update ${u.join(",")}`);
+      if (a.updates.includes("runs-old")) f.push("--import runs-old/");
+      (a["updates+"] || []).filter(x => a.updates.includes(x.v)).forEach(x => f.push(`${isRuns(x) ? "--import" : x.kind === "notes" ? "--import-notes" : "--import-memory"} ${x.path}`));
+    }
+    if (a.style) f.push(`--agent-style ${a.style === "fine" ? "careful" : { careful: "careful", handson: "hands-on", light: "analysis" }[a.style]}`);
+    if (a.rules === "none") f.push("--no-rules");
+    return f;
+  },
+};
+
+function changeStep() {
+  return {
+    id: "change", kind: "select", when: a => a.review === "change",
+    title: () => "Which answer?",
+    options: () => S.hist.map(h => byId(h.id)).filter(st => st && !["task", "done"].includes(st.kind) && !["review", "change", "handoff"].includes(st.id))
+      .map(st => ({ v: st.id, label: st.title(S.a), hint: summary(st, S.a[st.id]) })),
+    def: () => null,
+    note: { name: "Change an answer", why: "Jump straight to one answer. Later answers are kept as defaults, so changing one costs one Enter per question after it.", store: "Nothing." },
+  };
+}
+
+const cmdLines = flags => {
+  const all = ["beamtime init --yes", ...flags];
+  return all.map((x, i) => (i ? "  " : "") + x + (i < all.length - 1 ? " \\" : ""));
+};
+
+/* ---------- engine: steps by id, so per-host steps can come and go ---------- */
+const SCENARIOS = { first: FIRST, mate: MATE, cluster: CLUSTER, upgrade: UPGRADE };
+const S = { sc: FIRST, a: {}, id: null, cur: 0, sel: [], form: {}, row: 0, text: "", transcript: [], hist: [], gen: 0, shown: [], done: false, adding: false, checking: null };
+const screen = document.getElementById("screen");
+const term = document.getElementById("term");
+let termFocused = true;
+
+const list = () => S.sc.steps.flatMap(s => s.expand ? s.expand(S.a) : [s]);
+const byId = id => list().find(s => s.id === id);
+const step = () => byId(S.id);
+const indexOf = id => list().findIndex(s => s.id === id);
+
+function opts(st) {
+  const all = [...(st.options ? st.options(S.a) : []), ...(st.kind === "multi" ? (S.a[`${st.id}+`] || []) : [])];
+  return st.decorate ? all.map(x => st.decorate(x, S.a)) : all;
+}
+
+function summary(st, v) {
+  if (v === undefined || v === null) return "";
+  if (st.summary) return st.summary(v, S.a);
+  if (st.kind === "select") { const o = opts(st).find(x => x.v === v); return o ? o.label : String(v); }
+  if (st.kind === "multi") return v.length ? v.map(x => (opts(st).find(o => o.v === x) || {}).label).join(", ") : "none";
+  return String(v);
+}
+
+function start(key) {
+  S.gen++;
+  S.sc = SCENARIOS[key];
+  Object.assign(S, { a: { ...(S.sc.seed || {}) }, transcript: [S.sc.intro.map(h => ln(h)).join("")], hist: [], done: false, shown: [] });
+  document.getElementById("ttl").textContent = `zsh — ${S.sc.cwd}`;
+  enterAt(0);
+}
+
+function enterAt(i) {
+  const L = list();
+  while (i < L.length && L[i].when && !L[i].when(S.a)) i++;
+  const st = L[i];
+  S.id = st.id;
+  S.adding = false; S.checking = null;
+  const prev = S.a[st.id];
+  if (st.kind === "select") {
+    const o = opts(st), want = prev !== undefined ? prev : st.def(S.a);
+    S.cur = Math.max(0, o.findIndex(x => x.v === want));
+  } else if (st.kind === "multi") {
+    S.sel = [...(prev || st.def(S.a))]; S.cur = Math.max(0, opts(st).findIndex(x => S.sel.includes(x.v))); S.moved = false;
+  } else if (st.kind === "form") {
+    S.form = { ...(prev || st.def(S.a)) }; S.row = 0;
+  } else if (st.kind === "text") {
+    S.text = prev !== undefined ? prev : st.def(S.a);
+  }
+  render();
+  notes();
+  if (st.kind === "task") runTask(st);
+  if (st.kind === "done") S.done = true;
+}
+
+function confirm(v) {
+  const st = step();
+  if (st.kind !== "task") S.a[st.id] = v;
+  S.transcript.push(doneBlock(st, v));
+  S.hist.push({ id: st.id, t: S.transcript.length - 1 });
+  if (st.id === "change") {
+    const k = S.hist.findIndex(h => h.id === v);
+    delete S.a.review; delete S.a.change;
+    jumpTo(k);
+    return;
+  }
+  enterAt(indexOf(st.id) + 1);
+}
+
+function jumpTo(k) {
+  S.gen++;
+  const h = S.hist[k];
+  S.transcript.length = h.t;
+  S.hist.length = k;
+  enterAt(indexOf(h.id));
+}
+
+const locked = () => S.done || S.hist.some(h => h.id === "apply");
+function back() {
+  if (locked()) return;
+  let k = S.hist.length - 1;
+  while (k >= 0 && (byId(S.hist[k].id) || {}).kind === "task") k--;
+  if (k < 0) return;
+  jumpTo(k);
+}
+
+function doneBlock(st, v) {
+  const out = [];
+  if (st.kind === "task") {
+    out.push(ln(`${sp("m", "◇")}  ${sp("t", st.title(S.a))}  ${sp("m", st.took || "")}`));
+    S.shown.forEach(h => out.push(rl(h)));
+  } else {
+    out.push(ln(`${sp("m", "◇")}  ${sp("t", esc(st.title(S.a)))}`));
+    out.push(rl(sp("m", esc(summary(st, v)))));
+  }
+  out.push(rl());
+  return out.join("");
+}
+
+function keysFor(st) {
+  if (st.kind === "multi") {
+    const n = S.sel.length;
+    return `${n} selected · ↑↓ move · space select · enter confirm${st.add ? " · + adds your own" : ""} · esc back`;
+  }
+  return {
+    select: "↑↓ move · enter confirm · esc back",
+    multi: "↑↓ move · space select · enter confirm · esc back",
+    text: "enter confirm · esc back",
+    form: "↑↓ setting · ←→ value · enter confirm · esc back",
+  }[st.kind] || "";
+}
+
+function row(i, on, mark, o) {
+  return `<div class="ln opt${on ? " on" : ""}" data-opt="${i}">${RAIL}  ${mark} ${on ? sp("a", esc(o.label)) : sp("c", esc(o.label))}${o.hint ? "  " + sp(o.bad ? "w" : "m", esc(o.hint)) : ""}</div>`;
+}
+
+function active() {
+  const st = step(), a = S.a, out = [];
+  if (st.kind === "done") {
+    const L = st.lines(a);
+    out.push(ln(`${sp("r", "└")}  ${L[0]}`));
+    L.slice(1).forEach(h => out.push(ln(h ? `   ${h}` : "")));
+    return out.join("");
+  }
+  if (st.kind === "task") {
+    out.push(ln(`<span class="a" id="spin">◒</span>  ${sp("t", st.title(a))}`));
+    S.shown.forEach(h => out.push(rl(h)));
+    return out.join("");
+  }
+  out.push(ln(`${sp("a", "◆")}  ${sp("t", esc(st.title(a)))}`));
+  if (st.hint) out.push(rl(sp("m", esc(st.hint(a)))));
+  if (st.body) st.body(a).forEach(h => out.push(rl(h)));
+  if (st.hint || st.body) out.push(rl());
+  if (st.kind === "select") {
+    opts(st).forEach((o, i) => out.push(row(i, i === S.cur, i === S.cur ? sp("a", "●") : sp("m", "○"), o)));
+  } else if (st.kind === "multi") {
+    const o = opts(st);
+    o.forEach((x, i) => out.push(row(i, i === S.cur, x.bad ? sp("w", "!") : S.sel.includes(x.v) ? sp("a", "◼") : sp("m", "◻"), x)));
+    if (st.add) {
+      const on = S.cur === o.length;
+      if (S.checking) out.push(rl(`<span class="a" id="spin">◒</span> ${sp("m", `checking ${esc(S.checking)}`)}`));
+      else if (S.adding) out.push(rl(`${sp("a", "+")} <input class="tin" id="addin" spellcheck="false" autocomplete="off" aria-label="${esc(st.add.label)}" placeholder="${esc(st.add.prompt)}">`));
+      else out.push(`<div class="ln opt${on ? " on" : ""}" data-add="1">${RAIL}  ${sp(on ? "a" : "m", "+")} ${sp(on ? "a" : "m", `${st.add.label}…`)}</div>`);
+    }
+  } else if (st.kind === "text") {
+    out.push(rl(`${sp("a", "›")} <input class="tin" id="tin" spellcheck="false" autocomplete="off" aria-label="${esc(st.title(a))}" placeholder="${esc(st.def(a))}">`));
+  } else if (st.kind === "form") {
+    st.rows(a).forEach((r, i) => {
+      const on = i === S.row;
+      const vals = r.vals.map(v => S.form[r.k] === v ? `<span class="inv" data-row="${i}" data-val="${esc(v)}">${esc(v)}</span>` : `<span class="m" data-row="${i}" data-val="${esc(v)}" style="cursor:pointer">${esc(v)}</span>`).join("  ");
+      out.push(`<div class="ln opt${on ? " on" : ""}" data-frow="${i}">${RAIL}  ${on ? sp("a", "›") : " "} ${on ? sp("a", pad(r.label, 17)) : sp("c", pad(r.label, 17))}${vals}${r.det ? "  " + sp("m", "detected") : ""}</div>`);
+    });
+  }
+  out.push(ln(`${sp("r", "└")}  ${sp("k", keysFor(st))}`));
+  return out.join("");
+}
+
+function render() {
+  screen.innerHTML = S.transcript.join("") + active();
+  const st = step();
+  if (st.kind === "text") {
+    const tin = document.getElementById("tin");
+    tin.value = S.text;
+    tin.addEventListener("input", () => { S.text = tin.value; });
+    tin.addEventListener("keydown", e => {
+      e.stopPropagation();
+      if (e.key === "Enter") { e.preventDefault(); confirm(tin.value.trim() || st.def(S.a)); focusTerm(); }
+      else if (e.key === "Escape") { e.preventDefault(); back(); focusTerm(); }
+    });
+    if (termFocused) tin.focus({ preventScroll: true });
+  }
+  const addin = document.getElementById("addin");
+  if (addin) {
+    addin.addEventListener("keydown", e => {
+      e.stopPropagation();
+      if (e.key === "Enter") { e.preventDefault(); addEntry(st, addin.value); }
+      else if (e.key === "Escape") { e.preventDefault(); S.adding = false; render(); focusTerm(); }
+    });
+    addin.focus({ preventScroll: true });
+  }
+  screen.scrollTop = screen.scrollHeight;
+  document.getElementById("back").disabled = locked() || !S.hist.some(h => (byId(h.id) || {}).kind !== "task");
+  document.getElementById("go").disabled = st.kind === "task" || st.kind === "done";
+}
+
+function addEntry(st, value) {
+  const t = value.trim();
+  S.adding = false;
+  if (!t) { render(); focusTerm(); return; }
+  S.checking = t; render();
+  const g = S.gen;
+  setTimeout(() => {
+    if (g !== S.gen) return;
+    S.checking = null;
+    const item = st.add.detect(t);
+    if (!opts(st).some(x => x.v === item.v)) S.a[`${st.id}+`] = [...(S.a[`${st.id}+`] || []), item];
+    const o = opts(st), i = o.findIndex(x => x.v === item.v);
+    if (!o[i].bad && !S.sel.includes(item.v)) toggle(o[i]);
+    S.cur = i;
+    render(); focusTerm(); notes();
+  }, RM ? 0 : 600);
+}
+
+function focusTerm() {
+  const tin = document.getElementById("tin") || document.getElementById("addin");
+  if (tin) tin.focus({ preventScroll: true }); else term.focus({ preventScroll: true });
+}
+
+function notes() {
+  const st = step(), n = st.note || {};
+  document.getElementById("n-step").textContent = n.name || "";
+  document.getElementById("n-why").textContent = n.why || "";
+  document.getElementById("n-flag-w").hidden = !n.flag;
+  document.getElementById("n-flag").textContent = n.flag || "";
+  document.getElementById("n-store-w").hidden = !n.store;
+  document.getElementById("n-store").textContent = n.store || "";
+  document.getElementById("n-cmd").textContent = cmdLines(S.sc.cmd(S.a)).join("\n");
+}
+
+function runTask(st) {
+  const g = S.gen, items = st.lines(S.a);
+  S.shown = [];
+  let k = 0;
+  const next = () => {
+    if (g !== S.gen) return;
+    if (k >= items.length) {
+      setTimeout(() => { if (g === S.gen) confirm(true); }, RM ? 0 : 300);
+      return;
+    }
+    const it = items[k++];
+    if (it.bar) return bar(it, g, next);
+    setTimeout(() => { if (g !== S.gen) return; S.shown.push(it.h); render(); next(); }, RM ? 0 : it.d);
+  };
+  next();
+}
+
+function bar(it, g, next) {
+  const idx = S.shown.length, n = RM ? 1 : 20;
+  const draw = c => {
+    const w = 20, fill = Math.round(w * c / it.n);
+    return `${sp("a", "›")} ${pad(it.label, 15)}${sp("a", "█".repeat(fill))}${sp("r", "░".repeat(w - fill))}  ${sp("m", `${c}/${it.n} runs`)}`;
+  };
+  S.shown.push(draw(0)); render();
+  let s = 0;
+  const tick = () => {
+    if (g !== S.gen) return;
+    s++;
+    S.shown[idx] = s >= n ? it.done : draw(Math.round(it.n * s / n));
+    render();
+    if (s < n) setTimeout(tick, it.ms / n); else next();
+  };
+  setTimeout(tick, RM ? 0 : 150);
+}
+
+let spinFrame = 0;
+setInterval(() => { const el = document.getElementById("spin"); if (el) el.textContent = "◒◐◓◑"[spinFrame++ % 4]; }, 110);
+
+function key(e) {
+  const st = step();
+  if (!st || st.kind === "task" || st.kind === "done" || st.kind === "text" || S.adding || S.checking) return;
+  const o = opts(st);
+  const n = o.length + (st.kind === "multi" && st.add ? 1 : 0);
+  const onAdd = st.kind === "multi" && st.add && S.cur === o.length;
+  const k = e.key;
+  let handled = true;
+  if (k === "ArrowDown" || k === "j") {
+    if (st.kind === "form") S.row = (S.row + 1) % st.rows(S.a).length; else { S.cur = (S.cur + 1) % n; S.moved = true; }
+  } else if (k === "ArrowUp" || k === "k") {
+    if (st.kind === "form") S.row = (S.row - 1 + st.rows(S.a).length) % st.rows(S.a).length; else { S.cur = (S.cur - 1 + n) % n; S.moved = true; }
+  } else if ((k === "ArrowRight" || k === "ArrowLeft" || k === "l" || k === "h") && st.kind === "form") {
+    const r = st.rows(S.a)[S.row], j = r.vals.indexOf(S.form[r.k]);
+    const d = (k === "ArrowRight" || k === "l") ? 1 : -1;
+    S.form[r.k] = r.vals[(j + d + r.vals.length) % r.vals.length];
+  } else if ((k === " " || k === "Enter") && onAdd) {
+    S.adding = true;
+  } else if (k === "+" && st.kind === "multi" && st.add) {
+    S.cur = o.length; S.adding = true;
+  } else if (k === " " && st.kind === "multi") {
+    toggle(o[S.cur]);
+  } else if (/^[1-9]$/.test(k) && st.kind !== "form") {
+    const j = Number(k) - 1; if (j < o.length) { S.cur = j; S.moved = true; }
+  } else if (k === "Enter" && st.kind === "multi" && S.moved && o[S.cur] && !o[S.cur].bad && !S.sel.includes(o[S.cur].v)) {
+    // moving to an unticked row and pressing enter means "this one too", not "only the defaults".
+    toggle(o[S.cur]); go(); return e.preventDefault();
+  } else if (k === "Enter") {
+    go(); return e.preventDefault();
+  } else if (k === "Escape" || k === "Backspace") {
+    back(); return e.preventDefault();
+  } else handled = false;
+  if (handled) { e.preventDefault(); render(); }
+}
+
+function toggle(o) {
+  if (!o || o.bad) return;
+  if (S.sel.includes(o.v)) S.sel = S.sel.filter(x => x !== o.v);
+  else if (o.excl) S.sel = [o.v];
+  else S.sel = [...S.sel.filter(x => !(opts(step()).find(p => p.v === x) || {}).excl), o.v];
+}
+
+function go() {
+  const st = step();
+  if (S.adding || S.checking) return;
+  if (st.kind === "select") confirm(opts(st)[S.cur].v);
+  else if (st.kind === "multi") { const order = opts(st).map(x => x.v); confirm(order.filter(v => S.sel.includes(v))); }
+  else if (st.kind === "text") confirm((S.text || "").trim() || st.def(S.a));
+  else if (st.kind === "form") confirm({ ...S.form });
+}
+
+term.addEventListener("keydown", key);
+term.addEventListener("focusin", () => { termFocused = true; });
+term.addEventListener("focusout", () => { termFocused = false; });
+screen.addEventListener("click", e => {
+  const st = step();
+  if (e.target.closest("input")) return;
+  const v = e.target.closest("[data-val]");
+  if (v && st.kind === "form") {
+    const r = st.rows(S.a)[Number(v.dataset.row)];
+    S.row = Number(v.dataset.row); S.form[r.k] = v.dataset.val; render(); focusTerm(); return;
+  }
+  const fr = e.target.closest("[data-frow]");
+  if (fr && st.kind === "form") { S.row = Number(fr.dataset.frow); render(); focusTerm(); return; }
+  if (e.target.closest("[data-add]") && st.kind === "multi") { S.cur = opts(st).length; S.adding = true; render(); return; }
+  const op = e.target.closest("[data-opt]");
+  if (op) {
+    const i = Number(op.dataset.opt);
+    if (st.kind === "select") { S.cur = i; render(); confirm(opts(st)[i].v); }
+    else if (st.kind === "multi") { S.cur = i; toggle(opts(st)[i]); render(); }
+    focusTerm(); return;
+  }
+  focusTerm();
+});
+document.getElementById("go").addEventListener("click", () => { go(); focusTerm(); });
+document.getElementById("back").addEventListener("click", () => { back(); focusTerm(); });
+document.getElementById("restart").addEventListener("click", () => { start(Object.keys(SCENARIOS).find(k => SCENARIOS[k] === S.sc)); focusTerm(); });
+document.getElementById("scenarios").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  document.querySelectorAll("#scenarios button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  start(b.dataset.sc); focusTerm();
+});
+document.getElementById("tmode").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  document.querySelectorAll("#tmode button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  term.classList.toggle("light", b.dataset.t === "light");
+});
+document.getElementById("copy").addEventListener("click", e => {
+  const t = document.getElementById("n-cmd").textContent;
+  navigator.clipboard.writeText(t).then(() => { e.target.textContent = "Copied"; setTimeout(() => e.target.textContent = "Copy", 1400); })
+    .catch(() => { const r = document.createRange(); r.selectNodeContents(document.getElementById("n-cmd")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); });
+});
+
+start("first");
+term.focus({ preventScroll: true });
+</script>

@@ -56,7 +56,9 @@ my-repo/
 - **The index cache** lives outside the repo in `~/.cache/beamtime/<logdir-hash>/`, so nothing
   machine-specific ends up in the repo and SQLite never touches a cluster filesystem. The hash is
   of the resolved log dir, so a `BEAMTIME_LOGDIR` on scratch space gets its own cache.
-  `BEAMTIME_CACHE` (or `XDG_CACHE_HOME`) moves the cache, e.g. to a local disk on a login node.
+  The `cache` setting (user or project, with `{user}` and `${VAR}`) or `BEAMTIME_CACHE` moves it, e.g.
+  to a local disk on a login node, or keeps it in memory; one function resolves it for every consumer,
+  and network filesystems are refused ([setup](10-setup.md#the-cache)).
 
 ### Settings
 
@@ -66,8 +68,8 @@ Settings work like VS Code's: user settings are the default for every project, a
 | Level | File | Typical contents |
 |---|---|---|
 | built-in | – | Beamtime's defaults |
-| user | `~/.config/beamtime/settings.yaml` | remotes used everywhere (`host`, `command`, `cache`), theme |
-| project | `beamtime.yaml` in the root | `logdir`, the project's remote paths, the project's default theme |
+| user | `~/.config/beamtime/settings.yaml` | remotes used everywhere (`host`, `command`, `cache`), this machine's `cache`, theme |
+| project | `beamtime.yaml` in the root | `logdir`, `agent` ([setup](10-setup.md#agent-settings)), the project's remote paths, the project's default theme |
 | session | command-line flags and environment variables | one-off overrides |
 
 - Each level overrides the one above it. Mappings merge key by key, so a user-level remote defines
@@ -89,8 +91,8 @@ Settings work like VS Code's: user settings are the default for every project, a
     cluster: {path: /scratch/{user}/proj/beamtime}
   ```
 
-- Both files have the same schema. A key that only makes sense in one of them (`logdir` in the
-  project) is reported when it appears in the other.
+- Both files have the same schema. A key that only makes sense in one of them (`logdir` and `agent` in
+  the project) is reported when it appears in the other.
 - `beamtime settings` shows the effective settings and, for each value, which level it came from.
 - Settings changed in the web UI (theme, mode, figure styles) are written to the project's
   `beamtime.yaml` with `beamtime set <key> <value>`, a user command; the file keeps its other keys
@@ -261,6 +263,20 @@ How views look and behave is [layer 5](05-views.md). For storage:
   data is from the original run; `proposals` and `proposal_hashes` keep only the run's own entry
   (`.`) and gain the destination's ancestors, as a new run would. `key` goes and `job_key` becomes
   `null`: the copy is no launch's run, and resuming the source's key must never continue the copy.
+- **`imported_from`** (optional) is set by an import in `beamtime init` ([setup](10-setup.md#past-work))
+  and records where the run came from:
+
+  ```json
+  "imported_from": {"kind": "mlflow", "path": "/home/ada/proj/mlruns/0/3f2a…", "id": "3f2a…",
+                    "host": "laptop", "at": "2026-11-12T09:30:00Z"}
+  ```
+
+  `kind` is `tensorboard`, `wandb`, `mlflow`, `csv` or `beamtime`; `path` is the absolute path of the
+  original on `host`, the machine that imported it; `id` is the source's own run id where it has one
+  (the MLflow run id, the W&B run id, the Beamtime run id), else absent; `at` is when it was imported.
+  Readers treat a missing field as a run that was not imported, so every earlier `_run.json` reads as
+  before, and the `schema` stays 1. The original is never touched; a second import of the same `path`
+  and `id` is skipped.
 
 ### `_config.json`
 
@@ -458,8 +474,11 @@ log or a note must be removable.
 - **`beamtime mv <group> <new path>`** moves or renames a group and appends the move to
   `_moves.jsonl` in the log dir (`{schema, from, to, t}` per line). Nothing that names the old path is
   rewritten: runs keep their recorded proposal membership, notes their links and `completes`;
-  readers map old paths through the moves. Moving a run (`beamtime mv <run> <group>`) needs no
-  record, since runs are found by id.
+  readers map old paths through the moves. A move may carry an optional `within` (a group path): it
+  then maps only paths named by files below `within`. Imports of Beamtime log dirs write such moves
+  ([setup](10-setup.md#beamtime-log-dirs)), so the copied tree keeps its own paths meaningful without
+  touching groups of the same name elsewhere; a move without `within` applies everywhere, as before.
+  Moving a run (`beamtime mv <run> <group>`) needs no record, since runs are found by id.
 - **A run's display name** can be changed after the run: `beamtime name <run> <name>` writes a new
   version in the run's `name/` folder (`{schema, name, author, user}`), which listings show instead of
   the name in `_run.json`. The run id never changes.

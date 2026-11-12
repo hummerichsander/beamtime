@@ -473,7 +473,9 @@ MCP has one tool per kind (`keys`, `runs`, `series`, `data`, `timeline`, `groups
 Decided while building the index and the queries (milestone M2):
 
 - **Cache location.** `BEAMTIME_CACHE`, else `XDG_CACHE_HOME/beamtime`, else `~/.cache/beamtime`, then
-  a directory per resolved log dir.
+  a directory per resolved log dir. The setup makes this one `cache` setting (`memory` or a path),
+  resolved by `resolve_cache()` for the CLI, `serve`, MCP and `serve --stdio` alike, refusing network
+  filesystems for memory ([setup](10-setup.md#the-cache)).
 - **Column files** are named by the percent-encoded key and a generation number. Truncating for a
   resumed attempt writes the next generation and switches the manifest to it, so a reader that has
   the old files mapped is never cut short (shrinking a mapped file crashes readers). Wall time is

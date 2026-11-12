@@ -204,7 +204,8 @@ remotes:
   and `cache` usually live in the user settings, its `path` in the project.
 - **Placeholders** keep `beamtime.yaml` shareable: `{user}` is the ssh user, and `${VAR}` expands an
   environment variable on the remote.
-- **`cache` must be on a local disk.** On NFS, Lustre or GPFS the remote falls back to memory, and
+- **`cache` must be on a local disk.** The remote machine may also set its own `cache` setting, which
+  `serve --stdio` uses when the laptop sends none ([setup](10-setup.md#the-cache)). On NFS, Lustre or GPFS the remote falls back to memory, and
   `beamtime status` says why. With several login nodes behind one host name, pointing `host` at one
   fixed node keeps the cache warm.
 - **The command line overrides the settings** for one session: `beamtime serve cluster:scaling`,
@@ -216,6 +217,9 @@ remotes:
   (`command -v beamtime`, then the venv next to the path, whose `~`, `${VAR}` and `{user}` the
   remote shell expands) unless `--command` is given.
   `source list` and `source rm <name>` read and edit the same settings; all three are user-only.
+- `beamtime init` adds any number of remotes at once, probes them together, installs Beamtime there on
+  request and offers ssh sharing for hosts with a second factor ([setup](10-setup.md#remotes)).
+  `remotes.<name>.enabled: false` in the user settings skips a project remote on one machine.
 
 ## Protocol
 

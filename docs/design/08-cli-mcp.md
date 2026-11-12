@@ -93,7 +93,7 @@ the user the command ([Policy](#policy)).
 
 | Command | Does |
 |---|---|
-| `beamtime init` | sets up a project: adds the log dir to `.gitignore`, optionally creates `beamtime.yaml`, offers `mcp install`; `--instructions` adds Beamtime's agent rules to `AGENTS.md` (or `CLAUDE.md`) |
+| `beamtime init` | sets up a project, interactively or from flags: log dir, remotes, agents and their rules, imports, git, SDK; also updates an older setup; `--check` lists what is stale ([setup](10-setup.md)) |
 | `beamtime mcp install --client <name>` | registers `beamtime mcp` with an agent client (Claude Code, Codex, Cursor, …); `--instructions` adds the agent rules to the client's instruction file (`CLAUDE.md` for Claude Code, else `AGENTS.md`) |
 | `beamtime demo [dir]` | generates a sample log dir from the evaluation generator (once, in `beamtime-demo/`) and serves it |
 | `beamtime doctor` | checks root and log dir resolution, write access, Chromium, remote reachability and the remote's Beamtime version |
@@ -192,6 +192,7 @@ MCP prompts appear as slash commands in clients such as Claude Code (`/beamtime:
 | `compare` | compare two runs or groups: config differences, metric deltas, and a temporary view if it helps |
 | `report` | summarize a group for others: findings, verdicts, open questions, as a view or an export |
 | `memory` | update and compact a group's memory from the notes added since it was last written |
+| `migrate` | fold old notes and memory files into typed notes and the memory, and an instruction file's experiment section into Beamtime ([setup](10-setup.md#the-migrate-prompt)) |
 
 ### Skills and plugin
 
@@ -309,6 +310,6 @@ Decided while building the CLI and MCP server (milestone M3):
   exist only in the CLI and are never run by agents.
 - Compact text output, identical in terminals and pipes; `--json` for the canonical answer. Exit codes
   distinguish errors, usage, validation failures and missing items.
-- MCP over stdio (`beamtime mcp`, also over ssh), with about 35 small tools, eight prompts, and token
+- MCP over stdio (`beamtime mcp`, also over ssh), with about 35 small tools, nine prompts, and token
   budgets with cursors.
 - `beamtime init`, `demo`, `doctor` and `mcp install` cover onboarding.

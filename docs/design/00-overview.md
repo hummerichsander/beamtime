@@ -19,6 +19,7 @@ canonical names that every layer uses, the scope of v1, and the cross-cutting ru
 | 7 | [07-web-ui.md](07-web-ui.md) | the web UI |
 | 8 | [08-cli-mcp.md](08-cli-mcp.md) | the CLI and the MCP server, and the API both use |
 | – | [09-research-record.md](09-research-record.md) | proposals, predictions, checks, notes, memory |
+| – | [10-setup.md](10-setup.md) | `beamtime init`: first setup, teammates, clusters, updates; agent settings and rules, imports |
 
 ## Canonical names
 
@@ -26,7 +27,7 @@ canonical names that every layer uses, the scope of v1, and the cross-cutting ru
 |---|---|
 | project settings | `beamtime.yaml` in the root; user settings in `~/.config/beamtime/settings.yaml` |
 | default log dir | `beamtime/` in the root |
-| index cache | `~/.cache/beamtime/<logdir-hash>/` |
+| index cache | `~/.cache/beamtime/<logdir-hash>/`, or the `cache` setting ([setup](10-setup.md#the-cache)) |
 | run id | `YYYYMMDD-HHMMSS-<8 base32>`, e.g. `20261024-101532-k3m9xq2a` |
 | version id of authored files | `YYYYMMDD-HHMMSS-<4 base32>`, e.g. `20261025-091200-x8k2`; the file is `<id>.<ext>` |
 | machine-written files | start with `_`: `_run.json`, `_config.json`, `_run_card.json`, `_preview.json`, `_metrics.jsonl`, `_data.jsonl`, `_data/`, `_events.jsonl`, `_artifacts.jsonl`, `_output.log` (+ tail and rank files), `_env/` |
@@ -57,7 +58,7 @@ means designed in outline, built when needed.
 | Research record | versioned proposals, plans, predictions `each` and `compare` with t-intervals, manual predictions, notes, links, group status, memory | `trend` and `best` predictions | calibration from `confidence` |
 | Views | YAML widgets (wave 1), custom blocks on the kit, library and pinning, theme files, static validation plus one render | wave 2 widgets, linked selection, packages | migrations for block upgrades, high-contrast and print themes, community gallery, params |
 | Web UI | the shell, URLs, SSE invalidation with refetch, W&B-like charts on uPlot, editing written texts in place, saving views from the UI, reordering and resizing panels, HTML and figure export (PNG, CSV, vector PDF) | | free-form panel grids |
-| CLI and MCP | all commands and tools for v1 features, eight prompts, stdio MCP | | MCP over HTTP |
+| CLI and MCP | all commands and tools for v1 features, nine prompts, stdio MCP | | MCP over HTTP |
 | Server | `author`/`user` on authored files, no network code in the SDK | | the server itself |
 
 Wave 1 widgets: `line`, `scatter`, `bar`, `table`, `stat`, `images`, `text`, `data_table`,
@@ -108,9 +109,10 @@ reader blocks, and installs no SIGTERM handler.
 
 ## Onboarding and documentation
 
-- `beamtime init` sets up a project, `beamtime demo` generates a sample log dir and serves it, and
+- `beamtime init` sets up a project interactively, or from flags ([setup](10-setup.md)), `beamtime demo` generates a sample log dir and serves it, and
   `beamtime doctor` checks root and log dir resolution, write access, Chromium, and remote
   reachability.
 - User documentation is separate from this design: a quickstart, a cluster recipe (`BEAMTIME_LOGDIR`,
   batch scripts, remotes), and a Lightning page. Agents use `beamtime guide`.
-- An importer for TensorBoard event files is a strong adoption lever after v1.
+- Importers for TensorBoard, W&B offline, MLflow and CSV runs, and for other Beamtime log dirs, are part
+  of `beamtime init` ([setup](10-setup.md#past-work)).
