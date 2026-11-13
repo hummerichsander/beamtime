@@ -241,7 +241,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 ## T. Terminal
 
-### T11. Prompt primitives (sonnet + review) — code
+### T11. Prompt primitives (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/__init__.py`, new `src/beamtime/setup/term.py`, new
   `tests/setup/__init__.py`, new `tests/setup/test_term.py`.

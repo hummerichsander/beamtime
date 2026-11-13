@@ -523,7 +523,12 @@ goes stale is the setup around it, and each item has a check in `setup/stale.py`
 appearing as work finishes) and the review.
 
 - **Keys**: arrows or `j`/`k`, space toggles, Enter confirms, number keys pick a row, `q` or ctrl-c
-  quits. Raw input through `termios`/`tty` on POSIX and `msvcrt` on Windows.
+  quits. Raw input through `termios` on POSIX and `msvcrt` on Windows, behind one `keys()`
+  generator (`up`, `down`, `left`, `right`, `space`, `enter`, `esc`, `backspace`, `digit:<n>`,
+  `char:<c>`, `ctrl-c`). In a text field and in the `+ Add` row, letters and digits are typed and
+  `q` is not a quit key; Esc leaves the `+ Add` row. A check that returns a string shows it in
+  place and keeps the row open. The terminal's attributes are restored (flushing unread keys) on
+  every exit, ctrl-c included, which raises `Aborted`.
 - **Multi-select**: the cursor starts on the first ticked row; Enter confirms the ticked set; after
   the user moves to an unticked row, Enter ticks it too and confirms. The footer shows how many are
   selected.
@@ -532,6 +537,10 @@ appearing as work finishes) and the review.
 - **Answered steps** collapse to one line each (title and the answer's summary), as in the mockup.
 - **Styling** uses ANSI colors from the design tokens' terminal mapping, dropped with `NO_COLOR` or a
   pipe ([layer 8](08-cli-mcp.md#output)).
+  `Term.detect()` makes the choice (raw keys on a terminal that is not `TERM=dumb`, colors unless
+  `NO_COLOR`). Without color no color escapes are written; the cursor movement that redraws an
+  active step stays, since it only runs on a terminal. Lines are cut to the terminal's width with
+  an ellipsis, so a long hint never wraps the rail.
 - **Ctrl-c** restores the terminal and prints "Nothing was written." before the apply step; during it,
   what was done so far.
 - **Import budget**: the wizard's modules load only when `init` runs; the plain CLI path stays within
