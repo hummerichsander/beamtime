@@ -226,6 +226,8 @@ def test_command_quotes(scene: Scan) -> None:
         ["--agent-set", "seeds"],
         ["--agent-set", "colour=red"],
         ["--remote", "a:rel"],
+        ["--update", "bogus"],
+        ["--update", "rules,remote:"],
     ],
 )
 def test_contradictions_and_unknown_names(argv: list[str], scene: Scan) -> None:

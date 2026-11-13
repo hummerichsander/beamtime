@@ -129,6 +129,13 @@ class Answers(msgspec.Struct, kw_only=True):
                     f"--agent-set {item!r}: write KEY=VALUE with a key of {', '.join(AGENT_KEYS)}"
                 )
             agent_set[key] = value
+        update = None if p.update is None else [u for u in p.update if u]
+        for item in update or []:
+            remote = item.startswith("remote:") and len(item) > len("remote:")
+            if item not in UPDATE_ITEMS and not remote:
+                raise ValueError(
+                    f"--update {item!r}: choose from {', '.join(UPDATE_ITEMS)} or remote:NAME"
+                )
         return cls(
             runs=p.runs or base.runs,
             logdir=p.logdir or base.logdir,
@@ -148,7 +155,7 @@ class Answers(msgspec.Struct, kw_only=True):
             git=p.git or base.git,
             sdk=p.sdk or base.sdk and not p.no_sdk,
             role=p.role or base.role,
-            update=base.update if p.update is None else [u for u in p.update if u],
+            update=base.update if update is None else update,
             migrate_with=p.migrate_with,
         )
 

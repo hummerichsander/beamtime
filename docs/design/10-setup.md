@@ -129,8 +129,8 @@ the scan's defaults, plus `--yes`.
 
 `Answers.defaults(scan)` holds the conservative answers (the log dir the scan found, careful, rules on,
 everything that reaches outside the project off, `update` the scan's stale items); `Answers.from_params`
-fills what a flag leaves open from it and refuses unknown agents or agent keys, a malformed `--remote`
-and contradicting pairs (`--agents` with `--no-agents`, `--sdk` with `--no-sdk`). `--check` and `--yes`
+fills what a flag leaves open from it and refuses unknown agents, agent keys or `--update` items, a
+malformed `--remote` and contradicting pairs (`--agents` with `--no-agents`, `--sdk` with `--no-sdk`). `--check` and `--yes`
 steer the command and are not answers. `--instructions`, the old form of the rules flag, stays as a
 hidden alias that sets `rules`. `command(answers, scan)` prints `beamtime init --yes` and one line per
 flag whose answer differs from the defaults, values quoted for a shell; running it gives equal
