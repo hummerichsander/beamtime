@@ -61,7 +61,7 @@ def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
             f.write(f"{entry}\n")
         lines.append(f"added {entry} to {gitignore}")
     if p.instructions:
-        lines.append(instructions(ctx.root, instruction_file(ctx.root, None)))
+        lines.append(instructions(ctx, instruction_file(ctx.root, None)))
     if not lines:
         lines.append("already set up")
     lines.append(
@@ -645,16 +645,13 @@ def mcp_install(ctx: Context, p: r.McpInstallParams) -> dict[str, Any]:
         names = [str(f.relative_to(ctx.root)) for f in write_skills(ctx.root)]
         answered["lines"].append(f"wrote {', '.join(names)}")
     if p.instructions:
-        answered["lines"].append(instructions(ctx.root, instruction_file(ctx.root, p.client)))
+        answered["lines"].append(instructions(ctx, instruction_file(ctx.root, p.client)))
     else:
         file = instruction_file(ctx.root, p.client).name
         answered["lines"].append(
             f"`beamtime mcp install --instructions` adds the agent rules to {file}"
         )
     return answered
-
-
-START, END = "<!-- beamtime:start -->", "<!-- beamtime:end -->"
 
 
 def instruction_file(root: Path, client: str | None) -> Path:
@@ -669,28 +666,24 @@ def instruction_file(root: Path, client: str | None) -> Path:
     return root / "AGENTS.md"
 
 
-def instructions(root: Path, file: Path) -> str:
+def instructions(ctx: Context, file: Path) -> str:
     """Write Beamtime's agent rules into an instruction file, as one marked block.
 
     A rerun replaces the block, so updated rules arrive and the user's own text stays.
 
-    :param root: The project root.
+    :param ctx: The operation context, whose settings hold the agent behaviour.
     :param file: The instruction file.
     :return: What happened."""
-    from importlib.resources import files
+    from beamtime.guide.rules import render, write_block
 
-    rules = (files("beamtime.guide") / "parts" / "instructions.md").read_text().strip()
-    block = f"{START}\n{rules}\n{END}\n"
-    text = file.read_text() if file.exists() else ""
-    if START in text and END in text:
-        before, rest = text.split(START, 1)
-        updated = before + block + rest.split(END, 1)[1].lstrip("\n")
-        if updated == text:
+    block = render(ctx.settings.agent, sorted(op.name for op in r.OPS if op.user_only))
+    match write_block(file, block):
+        case "added":
+            return f"added Beamtime's agent rules to {file}"
+        case "updated":
+            return f"updated Beamtime's agent rules in {file}"
+        case _:
             return f"{file.name} has Beamtime's agent rules already"
-        file.write_text(updated)
-        return f"updated Beamtime's agent rules in {file}"
-    file.write_text(text + ("\n" if text and not text.endswith("\n\n") else "") + block)
-    return f"added Beamtime's agent rules to {file}"
 
 
 def register(ctx: Context, p: r.McpInstallParams) -> dict[str, Any]:

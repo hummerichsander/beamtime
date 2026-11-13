@@ -28,7 +28,7 @@ REQUIRED = (
     "beamtime/serve/static/THIRD_PARTY_LICENSES.txt",
     "beamtime/serve/static/export/main.js",
     "beamtime/serve/static/export/kit.js",
-    "beamtime/guide/parts/instructions.md",
+    "beamtime/guide/rules/rules.md",
     "beamtime/serve/static/fonts/XCharter-Roman.woff2",
     "beamtime/serve/static/fonts/XCharter-LICENSE.txt",
     "beamtime/serve/static/fonts/IBMPlex-LICENSE.txt",

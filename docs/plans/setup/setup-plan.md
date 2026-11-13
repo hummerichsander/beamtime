@@ -368,7 +368,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 1. `defaults(agent: AgentSettings) -> str` renders the section; `read(name, agent)` replaces `{{agent.<key>}}`.
 
-### G12. The rules template, history and matching (sonnet + review) — code
+### G12. The rules template, history and matching (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/guide/rules.py`, new `src/beamtime/guide/rules/rules.md`, new
   `src/beamtime/guide/rules/history/0.1.0.md`, `0.2.0.md`, `src/beamtime/guide/parts/instructions.md` (removed),

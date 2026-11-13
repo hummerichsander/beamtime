@@ -379,7 +379,8 @@ spaces for `_`.
   (`note_add`); what should outlive the session goes into the memory (`memory_update`). Not into this
   file, NOTES.md or your own memory; your own memory keeps coding preferences.
 - {{record_line}}
-- {{launch_line}} Main metric {{main_metric}} ({{direction_word}}), seeds in {{seed_key}}.
+- {{launch_line}}
+- {{conventions}}
 - Ask with the tools; don't parse run files. Writes add new files; never edit, move or delete in the
   log dir. Name yourself (your model id) as author.
 - Never run user commands ({{user_only}}); hand the user the exact command.
@@ -391,8 +392,12 @@ spaces for `_`.
   a proposal with predictions (`proposal_set`); {{seeds}} seeds per point."
 - `launch_line`: "Never launch runs yourself.", "Ask before you launch a run.", or "You may launch
   runs."
+- `conventions` is "Main metric {{main_metric}} ({{direction_word}}), seeds in {{seed_key}}." with the
+  parts that were detected (`direction_word` is "lower is better" or "higher is better"); without any, the
+  line is left out.
 - `user_only` is generated from the registry, as the MCP instructions are.
-- Lines whose detected values are missing are left out.
+- `release_of(block)` turns each template into a pattern: a placeholder matches any text on its line,
+  the lines of `record_line` and `conventions` may be missing, whitespace matches any whitespace.
 
 **Conflicts.** When the scan finds an instruction that sends results elsewhere (e.g. "keep results in
 NOTES.md", with file and line), the rules step names it, and the agent hand-off folds that section
