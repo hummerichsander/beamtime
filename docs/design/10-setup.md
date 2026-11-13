@@ -73,6 +73,12 @@ Running `beamtime init` in a project that is set up and current says so in one l
 | disks | the filesystem type of `$HOME`, `~/.cache`, `$SCRATCH`-like variables and `/tmp` (`/proc/mounts` on Linux) |
 | stale items | the checks of [Updating](#updating-an-older-setup) |
 
+The scan's answer to "which flow" is one value: `cluster` when any cluster condition holds (it wins over
+the others and combines with them in the flow), else `teammate`, else `update` for a log dir without a
+`beamtime.yaml`, `first` for neither, and `current` for a `beamtime.yaml` with nothing missing. A job
+script names a host when an ssh alias or host name appears in it as a whole word; the environment
+is `None` when the project has none. `no display` counts only on Linux; macOS and Windows always have one.
+
 The other projects' log dirs come from the index cache: each cache records the log dir it indexes as
 `logdir` in its `meta` table (new with this release; written on open, so a cache in use since
 gains it the next time it is opened), and the scan reads it from every cache directory without walking

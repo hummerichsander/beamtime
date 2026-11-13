@@ -267,7 +267,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 ## S. Scan
 
-### S11. Scan: project, git, Python, code, disks, ssh (sonnet) — code
+### S11. Scan: project, git, Python, code, disks, ssh (sonnet) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/scan.py`, new `tests/setup/conftest.py` (fixtures `home`, `project_tree`),
   new `tests/setup/test_scan.py`.
