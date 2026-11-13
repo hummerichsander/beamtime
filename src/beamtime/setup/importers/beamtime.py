@@ -52,6 +52,31 @@ class Copier:
             self.record_moves()
         return Copied(runs=self.copied, skipped=self.skipped)
 
+    def size(self) -> int:
+        """Count the bytes a copy would write: the runs the log dir lacks and the authored files.
+
+        :return: The bytes."""
+        if is_run(self.source):
+            return 0 if self.source.name in self.known else folder_bytes(self.source)
+        return self.folder_size(self.source)
+
+    def folder_size(self, src: Path) -> int:
+        """Count the bytes ``copy_folder`` would write for a group.
+
+        :param src: A folder of the source.
+        :return: The bytes."""
+        total = 0
+        for entry in sorted(src.iterdir()):
+            if entry.is_dir() and entry.resolve() == self.logdir.resolve():
+                continue
+            if entry.is_dir() and is_run(entry):
+                total += 0 if entry.name in self.known else folder_bytes(entry)
+            elif entry.is_dir() and entry.name in c.AUTHORED:
+                total += folder_bytes(entry)
+            elif entry.is_dir() and not is_reserved(entry.name):
+                total += self.folder_size(entry)
+        return total
+
     def copy_folder(self, src: Path, dst: Path) -> None:
         """Copy a group below ``src`` into ``dst``: its runs, authored folders and groups.
 
@@ -154,3 +179,11 @@ def copy_logdir(logdir: Path, source: Path, name: str) -> Copied:
     :param name: The folder below ``imported/`` that takes the tree.
     :return: The runs copied and the runs skipped as known."""
     return Copier(logdir=logdir, source=source, name=name).copy()
+
+
+def folder_bytes(folder: Path) -> int:
+    """Add up the sizes of the files below a folder.
+
+    :param folder: The folder.
+    :return: The bytes."""
+    return sum((Path(d) / n).stat().st_size for d, _, names in os.walk(folder) for n in names)

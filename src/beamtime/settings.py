@@ -189,15 +189,7 @@ class Settings:
         """The agent knobs: the style's preset, then the project's single keys.
 
         :return: The resolved knobs, each with where it came from."""
-        given = self.values.get("agent") or {}
-        style = given.get("style", "careful")
-        knobs = dict(PRESETS[style])
-        source = dict.fromkeys(knobs, "preset" if "style" in given else "default")
-        for key in AGENT_KEYS:
-            if key in given:
-                knobs[key] = given[key]
-                source[key] = "detected" if key in DETECTED_KEYS else "project"
-        return AgentSettings(style=style, **knobs, source=source)
+        return resolve_agent(self.values.get("agent") or {})
 
     def flat(self) -> list[tuple[str, Any, Level]]:
         """List every leaf setting with its level, for ``beamtime settings``.
@@ -214,6 +206,21 @@ class Settings:
 
         walk("", self.values)
         return sorted(out)
+
+
+def resolve_agent(given: dict[str, Any]) -> AgentSettings:
+    """Resolve the agent knobs: the style's preset, then the single keys.
+
+    :param given: The ``agent`` setting as written (valid values only), possibly empty.
+    :return: The resolved knobs, each with where it came from."""
+    style = given.get("style", "careful")
+    knobs = dict(PRESETS[style])
+    source = dict.fromkeys(knobs, "preset" if "style" in given else "default")
+    for key in AGENT_KEYS:
+        if key in given:
+            knobs[key] = given[key]
+            source[key] = "detected" if key in DETECTED_KEYS else "project"
+    return AgentSettings(style=style, **knobs, source=source)
 
 
 def read_level(path: Path, level: Level, problems: list[str]) -> dict[str, Any]:
@@ -392,18 +399,39 @@ def write_key(path: Path, key: str, value: Any) -> Path:
     :param key: The setting.
     :param value: Its value.
     :return: The file."""
-    import re
-
     import yaml
+
+    # flow style keeps a list on one line ([science, nature]); dumping it inside a list leaves the
+    # value without YAML's document end marker.
+    flow = yaml.safe_dump([value], default_flow_style=True, allow_unicode=True).strip()
+    return replace_entry(path, key, f"{key}: {flow[1:-1]}\n")
+
+
+def write_agent(path: Path, agent: dict[str, Any]) -> Path:
+    """Set the ``agent`` setting of a project's ``beamtime.yaml`` as a block, keeping the rest.
+
+    :param path: The project settings file, created if missing.
+    :param agent: The style and the knobs that differ from its preset.
+    :return: The file."""
+    import yaml
+
+    entry = yaml.safe_dump({"agent": agent}, sort_keys=False, allow_unicode=True)
+    return replace_entry(path, "agent", entry)
+
+
+def replace_entry(path: Path, key: str, entry: str) -> Path:
+    """Put a top-level entry into a settings file in place of the key's old block.
+
+    :param path: The settings file, created if missing.
+    :param key: The top-level key.
+    :param entry: The key's new text, ending in a newline.
+    :return: The file."""
+    import re
 
     from beamtime.format.io import write_bytes_replaced
 
     path.parent.mkdir(parents=True, exist_ok=True)
     text = path.read_text() if path.is_file() else "schema: 1\n"
-    # flow style keeps a list on one line ([science, nature]); dumping it inside a list leaves the
-    # value without YAML's document end marker.
-    flow = yaml.safe_dump([value], default_flow_style=True, allow_unicode=True).strip()
-    entry = f"{key}: {flow[1:-1]}\n"
     lines = text.splitlines(keepends=True)
     start = next(
         (i for i, line in enumerate(lines) if re.match(rf"{re.escape(key)}\s*:", line)), None

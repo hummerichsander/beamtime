@@ -1,18 +1,32 @@
 """What ``beamtime init`` changes: the answers, the changes and the command."""
 
+import dataclasses
+import os
+import re
 import shlex
+import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
 
 import msgspec
 
+from beamtime.settings import expand_path
+
 if TYPE_CHECKING:
     from beamtime.ops.registry import InitParams
+    from beamtime.setup.importers import Found
     from beamtime.setup.scan import Scan
 
 PATH_START = ("/", "~", "$")
 UPDATE_ITEMS = ("rules", "mcp", "skills", "settings", "sdk")
+BLOCK_END = "# end beamtime"
+BLOCK_HEADS = {
+    "record": "# beamtime: run data stays out; proposals, notes, memory and views are committed",
+    "none": "# beamtime: the log dir stays out of git",
+}
+REMOTE_COMMAND = "~/.local/bin/beamtime"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -212,3 +226,687 @@ def command(answers: Answers, scan: "Scan") -> str:
     :return: The command as a shell line with ``\\`` continuations."""
     words = ["beamtime init --yes", *flags(answers, scan)]
     return " \\\n  ".join(words)
+
+
+def plan(
+    scan: "Scan", answers: Answers, *, which: Callable[[str], str | None] = shutil.which
+) -> list[Change]:
+    """Decide everything the setup writes; nothing is written until ``apply`` runs the changes.
+
+    :param scan: The facts of the project and the machine.
+    :param answers: The answers.
+    :param which: Looks up a program on ``PATH``.
+    :return: The changes in the order they are applied: project, machine, agents, imports.
+    :raises ValueError: An answer can't be carried out; the message says why."""
+    return Planner(scan, answers, which).changes()
+
+
+class Planner:
+    """Turns the answers into changes, one group at a time."""
+
+    def __init__(self, scan: "Scan", answers: Answers, which: Callable[[str], str | None]) -> None:
+        """Read the project's settings and normalise the log dir answers.
+
+        :param scan: The facts of the project and the machine.
+        :param answers: The answers.
+        :param which: Looks up a program on ``PATH``."""
+        from beamtime.settings import DEFAULTS, user_settings_path
+
+        self.scan = scan
+        self.answers = answers
+        self.which = which
+        self.root = scan.root.resolve()
+        self.project_file = self.root / "beamtime.yaml"
+        self.user_file = user_settings_path()
+        self.given = self.read(self.project_file)
+        self.user = self.read(self.user_file)
+
+        self.logdir, self.link = answers.logdir, answers.link_logdir
+        outside = not (self.root / expand_path(self.logdir)).resolve().is_relative_to(self.root)
+        if (
+            outside
+            and self.link is None
+            and (
+                (self.root / expand_path(self.logdir)).resolve() != scan.project.logdir
+                or not scan.project.settings
+            )
+        ):
+            self.link, self.logdir = self.logdir, DEFAULTS["logdir"]
+        elif outside and self.link is not None:
+            # through an existing link the scan sees the target; the project keeps the link's name.
+            self.logdir = str(self.given.get("logdir") or DEFAULTS["logdir"])
+        self.linked = self.link is not None
+        self.inside = self.linked or not outside
+
+    def changes(self) -> list[Change]:
+        """List every change, in apply order.
+
+        :return: The changes; empty when the setup is as the answers want it."""
+        found = [
+            self.beamtime_yaml(),
+            self.logdir_link(),
+            self.gitignore(),
+            self.sdk(),
+            self.user_settings(),
+            *self.agents(),
+            *self.imports(),
+            self.notes(),
+        ]
+        return [c for c in found if c is not None]
+
+    def beamtime_yaml(self) -> Change | None:
+        """Plan the project's ``beamtime.yaml``: log dir, agent settings and remote paths.
+
+        :return: The change, or ``None`` when the file says it already."""
+        from beamtime.settings import write_agent, write_key, write_remote
+
+        a = self.answers
+        rows: dict[str, tuple[Any, Any]] = {}
+        old = self.given.get("logdir")
+        if (
+            old is None
+            or (self.root / expand_path(str(old))).resolve()
+            != (self.root / expand_path(self.logdir)).resolve()
+        ):
+            rows["logdir"] = (old, self.logdir)
+        if (agent := self.agent_given()) != (self.given.get("agent") or {}) and agent:
+            rows["agent"] = (self.given.get("agent"), agent)
+        remotes = self.given.get("remotes") or {}
+        for r in a.remotes:
+            if r.path is not None and (remotes.get(r.name) or {}).get("path") != r.path:
+                conf = {**(remotes.get(r.name) or {}), "path": r.path}
+                rows[f"remotes.{r.name}"] = ((remotes.get(r.name) or {}).get("path"), conf)
+        if not rows:
+            return None
+
+        def run() -> str:
+            for key, (_, value) in rows.items():
+                if key == "logdir":
+                    write_key(self.project_file, key, value)
+                elif key == "agent":
+                    write_agent(self.project_file, value)
+                else:
+                    write_remote(self.project_file, key.removeprefix("remotes."), value)
+            return "written"
+
+        return Change(
+            where="project",
+            label="beamtime.yaml",
+            before=show_rows({k: v[0] for k, v in rows.items() if v[0] is not None}) or None,
+            after=show_rows({k: v[1] for k, v in rows.items()}),
+            run=run,
+        )
+
+    def agent_given(self) -> dict[str, Any]:
+        """The ``agent`` setting the project gets: what it has, the style and the single keys.
+
+        :return: The mapping to write; empty when nothing is to be written.
+        :raises ValueError: A value of ``--agent-set`` is not valid for its key."""
+        a = self.answers
+        given = dict(self.given.get("agent") or {})
+        if a.agent_style != "careful":
+            given["style"] = a.agent_style
+        elif not given and (a.agents or a.agent_set):
+            given["style"] = "careful"
+        for key, text in a.agent_set.items():
+            given[key] = agent_value(key, text)
+        return given
+
+    def logdir_link(self) -> Change | None:
+        """Plan the link that makes the project's log dir point elsewhere, and its git exclude.
+
+        :return: The change, or ``None`` without a link or when it exists.
+        :raises ValueError: The log dir is there already and is not an empty folder."""
+        if not self.linked:
+            return None
+        target = Path(expand_path(str(self.link)))
+        if not target.is_absolute():
+            target = self.root / target
+        target = target.resolve()
+        path = self.root / expand_path(self.logdir)
+        if path.is_symlink() and path.resolve() != target:
+            raise ValueError(f"{path} is a link to {path.resolve()}; remove it first")
+        if not path.is_symlink() and path.exists() and (not path.is_dir() or any(path.iterdir())):
+            raise ValueError(f"{path} exists and holds files; move it away or use another --logdir")
+        exclude = self.exclude_file()
+        line = f"/{path.relative_to(self.git_root())}" if exclude else None
+        linked = path.is_symlink()
+        excluded = (
+            exclude is not None and exclude.is_file() and line in exclude.read_text().splitlines()
+        )
+        if linked and (exclude is None or excluded):
+            return None
+
+        def run() -> str:
+            target.mkdir(parents=True, exist_ok=True)
+            if not path.is_symlink():
+                if path.is_dir():
+                    path.rmdir()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                os.symlink(target, path, target_is_directory=True)
+            if exclude is not None and not excluded:
+                exclude.parent.mkdir(parents=True, exist_ok=True)
+                text = exclude.read_text() if exclude.is_file() else ""
+                sep = "" if not text or text.endswith("\n") else "\n"
+                exclude.write_text(f"{text}{sep}{line}\n")
+            return "linked"
+
+        after = f"{self.logdir} -> {target}"
+        if exclude:
+            after += "\nexcluded in .git/info/exclude; this checkout doesn't commit the record"
+        return Change(where="project", label="log dir link", before=None, after=after, run=run)
+
+    def exclude_file(self) -> Path | None:
+        """Find this checkout's ``.git/info/exclude``.
+
+        :return: The file's path, or ``None`` outside a git checkout."""
+        git = self.git_root()
+        return git / ".git" / "info" / "exclude" if (git / ".git").is_dir() else None
+
+    def git_root(self) -> Path:
+        """Take the checkout's root, or the project's without one.
+
+        :return: The folder."""
+        return self.scan.git.root.resolve() if self.scan.git.root else self.root
+
+    def gitignore(self) -> Change | None:
+        """Plan the marked block that keeps run data (or the whole log dir) out of git.
+
+        :return: The change, or ``None`` when the file has the block already."""
+        if not self.inside:
+            return None
+        path = self.root / ".gitignore"
+        old = path.read_text() if path.is_file() else ""
+        text = gitignore_text(old, self.logdir, self.answers.git)
+        if text == old:
+            return None
+        had = find_block(old.splitlines()) is not None or any(
+            line.strip() in plain_entries(self.logdir) for line in old.splitlines()
+        )
+        after = (
+            "run data out; proposals, notes, memory, views in"
+            if self.answers.git == "record"
+            else "the log dir out"
+        )
+
+        def run() -> str:
+            path.write_text(text)
+            return "written"
+
+        return Change(
+            where="project",
+            label=".gitignore",
+            before="the log dir ignored as a whole" if had else None,
+            after=after,
+            run=run,
+        )
+
+    def sdk(self) -> Change | None:
+        """Plan adding the SDK to the project's environment.
+
+        :return: The change, or ``None`` when not asked for or Beamtime is installed already.
+        :raises ValueError: There is no environment, or its Python is too old."""
+        from beamtime import __version__
+        from beamtime.setup.sdk import sdk_blocker, sdk_change
+
+        env = self.scan.env
+        if not self.answers.sdk:
+            return None
+        if env is None:
+            raise ValueError(
+                "--sdk: the project has no Python environment (uv, poetry, conda or a virtualenv)"
+            )
+        if (reason := sdk_blocker(env)) is not None:
+            raise ValueError(f"--sdk: {reason}")
+        from_env = self.mcp_from_env()
+        have = env.beamtime_version
+        if (
+            have is not None
+            and release(have) >= release(__version__)
+            and (env.has_serve or not from_env)
+        ):
+            return None
+        return sdk_change(env, __version__, from_env, root=self.root)
+
+    def mcp_from_env(self) -> bool:
+        """Say whether the agents' MCP command will run from the project's environment.
+
+        :return: ``True`` for a uv or conda environment when agents are registered."""
+        env = self.scan.env
+        return bool(self.answers.agents) and env is not None and env.tool in ("uv", "conda")
+
+    def user_settings(self) -> Change | None:
+        """Plan this machine's settings: the cache, and the remotes it reaches or skips.
+
+        :return: The change, or ``None`` when the file says it already.
+        :raises ValueError: A remote is both added and skipped."""
+        from beamtime.settings import write_key, write_remote
+
+        a = self.answers
+        both = {r.name for r in a.remotes} & set(a.skip_remotes)
+        if both:
+            raise ValueError(f"{', '.join(sorted(both))}: named by --remote and --skip-remote")
+        rows: dict[str, tuple[Any, Any]] = {}
+        if a.cache is not None and self.user.get("cache") != a.cache:
+            rows["cache"] = (self.user.get("cache"), a.cache)
+        remotes = self.user.get("remotes") or {}
+        for r in a.remotes:
+            old = remotes.get(r.name) or {}
+            conf = {k: v for k, v in old.items() if k != "enabled" or v is not False}
+            conf["host"] = r.host or old.get("host") or r.name
+            if r.name in a.install_remotes:
+                conf.setdefault("command", REMOTE_COMMAND)
+            if conf != old:
+                rows[f"remotes.{r.name}"] = (old or None, conf)
+        for name in a.skip_remotes:
+            old = remotes.get(name) or {}
+            if old.get("enabled") is not False:
+                rows[f"remotes.{name}"] = (old or None, {**old, "enabled": False})
+        if not rows:
+            return None
+
+        def run() -> str:
+            for key, (_, value) in rows.items():
+                if key == "cache":
+                    write_key(self.user_file, key, value)
+                else:
+                    write_remote(self.user_file, key.removeprefix("remotes."), value)
+            return "written"
+
+        return Change(
+            where="machine",
+            label=display_path(self.user_file, self.scan.home),
+            before=show_rows({k: v[0] for k, v in rows.items() if v[0] is not None}) or None,
+            after=show_rows({k: v[1] for k, v in rows.items()}),
+            run=run,
+        )
+
+    def agents(self) -> list[Change]:
+        """Plan the MCP registration, the skills and the rules block of every chosen client.
+
+        :return: The changes.
+        :raises ValueError: A client can't be registered."""
+        from beamtime.guide.rules import read_block, render
+        from beamtime.guide.skills import SKILLS, skill_text
+        from beamtime.ops.registry import OPS
+        from beamtime.settings import resolve_agent
+        from beamtime.setup.agents import CLIENTS, ConfigError, register, rules_change
+
+        a = self.answers
+        clients = [c for name in a.agents for c in CLIENTS if c.name == name]
+        env = self.scan.env
+        if env is not None and a.sdk and self.mcp_from_env():
+            env = dataclasses.replace(env, has_serve=True)
+        out = []
+        for client in clients:
+            try:
+                change = register(client, self.root, env, home=self.scan.home, which=self.which)
+            except ConfigError as e:
+                raise ValueError(f"{client.label}: {e}") from e
+            if change.before is None or "mcp" in a.update or client.name == "other":
+                out.append(change)
+            if client.skills and any(
+                not (self.root / ".claude" / "skills" / n / "SKILL.md").is_file()
+                or (self.root / ".claude" / "skills" / n / "SKILL.md").read_text() != skill_text(n)
+                for n in SKILLS
+            ):
+                out.append(skills_change(self.root))
+        if not a.rules:
+            return out
+        agent = resolve_agent(self.agent_given())
+        user_only = sorted(o.name for o in OPS if o.user_only)
+        block = render(agent, user_only)
+        for client in {c.rules: c for c in clients}.values():
+            if read_block(self.root / client.rules) != block:
+                out.append(rules_change(client, self.root, agent, user_only))
+        return out
+
+    def imports(self) -> list[Change]:
+        """Plan one change per path to import runs from.
+
+        :return: The changes.
+        :raises ValueError: A path holds nothing to import or lies in this project's log dir."""
+        out: list[Change] = []
+        names: set[str] = set()
+        for text in self.answers.imports:
+            path = (self.root / expand_path(text)).resolve()
+            if not path.exists():
+                raise ValueError(f"--import {text}: no such file or folder")
+            if path.is_relative_to((self.root / expand_path(self.logdir)).resolve()):
+                raise ValueError(f"--import {text}: this is inside the project's own log dir")
+            from beamtime.setup.importers import detect
+
+            if (found := detect(path)) is None:
+                raise ValueError(f"--import {text}: no runs found there")
+            if found.kind == "beamtime":
+                out.append(self.beamtime_import(path, names))
+            else:
+                out.append(self.runs_import(found, names))
+        return out
+
+    def beamtime_import(self, path: Path, names: set[str]) -> Change:
+        """Plan copying a Beamtime log dir, with the bytes to copy in the review.
+
+        A folder inside another log dir is imported through that log dir's root, since membership
+        keys start there.
+
+        :param path: A log dir, a run, or a folder inside a log dir.
+        :param names: The folders below ``imported/`` taken by earlier imports; extended.
+        :return: The change."""
+        from beamtime.format.tree import is_run
+        from beamtime.setup.importers import detect
+        from beamtime.setup.importers.beamtime import Copier, copy_logdir
+
+        source = path if is_run(path) else log_root(path)
+        found = detect(source)
+        name = unique(import_name(source), names)
+        dest = self.root / expand_path(self.logdir)
+        size = Copier(logdir=dest, source=source, name=name).size()
+        after = f"{source} -> imported/{name}/, {format_bytes(size)} copied byte for byte"
+        if source != path:
+            after += f"\n{path} is inside this log dir, so all of it is imported"
+
+        def run() -> str:
+            done = copy_logdir(dest, source, name)
+            return f"{done.runs} runs copied, {done.skipped} already there"
+
+        return Change(
+            where="import",
+            label=found.label if found else "Beamtime runs",
+            before=None,
+            after=after,
+            run=run,
+        )
+
+    def runs_import(self, found: "Found", names: set[str]) -> Change:
+        """Plan reading another tool's runs into ``imported/<name>/``.
+
+        :param found: What the path holds.
+        :param names: The folders below ``imported/`` taken by earlier imports; extended.
+        :return: The change."""
+        from beamtime.setup.importers import csv, mlflow, tensorboard, wandb
+        from beamtime.setup.importers.write import IMPORTED, write_run
+
+        readers = {
+            "tensorboard": tensorboard.runs,
+            "wandb": wandb.runs,
+            "mlflow": mlflow.runs,
+            "csv": csv.runs,
+        }
+        read = readers[found.kind]
+        name = unique(import_name(found.path), names)
+        dest = self.root / expand_path(self.logdir)
+        after = f"{found.path} -> {IMPORTED}/{name}/"
+        if found.note:
+            after += f"\n{found.note}"
+
+        def run() -> str:
+            n = 0
+            for imported in read(found.path):
+                group = "/".join(p for p in (IMPORTED, name, imported.group) if p)
+                write_run(dest, group, imported, {"kind": found.kind, "path": str(found.path)})
+                n += 1
+            return f"{n} runs"
+
+        return Change(where="import", label=found.label, before=None, after=after, run=run)
+
+    def notes(self) -> Change | None:
+        """Plan notes and memory files written as they are, unless an agent takes them over.
+
+        :return: The change, or ``None`` without files or with ``--migrate-with``."""
+        from beamtime.setup.importers import files
+        from beamtime.setup.importers.notes import import_notes, read_text
+
+        a = self.answers
+        paths = [
+            (self.root / expand_path(t)).resolve() for t in (*a.import_notes, *a.import_memory)
+        ]
+        if not paths or a.migrate_with is not None:
+            return None
+        for t, p in zip((*a.import_notes, *a.import_memory), paths, strict=True):
+            if not p.exists():
+                raise ValueError(f"--import-notes/--import-memory {t}: no such file or folder")
+        texts = [f for p in paths for f in files(p)]
+        n = sum(read_text(f) is not None for f in texts)
+        skipped = [f.name for f in texts if read_text(f) is None]
+        after = f"{n} notes, as written"
+        if skipped:
+            after += f"\nbinary files skipped: {', '.join(skipped)}"
+
+        def run() -> str:
+            from beamtime.ops.context import Context
+
+            (self.root / expand_path(self.logdir)).mkdir(parents=True, exist_ok=True)
+            done = import_notes(Context.make(root=self.root, caller="cli"), paths)
+            return f"{len(done.notes)} notes"
+
+        return Change(where="import", label="notes", before=None, after=after, run=run)
+
+    @staticmethod
+    def read(path: Path) -> dict[str, Any]:
+        """Read a settings file as written.
+
+        :param path: The file.
+        :return: Its mapping, empty when missing or not a mapping."""
+        if not path.is_file():
+            return {}
+        import yaml
+
+        try:
+            data = yaml.safe_load(path.read_text())
+        except yaml.YAMLError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+
+def agent_value(key: str, text: str) -> Any:
+    """Read the value of one ``--agent-set`` pair and check it against the key's rule.
+
+    :param key: An agent setting.
+    :param text: The value as typed.
+    :return: The value, as a number where the key takes one.
+    :raises ValueError: The value is not valid for the key."""
+    import yaml
+
+    from beamtime.settings import AGENT_KEYS, VALIDATOR_HINTS
+
+    allowed = AGENT_KEYS[key]
+    for value in (yaml.safe_load(text), text):
+        if allowed is not None and (
+            value in allowed if isinstance(allowed, tuple) else allowed(value)
+        ):
+            return value
+    rule = (
+        f"one of {', '.join(allowed)}" if isinstance(allowed, tuple) else VALIDATOR_HINTS[allowed]
+    )
+    raise ValueError(f"--agent-set {key}={text}: {key} is {rule}")
+
+
+def skills_change(root: Path) -> Change:
+    """Plan writing the Beamtime skills into ``.claude/skills``.
+
+    :param root: The project root.
+    :return: The change."""
+    from beamtime.guide.skills import SKILLS, write_skills
+
+    return Change(
+        where="project",
+        label=".claude/skills/",
+        before=None,
+        after=f"{len(SKILLS)} skills",
+        run=lambda: f"{len(write_skills(root))} skills",
+    )
+
+
+def release(version: str) -> tuple[int, ...]:
+    """Read a version as numbers, so that releases compare.
+
+    :param version: E.g. ``0.2.0``.
+    :return: The leading numbers of its first three parts."""
+    return tuple(int(n) for n in re.findall(r"\d+", version)[:3])
+
+
+def plain_entries(logdir: str) -> set[str]:
+    """List the ignore lines older setups wrote for a log dir.
+
+    :param logdir: The log dir relative to the project.
+    :return: The lines the marked block replaces."""
+    name = logdir.strip("/")
+    return {name, f"{name}/", f"/{name}", f"/{name}/", ".beamtime", ".beamtime/"}
+
+
+def find_block(lines: list[str]) -> tuple[int, int] | None:
+    """Find the marked block in the lines of a ``.gitignore``.
+
+    :param lines: The lines.
+    :return: The first line and the line after the last, or ``None``."""
+    start = next((i for i, line in enumerate(lines) if line.startswith("# beamtime:")), None)
+    if start is None:
+        return None
+    end = next((i for i in range(start, len(lines)) if lines[i] == BLOCK_END), None)
+    return (start, end + 1) if end is not None else (start, start + 1)
+
+
+def gitignore_text(old: str, logdir: str, mode: Literal["record", "none"]) -> str:
+    """Put the marked block into a ``.gitignore``, in place of the old block and the plain entries.
+
+    :param old: The file's text; empty when missing.
+    :param logdir: The log dir relative to the project.
+    :param mode: ``record`` keeps the research record in git, ``none`` ignores the whole log dir.
+    :return: The new text."""
+    name = logdir.strip("/")
+    entries = (
+        [f"{name}/**/_*", f"{name}/**/artifacts/", f"{name}/**/checkpoints/"]
+        if mode == "record"
+        else [f"{name}/"]
+    )
+    block = [BLOCK_HEADS[mode], *entries, ".beamtime/", BLOCK_END]
+    lines = old.splitlines()
+    span = find_block(lines)
+    plain = plain_entries(logdir)
+    out: list[str] = []
+    placed = False
+    i = 0
+    while i < len(lines):
+        if span and i == span[0]:
+            out += block
+            placed = True
+            i = span[1]
+        elif lines[i].strip() in plain:
+            if not placed:
+                out += block
+                placed = True
+            i += 1
+        else:
+            out.append(lines[i])
+            i += 1
+    if not placed:
+        out += ["", *block] if out and out[-1] else block
+    return "\n".join(out) + "\n"
+
+
+def import_name(path: Path) -> str:
+    """Name the folder below ``imported/`` for a source: the project's name for a log dir.
+
+    :param path: The source.
+    :return: The folder name."""
+    if (path.parent / "beamtime.yaml").is_file():
+        return path.parent.name
+    return path.stem if path.is_file() else path.name
+
+
+def unique(name: str, taken: set[str]) -> str:
+    """Make a name that earlier imports of this plan don't use; records it.
+
+    :param name: The wanted name.
+    :param taken: The names in use; extended.
+    :return: The name, with ``-2``, ``-3`` ... added when taken."""
+    out, n = name, 1
+    while out in taken:
+        n += 1
+        out = f"{name}-{n}"
+    taken.add(out)
+    return out
+
+
+def log_root(path: Path) -> Path:
+    """Find the root of the log dir a folder lies in, so a group is never imported as a root.
+
+    A log dir is one this machine's index cache knows or the one a ``beamtime.yaml`` above names.
+
+    :param path: A folder.
+    :return: The log dir's root, or the folder itself when it lies in none."""
+    from beamtime.index.cache import known_logdirs
+    from beamtime.setup.scan import read_project
+
+    roots = [r.resolve() for r in known_logdirs()]
+    roots += [
+        read_project(parent).logdir
+        for parent in path.parents
+        if (parent / "beamtime.yaml").is_file()
+    ]
+    inside = [r for r in roots if path.is_relative_to(r)]
+    return min(inside, key=lambda r: len(r.parts)) if inside else path
+
+
+def format_bytes(n: int) -> str:
+    """Write a size for the review.
+
+    :param n: Bytes.
+    :return: E.g. ``1.2 GB``."""
+    size = float(n)
+    for unit in ("B", "kB", "MB", "GB"):
+        if size < 1000:
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1000
+    return f"{size:.1f} TB"
+
+
+def show_rows(rows: dict[str, Any]) -> str:
+    """Write settings as ``key: value`` lines for the review.
+
+    :param rows: Keys and values.
+    :return: One line per key."""
+    import yaml
+
+    def flow(value: Any) -> str:
+        return yaml.safe_dump(value, default_flow_style=True, width=1000).splitlines()[0]
+
+    return "\n".join(f"{k}: {flow(v)}" for k, v in rows.items())
+
+
+def display_path(path: Path, home: Path) -> str:
+    """Write a path with ``~`` for the home directory.
+
+    :param path: The path.
+    :param home: The home directory.
+    :return: The path as shown."""
+    return f"~/{path.relative_to(home)}" if path.is_relative_to(home) else str(path)
+
+
+REVIEW_HEADS = {
+    "project": "the project (shared through git)",
+    "machine": "this machine",
+    "import": "imports",
+    "remote": "other machines",
+}
+
+
+def review(changes: list[Change]) -> list[str]:
+    """Write the changes as text, grouped by where each lands.
+
+    :param changes: The plan.
+    :return: The lines."""
+    out: list[str] = []
+    for where, head in REVIEW_HEADS.items():
+        group = [c for c in changes if c.where == where]
+        if not group:
+            continue
+        out += [head]
+        for c in group:
+            out.append(f"  {c.label}")
+            if c.before is not None:
+                out += [f"    was: {line}" for line in c.before.splitlines()]
+            out += [f"    {line}" for line in c.after.splitlines()]
+        out.append("")
+    return out[:-1] if out else out

@@ -509,7 +509,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
    `--instructions` stays as a hidden alias that sets `rules=True`.
 2. `Answers` (msgspec, kw_only) mirrors the flags with parsed types (`Remote(name, host, path)`).
 
-### P12. `plan()` and `apply()` for the project and this machine (sonnet + review) — code
+### P12. `plan()` and `apply()` for the project and this machine (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/setup/plan.py` (`Change`, `plan`), new `src/beamtime/setup/apply.py`,
   `src/beamtime/ops/admin.py` (`init` 40–72), `src/beamtime/settings.py` (`write_key` 193 reused; new

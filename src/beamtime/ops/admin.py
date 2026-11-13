@@ -37,39 +37,48 @@ def answer(kind: str, lines: list[str], **fields: Any) -> dict[str, Any]:
 
 
 def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
-    """Set up the project: ``beamtime.yaml`` and the log dir in ``.gitignore``.
+    """Set up the project and this machine: plan from the flags, then write only with ``--yes``.
 
     :param ctx: The operation context.
     :param p: The parameters.
-    :return: What was changed."""
-    lines = []
-    settings = ctx.root / "beamtime.yaml"
-    logdir = p.logdir or ctx.settings.get("logdir")
-    if not settings.exists():
-        settings.write_text(f"schema: 1\nlogdir: {logdir}\n")
-        lines.append(f"created {settings}")
-    elif p.logdir:
-        lines.append(f"{settings} exists; set logdir: {p.logdir} there by hand if wanted")
-    gitignore = ctx.root / ".gitignore"
-    entry = f"{logdir.strip('/')}/"
-    existing = gitignore.read_text().splitlines() if gitignore.exists() else []
-    if entry not in existing and entry.rstrip("/") not in existing:
-        with gitignore.open("a") as f:
-            if existing and existing[-1] != "":
-                f.write("\n")
-            f.write(f"{entry}\n")
-        lines.append(f"added {entry} to {gitignore}")
-    if p.instructions:
+    :return: What was changed, or the review and the command when nothing was written."""
+    import msgspec
+
+    from beamtime.setup.apply import ApplyError, apply
+    from beamtime.setup.plan import Answers, command, plan, review
+    from beamtime.setup.scan import scan
+
+    if p.instructions and not p.agents:
         only_claude = (ctx.root / "CLAUDE.md").exists() and not (ctx.root / "AGENTS.md").exists()
-        lines.append(write_rules(ctx, "claude-code" if only_claude else "other"))
-    if not lines:
-        lines.append("already set up")
-    lines.append(
-        "next: log runs with beamtime.init() in your training script; "
-        "connect an agent with `beamtime mcp install`"
-        + ("" if p.instructions else "; `beamtime init --instructions` adds its rules to AGENTS.md")
-    )
-    return answer("init", lines, root=str(ctx.root), logdir=str(ctx.root / logdir))
+        p = msgspec.structs.replace(p, agents=["claude-code" if only_claude else "other"])
+    found = scan(ctx.root)
+    try:
+        answers = Answers.from_params(p, found)
+        changes = plan(found, answers)
+    except ValueError as e:
+        raise OpError(str(e), code=2) from e
+    fields = {"root": str(ctx.root), "logdir": str(found.project.logdir)}
+    if not changes:
+        return answer("init", ["already set up"], written=[], **fields)
+    if not p.yes:
+        lines = [
+            *review(changes),
+            "",
+            "Nothing was written. This command makes the same setup:",
+            "",
+            command(answers, found),
+        ]
+        return answer("init", lines, written=[], **fields)
+    lines: list[str] = []
+    try:
+        done = apply(changes, lines.append)
+    except ApplyError as e:
+        raise OpError(
+            f"{e}\ndone: {', '.join(c.label for c in e.done) or 'nothing'}\n"
+            "run `beamtime init` again to pick up what is missing"
+        ) from e
+    lines.append("next: log runs with beamtime.init() in your training script")
+    return answer("init", lines, written=[c.label for c in done], **fields)
 
 
 def settings(ctx: Context, p: r.NoParams) -> dict[str, Any]:

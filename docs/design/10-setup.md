@@ -570,6 +570,14 @@ its own walk instead of `detect`/`runs`:
   named before the source's own move reaches the copy. A scoped move renames no folder on disk, so
   `moved_scope` in `format/moves.py` needs no change for it.
 
+`copy_logdir` takes a log dir's root as its source, since proposal membership keys start there. When
+the path found or typed lies inside a log dir (one the index cache knows, or the one a `beamtime.yaml`
+above it names), `plan()` passes that log dir's root and the review's line says so ("... is inside this
+log dir, so all of it is imported"); a single run is passed as it is, and a path inside the project's
+own log dir is refused. A subfolder is never imported as if it were a root. Checkpoints and other large
+files are copied byte for byte, and the import's line in the review shows the bytes to copy
+(`Copier.size()`), so the cost is known before the user confirms.
+
 Reading another project's runs in place (a local-path source) is out of scope.
 
 ### Notes and memory files
@@ -592,12 +600,17 @@ beamtime/**/_*
 beamtime/**/artifacts/
 beamtime/**/checkpoints/
 .beamtime/
+# end beamtime
 ```
 
-`--git none` ignores `beamtime/` and `.beamtime/`. Entries are written as one marked block, replaced
-on a rerun. A linked log dir (`--link-logdir`) is machine-local: the link itself goes into
-`.git/info/exclude`, and git can't see through it, so the review says that this checkout doesn't
-commit the record.
+`--git none` ignores `beamtime/` and `.beamtime/`. Entries are written as one marked block, from its
+`# beamtime:` header line to `# end beamtime`, replaced on a rerun; an older plain `beamtime/` or
+`.beamtime/` line is taken out, and the block stands where the first of them stood. A linked log dir (`--link-logdir`) is machine-local: the link itself goes into
+`.git/info/exclude` (as `/beamtime`, without a trailing slash, since a link is not a folder to git), and
+git can't see through it, so the review says that this checkout doesn't commit the record. The target
+is created when missing; an existing log dir that holds files is never replaced by a link, and a plan
+that would do so is refused before anything is written. A `--logdir` outside the project means the
+same as a link there: `beamtime.yaml` keeps the default name and the link points at the path.
 
 `--sdk` adds Beamtime with the project's own tool: `uv add beamtime` (and the dev group, [above](#the-mcp-command)),
 `poetry add beamtime`, `conda run -n <env> python -m pip install beamtime` for conda, or
@@ -605,7 +618,9 @@ commit the record.
 SDK needs Python 3.10; an older project Python is named in the step and the default becomes No.
 `setup/sdk.py:sdk_change()` plans it as argument lists run in the project root with
 `subprocess.run(check=True)`; `sdk_blocker()` gives the reason when the Python is too old, and then
-`sdk_change()` returns `None`. A conda environment gets `beamtime[serve]` when the MCP command runs
+`sdk_change()` returns `None`. `plan()` calls it only for `--sdk`, refuses with the reason when there is
+no environment or its Python is too old, and leaves the step out when the environment has this release or
+a newer one (with the serve extra where the MCP command runs from it). A conda environment gets `beamtime[serve]` when the MCP command runs
 from it; a pip project without a virtualenv only gets the `requirements.txt` line.
 
 ## Updating an older setup
@@ -675,8 +690,8 @@ appearing as work finishes) and the review.
 | Module | Holds |
 |---|---|
 | `setup/scan.py` | `Scan` and `scan(root)`: the facts above, local only |
-| `setup/plan.py` | `Answers` (msgspec, one field per flag), `Change` (where it lands, label, before, after) and `plan(scan, answers) -> list[Change]` |
-| `setup/apply.py` | runs a plan in order; stops at the first failure and names what was done |
+| `setup/plan.py` | `Answers` (msgspec, one field per flag), `Change` (where it lands, label, before, after, run) and `plan(scan, answers) -> list[Change]`; `review(changes)` writes the plan as text |
+| `setup/apply.py` | `apply(changes, say) -> list[Change]` runs a plan in order; `ApplyError(done, failed, error)` stops it at the first failure and names what was done |
 | `setup/flow.py` | the steps of the four flows: which questions, their defaults from the scan |
 | `setup/term.py` | the prompt primitives |
 | `setup/agents.py` | the client table, `mcp_command()`, registering, the rules block written to files |
@@ -688,7 +703,32 @@ appearing as work finishes) and the review.
 | `settings.py` | `cache`, `agent` (presets, validation, resolution), `remotes.<name>.enabled` |
 
 `ops/admin.py:init` becomes the entry that builds `Answers` from flags and either runs the flow (a
-terminal, no `--yes`) or plans and applies directly. `mcp install` calls `setup/agents.py`.
+terminal, no `--yes`) or plans and applies directly.
+
+`plan()` orders the changes project, machine, agents, imports (remote ones follow, from the remotes
+step); `where` groups them in the review. What it decides:
+
+- **`beamtime.yaml`** gets `logdir`, `agent` and remote `path`s, only where the file lacks the value or
+  says another. An `agent` the project has already is kept; `--agent-style` and `--agent-set` change it
+  on top. `style` is written with the agent choice, so a project that chose agents records `careful`.
+  `--agent-set` values are read as YAML and checked against the key's rule (`seeds=abc`, `launch_runs=x`
+  and `significance=1.5` are refused with the rule), so numbers are written as numbers.
+- **This machine's settings** get `cache` when `--cache` names one, the `host` of each `--remote` (the
+  name when no host is given), `command: ~/.local/bin/beamtime` for a remote that `--install-remote`
+  installs, and `enabled: false` for `--skip-remote`. A value that is already there is not written, so a
+  rerun writes nothing and a default is never written.
+- **Agents**: per client the MCP registration (left out when already registered, unless `--update mcp`),
+  the skills for Claude Code (when they differ), and one rules block per rules file (left out when the
+  file has the block this release generates). `--instructions` without `--agents` names the one client
+  whose rules file the old flag chose.
+- **Imports** as above; notes and memory files come in as written (`note add`) unless `--migrate-with`
+  hands them to an agent. The log dir is created for them if missing.
+- Every refusal (an unknown or contradicting answer, a log dir that is not empty where a link would go,
+  a path that holds nothing to import, a client that can't be registered) is a `ValueError` raised by
+  `plan()`, before anything is written.
+
+`init` without `--yes` and without a terminal prints the review and the command, writes nothing and exits
+0; with `--yes` it applies, and a failing change ends the answer with an error naming what was done. `mcp install` calls `setup/agents.py`.
 
 ## Testing
 
