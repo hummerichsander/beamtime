@@ -4,6 +4,7 @@ import json
 import math
 from typing import Any
 
+from beamtime.format.moves import current, earlier
 from beamtime.query.aggregate import group_by, seed_groups
 from beamtime.query.models import QueryError
 from beamtime.query.where import fields_of, matches
@@ -108,7 +109,7 @@ def checked(target: Target, version: str, proposal: Proposal | None) -> dict[str
             if pr.kind == "auto"
             else manual(pr, verdicts.get(pr.name))
         )
-        entry["cited_by"] = cited_by(target, f"{target.rel}#{pr.name}")
+        entry["cited_by"] = cited_prediction(target, pr.name)
         predictions.append(entry)
     results = [p["result"] for p in predictions]
     return out | {
@@ -368,6 +369,29 @@ def cited_by(target: Target, link: str) -> list[dict[str, Any]]:
         (link,),
     )
     return [{"id": r[0], "type": r[1], "description": r[2]} for r in rows]
+
+
+def cited_prediction(target: Target, name: str) -> list[dict[str, Any]]:
+    """List the notes that cite a prediction, also by a path the group had before a move.
+
+    :param target: The group or run.
+    :param name: The prediction's name.
+    :return: Id, type and description of each citing note."""
+    logdir = target.index.logdir
+    paths = [target.rel, *earlier(logdir, target.rel, target.rel)]
+    rows = target.index.store.db.execute(
+        "SELECT notes.id, notes.type, notes.description, notes.folder, links.target FROM links "
+        "JOIN notes ON notes.path = links.source "
+        f"WHERE links.target IN ({', '.join('?' * len(paths))}) ORDER BY notes.id",
+        [f"{p}#{name}" for p in paths],
+    )
+    # a scoped move maps paths only for notes below its scope; a native group's notes stay out.
+    found = {
+        r[0]: {"id": r[0], "type": r[1], "description": r[2]}
+        for r in rows
+        if current(logdir, r[4].rpartition("#")[0], r[3]) == target.rel
+    }
+    return list(found.values())
 
 
 def snapshot(check: dict[str, Any]) -> dict[str, Any]:

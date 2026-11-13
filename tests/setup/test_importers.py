@@ -792,8 +792,7 @@ def beamtime_run(group: Path, run_id: str, proposals: dict[str, str] | None = No
 def normalized(answer: object, prefix: str) -> str:
     """Dump an answer with the import's folder taken off every path.
 
-    Freshness is left out, and so are the notes that cite a prediction: they name the group by its
-    old path, which no reader maps through the moves yet.
+    Freshness is left out.
 
     :param answer: An operation's answer.
     :param prefix: The folder the import went into, e.g. ``imported/demo``.
@@ -801,7 +800,7 @@ def normalized(answer: object, prefix: str) -> str:
 
     def keep(value: object) -> object:
         if isinstance(value, dict):
-            return {k: keep(v) for k, v in value.items() if k not in ("meta", "cited_by")}
+            return {k: keep(v) for k, v in value.items() if k != "meta"}
         return [keep(v) for v in value] if isinstance(value, list) else value
 
     text = json.dumps(keep(answer), sort_keys=True)
@@ -980,3 +979,18 @@ def test_import_a_single_run(tmp_path: Path) -> None:
     run = beamtime_run(src, "20260101-000000-aaaaaaaa")
     assert copy_logdir(dest, run, "one") == Copied(runs=1, skipped=0)
     assert (dest / "imported" / "one" / run.name / c.RUN).is_file()
+
+
+def test_import_citations_stay_apart(imported_synth: tuple[Context, Context, Path]) -> None:
+    """A copied note's citation reaches the imported group; a native note's stays with its path."""
+    _, project, dest = imported_synth
+    notes = dest / "scaling" / c.NOTES
+    notes.mkdir(parents=True)
+    (notes / "20990101-000000-n1n1.md").write_text(
+        "---\nschema: 1\ntype: observation\ndescription: native\n---\n"
+        "See [[scaling/lr-sweep#converges]].\n"
+    )
+    answer = call("check", {"group": "imported/demo/scaling/lr-sweep"}, project)
+    (converges,) = [p for p in answer["predictions"] if p["name"] == "converges"]
+    assert converges["cited_by"]
+    assert "native" not in [n["description"] for n in converges["cited_by"]]

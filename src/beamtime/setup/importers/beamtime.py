@@ -31,7 +31,7 @@ class Copier:
         """Set up a copy.
 
         :param logdir: The destination log dir.
-        :param source: The log dir to copy, or a folder of its groups and runs.
+        :param source: The log dir to copy, at its root since membership keys start there, or a run.
         :param name: The folder below ``imported/`` that takes the tree."""
         self.logdir = logdir
         self.source = source.resolve()
