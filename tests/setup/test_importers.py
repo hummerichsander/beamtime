@@ -575,6 +575,18 @@ def test_tb_truncated(tmp_path: Path) -> None:
     assert only(tmp_path).rows == []
 
 
+def test_tb_wrong_wire_type(tmp_path: Path) -> None:
+    """A record whose fields carry the wrong wire type is skipped, as checksums are not checked."""
+    write_events(
+        tmp_path / "events.out.tfevents.1",
+        field(1, 0, varint(5)),
+        field(5, 0, varint(5)),
+        field(5, 2, field(1, 0, varint(5))),
+        event(2.0, 0, simple("loss", 1.0)),
+    )
+    assert [r["loss"] for r in only(tmp_path).rows] == [1.0]
+
+
 def test_tb_multiple_files(tmp_path: Path) -> None:
     """Several event files in one folder merge by step, and a repeated step keeps both points."""
     write_events(

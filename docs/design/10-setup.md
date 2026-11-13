@@ -490,7 +490,8 @@ the preview), so imported runs are ordinary runs. The originals are never touche
 
 - **TensorBoard details.** Every folder with `events.out.tfevents.*` files at or below the path is one
   run; the group is the folder's path below the path (Lightning's `version_<n>`; empty for the path
-  itself), the name is the folder's name and the source id is the group. The event files of a folder
+  itself), the name is the folder's name and the source id is the group (`.` for the path itself,
+  so the run is found again on a rerun). The event files of a folder
   merge by step, in file name order; a tag logged twice at a step starts another record, as for
   MLflow. A truncated last record ends a file quietly. Checksums are not checked. `created_at` and
   `ended_at` are the first and last wall times, `status` is `finished`. A scalar is a `simple_value`

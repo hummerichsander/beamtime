@@ -117,18 +117,18 @@ def read_event(
     :param skipped: Receives the tags of non-scalar summaries by kind.
     :param times: Receives the event's wall time."""
     wall, step, summary = 0.0, 0, b""
-    for number, _, value in fields(record):
-        match number:
-            case 1:
+    for number, wire, value in fields(record):
+        match number, wire:
+            case 1, 1:
                 (wall,) = struct.unpack("<d", value)
-            case 2:
+            case 2, 0:
                 step = value - (1 << 64) if value >= 1 << 63 else value
-            case 5:
+            case 5, 2:
                 summary = value
     if wall:
         times.append(wall)
-    for number, _, value in fields(summary):
-        if number == 1:
+    for number, wire, value in fields(summary):
+        if (number, wire) == (1, 2):
             read_value(value, step, wall, points, skipped)
 
 
@@ -147,17 +147,17 @@ def read_value(
     :param points: Receives scalars.
     :param skipped: Receives the tags of other summaries by kind."""
     tag, scalar, kind = "", None, "tensors"
-    for number, _, value in fields(buf):
-        match number:
-            case 1:
+    for number, wire, value in fields(buf):
+        match number, wire:
+            case 1, 2:
                 tag = value.decode("utf-8", errors="replace")
-            case 2:
+            case 2, 5:
                 (scalar,) = struct.unpack("<f", value)
-            case 8:
+            case 8, 2:
                 scalar = scalar_tensor(value)
-            case 9:
+            case 9, 2:
                 kind = plugin_name(value) or kind
-            case n if n in OLD_STYLE:
+            case n, _ if n in OLD_STYLE:
                 kind = OLD_STYLE[n]
     if scalar is not None:
         points.append((tag, scalar, step, wall))
@@ -170,10 +170,10 @@ def plugin_name(metadata: bytes) -> str | None:
 
     :param metadata: The message's bytes.
     :return: The name, or ``None``."""
-    for number, _, data in fields(metadata):
-        if number == 1:
-            for n, _, name in fields(data):
-                if n == 1:
+    for number, wire, data in fields(metadata):
+        if (number, wire) == (1, 2):
+            for n, w, name in fields(data):
+                if (n, w) == (1, 2):
                     return name.decode("utf-8", errors="replace")
     return None
 
@@ -184,15 +184,15 @@ def scalar_tensor(buf: bytes) -> float | None:
     :param buf: The message's bytes.
     :return: The value, or ``None`` for any other tensor."""
     dtype, ndim, content, values = 0, 0, b"", b""
-    for number, _, value in fields(buf):
-        match number:
-            case 1:
+    for number, wire, value in fields(buf):
+        match number, wire:
+            case 1, 0:
                 dtype = value
-            case 2:
+            case 2, 2:
                 ndim = sum(1 for n, _, _ in fields(value) if n == 2)
-            case 4:
+            case 4, 2:
                 content = value
-            case 5 | 6:
+            case 5 | 6, 1 | 2 | 5:
                 values = value
     if dtype not in (DT_FLOAT, DT_DOUBLE) or ndim:
         return None
