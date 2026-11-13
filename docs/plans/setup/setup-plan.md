@@ -431,7 +431,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 - **Risks:** a metric logged twice at one step keeps both lines in order (`test_mlflow_duplicate_step`); deleted
   runs (`lifecycle_stage: deleted`) are skipped (`test_mlflow_deleted`).
 
-### I13. TensorBoard (sonnet + review) — code
+### I13. TensorBoard (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/importers/tensorboard.py`, fixtures in new `tests/setup/fixtures/tb/` (event files
   written by a tiny encoder in the test), `tests/setup/test_importers.py`.

@@ -1,9 +1,10 @@
-"""The importer interface, the run writer and the CSV and MLflow sources."""
+"""The importer interface, the run writer and the CSV, MLflow and TensorBoard sources."""
 
 import json
 import math
 import shutil
 import sqlite3
+import struct
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,7 @@ from beamtime.setup import importers
 from beamtime.setup.importers import Imported
 from beamtime.setup.importers import csv as csv_source
 from beamtime.setup.importers import mlflow as mlflow_source
+from beamtime.setup.importers import tensorboard as tb_source
 from beamtime.setup.importers import write
 from beamtime.setup.importers.write import write_run
 
@@ -347,3 +349,270 @@ def test_mlflow_import_groups_by_experiment(logdir: Path) -> None:
         ("duplicate", "finished"),
         ("wide", "failed"),
     ]
+
+
+def varint(n: int) -> bytes:
+    """Encode a protobuf varint.
+
+    :param n: A non-negative integer.
+    :return: The bytes."""
+    out = bytearray()
+    while n > 0x7F:
+        out.append(n & 0x7F | 0x80)
+        n >>= 7
+    return bytes(out + bytes([n]))
+
+
+def field(number: int, wire: int, payload: bytes) -> bytes:
+    """Encode one protobuf field.
+
+    :param number: The field number.
+    :param wire: The wire type, 0, 1, 2 or 5.
+    :param payload: The value's bytes, a length-delimited payload without its length.
+    :return: The bytes."""
+    key = varint(number << 3 | wire)
+    return key + (varint(len(payload)) + payload if wire == 2 else payload)
+
+
+def tag_value(tag: str, *rest: bytes) -> bytes:
+    """Encode a ``Summary.Value``.
+
+    :param tag: The tag.
+    :param rest: Further encoded fields.
+    :return: The bytes."""
+    return field(1, 2, tag.encode()) + b"".join(rest)
+
+
+def simple(tag: str, value: float) -> bytes:
+    """Encode a scalar in the old ``simple_value`` style.
+
+    :param tag: The tag.
+    :param value: The value.
+    :return: The ``Summary.Value`` bytes."""
+    return tag_value(tag, field(2, 5, struct.pack("<f", value)))
+
+
+def tensor(tag: str, plugin: str, *proto: bytes) -> bytes:
+    """Encode a ``Summary.Value`` that carries a ``TensorProto``.
+
+    :param tag: The tag.
+    :param plugin: The plugin name in the summary's metadata.
+    :param proto: The ``TensorProto``'s encoded fields.
+    :return: The bytes."""
+    metadata = field(1, 2, field(1, 2, plugin.encode()))
+    return tag_value(tag, field(8, 2, b"".join(proto)), field(9, 2, metadata))
+
+
+def event(wall: float, step: int, *values: bytes) -> bytes:
+    """Encode an ``Event`` with a summary.
+
+    :param wall: The wall time.
+    :param step: The step.
+    :param values: Encoded ``Summary.Value`` messages.
+    :return: The bytes."""
+    summary = field(5, 2, b"".join(field(1, 2, v) for v in values)) if values else b""
+    return field(1, 1, struct.pack("<d", wall)) + field(2, 0, varint(step)) + summary
+
+
+def write_events(path: Path, *events: bytes) -> Path:
+    """Write an event file; the checksums are zeros, as the reader ignores them.
+
+    :param path: The file.
+    :param events: Encoded events.
+    :return: The file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"".join(struct.pack("<QI", len(e), 0) + e + b"\0\0\0\0" for e in events))
+    return path
+
+
+def float_tensor(dtype: int, *dims: int) -> list[bytes]:
+    """Encode the dtype and shape of a ``TensorProto``.
+
+    :param dtype: The ``DataType`` number, 1 for float32 and 2 for float64.
+    :param dims: The shape; none for a scalar.
+    :return: The encoded fields."""
+    shape = b"".join(field(2, 2, field(1, 0, varint(d))) for d in dims)
+    return [field(1, 0, varint(dtype)), field(2, 2, shape)]
+
+
+def start(wall: float) -> bytes:
+    """Encode the ``file_version`` event every event file begins with.
+
+    :param wall: The wall time.
+    :return: The bytes."""
+    return field(1, 1, struct.pack("<d", wall)) + field(3, 2, b"brain.Event:2")
+
+
+def only(path: Path) -> Imported:
+    """Read the one run at a path.
+
+    :param path: An event file or a folder.
+    :return: The run."""
+    (imported,) = tb_source.runs(path)
+    return imported
+
+
+def test_tb_scalars(tmp_path: Path) -> None:
+    """Scalars as ``simple_value`` and as float32 and float64 tensors import with step and time."""
+    f32 = field(5, 2, struct.pack("<f", 0.5))
+    f64 = field(4, 2, struct.pack("<d", 0.25))
+    write_events(
+        tmp_path / "events.out.tfevents.1700000000.host",
+        start(1700000000.0),
+        event(
+            1700000001.0, 0, simple("loss", 2.5), tensor("f32", "scalars", *float_tensor(1), f32)
+        ),
+        event(
+            1700000002.0, 1, simple("loss", 1.5), tensor("f64", "scalars", *float_tensor(2), f64)
+        ),
+        event(1700000003.0, 2, simple("loss", 1.0)),
+    )
+    run = only(tmp_path)
+    assert (run.created_at, run.ended_at, run.status) == (1700000000.0, 1700000003.0, "finished")
+    assert [(r["_step"], r["_t"], r.get("loss"), r.get("f32"), r.get("f64")) for r in run.rows] == [
+        (0, 1700000001.0, 2.5, 0.5, None),
+        (1, 1700000002.0, 1.5, None, 0.25),
+        (2, 1700000003.0, 1.0, None, None),
+    ]
+    assert run.skipped == {}
+
+
+def test_tb_hparams(tmp_path: Path) -> None:
+    """``hparams.yaml`` beside the events is the config; an unreadable one is no config."""
+    write_events(tmp_path / "events.out.tfevents.1", event(1.0, 0, simple("loss", 1.0)))
+    (tmp_path / "hparams.yaml").write_text("lr: 0.001\nlayers: 4\nname: mlp\n")
+    assert only(tmp_path).config == {"lr": 0.001, "layers": 4, "name": "mlp"}
+    (tmp_path / "hparams.yaml").write_text("{unclosed")
+    assert only(tmp_path).config == {}
+
+
+def test_tb_lightning_versions(logdir: Path, tmp_path: Path) -> None:
+    """Each ``version_<n>`` folder is a run under ``imported/<name>/version_<n>``."""
+    root = tmp_path / "lightning_logs"
+    for n in range(2):
+        write_events(
+            root / f"version_{n}" / "events.out.tfevents.1",
+            start(1700000000.0 + n),
+            event(1700000010.0 + n, 0, simple("train_loss", 1.0 + n)),
+        )
+        (root / f"version_{n}" / "hparams.yaml").write_text(f"seed: {n}\n")
+    assert tb_source.detect(root).n == 2
+    found = list(tb_source.runs(root))
+    assert [(r.name, r.group, r.config) for r in found] == [
+        ("version_0", "version_0", {"seed": 0}),
+        ("version_1", "version_1", {"seed": 1}),
+    ]
+    for r in found:
+        write_run(
+            logdir,
+            f"imported/lightning_logs/{r.group}",
+            r,
+            {"kind": "tensorboard", "path": str(root.resolve())},
+        )
+    rows = query.run({"runs": {"from": "imported/lightning_logs"}}, logdir=logdir)["rows"]
+    assert sorted(r[1] for r in rows) == ["version_0", "version_1"]
+    series = query.run(
+        {"series": {"from": "imported/lightning_logs/version_1", "y": ["train_loss"]}},
+        logdir=logdir,
+    )
+    assert series["curves"][0]["y"] == [2.0]
+
+
+def test_tb_nested_group(tmp_path: Path) -> None:
+    """A run below deeper folders keeps them as its group."""
+    write_events(tmp_path / "exp" / "a" / "events.out.tfevents.1", event(1.0, 0, simple("x", 1.0)))
+    run = only(tmp_path)
+    assert (run.name, run.group, run.source_id) == ("a", "exp/a", "exp/a")
+
+
+def test_tb_non_scalar_counted(tmp_path: Path) -> None:
+    """Images, histograms, text and array tensors are left out, counted by kind and tag."""
+    write_events(
+        tmp_path / "events.out.tfevents.1",
+        event(
+            1.0,
+            0,
+            simple("loss", 1.0),
+            tag_value("img/a", field(4, 2, b"png")),
+            tag_value("hist/old", field(5, 2, b"")),
+            tensor("img/b", "images", *float_tensor(1, 3)),
+            tensor("txt", "text", field(1, 0, varint(7))),
+            tensor("vec", "scalars", *float_tensor(1, 4)),
+            tensor("plain", "", *float_tensor(1, 2)),
+        ),
+        event(
+            2.0,
+            1,
+            simple("loss", 0.5),
+            tag_value("img/a", field(4, 2, b"png")),
+            tensor("hist/new", "histograms", *float_tensor(1, 30, 3)),
+        ),
+    )
+    run = only(tmp_path)
+    assert run.skipped == {
+        "histograms": 2,
+        "images": 2,
+        "scalars": 1,
+        "tensors": 1,
+        "text": 1,
+    }
+    assert [r["loss"] for r in run.rows] == [1.0, 0.5]
+
+
+def test_tb_truncated(tmp_path: Path) -> None:
+    """A truncated last record ends the stream quietly; the points before it are kept."""
+    f = write_events(
+        tmp_path / "events.out.tfevents.1",
+        start(1.0),
+        event(2.0, 0, simple("loss", 1.0)),
+        event(3.0, 1, simple("loss", 0.5)),
+    )
+    data = f.read_bytes()
+    for cut in (1, 3, 8):
+        f.write_bytes(data[:-cut])
+        assert [r["loss"] for r in only(tmp_path).rows] == [1.0]
+    f.write_bytes(data[:5])
+    assert only(tmp_path).rows == []
+
+
+def test_tb_multiple_files(tmp_path: Path) -> None:
+    """Several event files in one folder merge by step, and a repeated step keeps both points."""
+    write_events(
+        tmp_path / "events.out.tfevents.1",
+        event(1.0, 0, simple("loss", 2.0)),
+        event(2.0, 1, simple("loss", 1.0)),
+    )
+    write_events(
+        tmp_path / "events.out.tfevents.2",
+        event(3.0, 1, simple("acc", 0.25)),
+        event(4.0, 2, simple("loss", 0.5), simple("acc", 0.75)),
+        event(5.0, 1, simple("loss", 0.125)),
+    )
+    run = only(tmp_path)
+    assert [(r["_step"], r.get("loss"), r.get("acc")) for r in run.rows] == [
+        (0, 2.0, None),
+        (1, 1.0, 0.25),
+        (1, 0.125, None),
+        (2, 0.5, 0.75),
+    ]
+    assert (run.created_at, run.ended_at) == (1.0, 5.0)
+
+
+def test_tb_detect(tmp_path: Path) -> None:
+    """``detect`` counts the folders with event files and ignores environments."""
+    assert tb_source.detect(tmp_path) is None
+    for name in ("a", "b", ".venv/c"):
+        write_events(tmp_path / name / "events.out.tfevents.1", start(1.0))
+    write_events(tmp_path / "a" / "events.out.tfevents.2", start(2.0))
+    found = tb_source.detect(tmp_path)
+    assert (found.kind, found.n, found.label) == ("tensorboard", 2, "2 TensorBoard runs")
+    assert importers.detect(tmp_path).kind == "tensorboard"
+
+
+def test_tb_negative_step_and_no_events(tmp_path: Path) -> None:
+    """A step stored as a two's-complement varint reads as negative; an empty file is a run with no rows."""
+    write_events(tmp_path / "events.out.tfevents.1", event(1.0, (1 << 64) - 1, simple("x", 1.0)))
+    assert only(tmp_path).rows[0]["_step"] == -1
+    (tmp_path / "events.out.tfevents.1").write_bytes(b"")
+    run = only(tmp_path)
+    assert run.rows == [] and run.created_at > 0

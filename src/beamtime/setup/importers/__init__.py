@@ -3,7 +3,7 @@
 import os
 from collections import Counter
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -44,6 +44,7 @@ class Imported:
     command: list[str] | None = None
     source_id: str | None = None
     group: str = ""
+    skipped: dict[str, int] = field(default_factory=dict)
 
 
 def detect(path: Path) -> Found | None:

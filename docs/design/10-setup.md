@@ -460,9 +460,10 @@ the preview), so imported runs are ordinary runs. The originals are never touche
 - **Twice is once.** A run whose `imported_from.path` (and source id) is already in the log dir is
   skipped, so a rerun imports only what is new.
 - **The interface.** `Imported(name, created_at, ended_at, status, config, rows, host, git, command,
-  source_id, group)` holds one run (times as unix seconds, `rows` as `{"_step": n, "<key>": value}` records);
+  source_id, group, skipped)` holds one run (times as unix seconds, `rows` as `{"_step": n, "<key>": value}` records);
   `group` is the folder below the source's destination that the run belongs in (empty when the source
-  has no structure; the MLflow experiment's name). `write_run(logdir, dest, imported, provenance)` is
+  has no structure; the MLflow experiment's name); `skipped` counts what the source holds that was
+  left out, by kind (TensorBoard's non-scalar summaries), for the review's line. `write_run(logdir, dest, imported, provenance)` is
   the one writer. It writes the config, the metric
   lines, the card and the preview (`synth/summary.py:card_and_preview`) and `_run.json` last, so a
   crash leaves a folder no reader sees. `find_imported` walks `imported/` only. `detect` tells a
@@ -486,6 +487,17 @@ the preview), so imported runs are ordinary runs. The originals are never touche
   points of different keys at one step share a record, and a key logged twice at a step starts
   another record, so no point is lost and the order is the order logged. Metric `is_nan` rows become
   NaN. The git commit is the `mlflow.source.git.commit` tag; the source id is MLflow's run id.
+
+- **TensorBoard details.** Every folder with `events.out.tfevents.*` files at or below the path is one
+  run; the group is the folder's path below the path (Lightning's `version_<n>`; empty for the path
+  itself), the name is the folder's name and the source id is the group. The event files of a folder
+  merge by step, in file name order; a tag logged twice at a step starts another record, as for
+  MLflow. A truncated last record ends a file quietly. Checksums are not checked. `created_at` and
+  `ended_at` are the first and last wall times, `status` is `finished`. A scalar is a `simple_value`
+  or a rank-0 float32/float64 tensor (`tensor_content`, `float_val` or `double_val`); every other
+  summary is left out and counted in `skipped` by the kind (`images`, `histograms`, `audio`, the
+  plugin's name for tensors, `tensors` without one), each tag once. `hparams.yaml` in the folder is
+  the config, empty when unreadable. Values stay as stored, so a float32 reads as its double.
 
 ### Beamtime log dirs
 
