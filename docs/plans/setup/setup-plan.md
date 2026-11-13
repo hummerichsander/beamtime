@@ -479,7 +479,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 ## K. SDK
 
-### K11. Adding the SDK with the project's tool (sonnet) — code
+### K11. Adding the SDK with the project's tool (sonnet) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/sdk.py`, new `tests/setup/test_sdk.py`.
 - **Read:** `docs/design/10-setup.md` § Git and the SDK (SDK paragraph); § The MCP command (dev group bullet).

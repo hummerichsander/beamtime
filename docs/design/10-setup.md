@@ -593,6 +593,10 @@ commit the record.
 `poetry add beamtime`, `conda run -n <env> python -m pip install beamtime` for conda, or
 `<venv>/bin/python -m pip install beamtime` plus a `beamtime` line in `requirements.txt` for pip. The
 SDK needs Python 3.10; an older project Python is named in the step and the default becomes No.
+`setup/sdk.py:sdk_change()` plans it as argument lists run in the project root with
+`subprocess.run(check=True)`; `sdk_blocker()` gives the reason when the Python is too old, and then
+`sdk_change()` returns `None`. A conda environment gets `beamtime[serve]` when the MCP command runs
+from it; a pip project without a virtualenv only gets the `requirements.txt` line.
 
 ## Updating an older setup
 
