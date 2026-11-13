@@ -454,7 +454,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
   import; status from `wandb-summary.json`'s exit code when present.
 - **Stop if:** the datastore reader's import path differs across wandb versions; record the path used in the spec.
 
-### I15. Beamtime log dirs (sonnet + review) — code
+### I15. Beamtime log dirs (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/importers/beamtime.py`, `src/beamtime/ops/copy.py` (reuse `sync_tree` 129;
   no behaviour change), `tests/setup/test_importers.py`.

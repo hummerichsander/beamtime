@@ -532,7 +532,25 @@ conversion, since every file reads in every later release:
   move with `within` maps only paths named by files below `within`, so a native `scaling/` group is
   untouched. Moves without `within` behave as before.
 - The source's own `_moves.jsonl` entries are appended with both paths prefixed and the same `within`.
-- A run id that exists in the log dir already is skipped (it was imported before).
+- A run id that exists in the log dir already is skipped (it was imported before); a second import
+  therefore copies runs the source gained since and authored files it lacks, and records no move twice.
+
+`setup/importers/beamtime.py:copy_logdir(logdir, source, name) -> Copied(runs, skipped)` does it, with
+its own walk instead of `detect`/`runs`:
+
+- **What is copied.** Run folders whole (checkpoints included), and the authored folders (`proposal/`,
+  `notes/`, `view/`, `memory/`, `blocks/`) of every group and of the source's root, so a library block at
+  the source root is found by the views below `imported/<name>/`. Trash (`_trash/`), `.beamtime/` and
+  machine-written files at group level are left behind, and so is the destination log dir when the source
+  contains it. A source that is itself one run copies that run. Authored files that exist already are left
+  as they are.
+- **`_run.json`.** `proposals` and `proposal_hashes` keys other than `.` gain the prefix;
+  `imported_from` is `{kind: "beamtime", path: <the run's folder in the source>, id, host, at}`, replacing
+  an earlier one. The file's modification time (the heartbeat) is kept, so a run that was lost stays lost.
+- **Moves.** One scoped move per top-level group of the source; then the source's own moves, prefixed, and
+  the old first folder of each of those gets a scoped move too (`a` to `imported/<name>/a`), so a path
+  named before the source's own move reaches the copy. A scoped move renames no folder on disk, so
+  `moved_scope` in `format/moves.py` needs no change for it.
 
 Reading another project's runs in place (a local-path source) is out of scope.
 

@@ -13,8 +13,10 @@ import pytest
 
 from beamtime import query
 from beamtime.format import constants as c
+from beamtime.format import moves
 from beamtime.format.io import read_json
 from beamtime.format.run import read_effective_metrics, read_run_info
+from beamtime.format.tree import iter_runs
 from beamtime.ops import call
 from beamtime.ops.context import Context
 from beamtime.setup import importers
@@ -24,7 +26,9 @@ from beamtime.setup.importers import mlflow as mlflow_source
 from beamtime.setup.importers import tensorboard as tb_source
 from beamtime.setup.importers import wandb as wandb_source
 from beamtime.setup.importers import write
+from beamtime.setup.importers.beamtime import Copied, copy_logdir
 from beamtime.setup.importers.write import write_run
+from beamtime.views.library import Library
 
 FIXTURES = Path(__file__).parent / "fixtures" / "csv"
 
@@ -762,3 +766,217 @@ def test_wandb_reader_decodes_datastore_records(monkeypatch: pytest.MonkeyPatch)
         monkeypatch.setitem(sys.modules, name, module)
     read = wandb_source.reader()
     assert list(read(Path("run.wandb"))) == [{"loss": 1.5, "a.b": 2}]
+
+
+def beamtime_run(group: Path, run_id: str, proposals: dict[str, str] | None = None) -> Path:
+    """Write a minimal run folder.
+
+    :param group: The group folder.
+    :param run_id: The run id, which is the folder's name.
+    :param proposals: The recorded proposal membership, by group path.
+    :return: The run folder."""
+    d = group / run_id
+    d.mkdir(parents=True)
+    info = {
+        "schema": 1,
+        "id": run_id,
+        "name": "r",
+        "status": "finished",
+        "proposals": proposals or {},
+        "proposal_hashes": dict.fromkeys(proposals or {}, "0123456789abcdef"),
+    }
+    (d / c.RUN).write_text(json.dumps(info))
+    return d
+
+
+def normalized(answer: object, prefix: str) -> str:
+    """Dump an answer with the import's folder taken off every path.
+
+    Freshness is left out, and so are the notes that cite a prediction: they name the group by its
+    old path, which no reader maps through the moves yet.
+
+    :param answer: An operation's answer.
+    :param prefix: The folder the import went into, e.g. ``imported/demo``.
+    :return: JSON text."""
+
+    def keep(value: object) -> object:
+        if isinstance(value, dict):
+            return {k: keep(v) for k, v in value.items() if k not in ("meta", "cited_by")}
+        return [keep(v) for v in value] if isinstance(value, list) else value
+
+    text = json.dumps(keep(answer), sort_keys=True)
+    return text.replace(f'"{prefix}/', '"').replace(f'"{prefix}"', '"."')
+
+
+@pytest.fixture
+def imported_synth(
+    tmp_path: Path, home: Path, synth: tuple[Path, object]
+) -> tuple[Context, Context, Path]:
+    """Import the synthetic log dir into an empty project as ``imported/demo``.
+
+    :param tmp_path: The test's temporary directory.
+    :param home: The fake home.
+    :param synth: The synthetic log dir and its manifest.
+    :return: The original's context, the project's context and the project's log dir."""
+    logdir, _ = synth
+    root = tmp_path / "project"
+    (root / "beamtime").mkdir(parents=True)
+    copied = copy_logdir(root / "beamtime", logdir, "demo")
+    assert copied.skipped == 0 and copied.runs > 0
+    return Context.make(root=logdir.parent), Context.make(root=root), root / "beamtime"
+
+
+def test_import_answers_like_the_original(
+    imported_synth: tuple[Context, Context, Path],
+) -> None:
+    """Groups, checks, notes and memory of the copy match the original's, ids included."""
+    original, project, _ = imported_synth
+    for name, here, there in (
+        ("groups", {"from": "."}, {"from": "imported/demo"}),
+        ("notes", {"from": "."}, {"from": "imported/demo"}),
+        ("check", {"group": "scaling/lr-sweep"}, {"group": "imported/demo/scaling/lr-sweep"}),
+        (
+            "check",
+            {"group": "tokenizer/bpe-vs-unigram"},
+            {"group": "imported/demo/tokenizer/bpe-vs-unigram"},
+        ),
+        ("memory show", {"group": "scaling/lr-sweep"}, {"group": "imported/demo/scaling/lr-sweep"}),
+    ):
+        a, b = call(name, here, original), call(name, there, project)
+        a, b = normalized(a, "imported/demo"), normalized(b, "imported/demo")
+        assert a == b, name
+
+
+def test_import_keeps_ids_and_records_provenance(
+    synth: tuple[Path, object], imported_synth: tuple[Context, Context, Path]
+) -> None:
+    """Run ids stay; ``_run.json`` gains ``imported_from`` and prefixed membership."""
+    logdir, _ = synth
+    *_, dest = imported_synth
+    for run in iter_runs(logdir):
+        (copy,) = (dest / "imported" / "demo").rglob(run.name)
+        original, copied = read_json(run / c.RUN), read_json(copy / c.RUN)
+        assert copied["id"] == run.name
+        assert copied["imported_from"]["kind"] == "beamtime"
+        assert (copied["imported_from"]["path"], copied["imported_from"]["id"]) == (
+            str(run.resolve()),
+            run.name,
+        )
+        assert {k.removeprefix("imported/demo/") for k in copied["proposals"]} == set(
+            original["proposals"]
+        )
+        assert (copy / c.RUN).stat().st_mtime == (run / c.RUN).stat().st_mtime
+        original.pop("proposals"), copied.pop("proposals")
+        original.pop("proposal_hashes"), copied.pop("proposal_hashes")
+        copied.pop("imported_from")
+        assert copied == original
+
+
+def test_import_records_one_move_per_group(
+    synth: tuple[Path, object], imported_synth: tuple[Context, Context, Path]
+) -> None:
+    """Each top-level group gets a move scoped to the import; a native group is untouched."""
+    logdir, _ = synth
+    *_, dest = imported_synth
+    groups = sorted(d.name for d in logdir.iterdir() if d.is_dir() and not d.name.startswith("_"))
+    groups.remove("memory")
+    recorded = moves.read(dest)
+    assert [(m.old, m.new, m.within) for m in recorded] == [
+        (g, f"imported/demo/{g}", "imported/demo") for g in groups
+    ]
+    assert (
+        moves.current(dest, "scaling", "imported/demo/scaling/lr-sweep") == "imported/demo/scaling"
+    )
+    assert moves.current(dest, "scaling", "scaling/lr-sweep") == "scaling"
+    assert moves.current(dest, "scaling", None) == "scaling"
+
+
+def test_import_leaves_a_native_group_alone(
+    imported_synth: tuple[Context, Context, Path], synth: tuple[Path, object]
+) -> None:
+    """A native group of the same name keeps its own answers after the import."""
+    _, project, dest = imported_synth
+    logdir, _ = synth
+    native = dest / "scaling" / "native"
+    beamtime_run(native, "20260101-000000-aaaaaaaa")
+    answer = call("groups", {"from": "scaling"}, project)
+    assert [r[0] for r in answer["rows"]] == ["scaling", "scaling/native"]
+    assert not any(r[0].startswith("imported") for r in answer["rows"])
+    assert {p.name for p in (dest / "imported" / "demo").iterdir()} >= {"scaling", "tokenizer"}
+    assert (logdir / "scaling").is_dir()
+
+
+def test_import_skips_known_ids(tmp_path: Path) -> None:
+    """A second import copies nothing; a run id found anywhere in the log dir is skipped."""
+    src, dest = tmp_path / "src", tmp_path / "beamtime"
+    beamtime_run(src / "a", "20260101-000000-aaaaaaaa")
+    beamtime_run(src / "a", "20260101-000001-bbbbbbbb")
+    beamtime_run(dest / "elsewhere", "20260101-000001-bbbbbbbb")
+    assert copy_logdir(dest, src, "demo") == Copied(runs=1, skipped=1)
+    assert copy_logdir(dest, src, "demo") == Copied(runs=0, skipped=2)
+    beamtime_run(src / "a", "20260101-000002-cccccccc")
+    assert copy_logdir(dest, src, "demo") == Copied(runs=1, skipped=2)
+    assert len(moves.read(dest)) == 1
+
+
+def test_import_carries_moves(tmp_path: Path) -> None:
+    """The source's own moves are appended with prefixed paths and the import's scope."""
+    src, dest = tmp_path / "src", tmp_path / "beamtime"
+    beamtime_run(src / "b", "20260101-000000-aaaaaaaa", {"a": "20260101-000000-p1p1"})
+    moves.record(src, "a", "b")
+    copy_logdir(dest, src, "demo")
+    assert [(m.old, m.new, m.within) for m in moves.read(dest)] == [
+        ("b", "imported/demo/b", "imported/demo"),
+        ("a", "imported/demo/a", "imported/demo"),
+        ("imported/demo/a", "imported/demo/b", "imported/demo"),
+    ]
+    named_in = "imported/demo/b"
+    assert moves.current(dest, "a/x", named_in) == "imported/demo/b/x"
+    assert moves.current(dest, "a/x", "a") == "a/x"
+    run = read_json(next((dest / "imported" / "demo").rglob(c.RUN)))
+    assert run["proposals"] == {"imported/demo/a": "20260101-000000-p1p1"}
+
+
+def test_import_library_blocks(tmp_path: Path, home: Path) -> None:
+    """Blocks at the source root are found by views of the imported groups, pinned versions too."""
+    src, dest = tmp_path / "src", tmp_path / "project" / "beamtime"
+    dest.mkdir(parents=True)
+    beamtime_run(src / "a", "20260101-000000-aaaaaaaa")
+    block = src / "blocks" / "pm"
+    block.mkdir(parents=True)
+    (block / "20260101-000000-b1b1.yaml").write_text(
+        "schema: 1\nname: pm\ndescription: d\ncode: code/pm.js\n"
+    )
+    copy_logdir(dest, src, "demo")
+    ctx = Context.make(root=dest.parent)
+    found = Library(ctx=ctx, path="imported/demo/a").get("pm", "20260101-000000-b1b1")
+    assert (found.group, found.version) == ("imported/demo", "20260101-000000-b1b1")
+    assert Library(ctx=ctx, path="a").names == []
+
+
+def test_import_skips_machine_files_and_trash(tmp_path: Path) -> None:
+    """Trash, the index folder and machine-written files at group level are left behind."""
+    src, dest = tmp_path / "src", tmp_path / "beamtime"
+    beamtime_run(src / "a", "20260101-000000-aaaaaaaa")
+    beamtime_run(src / "_trash" / "20260101-000000" / "b", "20260101-000001-bbbbbbbb")
+    (src / ".beamtime").mkdir()
+    (src / ".beamtime" / "x").write_text("x")
+    (src / "_moves.jsonl").write_text("")
+    notes = src / "a" / "notes"
+    notes.mkdir()
+    (notes / "20260101-000000-n1n1.md").write_text("---\ntype: observation\n---\nbody\n")
+    assert copy_logdir(dest, src, "demo") == Copied(runs=1, skipped=0)
+    names = {
+        p.relative_to(dest / "imported" / "demo").as_posix()
+        for p in (dest / "imported" / "demo").rglob("*")
+    }
+    assert "a/notes/20260101-000000-n1n1.md" in names
+    assert not any(n.startswith(("_trash", ".beamtime", "_moves")) for n in names)
+
+
+def test_import_a_single_run(tmp_path: Path) -> None:
+    """A path that is one run copies that run."""
+    src, dest = tmp_path / "src", tmp_path / "beamtime"
+    run = beamtime_run(src, "20260101-000000-aaaaaaaa")
+    assert copy_logdir(dest, run, "one") == Copied(runs=1, skipped=0)
+    assert (dest / "imported" / "one" / run.name / c.RUN).is_file()
