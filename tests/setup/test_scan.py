@@ -1,7 +1,11 @@
 """The scan on fixture trees: facts, flows and speed."""
 
+from importlib.metadata import version
+from importlib.resources import files
 from pathlib import Path
+import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import time
@@ -9,6 +13,8 @@ import time
 import pytest
 import yaml
 
+from beamtime.guide.rules import END, RELEASES, START, render, write_block
+from beamtime.settings import Settings
 from beamtime.setup.scan import PythonEnv, scan
 
 DESK = {"DISPLAY": ":0", "PATH": ""}
@@ -273,3 +279,191 @@ def test_scan_is_fast_on_a_large_tree(tmp_path, home):
     start = time.perf_counter()
     run(tmp_path, home)
     assert time.perf_counter() - start < 1.0
+
+
+def touch(root: Path, *names: str) -> None:
+    """Create empty files, and the folders around them.
+
+    :param root: The folder they go below.
+    :param names: Paths relative to ``root``."""
+    for name in names:
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).touch()
+
+
+def rules_file(path: Path, preface: str = "") -> str:
+    """Write an instruction file with this release's rules block.
+
+    :param path: The file.
+    :param preface: Text before the block.
+    :return: The block."""
+    block = render(Settings().agent, ["init", "serve", "settings"])
+    write_block(path, block)
+    path.write_text(preface + path.read_text())
+    return block
+
+
+def test_agents_by_project_files_and_path(tmp_path, home, tools):
+    (tmp_path / ".mcp.json").write_text("{}")
+    rules_file(tmp_path / "CLAUDE.md")
+    found = {a.client: a for a in run(tmp_path, home, env={"PATH": tools("codex")}).agents}
+    assert set(found) == {"claude-code", "codex"}
+    claude, codex = found["claude-code"], found["codex"]
+    assert claude.command is None and claude.files == (".mcp.json", "CLAUDE.md")
+    assert (claude.rules_file, claude.has_block) == ("CLAUDE.md", True)
+    assert claude.release == version("beamtime")
+    assert codex.command is not None and codex.files == ()
+    assert (codex.rules_file, codex.has_block, codex.release) == ("AGENTS.md", False, None)
+
+
+def test_agents_user_wide_config_and_shared_rules_file(tmp_path, home):
+    touch(home, ".codex/config.toml")
+    rules_file(tmp_path / "AGENTS.md")
+    (agent,) = run(tmp_path, home).agents
+    assert (agent.client, agent.files) == ("codex", ("~/.codex/config.toml",))
+    assert (agent.has_block, agent.release) == (True, version("beamtime"))
+
+
+def test_agents_old_and_edited_blocks(tmp_path, home):
+    old = (files("beamtime.guide") / "rules" / "history" / "0.1.0.md").read_text()
+    write_block(tmp_path / "GEMINI.md", old.strip())
+    write_block(tmp_path / "CLAUDE.md", "Written by hand.")
+    found = {a.client: a for a in run(tmp_path, home).agents}
+    assert found["gemini"].release == RELEASES["0.1.0.md"]
+    assert (found["claude-code"].has_block, found["claude-code"].release) == (True, None)
+
+
+def test_no_agents(tmp_path, home):
+    (tmp_path / "AGENTS.md").write_text("notes\n")
+    assert run(tmp_path, home).agents == ()
+
+
+def test_conflicts(tmp_path, home):
+    (tmp_path / "CLAUDE.md").write_text(
+        "# Rules\nKeep results in NOTES.md.\nBe kind.\nThe Experiment Log is in docs/\n"
+    )
+    (tmp_path / "AGENTS.md").write_text("Our results go in a spreadsheet.\nLab notebook: wiki\n")
+    assert run(tmp_path, home).conflicts == (
+        ("CLAUDE.md", 2, "Keep results in NOTES.md."),
+        ("CLAUDE.md", 4, "The Experiment Log is in docs/"),
+        ("AGENTS.md", 1, "Our results go in a spreadsheet."),
+        ("AGENTS.md", 2, "Lab notebook: wiki"),
+    )
+
+
+def test_conflict_outside_block(tmp_path, home):
+    block = START + "\nExperiment log lines belong in Beamtime. Keep results in Beamtime.\n" + END
+    (tmp_path / "CLAUDE.md").write_text(f"top: keep notes in a diary\n{block}\nlab notebook\n")
+    lines = [(c.line, c.text) for c in run(tmp_path, home).conflicts]
+    assert lines == [(1, "top: keep notes in a diary"), (5, "lab notebook")]
+
+
+def test_past_work_by_source(tmp_path, home):
+    touch(tmp_path, "tb_logs/model/version_0/events.out.tfevents.1.h.1")
+    touch(tmp_path, "tb_logs/model/version_1/events.out.tfevents.2.h.1")
+    touch(tmp_path, "wandb/offline-run-20240101_000000-a/run-a.wandb")
+    touch(tmp_path, "mlruns/0/abc/meta.yaml", "mlruns/0/abc/metrics/loss")
+    touch(tmp_path, "old/r1/_run.json")
+    touch(tmp_path, "data/table.csv", "deep/a/b/c/events.out.tfevents.1.h.1")
+    past = {p.found.kind: p for p in run(tmp_path, home).past}
+    assert set(past) == {"tensorboard", "wandb", "mlflow", "beamtime"}
+    assert all(not p.other for p in past.values())
+    assert past["tensorboard"].found.path == tmp_path / "tb_logs" / "model"
+    assert past["tensorboard"].found.n == 2
+    assert past["wandb"].found.path == tmp_path / "wandb"
+    assert past["mlflow"].found.path == tmp_path / "mlruns"
+    assert past["beamtime"].found.path == tmp_path / "old" / "r1"
+
+
+def test_past_work_skips_environments_and_hidden(tmp_path, home):
+    touch(tmp_path, ".venv/x/events.out.tfevents.1", ".hidden/events.out.tfevents.1")
+    touch(tmp_path, "node_modules/x/mlflow.db")
+    assert run(tmp_path, home).past == ()
+
+
+def test_past_work_mlflow_db_at_the_root(tmp_path, home):
+    mlflow = tmp_path / "mlflow.db"
+    con = sqlite3.connect(mlflow)
+    con.executescript(
+        "CREATE TABLE experiments (experiment_id, lifecycle_stage);"
+        "CREATE TABLE runs (run_uuid, experiment_id, lifecycle_stage);"
+    )
+    con.close()
+    assert [p.found.path for p in run(tmp_path, home).past] == [mlflow]
+
+
+def test_own_logdir_not_offered(tmp_path, home):
+    touch(tmp_path, "beamtime/g/r1/_run.json", "runs/g/r1/_run.json")
+    (tmp_path / "beamtime.yaml").write_text("logdir: runs\n")
+    touch(tmp_path, "beamtime/g/r2/_run.json")
+    kinds = [(p.found.kind, p.found.path) for p in run(tmp_path, home).past]
+    assert kinds == []
+
+
+def test_own_nested_logdir_not_offered(tmp_path, home):
+    touch(tmp_path, "exp/tb/events.out.tfevents.1", "exp/beamtime/g/_run.json")
+    (tmp_path / "beamtime.yaml").write_text("logdir: exp/beamtime\n")
+    assert [p.found.path for p in run(tmp_path, home).past] == [tmp_path / "exp" / "tb"]
+
+
+def known(tmp_path: Path, monkeypatch, *logdirs: Path) -> None:
+    """Give the index cache a database for each log dir, as an opened index leaves it.
+
+    :param tmp_path: The test's temporary directory.
+    :param monkeypatch: The environment patcher.
+    :param logdirs: The log dirs the cache knows."""
+    for n, logdir in enumerate(logdirs):
+        (tmp_path / "cache" / f"c{n}").mkdir(parents=True)
+        con = sqlite3.connect(tmp_path / "cache" / f"c{n}" / "index.sqlite")
+        con.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+        con.execute("INSERT INTO meta VALUES ('logdir', ?)", (str(logdir),))
+        con.commit()
+        con.close()
+    monkeypatch.setenv("BEAMTIME_CACHE", str(tmp_path / "cache"))
+
+
+def test_past_work_from_other_logdirs(tmp_path, home, monkeypatch):
+    other, root = tmp_path / "elsewhere", tmp_path / "project"
+    touch(other, "g/r1/_run.json", "g/r2/_run.json")
+    touch(root, "mine/g/r1/_run.json")
+    (root / "beamtime.yaml").write_text("logdir: mine\n")
+    known(tmp_path, monkeypatch, other, root / "mine")
+    (past,) = run(root, home).past
+    assert past.other and (past.found.kind, past.found.n) == ("beamtime", 2)
+    assert past.found.path == other.resolve()
+
+
+def test_notes_and_claude_memory(tmp_path, home):
+    root = tmp_path / "my.project"
+    touch(root, "NOTES.md", "notebook/a.md", "notebook/b.md", "docs/notes/c.md", "notes/.hidden")
+    escaped = re.sub(r"[^A-Za-z0-9-]", "-", str(root.resolve()))
+    memory = home / ".claude" / "projects" / escaped / "memory"
+    touch(memory, "MEMORY.md", "style.md")
+    found = [
+        (n.kind, n.path.relative_to(root if n.kind == "notes" else home), n.n)
+        for n in run(root, home).notes
+    ]
+    assert found == [
+        ("notes", Path("NOTES.md"), 1),
+        ("notes", Path("notebook"), 2),
+        ("notes", Path("docs/notes"), 1),
+        ("memory", memory.relative_to(home), 2),
+    ]
+
+
+def test_claude_memory_folder_name(tmp_path, home):
+    root = tmp_path / "a b" / ".c_d"
+    root.mkdir(parents=True)
+    expected = str(root.resolve()).replace("/", "-").replace(".", "-").replace(" ", "-")
+    expected = expected.replace("_", "-")
+    touch(home / ".claude" / "projects" / expected / "memory", "m.md")
+    assert [n.kind for n in run(root, home).notes] == ["memory"]
+
+
+def test_logdir_notes_are_not_offered(tmp_path, home):
+    touch(tmp_path, "beamtime/notes/n.md", "beamtime/memory/m.md")
+    assert run(tmp_path, home).notes == ()
+
+
+def test_stale_is_empty_here(tmp_path, home):
+    assert run(tmp_path, home).stale == ()

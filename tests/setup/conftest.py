@@ -7,7 +7,7 @@ import pytest
 
 @pytest.fixture
 def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Point HOME and the XDG directories at a folder of the test, so nothing real is touched.
+    """Point HOME, the XDG directories and the index cache at a folder of the test, so nothing real is touched.
 
     :param tmp_path: The test's temporary directory.
     :param monkeypatch: The environment patcher.
@@ -17,6 +17,7 @@ def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(home / ".config"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(home / ".cache"))
+    monkeypatch.setenv("BEAMTIME_CACHE", str(home / ".cache" / "beamtime"))
     return home
 
 
@@ -37,3 +38,25 @@ def project_tree(tmp_path: Path) -> Path:
     for dist in ("beamtime-0.2.0", "starlette-0.40.0", "uvicorn-0.30.0"):
         (packages / f"{dist}.dist-info").mkdir(parents=True)
     return root
+
+
+@pytest.fixture
+def tools(tmp_path: Path):
+    """Make a folder of fake programs and give back a function that makes a ``PATH`` from it.
+
+    :param tmp_path: The test's temporary directory.
+    :return: A function taking program names and returning the ``PATH`` that finds exactly those."""
+
+    def make(*names: str) -> str:
+        """Create the programs.
+
+        :param names: The program names.
+        :return: The ``PATH`` value."""
+        folder = tmp_path / "bin"
+        folder.mkdir(exist_ok=True)
+        for name in names:
+            (folder / name).write_text("#!/bin/sh\n")
+            (folder / name).chmod(0o755)
+        return str(folder)
+
+    return make

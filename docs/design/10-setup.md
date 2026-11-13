@@ -66,7 +66,7 @@ Running `beamtime init` in a project that is set up and current says so in one l
 | python | the project environment and its tool: `uv` (`uv.lock` or `[tool.uv]`), `poetry` (`poetry.lock`), `conda` (`environment.yml`, an active `CONDA_PREFIX`), `pip` (`.venv/`, `venv/`, `requirements*.txt`); its Python version and whether it has Beamtime, read from its `site-packages` (`beamtime-*.dist-info`), not by importing |
 | code | the framework (`lightning`, `pytorch_lightning` imported by a `*.py` at depth ≤ 2), job scripts (`*.sbatch`, `#SBATCH` lines; hosts they name) |
 | past runs | TensorBoard event files, `wandb/offline-run-*`, `mlruns/` and `mlflow.db`, Beamtime runs (`_run.json`) outside the log dir; Beamtime log dirs this machine's index cache knows (other projects) |
-| notes and memory | `NOTES.md`, `notes/`, `notebook/`, `journal/`, `*.md` in a `docs/notes`-like folder; Claude Code's project memory (`~/.claude/projects/<escaped root>/memory/`) |
+| notes and memory | `NOTES.md`, `notes/`, `notebook/`, `journal/`, `*.md` in a `docs/notes`-like folder; Claude Code's project memory (`~/.claude/projects/<escaped root>/memory/`, the root's absolute path with every character outside `A-Za-z0-9-` as `-`, so `/` and `.` but also a space or `~`) |
 | agents | per client in the [client table](#agent-clients): its project files, its command on `PATH`; its instruction files and the Beamtime rules block in them, with its release |
 | conflicts | lines in instruction files that send experimental results elsewhere (`NOTES.md`, "results", "experiment log", "keep notes in"), by a small fixed pattern list; reported with file and line |
 | ssh hosts | `Host` entries of `~/.ssh/config` (and its `Include`s), without wildcards |
@@ -78,6 +78,14 @@ the others and combines with them in the flow), else `teammate`, else `update` f
 `beamtime.yaml`, `first` for neither, and `current` for a `beamtime.yaml` with nothing missing. A job
 script names a host when an ssh alias or host name appears in it as a whole word; the environment
 is `None` when the project has none. `no display` counts only on Linux; macOS and Windows always have one.
+
+The agents are the clients of the table with a project file (their MCP config, `.claude/`, `.cursor/`,
+`.gemini/`, `CLAUDE.md`, `GEMINI.md`) or their command on `PATH`; a shared `AGENTS.md` alone names none.
+Each carries its rules file and, when it holds the block, the release that wrote it. Past runs are
+looked for to depth 3 below the root, outside the log dir, hidden folders and environments; a folder
+with event files, `offline-run-*` folders, `mlruns/`, `mlflow.db` or a `_run.json` is a source, and
+sibling folders of one kind merge into their parent (`tb_logs/model/version_0`, `version_1` are one
+source, `tb_logs/model`). CSV files are never looked for, only taken from a path the user adds.
 
 The other projects' log dirs come from the index cache: each cache records the log dir it indexes as
 `logdir` in its `meta` table (new with this release; written on open, so a cache in use since

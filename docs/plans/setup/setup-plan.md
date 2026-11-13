@@ -288,7 +288,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 3. `Scan.flow` is computed after S12's agent facts exist; until then teammate detection uses only project remotes
    missing from the user settings.
 
-### S12. Scan: agents, rules, conflicts, past work, stale (sonnet) — code
+### S12. Scan: agents, rules, conflicts, past work, stale (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/setup/scan.py`, `tests/setup/test_scan.py`, `tests/setup/conftest.py`.
 - **Read:** `docs/design/10-setup.md` § The scan; § Agent clients; § Notes and memory files.

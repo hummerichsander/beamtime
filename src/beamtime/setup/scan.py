@@ -9,13 +9,15 @@ import sys
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from beamtime.format.constants import RUN
-from beamtime.index.cache import NETWORK_FS
+from beamtime.guide.rules import END, find_block, read_block, release_of
+from beamtime.index.cache import NETWORK_FS, known_logdirs
 from beamtime.ops.admin import SKIP
 from beamtime.sdk.paths import DEFAULT_LOGDIR, SETTINGS
 from beamtime.settings import read_level
+from beamtime.setup.importers import PRUNED, Found, detect
 
 Flow = Literal["first", "teammate", "cluster", "update", "current"]
 
@@ -25,6 +27,30 @@ JOB_SUFFIXES = (".sbatch", ".slurm", ".sh", ".pbs", ".lsf", ".job")
 SCRATCH_VARS = ("SCRATCH", "SCRATCHDIR", "WORK", "WORKDIR", "PROJECT")
 LIGHTNING = re.compile(r"^\s*(?:import|from)\s+(?:pytorch_lightning|lightning)\b", re.MULTILINE)
 READ_BYTES = 1 << 20
+PAST_DEPTH = 3
+EVENT_PREFIX = "events.out.tfevents."
+COMMANDS = {
+    "claude-code": "claude",
+    "codex": "codex",
+    "cursor": "cursor",
+    "vscode": "code",
+    "gemini": "gemini",
+    "opencode": "opencode",
+    "windsurf": "windsurf",
+}
+# files and folders that show a client is used in a project, besides its MCP config.
+MARKERS = {
+    "claude-code": (".claude", "CLAUDE.md"),
+    "cursor": (".cursor",),
+    "gemini": (".gemini", "GEMINI.md"),
+}
+CONFLICT = re.compile(
+    r"NOTES\.md|results? (?:go|belong|are kept) in|experiment log|keep (?:notes|results) in"
+    r"|lab notebook",
+    re.IGNORECASE,
+)
+NOTE_PATHS = ("NOTES.md", "notes", "notebook", "journal")
+NOTE_DOCS = ("notes", "notebook", "journal")
 
 
 @dataclass(frozen=True)
@@ -91,6 +117,44 @@ class Disk:
 
 
 @dataclass(frozen=True)
+class AgentFound:
+    """An agent client found in the project or on this machine, and the rules block in its file."""
+
+    client: str
+    label: str
+    command: str | None
+    files: tuple[str, ...]
+    rules_file: str
+    has_block: bool
+    release: str | None
+
+
+class Conflict(NamedTuple):
+    """A line of an instruction file that sends experimental results elsewhere."""
+
+    file: str
+    line: int
+    text: str
+
+
+@dataclass(frozen=True)
+class Past:
+    """Runs of another tool, or of another Beamtime log dir, that could come in."""
+
+    found: Found
+    other: bool
+
+
+@dataclass(frozen=True)
+class Notes:
+    """A file or folder of notes or memory, and how many files it holds."""
+
+    kind: Literal["notes", "memory"]
+    path: Path
+    n: int
+
+
+@dataclass(frozen=True)
 class Scan:
     """Everything the wizard looks at before it asks."""
 
@@ -105,6 +169,11 @@ class Scan:
     disks: tuple[Disk, ...]
     scheduler: str | None
     display: bool
+    agents: tuple[AgentFound, ...]
+    conflicts: tuple[Conflict, ...]
+    past: tuple[Past, ...]
+    notes: tuple[Notes, ...]
+    stale: tuple[str, ...]
     flow: Flow
 
 
@@ -143,6 +212,11 @@ def scan(
         disks=disks,
         scheduler=scheduler,
         display=display,
+        agents=read_agents(root, home, env),
+        conflicts=find_conflicts(root),
+        past=find_past(root, project.logdir),
+        notes=find_notes(root, home, project.logdir),
+        stale=(),
         flow=pick_flow(project, user_remotes, scheduler, display, disks),
     )
 
@@ -477,3 +551,174 @@ def has_display(env: Mapping[str, str]) -> bool:
     if sys.platform in ("darwin", "win32"):
         return True
     return bool(env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"))
+
+
+def read_agents(root: Path, home: Path, env: Mapping[str, str]) -> tuple[AgentFound, ...]:
+    """Find the agent clients that are used in the project or installed on this machine.
+
+    :param root: The project root.
+    :param home: The home directory.
+    :param env: The environment variables.
+    :return: One entry per client found, in the order of the client table."""
+    from beamtime.setup.agents import CLIENTS, expand_home
+
+    found = []
+    for client in CLIENTS:
+        if client.name not in COMMANDS:
+            continue
+        command = shutil.which(COMMANDS[client.name], path=env.get("PATH") or "")
+        names = [client.config, *MARKERS.get(client.name, ())]
+        present = tuple(
+            n for n in names if (expand_home(n, home) if n.startswith("~/") else root / n).exists()
+        )
+        if not command and not present:
+            continue
+        block = read_block(root / client.rules) if (root / client.rules).is_file() else None
+        found.append(
+            AgentFound(
+                client=client.name,
+                label=client.label,
+                command=command,
+                files=present,
+                rules_file=client.rules,
+                has_block=block is not None,
+                release=release_of(block) if block is not None else None,
+            )
+        )
+    return tuple(found)
+
+
+def find_conflicts(root: Path) -> tuple[Conflict, ...]:
+    """Find lines in the instruction files that send experimental results elsewhere.
+
+    Lines inside the Beamtime rules block are Beamtime's own words and are skipped.
+
+    :param root: The project root.
+    :return: The conflicts, by file and line."""
+    from beamtime.setup.agents import CLIENTS
+
+    found = []
+    for name in dict.fromkeys(c.rules for c in CLIENTS if c.rules):
+        if not (path := root / name).is_file():
+            continue
+        text = path.read_text(errors="replace")
+        block = find_block(text)
+        offset = 0
+        for number, line in enumerate(text.splitlines(keepends=True), start=1):
+            inside = block is not None and block[0] <= offset < block[1] + len(END)
+            if not inside and CONFLICT.search(line):
+                found.append(Conflict(name, number, line.strip()))
+            offset += len(line)
+    return tuple(found)
+
+
+def find_past(root: Path, logdir: Path) -> tuple[Past, ...]:
+    """Find runs of other tools below the root and Beamtime log dirs this machine knows.
+
+    :param root: The project root.
+    :param logdir: The project's own log dir, which is never offered.
+    :return: The sources below the root first, then the other log dirs."""
+    markers = past_markers(root, logdir)
+    found = []
+    for path in sorted(collapse(markers, root, logdir)):
+        if path == logdir or logdir.is_relative_to(path.resolve()):
+            continue
+        if (source := detect(path)) is not None and source.kind != "csv":
+            found.append(Past(source, other=False))
+    for other in known_logdirs():
+        if other.resolve() != logdir and (source := detect(other)) is not None:
+            found.append(Past(source, other=True))
+    return tuple(found)
+
+
+def past_markers(root: Path, logdir: Path) -> dict[Path, str]:
+    """Walk the root to a fixed depth and note the folders that hold another tool's runs.
+
+    :param root: The project root.
+    :param logdir: The project's own log dir, which is skipped.
+    :return: The folder (or the file of an MLflow database at the root) by kind of source."""
+    markers: dict[Path, str] = {}
+    for d, dirs, names in os.walk(root):
+        here = Path(d)
+        depth = len(here.relative_to(root).parts)
+        keep = []
+        for x in sorted(dirs):
+            if x.startswith(".") or x in SKIP or x in PRUNED or (here / x).resolve() == logdir:
+                continue
+            if x == "mlruns":
+                markers[here / x] = "mlflow"
+            elif x.startswith("offline-run-") and depth:
+                markers[here] = "wandb"
+            else:
+                keep.append(x)
+        if "mlflow.db" in names:
+            markers[here / "mlflow.db" if depth == 0 else here] = "mlflow"
+        if depth and any(n.startswith(EVENT_PREFIX) for n in names):
+            markers[here] = "tensorboard"
+        if depth and RUN in names:
+            markers[here] = "beamtime"
+        dirs[:] = [] if depth >= PAST_DEPTH or here in markers else keep
+    return markers
+
+
+def collapse(markers: dict[Path, str], root: Path, logdir: Path) -> set[Path]:
+    """Merge sibling folders of one kind into their parent, so a tree of runs is one source.
+
+    A parent that holds another kind of source, or the log dir, is left alone.
+
+    :param markers: The folders by kind of source.
+    :param root: The project root, which is never a source itself.
+    :param logdir: The project's own log dir.
+    :return: The paths to detect."""
+    markers = dict(markers)
+    while True:
+        siblings: dict[Path, list[Path]] = {}
+        for path in markers:
+            siblings.setdefault(path.parent, []).append(path)
+        for parent, children in siblings.items():
+            alone = not any(parent in p.parents and p not in children for p in markers)
+            if (
+                parent != root
+                and len(children) > 1
+                and len({markers[c] for c in children}) == 1
+                and alone
+                and not logdir.is_relative_to(parent.resolve())
+            ):
+                kind = markers[children[0]]
+                markers = {p: k for p, k in markers.items() if p not in children} | {parent: kind}
+                break
+        else:
+            return set(markers)
+
+
+def find_notes(root: Path, home: Path, logdir: Path) -> tuple[Notes, ...]:
+    """Find notes files and folders in the project, and Claude Code's memory for it.
+
+    :param root: The project root.
+    :param home: The home directory.
+    :param logdir: The project's own log dir, whose notes are Beamtime's already.
+    :return: The notes, then the memory."""
+    found = []
+    for path in [root / n for n in NOTE_PATHS] + [root / "docs" / n for n in NOTE_DOCS]:
+        own = path.resolve() == logdir or logdir in path.resolve().parents
+        if path.exists() and not own and (n := count_files(path)):
+            found.append(Notes("notes", path, n))
+    escaped = re.sub(r"[^A-Za-z0-9-]", "-", str(root.resolve()))
+    memory = home / ".claude" / "projects" / escaped / "memory"
+    if memory.is_dir() and (n := count_files(memory)):
+        found.append(Notes("memory", memory, n))
+    return tuple(found)
+
+
+def count_files(path: Path) -> int:
+    """Count the files of a notes folder, without hidden ones.
+
+    :param path: A file or a folder.
+    :return: The number of files."""
+    if path.is_file():
+        return 1
+    total = 0
+    for _, dirs, names in os.walk(path):
+        dirs[:] = [x for x in dirs if not x.startswith(".")]
+        total += sum(not n.startswith(".") for n in names)
+    return total
