@@ -466,7 +466,8 @@ the preview), so imported runs are ordinary runs. The originals are never touche
   crash leaves a folder no reader sees. `find_imported` walks `imported/` only. `detect` tells a
   path's source from file names alone (`events.out.tfevents.*`, `offline-run-*/*.wandb`,
   `mlflow.db` and `meta.yaml` beside `params/` or `metrics/`, `_run.json`, `*.csv`), skipping `.git`,
-  `.venv` and `node_modules`; `Found(kind, path, n, label)` carries the count and the review's line.
+  `.venv`, `node_modules` and `__pycache__`; `Found(kind, path, n, label)` carries the count and the
+  review's line.
 - **CSV details.** The first of `step`, `epoch`, `iteration` (any case) is the step; without one the
   row index is. Rows are written in step order. Cells that are not numbers, empty cells and columns
   that begin with `_` are skipped. A CSV carries no times, so `created_at` and `ended_at` are the

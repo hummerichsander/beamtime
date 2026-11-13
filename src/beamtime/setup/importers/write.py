@@ -46,7 +46,7 @@ def write_run(logdir: Path, dest: str, imported: Imported, provenance: dict[str,
     run_id = new_run_id(now=datetime.fromtimestamp(imported.created_at, timezone.utc))
     d = logdir / dest / run_id
     d.mkdir(parents=True)
-    host = socket.gethostname()
+    host = imported.host or {}
     source = {"id": imported.source_id} if imported.source_id else {}
     info = {
         "schema": 1,
@@ -56,13 +56,21 @@ def write_run(logdir: Path, dest: str, imported: Imported, provenance: dict[str,
         "status": imported.status,
         "created_at": iso(imported.created_at),
         "ended_at": iso(end) if end is not None else None,
-        "attempts": [{"started_at": iso(imported.created_at), "host": None, "resume_step": None}],
+        "attempts": [
+            {
+                "started_at": iso(imported.created_at),
+                "host": host.get("hostname"),
+                "resume_step": None,
+            }
+        ],
         "proposals": {},
         "proposal_hashes": {},
-        "host": imported.host or {},
+        "host": host,
         "git": imported.git,
         "command": imported.command or [],
-        "imported_from": provenance | source | {"host": host, "at": iso(time.time())},
+        "imported_from": provenance
+        | source
+        | {"host": socket.gethostname(), "at": iso(time.time())},
     }
     write_replaced(d / c.CONFIG, {"schema": 1, **imported.config})
     write_bytes_replaced(d / c.METRICS, b"".join(json_line(r) for r in rows))

@@ -131,6 +131,14 @@ def test_source_id_tells_runs_of_one_path_apart(logdir: Path) -> None:
     assert read_json(first / c.RUN)["imported_from"]["id"] == "a"
 
 
+def test_attempt_carries_source_host(logdir: Path) -> None:
+    """The first attempt names the host the source ran on, like an SDK run."""
+    (imported,) = csv_source.runs(FIXTURES / "train.csv")
+    imported.host = {"hostname": "node07"}
+    d = write_run(logdir, "imported/x", imported, {"kind": "csv", "path": "/x/a.csv"})
+    assert read_json(d / c.RUN)["attempts"][0]["host"] == "node07"
+
+
 def test_detect_csv(tmp_path: Path) -> None:
     """A CSV file is one run; a folder counts its CSV files."""
     assert importers.detect(FIXTURES / "train.csv") == importers.Found(
