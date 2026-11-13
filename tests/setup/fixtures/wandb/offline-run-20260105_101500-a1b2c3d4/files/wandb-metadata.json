@@ -1,0 +1,11 @@
+{
+  "os": "Linux-5.15.0-x86_64",
+  "python": "3.11.9",
+  "startedAt": "2026-01-05T10:15:00.000000Z",
+  "program": "train.py",
+  "git": {"remote": "git@example.org:lab/mlp.git", "commit": "9f2c1ab"},
+  "executable": "/usr/bin/python3",
+  "args": ["--lr", "0.001"],
+  "host": "node042",
+  "exitcode": 0
+}

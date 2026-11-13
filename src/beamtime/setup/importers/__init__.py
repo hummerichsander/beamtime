@@ -27,6 +27,7 @@ class Found:
     path: Path
     n: int
     label: str
+    note: str = ""
 
 
 @dataclass(kw_only=True)
@@ -52,11 +53,13 @@ def detect(path: Path) -> Found | None:
 
     :param path: A file or a folder.
     :return: The first source found, or ``None``."""
-    from beamtime.setup.importers import csv
+    from beamtime.setup.importers import csv, wandb
 
     counts = count_names(path)
     for kind in SOURCES:
         if n := counts[kind]:
+            if kind == "wandb":
+                return wandb.detect(path)
             return Found(kind=kind, path=path, n=n, label=label(kind, n))
     return csv.detect(path)
 

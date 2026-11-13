@@ -443,7 +443,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 - **Risks:** a truncated last record ends the stream quietly (`test_tb_truncated`); several event files in one run
   directory merge by step (`test_tb_multiple_files`).
 
-### I14. W&B offline (sonnet) — code
+### I14. W&B offline (sonnet) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/importers/wandb.py`, fixtures in new `tests/setup/fixtures/wandb/`,
   `tests/setup/test_importers.py`.

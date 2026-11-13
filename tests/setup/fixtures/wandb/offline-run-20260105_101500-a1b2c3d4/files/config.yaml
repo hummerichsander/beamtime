@@ -1,0 +1,16 @@
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.19.1
+    python_version: 3.11.9
+lr:
+  desc: null
+  value: 0.001
+model:
+  desc: null
+  value: mlp
+layers:
+  desc: null
+  value:
+    - 64
+    - 64

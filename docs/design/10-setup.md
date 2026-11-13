@@ -445,7 +445,7 @@ the preview), so imported runs are ordinary runs. The originals are never touche
 | Source | Reads | Without |
 |---|---|---|
 | TensorBoard | event files (TFRecord framing and the `Event`/`Summary` protobuf messages decoded in pure Python: scalars as `simple_value` and as scalar tensors); `hparams.yaml` next to them (Lightning) as config | images, histograms and text are not imported |
-| W&B offline | `offline-run-*/files/config.yaml`, `wandb-metadata.json` (host, git, command), `wandb-summary.json`; the history from the `.wandb` file through the `wandb` package's datastore reader | without `wandb` installed, the summary only, and the review says so |
+| W&B offline | `offline-run-*/files/config.yaml`, `wandb-metadata.json` (host, git, command), `wandb-summary.json`; the history from the `.wandb` file through the `wandb` package's datastore reader | without `wandb` installed, the summary as a one-step run, and the review says so (`Found.note`) |
 | MLflow | the file store (`mlruns/<exp>/<run>/meta.yaml`, `metrics/`, `params/`, `tags/`) and the SQLite store (`mlflow.db`: `runs`, `metrics`, `params`, `tags`) with the standard library; status, times, git commit from `mlflow.source.git.commit` | artifacts are not imported |
 | CSV | one run per file; a `step` (or `epoch`, `iteration`) column as the step, the other numeric columns as metrics | config |
 | Beamtime | a log dir or runs outside the log dir, copied as they are ([below](#beamtime-log-dirs)) | – |
@@ -469,8 +469,8 @@ the preview), so imported runs are ordinary runs. The originals are never touche
   crash leaves a folder no reader sees. `find_imported` walks `imported/` only. `detect` tells a
   path's source from file names alone (`events.out.tfevents.*`, `offline-run-*/*.wandb`,
   `mlflow.db` and `meta.yaml` beside `params/` or `metrics/`, `_run.json`, `*.csv`), skipping `.git`,
-  `.venv`, `node_modules` and `__pycache__`; `Found(kind, path, n, label)` carries the count and the
-  review's line.
+  `.venv`, `node_modules` and `__pycache__`; `Found(kind, path, n, label, note)` carries the count, the
+  review's line and a note (W&B: that the history needs the package).
 - **CSV details.** The first of `step`, `epoch`, `iteration` (any case) is the step; without one the
   row index is. Rows are written in step order. Cells that are not numbers, empty cells and columns
   that begin with `_` are skipped. A CSV carries no times, so `created_at` and `ended_at` are the
@@ -499,6 +499,22 @@ the preview), so imported runs are ordinary runs. The originals are never touche
   summary is left out and counted in `skipped` by the kind (`images`, `histograms`, `audio`, the
   plugin's name for tensors, `tensors` without one), each tag once. `hparams.yaml` in the folder is
   the config, empty when unreadable. Values stay as stored, so a float32 reads as its double.
+
+- **W&B details.** Every `offline-run-*` folder with a `.wandb` file at or below the path is one run;
+  the name and the source id are the run id (the folder name after its last `-`), the group is empty.
+  `config.yaml` entries are `{desc, value}` and import as their `value`, without `_wandb` and
+  `wandb_version`. `host` is `{hostname, os, python}` from `wandb-metadata.json`, `git` as it stands
+  there, and the command is `executable`, `program` and `args`. `created_at` is `startedAt`, else the
+  summary's `_timestamp` less its `_runtime`, else the folder's modification time; `ended_at` is the
+  summary's `_timestamp`, else `created_at` plus `_runtime`. The status is `failed` for a non-zero
+  `exit_code` (or `exitcode`) in the summary, then the metadata, and `finished` otherwise. The history
+  reader is `wandb.sdk.internal.datastore.DataStore` (`open_for_scan`, `scan_data`) with
+  `wandb.proto.wandb_internal_pb2.Record`, whose `history` records carry `item.key` or `nested_key`
+  and `item.value_json`; both exist in the `wandb` releases checked (0.12.21, 0.19.11, 0.21.4, 0.24.0 to 0.28.2) and not
+  in 0.30.0, where the reader counts as missing. A history record is a `{"_step", "_t", key}` record: the numeric values
+  only, keys that begin with `_` and booleans and text left out, media (`{"_type": ...}`) counted in
+  `skipped` by type. A run cut off mid-write keeps the records before the cut. When there is no
+  history, the summary's numeric values are the run's one record at step 0.
 
 ### Beamtime log dirs
 

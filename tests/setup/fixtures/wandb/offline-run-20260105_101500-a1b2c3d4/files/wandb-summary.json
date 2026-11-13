@@ -1,0 +1,1 @@
+{"_runtime": 42.5, "_step": 2, "_timestamp": 1767608142.5, "_wandb": {"runtime": 42}, "loss": 0.21, "acc": 0.93, "note": "text", "samples": {"_type": "image-file", "count": 4}}

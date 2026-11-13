@@ -1,10 +1,12 @@
-"""The importer interface, the run writer and the CSV, MLflow and TensorBoard sources."""
+"""The importer interface, the run writer and the CSV, MLflow, TensorBoard and W&B sources."""
 
 import json
 import math
 import shutil
 import sqlite3
 import struct
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -20,6 +22,7 @@ from beamtime.setup.importers import Imported
 from beamtime.setup.importers import csv as csv_source
 from beamtime.setup.importers import mlflow as mlflow_source
 from beamtime.setup.importers import tensorboard as tb_source
+from beamtime.setup.importers import wandb as wandb_source
 from beamtime.setup.importers import write
 from beamtime.setup.importers.write import write_run
 
@@ -628,3 +631,134 @@ def test_tb_negative_step_and_no_events(tmp_path: Path) -> None:
     (tmp_path / "events.out.tfevents.1").write_bytes(b"")
     run = only(tmp_path)
     assert run.rows == [] and run.created_at > 0
+
+
+WANDB = Path(__file__).parent / "fixtures" / "wandb"
+
+
+def fake_reader(monkeypatch: pytest.MonkeyPatch, *records: dict) -> None:
+    """Stand in for the ``wandb`` package's datastore reader.
+
+    :param monkeypatch: The patcher.
+    :param records: The history records every ``.wandb`` file yields."""
+    monkeypatch.setattr(wandb_source, "reader", lambda: lambda path: iter(records))
+
+
+def wandb_runs() -> dict[str, Imported]:
+    """Read the W&B fixtures.
+
+    :return: The runs by source id."""
+    return {r.source_id: r for r in wandb_source.runs(WANDB)}
+
+
+def test_wandb_without_package(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without the package, config, metadata and the summary import as a one-step run."""
+    monkeypatch.setattr(wandb_source, "reader", lambda: None)
+    found = importers.detect(WANDB)
+    assert (found.kind, found.n, found.label) == ("wandb", 2, "2 W&B offline runs")
+    assert found.note == "history needs the wandb package"
+    run = wandb_runs()["a1b2c3d4"]
+    assert run.config == {"lr": 0.001, "model": "mlp", "layers": [64, 64]}
+    assert run.host == {"hostname": "node042", "os": "Linux-5.15.0-x86_64", "python": "3.11.9"}
+    assert run.git == {"remote": "git@example.org:lab/mlp.git", "commit": "9f2c1ab"}
+    assert run.command == ["/usr/bin/python3", "train.py", "--lr", "0.001"]
+    assert run.rows == [{"_step": 0, "_t": 1767608142.5, "loss": 0.21, "acc": 0.93}]
+    assert run.skipped == {"image-file": 1}
+    assert (run.created_at, run.ended_at, run.status) == (1767608100.0, 1767608142.5, "finished")
+
+
+def test_wandb_history_through_the_reader(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With a reader, the history rows replace the summary row; media and text are left out."""
+    fake_reader(
+        monkeypatch,
+        {"_step": 0, "_timestamp": 1767608110.0, "loss": 1.0, "_runtime": 10, "tag": "x"},
+        {"_step": 1, "_timestamp": 1767608120.0, "loss": 0.5, "ok": True},
+        {"loss": 0.25, "img": {"_type": "image-file"}},
+    )
+    assert importers.detect(WANDB).note == ""
+    run = wandb_runs()["a1b2c3d4"]
+    assert run.rows == [
+        {"_step": 0, "_t": 1767608110.0, "loss": 1.0},
+        {"_step": 1, "_t": 1767608120.0, "loss": 0.5},
+        {"_step": 2, "_t": run.created_at, "loss": 0.25},
+    ]
+    assert run.skipped == {"image-file": 1}
+
+
+def test_wandb_status_from_exit_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A non-zero exit code is a failed run; the summary's wins over the metadata's."""
+    monkeypatch.setattr(wandb_source, "reader", lambda: None)
+    runs = wandb_runs()
+    assert (runs["a1b2c3d4"].status, runs["e5f6a7b8"].status) == ("finished", "failed")
+    assert wandb_source.status_of({"exitcode": 1}, {"exit_code": 0}) == "finished"
+    assert wandb_source.status_of({}, {}) == "finished"
+
+
+def test_wandb_sparse_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A run with little metadata still imports: times from the summary, no host, git or command."""
+    monkeypatch.setattr(wandb_source, "reader", lambda: None)
+    run = wandb_runs()["e5f6a7b8"]
+    assert run.config == {"lr": 0.1}
+    assert (run.git, run.command) == (None, ["train.py"])
+    assert (run.created_at, run.ended_at) == (1767686400.0, 1767686403.0)
+    assert run.host == {"hostname": "node007"}
+
+
+def test_wandb_import_reads_like_a_run(logdir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An imported W&B run is an ordinary run with provenance, and a rerun adds nothing."""
+    monkeypatch.setattr(wandb_source, "reader", lambda: None)
+    for _ in range(2):
+        for imported in wandb_source.runs(WANDB):
+            write_run(
+                logdir, "imported/wandb", imported, {"kind": "wandb", "path": str(WANDB.resolve())}
+            )
+    folders = list((logdir / "imported" / "wandb").iterdir())
+    assert len(folders) == 2
+    origins = {read_json(d / c.RUN)["imported_from"]["id"]: d for d in folders}
+    assert read_run_info(origins["e5f6a7b8"]).status == "failed"
+    assert read_json(origins["a1b2c3d4"] / c.RUN)["imported_from"]["kind"] == "wandb"
+
+
+def test_wandb_history_without_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A folder without files/ still imports from the history alone."""
+    touch(tmp_path, "offline-run-20260101_000000-zz/run-zz.wandb")
+    fake_reader(monkeypatch, {"_step": 3, "_timestamp": 5.0, "x": 2.0})
+    (run,) = wandb_source.runs(tmp_path)
+    assert run.config == {} and run.rows == [{"_step": 3, "_t": 5.0, "x": 2.0}]
+    assert run.status == "finished" and run.created_at > 0
+
+
+def test_wandb_reader_decodes_datastore_records(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The reader scans the datastore, keeps history records and joins nested keys."""
+
+    class Item:
+        def __init__(self, key: str, value: object, nested: tuple[str, ...] = ()) -> None:
+            self.key, self.nested_key, self.value_json = key, list(nested), json.dumps(value)
+
+    class Record:
+        def ParseFromString(self, data: tuple[str, list[Item]]) -> None:
+            self.kind, self.history = data[0], types.SimpleNamespace(item=data[1])
+
+        def WhichOneof(self, _: str) -> str:
+            return self.kind
+
+    class DataStore:
+        def open_for_scan(self, path: str) -> None:
+            self.left = [("run", []), ("history", [Item("loss", 1.5), Item("", 2, ("a", "b"))])]
+
+        def scan_data(self) -> tuple[str, list[Item]] | None:
+            return self.left.pop(0) if self.left else None
+
+    modules = {
+        "wandb": types.ModuleType("wandb"),
+        "wandb.proto": types.ModuleType("wandb.proto"),
+        "wandb.proto.wandb_internal_pb2": types.SimpleNamespace(Record=Record),
+        "wandb.sdk": types.ModuleType("wandb.sdk"),
+        "wandb.sdk.internal": types.ModuleType("wandb.sdk.internal"),
+        "wandb.sdk.internal.datastore": types.SimpleNamespace(DataStore=DataStore),
+    }
+    modules["wandb.proto"].wandb_internal_pb2 = modules["wandb.proto.wandb_internal_pb2"]
+    for name, module in modules.items():
+        monkeypatch.setitem(sys.modules, name, module)
+    read = wandb_source.reader()
+    assert list(read(Path("run.wandb"))) == [{"loss": 1.5, "a.b": 2}]
