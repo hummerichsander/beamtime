@@ -238,13 +238,15 @@ def plan(
     :param which: Looks up a program on ``PATH``.
     :return: The changes in the order they are applied: project, machine, agents, imports.
     :raises ValueError: An answer can't be carried out; the message says why."""
-    return Planner(scan, answers, which).changes()
+    return Planner(scan=scan, answers=answers, which=which).changes()
 
 
 class Planner:
     """Turns the answers into changes, one group at a time."""
 
-    def __init__(self, scan: "Scan", answers: Answers, which: Callable[[str], str | None]) -> None:
+    def __init__(
+        self, *, scan: "Scan", answers: Answers, which: Callable[[str], str | None]
+    ) -> None:
         """Read the project's settings and normalise the log dir answers.
 
         :param scan: The facts of the project and the machine.
@@ -566,6 +568,8 @@ class Planner:
 
         :return: The changes.
         :raises ValueError: A path holds nothing to import or lies in this project's log dir."""
+        from beamtime.setup.importers import detect
+
         out: list[Change] = []
         names: set[str] = set()
         for text in self.answers.imports:
@@ -574,36 +578,40 @@ class Planner:
                 raise ValueError(f"--import {text}: no such file or folder")
             if path.is_relative_to((self.root / expand_path(self.logdir)).resolve()):
                 raise ValueError(f"--import {text}: this is inside the project's own log dir")
-            from beamtime.setup.importers import detect
-
             if (found := detect(path)) is None:
                 raise ValueError(f"--import {text}: no runs found there")
             if found.kind == "beamtime":
-                out.append(self.beamtime_import(path, names))
+                out.append(self.beamtime_import(text, path, names))
             else:
                 out.append(self.runs_import(found, names))
         return out
 
-    def beamtime_import(self, path: Path, names: set[str]) -> Change:
+    def beamtime_import(self, text: str, path: Path, names: set[str]) -> Change:
         """Plan copying a Beamtime log dir, with the bytes to copy in the review.
 
-        A folder inside another log dir is imported through that log dir's root, since membership
-        keys start there.
+        A folder inside another log dir is imported through that log dir's root, and a project
+        through its log dir, since membership keys start there.
 
-        :param path: A log dir, a run, or a folder inside a log dir.
+        :param text: The path as typed.
+        :param path: A log dir, a run, a folder inside a log dir, or a project.
         :param names: The folders below ``imported/`` taken by earlier imports; extended.
-        :return: The change."""
+        :return: The change.
+        :raises ValueError: The path is this project, whose own log dir it would import."""
         from beamtime.format.tree import is_run
         from beamtime.setup.importers import detect
         from beamtime.setup.importers.beamtime import Copier, copy_logdir
 
         source = path if is_run(path) else log_root(path)
+        dest = self.root / expand_path(self.logdir)
+        if source == self.root or source.is_relative_to(dest.resolve()):
+            raise ValueError(f"--import {text}: this is the project's own log dir")
         found = detect(source)
         name = unique(import_name(source), names)
-        dest = self.root / expand_path(self.logdir)
         size = Copier(logdir=dest, source=source, name=name).size()
         after = f"{source} -> imported/{name}/, {format_bytes(size)} copied byte for byte"
-        if source != path:
+        if (path / "beamtime.yaml").is_file():
+            after += f"\n{path} is a project, so its log dir is imported"
+        elif source != path:
             after += f"\n{path} is inside this log dir, so all of it is imported"
 
         def run() -> str:
@@ -667,9 +675,8 @@ class Planner:
             if not p.exists():
                 raise ValueError(f"--import-notes/--import-memory {t}: no such file or folder")
         texts = [f for p in paths for f in files(p)]
-        n = sum(read_text(f) is not None for f in texts)
         skipped = [f.name for f in texts if read_text(f) is None]
-        after = f"{n} notes, as written"
+        after = f"{len(texts) - len(skipped)} notes, as written"
         if skipped:
             after += f"\nbinary files skipped: {', '.join(skipped)}"
 
@@ -832,13 +839,16 @@ def unique(name: str, taken: set[str]) -> str:
 def log_root(path: Path) -> Path:
     """Find the root of the log dir a folder lies in, so a group is never imported as a root.
 
-    A log dir is one this machine's index cache knows or the one a ``beamtime.yaml`` above names.
+    A log dir is one this machine's index cache knows or the one a ``beamtime.yaml`` above names; a
+    project's own ``beamtime.yaml`` names the log dir of a project folder.
 
     :param path: A folder.
     :return: The log dir's root, or the folder itself when it lies in none."""
     from beamtime.index.cache import known_logdirs
     from beamtime.setup.scan import read_project
 
+    if (path / "beamtime.yaml").is_file():
+        return read_project(path).logdir
     roots = [r.resolve() for r in known_logdirs()]
     roots += [
         read_project(parent).logdir

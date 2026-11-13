@@ -507,6 +507,25 @@ def test_import_of_a_folder_in_a_log_dir_goes_through_its_root(
         make_plan(project, home, "--import", str(project / "beamtime" / "imported"))
 
 
+def test_import_of_a_project_goes_through_its_log_dir(
+    project: Path, home: Path, tmp_path: Path
+) -> None:
+    """A project folder imports its log dir, so groups keep their paths; this project is refused."""
+    other = tmp_path / "other"
+    (other / "runs" / "g" / "r1").mkdir(parents=True)
+    (other / "beamtime.yaml").write_text("logdir: runs\n")
+    (other / "runs" / "g" / "r1" / "_run.json").write_text('{"schema": 1, "id": "r1"}')
+
+    (change,) = make_plan(project, home, "--import", str(other))[-1:]
+    assert "is a project, so its log dir is imported" in change.after
+    apply([change])
+    runs = [p.relative_to(project / "beamtime") for p in iter_runs(project / "beamtime" / "imported")]
+    assert runs == [Path("imported/other/g/r1")]
+
+    with pytest.raises(ValueError, match="own log dir"):
+        make_plan(project, home, "--import", str(project))
+
+
 def test_notes_come_in_as_written_unless_an_agent_takes_them(project: Path, home: Path) -> None:
     """Notes files become notes after the log dir exists; ``--migrate-with`` leaves them to the agent."""
     (project / "NOTES.md").write_text("# Findings\n\nlr 1e-3 diverges.\n")

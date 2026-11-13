@@ -573,8 +573,8 @@ its own walk instead of `detect`/`runs`:
 `copy_logdir` takes a log dir's root as its source, since proposal membership keys start there. When
 the path found or typed lies inside a log dir (one the index cache knows, or the one a `beamtime.yaml`
 above it names), `plan()` passes that log dir's root and the review's line says so ("... is inside this
-log dir, so all of it is imported"); a single run is passed as it is, and a path inside the project's
-own log dir is refused. A subfolder is never imported as if it were a root. Checkpoints and other large
+log dir, so all of it is imported"); a project folder passes its log dir (its `beamtime.yaml` names it),
+a single run is passed as it is, and this project or a path inside its own log dir is refused. A subfolder is never imported as if it were a root. Checkpoints and other large
 files are copied byte for byte, and the import's line in the review shows the bytes to copy
 (`Copier.size()`), so the cost is known before the user confirms.
 

@@ -8,7 +8,7 @@ from beamtime.setup.plan import Change
 class ApplyError(Exception):
     """A change failed; what ran before it stays done."""
 
-    def __init__(self, done: list[Change], failed: Change, error: Exception) -> None:
+    def __init__(self, *, done: list[Change], failed: Change, error: Exception) -> None:
         """Record where the apply stopped.
 
         :param done: The changes that ran.
@@ -32,7 +32,7 @@ def apply(changes: list[Change], say: Callable[[str], None] | None = None) -> li
         try:
             result = change.run()
         except Exception as e:
-            raise ApplyError(done, change, e) from e
+            raise ApplyError(done=done, failed=change, error=e) from e
         done.append(change)
         if say is not None:
             say(f"{change.label}: {result}" if result else change.label)
