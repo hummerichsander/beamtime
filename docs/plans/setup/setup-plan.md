@@ -219,7 +219,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 1. Write the key with `INSERT OR REPLACE` inside the schema transaction or on open; no schema version bump.
 2. `known_logdirs` opens each database read-only (`file:...?mode=ro`, `uri=True`, timeout 0.1 s).
 
-### F14. `imported_from` and scoped moves in the format (sonnet + review) — code
+### F14. `imported_from` and scoped moves in the format (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/format/run.py` (`RunInfo` 26–48, `read_run_info` 51), `src/beamtime/format/moves.py`
   (`record` 16, `read` 25, `earlier` 43, `current` 57), `src/beamtime/query/resolve.py` (7, the `current` calls),

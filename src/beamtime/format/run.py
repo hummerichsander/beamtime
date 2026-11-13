@@ -46,6 +46,7 @@ class RunInfo:
     cwd: str | None = None
     beamtime_version: str | None = None
     copied_from: dict[str, Any] | None = None
+    imported_from: dict[str, Any] | None = None
 
 
 def read_run_info(run_dir: Path) -> RunInfo:
@@ -85,6 +86,7 @@ def read_run_info(run_dir: Path) -> RunInfo:
                 cwd=d.get("cwd"),
                 beamtime_version=d.get("beamtime_version"),
                 copied_from=d.get("copied_from"),
+                imported_from=d.get("imported_from"),
             )
         case v:
             raise SchemaError(f"{path}: no reader for run schema {v}.")

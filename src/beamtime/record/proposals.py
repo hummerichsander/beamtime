@@ -326,7 +326,7 @@ class Target:
         return (
             [self.key]
             if self.run_id is not None
-            else [self.rel, *earlier(self.index.logdir, self.rel)]
+            else [self.rel, *earlier(self.index.logdir, self.rel, self.rel)]
         )
 
     def membership(self, version: str) -> tuple[str, list[Any]]:

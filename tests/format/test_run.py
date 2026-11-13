@@ -1,4 +1,6 @@
+import json
 import math
+import shutil
 import time
 from pathlib import Path
 
@@ -142,3 +144,14 @@ def test_proposal_hashes(golden: Path) -> None:
     proposal = golden / "scaling/proposal/20261021-090000-q8w4.yaml"
     assert info.proposal_hashes == {"scaling": file_hash(proposal)}
     assert read_run_info(golden / RESUMED).proposal_hashes == {}
+
+
+def test_imported_from(finished: Path, tmp_path: Path) -> None:
+    """``imported_from`` reads as written and is ``None`` for a run that wasn't imported."""
+    assert read_run_info(finished).imported_from is None
+    run = tmp_path / "run"
+    shutil.copytree(finished, run)
+    d = json.loads((run / "_run.json").read_text())
+    d["imported_from"] = {"kind": "mlflow", "path": "/x/mlruns/0/3f2a", "id": "3f2a"}
+    (run / "_run.json").write_text(json.dumps(d))
+    assert read_run_info(run).imported_from == d["imported_from"]
