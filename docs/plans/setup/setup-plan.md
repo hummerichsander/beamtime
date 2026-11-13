@@ -400,7 +400,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 ## I. Importers
 
-### I11. Importer interface, run writer, CSV (sonnet + review) — code
+### I11. Importer interface, run writer, CSV (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/importers/__init__.py` (`Found`, `Imported`, `detect`), new
   `src/beamtime/setup/importers/write.py`, new `src/beamtime/setup/importers/csv.py`, new

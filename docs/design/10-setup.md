@@ -459,6 +459,18 @@ the preview), so imported runs are ordinary runs. The originals are never touche
   ([layer 1](01-storage.md#_runjson)).
 - **Twice is once.** A run whose `imported_from.path` (and source id) is already in the log dir is
   skipped, so a rerun imports only what is new.
+- **The interface.** `Imported(name, created_at, ended_at, status, config, rows, host, git, command,
+  source_id)` holds one run (times as unix seconds, `rows` as `{"_step": n, "<key>": value}` records);
+  `write_run(logdir, dest, imported, provenance)` is the one writer. It writes the config, the metric
+  lines, the card and the preview (`synth/summary.py:card_and_preview`) and `_run.json` last, so a
+  crash leaves a folder no reader sees. `find_imported` walks `imported/` only. `detect` tells a
+  path's source from file names alone (`events.out.tfevents.*`, `offline-run-*/*.wandb`,
+  `mlflow.db` and `meta.yaml` beside `params/` or `metrics/`, `_run.json`, `*.csv`), skipping `.git`,
+  `.venv` and `node_modules`; `Found(kind, path, n, label)` carries the count and the review's line.
+- **CSV details.** The first of `step`, `epoch`, `iteration` (any case) is the step; without one the
+  row index is. Rows are written in step order. Cells that are not numbers, empty cells and columns
+  that begin with `_` are skipped. A CSV carries no times, so `created_at` and `ended_at` are the
+  file's modification time and every row's `_t` is `created_at`.
 
 ### Beamtime log dirs
 
