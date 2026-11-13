@@ -53,7 +53,7 @@ A ratio such as "2.7x the cost per step" is not a difference: log the ratio as a
 
 ## Statistics, honestly
 
-- Two to five seeds are the norm; with three the t multiplier is 4.3, so only clear effects pass.
+- Two to five seeds are the norm ({{agent.seeds}} in this project); with three the t multiplier is 4.3, so only clear effects pass.
   That is intended: add seeds rather than loosening the claim.
 - Fewer than two repetitions per point (or per side of a compare) give `insufficient`.
 - `significance: 0.99` raises the level; `significance: none` decides on the values and says so.

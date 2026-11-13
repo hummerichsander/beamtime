@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 from beamtime.guide import TOPICS, read
+from beamtime.settings import Settings
 from beamtime.mcp.server import PROMPTS
 from beamtime.guide.skills import SKILLS
 from beamtime.ops import call
@@ -19,7 +20,7 @@ def test_mcp_install_writes_skills_that_name_topics(ctx: Context, project: Path)
         assert text.startswith(f"---\nname: {name}\n")
         for topic in topics:
             assert f"`beamtime guide {topic}`" in text
-            lines = (line.strip() for line in read(f"{topic}.md").splitlines())
+            lines = (line.strip() for line in read(f"{topic}.md", Settings().agent).splitlines())
             assert not [line for line in lines if len(line) > 40 and line in text], topic
 
 

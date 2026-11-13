@@ -11,6 +11,7 @@ from beamtime.ops import call
 from beamtime.ops import registry as r
 from beamtime.ops.context import Context, OpError
 from beamtime.remote import answer as remote_answer
+from beamtime.settings import AgentSettings
 
 TOPICS = (
     "queries",
@@ -29,6 +30,30 @@ TOPICS = (
     "analysis",
 )
 EXAMPLES = ("sweep", "ablation", "run", "direction", "custom")
+LAUNCH = {
+    "never": "Never launch runs yourself.",
+    "ask": "Ask before you launch a run.",
+    "allowed": "You may launch runs.",
+}
+RECORD = {
+    "off": "Proposals are optional; when you write one, use ",
+    "encouraged": "Write a proposal with predictions before a launch; ",
+    "required": "Never launch a run without a proposal with predictions; ",
+}
+MEMORY = {
+    "suggest": "After a verdict or decision, suggest a memory update to the user",
+    "after_verdicts": "After a verdict or decision, update the group's memory",
+}
+VIEWS = {
+    "draft": "Leave views as drafts for the user to save",
+    "save": "Save views when they pass validation",
+}
+BLOCKS = {
+    "builtin_first": "Reuse built-in and library blocks before writing a custom block.",
+    "free": "Write a custom block whenever it serves the view better.",
+}
+DETECTED = ("main_metric", "direction", "seed_key")
+ORIGINS = {"project": "beamtime.yaml", "detected": "detected, in beamtime.yaml", "preset": "{}"}
 ESSENTIAL = ("key", "x", "y", "field", "file")
 GENERIC = {
     "group": "my-sweep",
@@ -56,9 +81,10 @@ def guide(ctx: Context, p: r.GuideParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: ``{kind, part, text}``."""
+    agent = ctx.settings.agent
     match p.part:
         case None:
-            text = read("overview.md")
+            text = read("overview.md", agent)
             if p.group is not None:
                 text += "\n" + about(ctx, p.group)
         case "examples":
@@ -66,18 +92,91 @@ def guide(ctx: Context, p: r.GuideParams) -> dict[str, Any]:
         case "blocks":
             text = block(p.name) if p.name else catalog()
         case topic if topic in TOPICS:
-            text = read(f"{topic}.md")
+            text = read(f"{topic}.md", agent)
         case other:
             raise ValueError(f"no guide part {other!r}")
     return {"kind": "guide", "part": p.part or "overview", "text": text}
 
 
-def read(name: str) -> str:
-    """Read a part of the guide.
+def read(name: str, agent: AgentSettings) -> str:
+    """Read a part of the guide, with the agent settings filled in.
 
     :param name: The file in ``parts/``.
+    :param agent: The project's agent settings; ``{{agent.<key>}}`` takes the knob's value.
     :return: Its Markdown."""
-    return (files(__package__) / "parts" / name).read_text()
+    text = (files(__package__) / "parts" / name).read_text()
+    return re.sub(r"\{\{agent\.(\w+)\}\}", lambda mt: value_of(agent, mt.group(1)), text)
+
+
+def value_of(agent: AgentSettings, key: str) -> str:
+    """Render one placeholder of a part.
+
+    :param agent: The agent settings.
+    :param key: A knob, or ``defaults`` for the overview's generated section.
+    :return: The text that replaces ``{{agent.<key>}}``."""
+    return defaults(agent) if key == "defaults" else str(getattr(agent, key))
+
+
+def defaults(agent: AgentSettings) -> str:
+    """Render the overview's defaults: one line per knob agents act on, each with its origin.
+
+    :param agent: The agent settings.
+    :return: Markdown for the body of ``## Defaults``."""
+    lines = [
+        (LAUNCH[agent.launch_runs], ["launch_runs"]),
+        (
+            f"{RECORD[agent.research_record]}{agent.seeds} seeds per point; "
+            f"significance {agent.significance}.",
+            ["research_record", "seeds", "significance"],
+        ),
+    ]
+    convention = []
+    if agent.main_metric:
+        better = {"min": ", lower is better", "max": ", higher is better"}.get(agent.direction, "")
+        convention.append(f"Main metric {agent.main_metric}{better}")
+    if agent.seed_key:
+        convention.append(f"seeds in {agent.seed_key}")
+    if convention:
+        lines.append(("; ".join(convention) + ".", list(DETECTED)))
+    lines += [
+        (
+            f"{MEMORY[agent.memory_updates]}; keep it near {agent.memory_tokens} tokens.",
+            ["memory_updates", "memory_tokens"],
+        ),
+        (
+            f"{VIEWS[agent.save_views]}; at most {agent.render_rounds} render rounds.",
+            ["save_views", "render_rounds"],
+        ),
+        (BLOCKS[agent.custom_blocks], ["custom_blocks"]),
+    ]
+    given = {s for s in agent.source.values() if s != "default"}
+    head = (
+        "These are defaults; the user's own instructions (CLAUDE.md, AGENTS.md) take precedence."
+        if not given
+        else f"From this project's beamtime.yaml (agent: {agent.style}); "
+        "the user's own instructions take precedence."
+    )
+    out = [head, ""]
+    out += [f"- {text} ({origin(agent, keys)})" for text, keys in lines]
+    out += [
+        "- Data the queries can't express goes into a data file in the draft's `data/`, shown with "
+        "`data_table: {file: data/<name>.csv}`; record the script that made it in a note. (fixed)",
+        "- Never run user commands; hand the user the exact command. (fixed)",
+    ]
+    return "\n".join(out)
+
+
+def origin(agent: AgentSettings, keys: list[str]) -> str:
+    """Say where the values of a defaults line come from.
+
+    :param agent: The agent settings.
+    :param keys: The knobs the line states.
+    :return: ``default``, the preset's name, ``beamtime.yaml`` or ``detected, in beamtime.yaml``."""
+    found = {agent.source.get(k, "default") for k in keys}
+    for kind in ("project", "detected", "preset"):
+        if kind in found:
+            return ORIGINS[kind].format(agent.style)
+    return "default"
 
 
 def examples() -> str:

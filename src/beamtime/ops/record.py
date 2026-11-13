@@ -161,7 +161,7 @@ def memory_show(ctx: Context, p: r.GroupParams) -> dict[str, Any]:
         "kind": "memory",
         "group": target.rel,
         "chain": chain,
-        "budget": mem.BUDGET_CHARS,
+        "budget": ctx.settings.agent.memory_tokens * mem.CHARS_PER_TOKEN,
         "meta": {"hints": hints},
     }
 
@@ -350,10 +350,11 @@ def memory_update(ctx: Context, p: r.MemoryUpdateParams) -> dict[str, Any]:
             f"---\n{dump(fields | {'author': author, 'user': user})}---\n\n{body}\n",
         )
     lines = [f"covers notes until {fields['covers_until']}"]
-    if len(body) > mem.BUDGET_CHARS:
+    tokens = ctx.settings.agent.memory_tokens
+    if len(body) > (budget := tokens * mem.CHARS_PER_TOKEN):
         lines.append(
-            f"warning: {len(body)} characters, beyond the budget of about {mem.BUDGET_CHARS} "
-            "(1.5k tokens); compress: fold concluded work into single lines"
+            f"warning: {len(body)} characters, beyond the budget of about {budget} "
+            f"({tokens} tokens); compress: fold concluded work into single lines"
         )
     return written(ctx, "memory update", path, lines)
 

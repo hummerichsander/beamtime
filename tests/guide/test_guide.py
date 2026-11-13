@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from beamtime.format.authored import NOTE_TYPES
-from beamtime.guide import EXAMPLES, TOPICS, example
+from beamtime.guide import EXAMPLES, TOPICS, example, read
 from beamtime.ops import call
 from beamtime.ops.context import Context
 from beamtime.ops.registry import BY_NAME, BY_TOOL, GuideParams
@@ -58,8 +58,10 @@ def test_every_topic_is_a_short_file_and_listed_in_the_overview() -> None:
     for name in NAMES:
         assert len(TEXTS[name].splitlines()) <= LONGEST, name
     for name in TOPICS:
-        assert f"`{name}`" in TEXTS["overview"] or f"`{name}," in TEXTS["overview"] or (
-            f" {name}`" in TEXTS["overview"]
+        assert (
+            f"`{name}`" in TEXTS["overview"]
+            or f"`{name}," in TEXTS["overview"]
+            or (f" {name}`" in TEXTS["overview"])
         ), name
 
 
@@ -70,7 +72,9 @@ def test_registry_lists_the_topics(ctx: Context) -> None:
     allowed = set(typing.get_args(literal))
     assert allowed == {"examples", "blocks", *TOPICS}
     for topic in TOPICS:
-        assert call("guide", {"part": topic}, ctx)["text"] == TEXTS[topic]
+        assert call("guide", {"part": topic}, ctx)["text"] == read(
+            f"{topic}.md", ctx.settings.agent
+        )
 
 
 def test_named_operations_exist() -> None:
@@ -148,3 +152,74 @@ def test_examples_validate_and_label_their_sections(ctx: Context, name: str) -> 
     assert not [f for f in result["findings"] if any(w in f["message"] for w in lints)]
     view = m.parse(yaml.safe_load(example(name, ctx, group)), source=name)
     assert all(label_of(n) for n in view.body), [m.block_of(n) for n in view.body]
+
+
+def with_agent(project: Path, agent: str) -> Context:
+    """Write the project's ``agent`` setting and make a context that reads it.
+
+    :param project: The project root.
+    :param agent: The YAML value of ``agent``.
+    :return: The context."""
+    (project / "beamtime.yaml").write_text(f"agent: {agent}\n")
+    return Context.make(caller="cli")
+
+
+def defaults_of(ctx: Context) -> list[str]:
+    """Take the lines of the overview's Defaults section.
+
+    :param ctx: The operation context.
+    :return: Its bullet lines."""
+    text = call("guide", {}, ctx)["text"]
+    section = text.split("## Defaults")[1].split("## More")[0]
+    return [line for line in section.splitlines() if line.startswith("- ")]
+
+
+def test_defaults_without_agent_are_all_marked_default(ctx: Context) -> None:
+    """A project without ``agent`` gets today's rules, every configurable line marked (default)."""
+    lines = defaults_of(ctx)
+    assert "- Ask before you launch a run. (default)" in lines
+    assert any("3 seeds per point; significance 0.95. (default)" in line for line in lines)
+    assert any("at most 2 render rounds. (default)" in line for line in lines)
+    assert any("near 1500 tokens" in line for line in lines)
+    assert lines[-1] == "- Never run user commands; hand the user the exact command. (fixed)"
+    assert all(line.endswith(("(default)", "(fixed)")) for line in lines)
+
+
+def test_no_conventions(ctx: Context) -> None:
+    """Without detected conventions the metric and seed line is left out."""
+    assert not [line for line in defaults_of(ctx) if "Main metric" in line or "seeds in" in line]
+
+
+def test_agent_settings_reach_the_guide(project: Path) -> None:
+    """Style and keys change the Defaults, the parts and the memory budget."""
+    ctx = with_agent(
+        project,
+        "{style: hands-on, seeds: 5, main_metric: val/loss, direction: min, seed_key: config.seed,"
+        " memory_tokens: 500}",
+    )
+    text = call("guide", {}, ctx)["text"]
+    lines = defaults_of(ctx)
+    assert "- You may launch runs. (hands-on)" in lines
+    assert any("5 seeds per point" in line and line.endswith("(beamtime.yaml)") for line in lines)
+    metric = "- Main metric val/loss, lower is better; seeds in config.seed."
+    assert f"{metric} (detected, in beamtime.yaml)" in lines
+    assert "From this project's beamtime.yaml (agent: hands-on)" in text
+    assert "plan 5 seeds per point" in call("guide", {"part": "proposals"}, ctx)["text"]
+    assert "(5 in this project)" in call("guide", {"part": "predictions"}, ctx)["text"]
+    assert "about 500 tokens" in call("guide", {"part": "memory"}, ctx)["text"]
+
+
+def test_no_placeholder_survives(project: Path) -> None:
+    """No part's output keeps a ``{{agent.*}}`` placeholder."""
+    ctx = with_agent(project, "{style: analysis}")
+    for part in (None, *TOPICS):
+        assert "{{agent." not in call("guide", {"part": part}, ctx)["text"], part
+
+
+def test_memory_update_warns_at_the_configured_budget(project: Path) -> None:
+    """``memory update`` warns beyond ``memory_tokens * 4`` characters, and ``memory show`` says it."""
+    ctx = with_agent(project, "{memory_tokens: 100}")
+    body = "x" * 401
+    out = call("memory update", {"group": "tokenizer", "body": body}, ctx)
+    assert "beyond the budget of about 400 (100 tokens)" in out["lines"][-1]
+    assert call("memory show", {"group": "tokenizer"}, ctx)["budget"] == 400

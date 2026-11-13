@@ -352,7 +352,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 ## G. Guide and prompts
 
-### G11. The guide reads the agent settings (sonnet) — code
+### G11. The guide reads the agent settings (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/guide/__init__.py` (`guide` 53, `read` 75), `src/beamtime/guide/parts/overview.md`
   (`## Defaults` 97–104), `src/beamtime/guide/parts/proposals.md`, `predictions.md`, `memory.md`,

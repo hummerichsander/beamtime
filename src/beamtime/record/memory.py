@@ -10,8 +10,7 @@ from beamtime.format.times import iso, parse_iso
 from beamtime.index.store import in_scope
 from beamtime.record.proposals import Target
 
-# about 1.5k tokens at roughly four characters per token.
-BUDGET_CHARS = 6000
+CHARS_PER_TOKEN = 4
 
 
 def to_time(value: Any) -> float | None:

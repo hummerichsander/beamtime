@@ -22,6 +22,7 @@ predictions:
 `beamtime proposal set <group> --file p.yaml` (MCP `proposal_set`) saves a version. Fields:
 `statement`, `rationale`, `confidence` (belief before any data), `plan`, `predictions`,
 `significance` (default 0.95, or `none`), `supersedes`. See `guide predictions` for the predictions.
+In proposals you draft, plan {{agent.seeds}} seeds per point and set `significance: {{agent.significance}}`.
 
 ## Plans
 

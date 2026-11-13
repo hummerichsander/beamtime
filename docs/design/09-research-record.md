@@ -308,8 +308,8 @@ user: ada
 - **Every line links to its evidence**, so the summary can be compressed hard without losing the way
   back to the record.
 - **The five sections** are a convention the guide recommends, not a schema.
-- **A size budget** of about 1.5k tokens per memory file; `memory update` warns beyond it, which forces
-  real compression.
+- **A size budget** of about 1.5k tokens per memory file (`agent.memory_tokens`, [layer 10](10-setup.md#agent-settings));
+  `memory update` warns beyond it, which forces real compression.
 - `covers_until` is the time of the newest note incorporated.
 
 ### Compaction
@@ -377,7 +377,7 @@ Decided while building the research record (milestone M4):
   good. Agents never delete; notes that linked to a deleted one keep the link text.
 - **Backlinks** come from the index's links table: `card` lists the notes citing a run
   (`cited_by`), and `check` the notes citing each prediction.
-- **Memory**: the size budget is measured in characters, 6000 (about 1.5k tokens); `covers_until`
+- **Memory**: the size budget is measured in characters, four per token of `agent.memory_tokens` (6000 for the default 1.5k tokens); `covers_until`
   defaults to the time of the newest note at or below the group. The web UI marks a memory that is
   over budget or behind many notes and gives the command to compact it with an agent; nothing
   compacts automatically.

@@ -29,7 +29,7 @@ Rewrite the whole memory, do not append:
 
 - **Every line links its evidence** with `[[note-id]]`, so the summary can be short and the record
   stays one click away.
-- The five sections are a convention, not a schema. Keep to about 1.5k tokens; the tool warns
+- The five sections are a convention, not a schema. Keep to about {{agent.memory_tokens}} tokens; the tool warns
   beyond it, which forces real compression.
 - Fold a concluded experiment into one line; drop what no longer matters. Nothing is lost, the
   notes remain.

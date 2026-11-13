@@ -96,12 +96,7 @@ the page, or a run id), `where`, `depth: 1` (only the group's own runs).
 
 ## Defaults
 
-These are defaults; the user's own instructions (CLAUDE.md, AGENTS.md) take precedence.
-
-- At most two render rounds per draft.
-- Data the queries can't express goes into a data file in the draft's `data/`, shown with
-  `data_table: {file: data/<name>.csv}`; record the script that made it in a note.
-- Never run user commands (serve, install, settings); hand the user the exact command.
+{{agent.defaults}}
 
 ## More: `guide <topic>`
 
