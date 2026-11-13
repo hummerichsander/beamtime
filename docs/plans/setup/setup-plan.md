@@ -491,7 +491,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 ## P. Plan and apply
 
-### P11. `Answers`, the flags and the command (sonnet + review) — code
+### P11. `Answers`, the flags and the command (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/plan.py` (`Answers`, `command`), `src/beamtime/ops/registry.py`
   (`InitParams` 495–499, the `init` op 1062–1070), `src/beamtime/cli/__init__.py` (only if repeatable flags need

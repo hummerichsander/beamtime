@@ -493,10 +493,96 @@ Instructions = Annotated[
 
 
 class InitParams(Params, kw_only=True):
-    """Parameters of ``init``."""
+    """Parameters of ``init``: one field per answer of the setup (``docs/design/10-setup.md``)."""
 
-    logdir: str | None = None
-    instructions: Instructions = False
+    runs: Annotated[
+        Literal["here", "remote", "both"] | None,
+        msgspec.Meta(description="where runs happen; decides the questions"),
+    ] = None
+    logdir: Annotated[
+        str | None,
+        msgspec.Meta(description="the log dir; a path outside the project is linked in"),
+    ] = None
+    link_logdir: Annotated[
+        str | None,
+        msgspec.Meta(description="make the project's log dir a link to this path (scratch)"),
+    ] = None
+    remote: Annotated[
+        list[str],
+        msgspec.Meta(description="a remote, NAME[=HOST][:PATH] (repeatable)"),
+    ] = msgspec.field(default_factory=list)
+    skip_remote: Annotated[
+        list[str],
+        msgspec.Meta(description="a project remote this machine doesn't use (repeatable)"),
+    ] = msgspec.field(default_factory=list)
+    install_remote: Annotated[
+        list[str],
+        msgspec.Meta(
+            description="install this version of beamtime there, after the review (repeatable)"
+        ),
+    ] = msgspec.field(default_factory=list)
+    ssh_share: Annotated[
+        list[str],
+        msgspec.Meta(
+            description="add ControlMaster lines to ~/.ssh/config for a host (repeatable)"
+        ),
+    ] = msgspec.field(default_factory=list)
+    cache: Annotated[
+        str | None,
+        msgspec.Meta(description="the index cache of this machine: memory or a path"),
+    ] = None
+    agents: Annotated[
+        list[str],
+        msgspec.Meta(description="agent clients that get the MCP server and the rules"),
+    ] = msgspec.field(default_factory=list)
+    no_agents: Annotated[bool, msgspec.Meta(description="register no agent client")] = False
+    agent_style: Annotated[
+        Literal["careful", "hands-on", "analysis"] | None,
+        msgspec.Meta(description="the agent preset"),
+    ] = None
+    agent_set: Annotated[
+        list[str], msgspec.Meta(description="single agent settings, KEY=VALUE,KEY=VALUE")
+    ] = msgspec.field(default_factory=list)
+    no_rules: Annotated[bool, msgspec.Meta(description="write no rules block")] = False
+    import_: Annotated[
+        list[str],
+        msgspec.Meta(
+            description="runs to copy in: TensorBoard, W&B offline, MLflow, CSV, Beamtime"
+        ),
+    ] = msgspec.field(name="import", default_factory=list)
+    import_notes: Annotated[
+        list[str], msgspec.Meta(description="notes files to hand to the agent or copy")
+    ] = msgspec.field(default_factory=list)
+    import_memory: Annotated[
+        list[str], msgspec.Meta(description="memory files to hand to the agent or copy")
+    ] = msgspec.field(default_factory=list)
+    git: Annotated[
+        Literal["record", "none"] | None,
+        msgspec.Meta(description="commit the research record, or ignore the whole log dir"),
+    ] = None
+    sdk: Annotated[bool, msgspec.Meta(description="add the SDK to the project environment")] = False
+    no_sdk: Annotated[bool, msgspec.Meta(description="leave the project environment alone")] = False
+    role: Annotated[
+        Literal["record", "full"] | None,
+        msgspec.Meta(description="on a cluster: only record runs, or also look at them here"),
+    ] = None
+    update: Annotated[
+        list[str] | None,
+        msgspec.Meta(
+            description="stale items to update: rules, mcp, skills, settings, sdk, remote:NAME"
+        ),
+    ] = None
+    migrate_with: Annotated[
+        str | None,
+        msgspec.Meta(description="start this agent with the migrate prompt after the apply step"),
+    ] = None
+    check: Annotated[
+        bool, msgspec.Meta(description="list what is stale and exit (0 nothing, 3 something)")
+    ] = False
+    yes: Annotated[bool, msgspec.Meta(description="write without the review")] = False
+    instructions: Annotated[
+        bool, msgspec.Meta(description="alias of the rules block", extra={"hidden": True})
+    ] = False
 
 
 class CpParams(Params, kw_only=True):

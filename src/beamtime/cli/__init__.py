@@ -130,6 +130,10 @@ def add_field(parser: argparse.ArgumentParser, field: Any, positional: bool) -> 
             kw |= {"action": "append", "type": pair, "default": [], "metavar": "PREDICTION=VERDICT"}
         case "evidence":
             kw |= {"action": "append", "type": evidence_item, "default": [], "metavar": "ITEM"}
+        case "remote" | "skip_remote" | "install_remote" | "ssh_share":
+            kw |= {"action": "append", "default": [], "metavar": "NAME"}
+        case "import" | "import_notes" | "import_memory":
+            kw |= {"action": "append", "default": [], "metavar": "PATH"}
         case _ if members == (bool,):
             # a flag that defaults to on is turned off with --no-<name>.
             kw["action"] = argparse.BooleanOptionalAction if kw.get("default") else "store_true"
@@ -145,7 +149,24 @@ def add_field(parser: argparse.ArgumentParser, field: Any, positional: bool) -> 
             kw["type"] = members[0]
         case _:
             pass
+    if (meta := describe(field.type)) is not None:
+        hidden = (meta.extra or {}).get("hidden")
+        kw.setdefault(
+            "help", argparse.SUPPRESS if hidden else (meta.description or "").replace("%", "%%")
+        )
     parser.add_argument(*flags, **kw)
+
+
+def describe(tp: Any) -> Any:
+    """Find the ``msgspec.Meta`` of an annotated parameter type.
+
+    :param tp: The field's type.
+    :return: Its ``Meta``, or ``None``."""
+    import msgspec
+
+    if get_origin(tp) is not Annotated:
+        return None
+    return next((m for m in get_args(tp)[1:] if isinstance(m, msgspec.Meta)), None)
 
 
 class Version(argparse.Action):

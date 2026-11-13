@@ -62,7 +62,7 @@ def command(op: Op) -> str:
         "",
         f"```sh\nbeamtime {op.name} {usage}".rstrip() + "\n```",
     ]
-    options = [f for f in fields if f not in positional]
+    options = [f for f in fields if f not in positional and not hidden(f.type)]
     if options:
         lines += ["", "| Option | Default | |", "|---|---|---|"]
         lines += [option(f) for f in options]
@@ -82,6 +82,17 @@ def option(field: Any) -> str:
     else:
         default = f"`{field.default}`"
     return f"| {flag} | {default} | {describe(field.type)} |"
+
+
+def hidden(tp: Any) -> bool:
+    """Tell whether a parameter is a hidden alias that the reference leaves out.
+
+    :param tp: The annotated type.
+    :return: Whether its ``Meta`` says ``hidden``."""
+    return any(
+        isinstance(meta, msgspec.Meta) and (meta.extra or {}).get("hidden")
+        for meta in getattr(tp, "__metadata__", ())
+    )
 
 
 def describe(tp: Any) -> str:

@@ -597,8 +597,30 @@ beamtime init
 
 | Option | Default | |
 |---|---|---|
-| `--logdir` |  |  |
-| `--instructions` | `False` | add Beamtime's agent rules to AGENTS.md (CLAUDE.md for Claude Code) |
+| `--runs` |  | where runs happen; decides the questions |
+| `--logdir` |  | the log dir; a path outside the project is linked in |
+| `--link-logdir` |  | make the project's log dir a link to this path (scratch) |
+| `--remote` |  | a remote, NAME[=HOST][:PATH] (repeatable) |
+| `--skip-remote` |  | a project remote this machine doesn't use (repeatable) |
+| `--install-remote` |  | install this version of beamtime there, after the review (repeatable) |
+| `--ssh-share` |  | add ControlMaster lines to ~/.ssh/config for a host (repeatable) |
+| `--cache` |  | the index cache of this machine: memory or a path |
+| `--agents` |  | agent clients that get the MCP server and the rules |
+| `--no-agents` | `False` | register no agent client |
+| `--agent-style` |  | the agent preset |
+| `--agent-set` |  | single agent settings, KEY=VALUE,KEY=VALUE |
+| `--no-rules` | `False` | write no rules block |
+| `--import` |  | runs to copy in: TensorBoard, W&B offline, MLflow, CSV, Beamtime |
+| `--import-notes` |  | notes files to hand to the agent or copy |
+| `--import-memory` |  | memory files to hand to the agent or copy |
+| `--git` |  | commit the research record, or ignore the whole log dir |
+| `--sdk` | `False` | add the SDK to the project environment |
+| `--no-sdk` | `False` | leave the project environment alone |
+| `--role` |  | on a cluster: only record runs, or also look at them here |
+| `--update` |  | stale items to update: rules, mcp, skills, settings, sdk, remote:NAME |
+| `--migrate-with` |  | start this agent with the migrate prompt after the apply step |
+| `--check` | `False` | list what is stale and exit (0 nothing, 3 something) |
+| `--yes` | `False` | write without the review |
 
 ### `beamtime mcp install` *(you)*
 
