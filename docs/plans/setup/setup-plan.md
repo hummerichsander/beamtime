@@ -388,7 +388,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
    runs → `\s+`) and returns the newest match.
 3. `write_block` and the markers move here from `ops/admin.py`; `instructions` there becomes a thin call.
 
-### G13. The `migrate` prompt (haiku) — code
+### G13. The `migrate` prompt (haiku) — code — **done**
 
 - **Touches:** `src/beamtime/mcp/server.py` (`PROMPTS` 108, `get_prompt` 274–290), `tests/mcp/test_server.py`
   (`test_record_writes_and_prompts` 141).

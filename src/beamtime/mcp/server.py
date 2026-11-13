@@ -225,6 +225,25 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
             1.5k tokens. Save it with `memory_update` (group, body, author)."""
         ),
     ),
+    "migrate": (
+        "Fold old notes and memory files, and an instruction file's experiment, into Beamtime.",
+        [
+            ("paths", "the notes and memory files, space-separated", True),
+            ("conflict", "file:line of an instruction that keeps results elsewhere", False),
+        ],
+        text(
+            """Migrate the notes and memory files {paths} into Beamtime. Read `guide notes`
+            and `guide memory` first, then each file. Write every finding as a typed note
+            with `note_add` (type observation, decision, idea, question or verdict) on the
+            group it concerns, and link the imported runs it cites as evidence. Then draft
+            the project's memory from those notes and save it with `memory_update` (group
+            ., body, author). Conflict: {conflict}. If it is not none, show the user the
+            diff that replaces that instruction file's experiment section with a pointer
+            to Beamtime, and edit the file only after the user agrees. Show the diff before
+            editing any instruction file. Never delete or change the source files. Name
+            yourself as author on every write."""
+        ),
+    ),
 }
 
 
@@ -279,6 +298,7 @@ def build(root: str | Path | None = None) -> Server:
         values = {
             "group": given.get("group") or ".",
             "since": given.get("since") or "the last day",
+            "conflict": given.get("conflict") or "none",
             "idea": given.get("idea") or "ask the user if it is unclear",
             **{k: v for k, v in given.items() if v},
         }

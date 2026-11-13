@@ -167,9 +167,16 @@ def test_record_writes_and_prompts(project: Path) -> None:
             await s.get_prompt(name, {"group": "agent/dropout"})
             for name in ("proposal", "verdict", "memory")
         ]
-        return saved, yaml_text, note, theory, bad, memory, shown, prompts
+        migrate = await s.get_prompt(
+            "migrate", {"paths": "old/NOTES.md", "conflict": "AGENTS.md:4"}
+        )
+        prompts.append(migrate)
+        listed = {
+            p.name: [a.name for a in p.arguments or []] for p in (await s.list_prompts()).prompts
+        }
+        return saved, yaml_text, note, theory, bad, memory, shown, prompts, listed
 
-    saved, yaml_text, note, theory, bad, memory, shown, prompts = session(project, work)
+    saved, yaml_text, note, theory, bad, memory, shown, prompts, listed = session(project, work)
     for result in (saved, yaml_text, note, theory, memory, shown):
         assert not result.is_error, result.content[0].text
     path = project / "beamtime" / json.loads(saved.content[0].text)["path"]
@@ -182,7 +189,15 @@ def test_record_writes_and_prompts(project: Path) -> None:
     assert json.loads(shown.content[0].text)["chain"][-1]["group"] == "agent"
     texts = [p.messages[0].content.text for p in prompts]
     assert "proposal_set" in texts[0] and "note_add" in texts[1] and "memory_update" in texts[2]
-    assert all("agent/dropout" in t for t in texts)
+    assert all("agent/dropout" in t for t in texts[:3])
+    migrate_text = texts[3]
+    assert listed["migrate"] == ["paths", "conflict"]
+    for name in ("guide notes", "guide memory", "note_add", "memory_update", "AGENTS.md:4"):
+        assert name in migrate_text
+    assert (
+        "old/NOTES.md" in migrate_text and "Never delete or change the source files" in migrate_text
+    )
+    assert "Show the diff before" in migrate_text
 
 
 def test_arguments_sent_as_json_text_are_decoded_once() -> None:
