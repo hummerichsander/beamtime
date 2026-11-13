@@ -23,6 +23,7 @@ from beamtime.setup import importers
 from beamtime.setup.importers import Imported
 from beamtime.setup.importers import csv as csv_source
 from beamtime.setup.importers import mlflow as mlflow_source
+from beamtime.setup.importers import notes as notes_source
 from beamtime.setup.importers import tensorboard as tb_source
 from beamtime.setup.importers import wandb as wandb_source
 from beamtime.setup.importers import write
@@ -994,3 +995,42 @@ def test_import_citations_stay_apart(imported_synth: tuple[Context, Context, Pat
     (converges,) = [p for p in answer["predictions"] if p["name"] == "converges"]
     assert converges["cited_by"]
     assert "native" not in [n["description"] for n in converges["cited_by"]]
+
+
+def test_notes_come_in_as_observations_on_the_log_dir(
+    home: Path, logdir: Path, tmp_path: Path
+) -> None:
+    """Each text file is one observation note: the first heading or the file name describes it.
+
+    :param home: The throwaway home.
+    :param logdir: The log dir.
+    :param tmp_path: The test's temporary directory."""
+    src = tmp_path / "notes"
+    src.mkdir()
+    (src / "a.md").write_text("intro\n\n## Learning rate sweep\n\nlr 3e-4 wins.\n")
+    (src / "b.md").write_text("no heading here\n")
+    (src / "blob.bin").write_bytes(b"\x00\x01\x02")
+    ctx = Context.make(root=logdir.parent)
+
+    done = notes_source.import_notes(ctx, [src])
+
+    assert len(done.notes) == 2
+    assert done.skipped == [src / "blob.bin"]
+    listed = call("notes", {"from": "."}, ctx)
+    rows = {n["description"]: n for n in listed["entries"]}
+    assert set(rows) == {"Learning rate sweep", "b.md"}
+    assert {n["type"] for n in rows.values()} == {"observation"}
+    text = (logdir / done.notes[0]).read_text()
+    assert "lr 3e-4 wins." in text and "author:" in text and "user:" in text
+
+
+def test_notes_take_a_single_file(home: Path, logdir: Path, tmp_path: Path) -> None:
+    """A path that is a file is one note.
+
+    :param home: The throwaway home.
+    :param logdir: The log dir.
+    :param tmp_path: The test's temporary directory."""
+    f = tmp_path / "NOTES.md"
+    f.write_text("# Journal\n\nfirst\n")
+    done = notes_source.import_notes(Context.make(root=logdir.parent), [f])
+    assert len(done.notes) == 1 and not done.skipped

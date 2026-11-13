@@ -559,6 +559,9 @@ Reading another project's runs in place (a local-path source) is out of scope.
 With an agent, they go to the `migrate` prompt. Without one ("None", or the hand-off left for later
 and `--yes` given), each file comes in as written: one `observation` note on the log dir per file,
 its body the file's text, its description the file name or first heading, author the local account.
+A folder gives one note per file below it. The notes go through the `note add` operation, so author
+and user are the local account as for every authored write. Binary files are skipped, and the review
+names them.
 
 ## Git and the SDK
 

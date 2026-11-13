@@ -468,7 +468,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
   (`test_import_skips_known_ids`); `blocks/` at the source root reach views in the imported tree
   (`test_import_library_blocks`).
 
-### I16. Notes and memory as written (haiku) — code
+### I16. Notes and memory as written (haiku) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/importers/notes.py`, `tests/setup/test_importers.py`.
 - **Read:** `docs/design/10-setup.md` § Notes and memory files.
