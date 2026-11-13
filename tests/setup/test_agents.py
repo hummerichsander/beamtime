@@ -391,3 +391,17 @@ def test_rules_change(tmp_path: Path) -> None:
     again = rules_change(client_named("gemini"), tmp_path, agent, ["setup"])
     assert again.before == again.after and again.run() == "unchanged"
     assert not (tmp_path / "AGENTS.md").exists()
+
+
+@posix
+def test_before_says_registered_only_for_beamtime(
+    uv_project: tuple[Path, PythonEnv], home: Path
+) -> None:
+    """A config holding only other servers is not "registered"; one with beamtime is."""
+    root, env = uv_project
+    (root / ".mcp.json").write_text(json.dumps({"mcpServers": {"other": {"command": "x"}}}))
+    claude = client_named("claude-code")
+    change = register(claude, root, env, home=home)
+    assert change.before is None
+    change.run()
+    assert register(claude, root, env, home=home).before == "registered"

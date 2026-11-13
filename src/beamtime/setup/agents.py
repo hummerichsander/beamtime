@@ -8,6 +8,7 @@ import subprocess
 import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -294,12 +295,12 @@ def register(
 
     if path.suffix == ".toml":
         before = read_toml(path)
-        run = lambda: put_toml(path, full)  # noqa: E731
+        run = partial(put_toml, path, full)
     else:
-        before = read_json(path)
-        run = lambda: put_json(path, keys, server_entry(client, full), client)  # noqa: E731
+        before = registered(read_json(path), keys)
+        run = partial(put_json, path, keys, server_entry(client, full), client)
     return Change(
-        where="project" if scope == "project" and client.shared else "machine",
+        where=scope,
         label=f"MCP server for {client.label}",
         before="registered" if before else None,
         after=f"{display(path, root, home)}: {' '.join(full)}",
@@ -406,6 +407,18 @@ def read_json(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ConfigError(f"{path} is not a JSON object; fix it and run this again")
     return data
+
+
+def registered(data: dict[str, Any], keys: list[str]) -> bool:
+    """Tell whether a client's JSON config lists the beamtime server.
+
+    :param data: The config.
+    :param keys: The nested keys of the servers table.
+    :return: ``True`` when the servers table has a ``beamtime`` entry."""
+    for key in keys:
+        if not isinstance(data := data.get(key), dict):
+            return False
+    return SERVER in data
 
 
 def put_json(path: Path, keys: list[str], entry: dict[str, Any], client: Client) -> None:
