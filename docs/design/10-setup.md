@@ -460,8 +460,10 @@ the preview), so imported runs are ordinary runs. The originals are never touche
 - **Twice is once.** A run whose `imported_from.path` (and source id) is already in the log dir is
   skipped, so a rerun imports only what is new.
 - **The interface.** `Imported(name, created_at, ended_at, status, config, rows, host, git, command,
-  source_id)` holds one run (times as unix seconds, `rows` as `{"_step": n, "<key>": value}` records);
-  `write_run(logdir, dest, imported, provenance)` is the one writer. It writes the config, the metric
+  source_id, group)` holds one run (times as unix seconds, `rows` as `{"_step": n, "<key>": value}` records);
+  `group` is the folder below the source's destination that the run belongs in (empty when the source
+  has no structure; the MLflow experiment's name). `write_run(logdir, dest, imported, provenance)` is
+  the one writer. It writes the config, the metric
   lines, the card and the preview (`synth/summary.py:card_and_preview`) and `_run.json` last, so a
   crash leaves a folder no reader sees. `find_imported` walks `imported/` only. `detect` tells a
   path's source from file names alone (`events.out.tfevents.*`, `offline-run-*/*.wandb`,
@@ -472,6 +474,18 @@ the preview), so imported runs are ordinary runs. The originals are never touche
   row index is. Rows are written in step order. Cells that are not numbers, empty cells and columns
   that begin with `_` are skipped. A CSV carries no times, so `created_at` and `ended_at` are the
   file's modification time and every row's `_t` is `created_at`.
+
+- **MLflow details.** `runs` reads every `mlflow.db` and every file-store run folder (`meta.yaml`
+  beside `params/` or `metrics/`) at or below the path; `detect` counts them without reading
+  metrics. The group is the experiment's name. Runs with `lifecycle_stage: deleted`, runs of deleted
+  experiments and the file store's `.trash` are skipped. The status is `FINISHED`, `FAILED` or
+  `KILLED` as `finished`, `failed` or `killed` (`RUNNING` and `SCHEDULED` as `running`), by name or,
+  in the file store, by the `RunStatus` number. The name is the run name, else the `mlflow.runName`
+  tag, else the first eight characters of the id. Params are the config; MLflow stores them as text,
+  so numbers and `True`/`False` are read as such. A metric point is a `{"_step", "_t", key}` record;
+  points of different keys at one step share a record, and a key logged twice at a step starts
+  another record, so no point is lost and the order is the order logged. Metric `is_nan` rows become
+  NaN. The git commit is the `mlflow.source.git.commit` tag; the source id is MLflow's run id.
 
 ### Beamtime log dirs
 

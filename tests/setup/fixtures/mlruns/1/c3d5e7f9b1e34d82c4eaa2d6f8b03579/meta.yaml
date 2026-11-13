@@ -1,0 +1,15 @@
+artifact_uri: file:///work/mlruns/1/c3d5e7f9b1e34d82c4eaa2d6f8b03579/artifacts
+end_time: 1700000230000
+entry_point_name: ''
+experiment_id: '1'
+lifecycle_stage: active
+run_id: c3d5e7f9b1e34d82c4eaa2d6f8b03579
+run_name: big
+run_uuid: c3d5e7f9b1e34d82c4eaa2d6f8b03579
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1700000200000
+status: KILLED
+tags: []
+user_id: researcher

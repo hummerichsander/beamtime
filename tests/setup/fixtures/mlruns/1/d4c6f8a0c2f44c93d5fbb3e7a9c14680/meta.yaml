@@ -1,0 +1,15 @@
+artifact_uri: file:///work/mlruns/1/d4c6f8a0c2f44c93d5fbb3e7a9c14680/artifacts
+end_time: 1700000360000
+entry_point_name: ''
+experiment_id: '1'
+lifecycle_stage: active
+run_id: d4c6f8a0c2f44c93d5fbb3e7a9c14680
+run_name: duplicate
+run_uuid: d4c6f8a0c2f44c93d5fbb3e7a9c14680
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1700000300000
+status: FINISHED
+tags: []
+user_id: researcher

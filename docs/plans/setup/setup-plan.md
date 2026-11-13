@@ -418,7 +418,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 2. `write_run(logdir, dest_group, imported, provenance) -> Path`: metrics, config, card and preview via
    `synth/summary.py:card_and_preview`, then `_run.json` last with `src/beamtime/format/io.py` replace.
 
-### I12. MLflow (sonnet) — code
+### I12. MLflow (sonnet) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/importers/mlflow.py`, the file-store fixture in new `tests/setup/fixtures/mlruns/`
   (plain text, committed) and an `mlflow.db` built in `tmp_path` by the test with `sqlite3`,

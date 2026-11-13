@@ -43,6 +43,7 @@ class Imported:
     git: dict[str, Any] | None = None
     command: list[str] | None = None
     source_id: str | None = None
+    group: str = ""
 
 
 def detect(path: Path) -> Found | None:
