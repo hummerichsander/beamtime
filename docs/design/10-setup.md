@@ -267,7 +267,7 @@ install, a teammate's machine. It never points into a project virtualenv when an
 | Case | Command |
 |---|---|
 | a uv project whose environment has `beamtime[serve]` (or gets it with `--sdk`) | `uv run --project <root> beamtime mcp` |
-| a conda environment with `beamtime[serve]` | `conda run --no-capture-output -n <env> beamtime mcp` |
+| a conda environment with `beamtime[serve]` | `conda run --no-capture-output -n <env> beamtime mcp` (`-n base` for the conda install itself) |
 | a tool install on `PATH` with the serve extra (pipx, `uv tool`, `pip --user`, a global or conda-base install) | `beamtime mcp` in shared files; the absolute path of that launcher in this machine's files |
 | none of these, but `uv` is on `PATH` | `uvx --from 'beamtime[serve]' beamtime mcp` |
 | a pip virtualenv only | its `bin/beamtime` by absolute path, in this machine's files only; `init --check` reports it when it is gone |
@@ -285,8 +285,8 @@ install, a teammate's machine. It never points into a project virtualenv when an
   Gemini CLI and opencode do.
 - **Checking a candidate**: `<command> --version` must answer, and the serve extra must be present.
   `beamtime --version` gains a second word when the serve extra is missing
-  (`beamtime 0.3.0 (no serve extra)`), so one call answers both. `setup/agents.py:check_command()` runs it with a 5 s timeout and
-  returns the version and whether the serve extra is present.
+  (`beamtime 0.3.0 (no serve extra)`), so one call answers both. `setup/agents.py:check_command()`
+  runs it with a 5 s timeout and returns the version and whether the serve extra is present.
 - `--sdk` in a uv project adds `beamtime` to the dependencies and `beamtime[serve]` to the dev group,
   so the published package doesn't depend on the serve extra while `uv run beamtime mcp` works.
 

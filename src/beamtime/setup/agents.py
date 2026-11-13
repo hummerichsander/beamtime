@@ -33,7 +33,8 @@ def mcp_command(
     if hosts_serve and env.tool == "uv" and which("uv"):
         return ["uv", "run", "--project", "." if shared else str(root), "beamtime", "mcp"]
     if hosts_serve and env.tool == "conda" and env.path and which("conda"):
-        return ["conda", "run", "--no-capture-output", "-n", env.path.name, "beamtime", "mcp"]
+        name = conda_name(env.path)
+        return ["conda", "run", "--no-capture-output", "-n", name, "beamtime", "mcp"]
 
     if (launcher := which("beamtime")) and not inside(Path(launcher), root, env):
         if check_command([launcher, "mcp"])[1]:
@@ -61,6 +62,14 @@ def check_command(cmd: list[str]) -> tuple[str | None, bool]:
     if not (match := re.match(r"beamtime (\S+)(.*)", out.strip())):
         return None, False
     return match[1], "no serve extra" not in match[2]
+
+
+def conda_name(prefix: Path) -> str:
+    """Name a conda environment by its prefix.
+
+    :param prefix: The environment's folder.
+    :return: ``base`` for the conda install itself, else the folder's name."""
+    return "base" if (prefix / "condabin").is_dir() else prefix.name
 
 
 def python_hosts_serve(env: PythonEnv) -> bool:

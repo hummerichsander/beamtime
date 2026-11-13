@@ -72,6 +72,17 @@ def test_conda(bins: Path, tmp_path: Path) -> None:
 
 
 @posix
+def test_conda_base(bins: Path, tmp_path: Path) -> None:
+    """The conda install itself is named ``base``, not by its folder."""
+    launcher(bins, "conda")
+    prefix = tmp_path / "miniconda3"
+    (prefix / "condabin").mkdir(parents=True)
+    env = PythonEnv("conda", prefix, "3.12", "0.3.0", True)
+    cmd = mcp_command(env, tmp_path / "project", shared=True)
+    assert cmd == ["conda", "run", "--no-capture-output", "-n", "base", "beamtime", "mcp"]
+
+
+@posix
 def test_conda_no_serve(bins: Path, tmp_path: Path) -> None:
     """A conda environment without the serve extra falls through to the tool install."""
     launcher(bins, "conda")
@@ -149,7 +160,7 @@ def test_shared_is_never_absolute(bins: Path, tmp_path: Path) -> None:
     launcher(bins, "conda")
     launcher(bins, "beamtime")
     root = tmp_path / "project"
-    for tool in ("uv", "conda", "pip"):
+    for tool in ("uv", "poetry", "conda", "pip"):
         cmd = mcp_command(env_of(tool, root), root, shared=True)
         assert cmd and not any(Path(part).is_absolute() for part in cmd)
 
