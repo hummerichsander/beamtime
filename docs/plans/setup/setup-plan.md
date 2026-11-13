@@ -308,7 +308,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 ## A. Agents and MCP
 
-### A11. The portable MCP command (sonnet + review) — code
+### A11. The portable MCP command (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/agents.py` (`mcp_command`, `check_command`), `src/beamtime/cli/__init__.py`
   (`Version` 152–163), `tests/test_cli.py` (`test_version` 10), new `tests/setup/test_agents.py`.

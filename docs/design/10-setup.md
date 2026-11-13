@@ -272,6 +272,9 @@ install, a teammate's machine. It never points into a project virtualenv when an
 | none of these, but `uv` is on `PATH` | `uvx --from 'beamtime[serve]' beamtime mcp` |
 | a pip virtualenv only | its `bin/beamtime` by absolute path, in this machine's files only; `init --check` reports it when it is gone |
 
+- **The uv command** names the project as `.` in shared files and by its absolute root in machine
+  files. A project whose Python is older than 3.11 cannot host the server and falls through, as does
+  a launcher found inside the project or its environment.
 - **Shared files hold only portable commands.** A command that names this machine (an absolute
   path) goes into the client's machine-level config instead (Claude Code's local scope in
   `~/.claude.json`, Cursor's `~/.cursor/mcp.json`, VS Code's user `mcp.json`), never into a file git
@@ -282,7 +285,8 @@ install, a teammate's machine. It never points into a project virtualenv when an
   Gemini CLI and opencode do.
 - **Checking a candidate**: `<command> --version` must answer, and the serve extra must be present.
   `beamtime --version` gains a second word when the serve extra is missing
-  (`beamtime 0.3.0 (no serve extra)`), so one call answers both.
+  (`beamtime 0.3.0 (no serve extra)`), so one call answers both. `setup/agents.py:check_command()` runs it with a 5 s timeout and
+  returns the version and whether the serve extra is present.
 - `--sdk` in a uv project adds `beamtime` to the dependencies and `beamtime[serve]` to the dev group,
   so the published package doesn't depend on the serve extra while `uv run beamtime mcp` works.
 

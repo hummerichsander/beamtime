@@ -149,7 +149,7 @@ def add_field(parser: argparse.ArgumentParser, field: Any, positional: bool) -> 
 
 
 class Version(argparse.Action):
-    """Print the version; looked up only when asked, since that costs import time."""
+    """Print the version, and a note when the serve extra is missing; looked up only when asked."""
 
     def __call__(self, parser: Any, namespace: Any, values: Any, option: Any = None):
         """Print the version and exit.
@@ -158,9 +158,13 @@ class Version(argparse.Action):
         :param namespace: Ignored.
         :param values: Ignored.
         :param option: Ignored."""
+        from importlib.util import find_spec
+
         from beamtime import __version__
 
-        print(f"beamtime {__version__}")
+        # init reads the second word to tell whether this install can serve `beamtime mcp`.
+        extra = "" if find_spec("mcp") else " (no serve extra)"
+        print(f"beamtime {__version__}{extra}")
         parser.exit()
 
 
