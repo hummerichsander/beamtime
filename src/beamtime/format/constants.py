@@ -16,7 +16,7 @@ OUTPUT_TAIL_PREV = "_output.tail.prev.log"
 ARTIFACTS = "_artifacts.jsonl"
 ENV_DIR = "_env"
 TRASH = "_trash"
-# group moves (old path, new path), so paths recorded before a move still resolve.
+# group moves (old path, new path, optional scope), so paths recorded before a move still resolve.
 MOVES = "_moves.jsonl"
 
 PROPOSAL = "proposal"

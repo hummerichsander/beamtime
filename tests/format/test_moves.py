@@ -42,3 +42,16 @@ def test_unreadable_lines_are_skipped(tmp_path: Path) -> None:
     with (tmp_path / "_moves.jsonl").open("a") as f:
         f.write('not json\n{"from": "c"}\n{"from": "c", "to": "d", "within": 3}\n')
     assert moves.read(tmp_path) == [moves.Move("a", "b", None)]
+
+
+def test_scope_follows_later_moves(tmp_path: Path) -> None:
+    """A scoped move keeps applying after its ``within`` group itself is moved."""
+    moves.record(tmp_path, "scaling", "imported/x/scaling", within="imported/x")
+    moves.record(tmp_path, "imported/x", "imported/y")
+    assert moves.read(tmp_path)[0].within == "imported/y"
+    assert moves.current(tmp_path, "scaling", "imported/y/run") == "imported/y/scaling"
+    assert moves.earlier(tmp_path, "imported/y/scaling", "imported/y/scaling") == [
+        "imported/x/scaling",
+        "scaling",
+    ]
+    assert moves.current(tmp_path, "scaling", "elsewhere") == "scaling"

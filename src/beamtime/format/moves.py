@@ -40,11 +40,12 @@ def read(logdir: Path) -> list[Move]:
     """Read the moves, oldest first.
 
     :param logdir: The log dir.
-    :return: The moves; lines that can't be read are skipped."""
+    :return: The moves, each scope followed to where its group is now; lines that can't be read
+        are skipped."""
     path = logdir / c.MOVES
     if not path.is_file():
         return []
-    out = []
+    out: list[Move] = []
     for line in path.read_text().splitlines():
         try:
             entry = json.loads(line)
@@ -58,7 +59,21 @@ def read(logdir: Path) -> list[Move]:
             )
         except (ValueError, KeyError, AttributeError, TypeError):
             continue
-    return out
+    return [m._replace(within=moved_scope(m.within, out[i + 1 :])) for i, m in enumerate(out)]
+
+
+def moved_scope(within: str | None, later: list[Move]) -> str | None:
+    """Follow a move's scope through the moves after it.
+
+    :param within: The scope as recorded, or ``None``.
+    :param later: The moves recorded after it, oldest first.
+    :return: The scope's path today; scoped moves rename no folder, so only unscoped ones count."""
+    if within is None:
+        return None
+    for m in later:
+        if m.within is None and (moved := under(within, m.old, m.new)) is not None:
+            within = moved
+    return within
 
 
 def earlier(logdir: Path, rel: str, named_in: str | None = None) -> list[str]:

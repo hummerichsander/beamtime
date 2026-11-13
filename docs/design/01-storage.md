@@ -475,7 +475,8 @@ log or a note must be removable.
   `_moves.jsonl` in the log dir (`{schema, from, to, t}` per line). Nothing that names the old path is
   rewritten: runs keep their recorded proposal membership, notes their links and `completes`;
   readers map old paths through the moves. A move may carry an optional `within` (a group path): it
-  then maps only paths named by files below `within`. Imports of Beamtime log dirs write such moves
+  then maps only paths named by files at or below `within`, never a path a user types, and `within`
+  follows the unscoped moves recorded after it. Imports of Beamtime log dirs write such moves
   ([setup](10-setup.md#beamtime-log-dirs)), so the copied tree keeps its own paths meaningful without
   touching groups of the same name elsewhere; a move without `within` applies everywhere, as before.
   Moving a run (`beamtime mv <run> <group>`) needs no record, since runs are found by id.

@@ -146,9 +146,12 @@ def test_proposal_hashes(golden: Path) -> None:
     assert read_run_info(golden / RESUMED).proposal_hashes == {}
 
 
-def test_imported_from(finished: Path, tmp_path: Path) -> None:
-    """``imported_from`` reads as written and is ``None`` for a run that wasn't imported."""
-    assert read_run_info(finished).imported_from is None
+def test_imported_from(golden: Path, finished: Path, tmp_path: Path) -> None:
+    """``imported_from`` reads as written and is ``None`` for every golden run."""
+    assert all(
+        read_run_info(p.parent).imported_from is None
+        for p in (golden / "scaling").rglob("_run.json")
+    )
     run = tmp_path / "run"
     shutil.copytree(finished, run)
     d = json.loads((run / "_run.json").read_text())
