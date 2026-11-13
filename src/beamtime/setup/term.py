@@ -10,6 +10,7 @@ from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from types import TracebackType
+from typing import TextIO
 
 STYLES = {
     "m": "90",
@@ -172,7 +173,13 @@ class Term:
     """Prompts that draw on a terminal with raw keys, or ask by numbered lines over a pipe."""
 
     def __init__(
-        self, *, inp=None, out=None, color: bool = True, raw: bool = True, width: int | None = None
+        self,
+        *,
+        inp: TextIO | None = None,
+        out: TextIO | None = None,
+        color: bool = True,
+        raw: bool = True,
+        width: int | None = None,
     ) -> None:
         self.inp = inp or sys.stdin
         self.out = out or sys.stdout
@@ -276,7 +283,8 @@ class Term:
                         continue
                     while isinstance(found := add.check(self.ask(f"{add.prompt}: ").strip()), str):
                         self.write(f"{found}\n")
-                    options.append(found)
+                    if found.value not in [o.value for o in options]:
+                        options.append(found)
                     ticked = self.tick(options, ticked, found)
                 return [o.value for o in options if o.value in ticked]
 
@@ -311,7 +319,7 @@ class Term:
                 self.foot(f"{len(ticked)} selected · ↑↓ move · space select · enter confirm{more}"),
             ]
 
-        with self.session(frame, quit_on_q=True) as keys:
+        with self.session(frame) as keys:
             for key in keys:
                 if typed is not None:
                     error = None
@@ -339,6 +347,8 @@ class Term:
                     continue
                 on_add = add is not None and cur == len(options)
                 match key:
+                    case "char:q":
+                        raise Aborted
                     case "up" | "char:k":
                         cur, moved = (cur - 1) % (len(options) + (add is not None)), True
                     case "down" | "char:j":

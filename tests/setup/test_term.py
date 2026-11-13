@@ -263,3 +263,16 @@ def test_key_names():
         "backspace",
         None,
     ]
+
+
+@posix
+def test_q_is_typed_in_the_add_row():
+    add = Add("Add a path", "Path", lambda v: Option(v, v))
+    run = drive(lambda t: t.multi("Pick", OPTIONS, ["a"], add), b"+quartz" + ENTER + ENTER)
+    assert run.error is None and run.value == ["a", "quartz"]
+    assert isinstance(drive(lambda t: t.multi("Pick", OPTIONS, ["a"], add), b"q").error, Aborted)
+
+
+def test_fallback_add_of_a_listed_value_is_not_doubled():
+    add = Add("Add a path", "Path", lambda v: Option("a", "Alpha"))
+    assert pipe("1,4\nx\n")[0].multi("Pick", OPTIONS, [], add) == ["a"]
