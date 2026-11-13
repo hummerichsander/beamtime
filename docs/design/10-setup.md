@@ -256,7 +256,17 @@ reads, whether its config is shared through git, and how to start it with a prom
 Claude Code also gets the skills ([layer 8](08-cli-mcp.md#skills-and-plugin)) in `.claude/skills/`.
 Config files are edited as data (JSON, or the one TOML table appended or replaced between its
 header and the next), keeping every other server and key. `beamtime mcp install --client <name>`
-stays as the one-client form of the same code.
+stays as the one-client form of the same code; `--client other` prints the JSON.
+
+`register(client, root, env)` returns a `Change` (`setup/plan.py`) whose `run` writes the config. A
+shared client (Claude Code, Cursor, VS Code, Gemini CLI, opencode) gets the portable command in its
+project file; when none is portable, Claude Code (`projects.<root>.mcpServers` in `~/.claude.json`),
+Cursor (`~/.cursor/mcp.json`) and VS Code (the user `mcp.json`) get this machine's command in their
+machine config with `--root <abs>`. Gemini CLI and opencode have no machine scope here, so a
+non-portable command is an error that says to install with `uv tool install 'beamtime[serve]'`. A
+config that does not parse is an error naming the file; nothing is overwritten.
+`rules_change(client, root, agent, user_only)` returns the `Change` that writes the rules block into
+the client's rules file.
 
 ### The MCP command
 

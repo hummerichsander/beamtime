@@ -1,6 +1,8 @@
 import dataclasses
 import json
+import os
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -303,12 +305,29 @@ def test_source_probe_expands_the_path_on_the_remote(
     assert probe_command("h", "/nowhere/beamtime") is None
 
 
-def test_mcp_install_for_cursor(ctx: Context, project: Path) -> None:
-    """Cursor's project config gets an entry that names the project root."""
+@pytest.fixture
+def launcher_on_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Put a fake ``beamtime`` with the serve extra first on ``PATH``.
+
+    :param tmp_path: The test's temporary directory.
+    :param monkeypatch: The environment patcher.
+    :return: The fake launcher."""
+    folder = tmp_path / "bin"
+    folder.mkdir()
+    script = folder / "beamtime"
+    script.write_text('#!/bin/sh\necho "beamtime 0.3.0"\n')
+    script.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{folder}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    return script
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the fake launcher is a shell script")
+def test_mcp_install_for_cursor(ctx: Context, project: Path, launcher_on_path: Path) -> None:
+    """Cursor's project config gets a portable entry that names the workspace."""
     call("mcp install", {"client": "cursor"}, ctx)
-    config = json.loads((project / ".cursor" / "mcp.json").read_text())
-    args = config["mcpServers"]["beamtime"]["args"]
-    assert args[-1] == "mcp" and args[:2] == ["--root", str(project.resolve())]
+    entry = json.loads((project / ".cursor" / "mcp.json").read_text())["mcpServers"]["beamtime"]
+    assert entry == {"command": "beamtime", "args": ["--root", "${workspaceFolder}", "mcp"]}
 
 
 def test_text_rendering(ctx: Context) -> None:
@@ -411,8 +430,23 @@ def test_instructions_block(project: Path) -> None:
     assert "has Beamtime's agent rules already" in call("init", {"instructions": True}, ctx)["lines"][0]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="the fake launcher is a shell script")
+def test_mcp_install_instructions_go_to_the_clients_file(
+    ctx: Context, project: Path, launcher_on_path: Path
+) -> None:
+    """--instructions writes the generated block into the file the client reads."""
+    from beamtime.guide.rules import START
+
+    lines = call("mcp install", {"client": "gemini", "instructions": True}, ctx)["lines"]
+    assert any("GEMINI.md" in line for line in lines)
+    assert (project / "GEMINI.md").read_text().count(START) == 1
+    assert not (project / "AGENTS.md").exists()
+    assert (project / ".gemini" / "settings.json").is_file()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the fake launcher is a shell script")
 def test_init_and_mcp_install_work_without_a_local_log_dir(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, launcher_on_path: Path
 ) -> None:
     """A project that has never logged a run yet (no local log dir) can still set up its
     instructions and register the MCP server; neither needs a source to exist."""
@@ -434,7 +468,7 @@ def test_init_and_mcp_install_work_without_a_local_log_dir(
 
     installed = call("mcp install", {"client": "cursor"}, ctx)
     config = json.loads((root / ".cursor" / "mcp.json").read_text())
-    assert config["mcpServers"]["beamtime"]["args"][:2] == ["--root", str(root.resolve())]
+    assert config["mcpServers"]["beamtime"]["args"] == ["--root", "${workspaceFolder}", "mcp"]
     assert not any("error" in line.lower() for line in installed["lines"])
 
 

@@ -1,13 +1,25 @@
 """Tests of the portable MCP command."""
 
-from pathlib import Path
+import json
 import os
 import stat
 import sys
+from pathlib import Path
 
 import pytest
 
-from beamtime.setup.agents import check_command, mcp_command
+from beamtime.guide.rules import END, START
+from beamtime.settings import Settings
+from beamtime.setup.agents import (
+    CLIENTS,
+    ConfigError,
+    check_command,
+    client_named,
+    machine_config,
+    mcp_command,
+    register,
+    rules_change,
+)
 from beamtime.setup.scan import PythonEnv
 
 posix = pytest.mark.skipif(sys.platform == "win32", reason="the fake launchers are shell scripts")
@@ -173,3 +185,209 @@ def test_check_command(tmp_path: Path) -> None:
     assert check_command([str(ok), "mcp"]) == ("0.3.0", True)
     assert check_command([str(bare), "mcp"]) == ("0.3.0", False)
     assert check_command([str(tmp_path / "missing"), "mcp"]) == (None, False)
+
+
+@pytest.fixture
+def uv_project(bins: Path, tmp_path: Path, home: Path) -> tuple[Path, PythonEnv]:
+    """Make a uv project whose command is portable.
+
+    :param bins: The folder on ``PATH``, holding a fake ``uv``.
+    :param tmp_path: The test's temporary directory.
+    :param home: The fake home directory.
+    :return: The project root and its environment."""
+    launcher(bins, "uv")
+    root = tmp_path / "project"
+    root.mkdir()
+    return root.resolve(), env_of("uv", root)
+
+
+@pytest.fixture
+def pip_project(bins: Path, tmp_path: Path, home: Path) -> tuple[Path, PythonEnv]:
+    """Make a pip project whose command names this machine.
+
+    :param bins: The folder on ``PATH``, empty.
+    :param tmp_path: The test's temporary directory.
+    :param home: The fake home directory.
+    :return: The project root and its environment."""
+    root = tmp_path / "project"
+    launcher(root / ".venv" / "bin", "beamtime")
+    return root.resolve(), env_of("pip", root)
+
+
+@posix
+def test_every_client_registers(uv_project: tuple[Path, PythonEnv], home: Path) -> None:
+    """Each client's config is written as data, in its own shape, and read back."""
+    root, env = uv_project
+    for client in CLIENTS:
+        change = register(client, root, env, home=home)
+        change.run()
+        if client.name == "other":
+            assert json.loads(change.after)["mcpServers"]["beamtime"]["command"] == "uv"
+            continue
+        path = root / client.config if client.shared else home / client.config.removeprefix("~/")
+        assert path.is_file(), client.name
+        assert change.where == ("project" if client.shared else "machine")
+        if client.name == "codex":
+            assert "[mcp_servers.beamtime]" in path.read_text()
+        else:
+            assert "beamtime" in json.loads(path.read_text())[client.key]
+
+
+@posix
+def test_entry_shapes(uv_project: tuple[Path, PythonEnv], home: Path) -> None:
+    """VS Code says stdio, opencode takes one command list, the rest split command and args."""
+    root, env = uv_project
+    register(client_named("vscode"), root, env, home=home).run()
+    register(client_named("opencode"), root, env, home=home).run()
+    register(client_named("cursor"), root, env, home=home).run()
+    uv = ["uv", "run", "--project", "."]
+    vscode = json.loads((root / ".vscode" / "mcp.json").read_text())["servers"]["beamtime"]
+    assert vscode == {
+        "type": "stdio",
+        "command": "uv",
+        "args": [*uv[1:], "beamtime", "--root", "${workspaceFolder}", "mcp"],
+    }
+    opencode = json.loads((root / "opencode.json").read_text())["mcp"]["beamtime"]
+    assert opencode == {"type": "local", "command": [*uv, "beamtime", "mcp"], "enabled": True}
+    cursor = json.loads((root / ".cursor" / "mcp.json").read_text())["mcpServers"]["beamtime"]
+    assert cursor["args"][-3:] == ["--root", "${workspaceFolder}", "mcp"]
+
+
+@posix
+def test_mcp_json_merges(uv_project: tuple[Path, PythonEnv], home: Path) -> None:
+    """An existing .mcp.json keeps its other servers and keys."""
+    root, env = uv_project
+    (root / ".mcp.json").write_text(
+        json.dumps({"mcpServers": {"other": {"command": "x"}}, "keep": 1})
+    )
+    register(client_named("claude-code"), root, env, home=home).run()
+    config = json.loads((root / ".mcp.json").read_text())
+    assert config["keep"] == 1 and config["mcpServers"]["other"] == {"command": "x"}
+    assert config["mcpServers"]["beamtime"]["command"] == "uv"
+
+
+@posix
+def test_codex_table_replaced(uv_project: tuple[Path, PythonEnv], home: Path) -> None:
+    """Codex's beamtime table is replaced between its header and the next, never duplicated."""
+    root, env = uv_project
+    path = home / ".codex" / "config.toml"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        'model = "o3"\n\n[mcp_servers.beamtime]\ncommand = "old"\nargs = []\n\n'
+        '[mcp_servers.other]\ncommand = "keep"\n'
+    )
+    codex = client_named("codex")
+    for _ in range(2):
+        register(codex, root, env, home=home).run()
+    text = path.read_text()
+    assert text.count("[mcp_servers.beamtime]") == 1 and 'command = "old"' not in text
+    assert 'model = "o3"' in text and '[mcp_servers.other]\ncommand = "keep"' in text
+    assert f'"--root", "{root}"' in text
+
+
+@posix
+def test_codex_appends_to_a_new_file(uv_project: tuple[Path, PythonEnv], home: Path) -> None:
+    """Without a config, Codex's file holds just the table."""
+    root, env = uv_project
+    register(client_named("codex"), root, env, home=home).run()
+    text = (home / ".codex" / "config.toml").read_text()
+    assert text.startswith("[mcp_servers.beamtime]\ncommand = ")
+
+
+@posix
+@pytest.mark.parametrize("name", ["claude-code", "cursor", "codex", "windsurf"])
+def test_bad_client_json(name: str, uv_project: tuple[Path, PythonEnv], home: Path) -> None:
+    """A config that doesn't parse is an error naming the file, and it is left as it was."""
+    root, env = uv_project
+    client = client_named(name)
+    path = root / client.config if client.shared else home / client.config.removeprefix("~/")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{ not valid")
+    with pytest.raises(ConfigError, match=path.name):
+        register(client, root, env, home=home).run()
+    assert path.read_text() == "{ not valid"
+
+
+@posix
+def test_machine_scope(pip_project: tuple[Path, PythonEnv], home: Path) -> None:
+    """A command that names this machine goes into the client's machine config, never the repo."""
+    root, env = pip_project
+    script = str(root / ".venv" / "bin" / "beamtime")
+    for name in ("claude-code", "cursor", "vscode"):
+        client = client_named(name)
+        change = register(client, root, env, home=home)
+        assert change.where == "machine"
+        change.run()
+        assert not (root / client.config).exists()
+        data = json.loads(machine_config(client, home).read_text())
+        if name == "claude-code":
+            data = data["projects"][str(root)]
+        entry = data[client.key]["beamtime"]
+        assert script in (entry["command"], *entry.get("args", []))
+        assert entry["args"][-3:] == ["--root", str(root), "mcp"]
+
+
+@posix
+def test_machine_scope_keeps_claude_json(pip_project: tuple[Path, PythonEnv], home: Path) -> None:
+    """Claude Code's local scope sits beside the other projects in ~/.claude.json."""
+    root, env = pip_project
+    path = home / ".claude.json"
+    path.write_text(json.dumps({"projects": {"/elsewhere": {"x": 1}}, "userID": "u"}))
+    register(client_named("claude-code"), root, env, home=home).run()
+    data = json.loads(path.read_text())
+    assert data["projects"]["/elsewhere"] == {"x": 1} and data["userID"] == "u"
+
+
+@posix
+def test_unportable_without_machine_scope(pip_project: tuple[Path, PythonEnv], home: Path) -> None:
+    """Gemini CLI and opencode have no machine scope, so a non-portable command is refused."""
+    root, env = pip_project
+    for name in ("gemini", "opencode"):
+        with pytest.raises(ConfigError, match="uv tool install"):
+            register(client_named(name), root, env, home=home)
+
+
+@posix
+def test_no_command(bins: Path, tmp_path: Path, home: Path) -> None:
+    """With nothing to start the server, registering says what to install."""
+    with pytest.raises(ConfigError, match="uv tool install"):
+        register(client_named("cursor"), tmp_path, None, home=home)
+
+
+@posix
+def test_windsurf_and_codex_name_the_root(uv_project: tuple[Path, PythonEnv], home: Path) -> None:
+    """User-wide configs hold the absolute root, since they serve every project."""
+    root, env = uv_project
+    register(client_named("windsurf"), root, env, home=home).run()
+    path = home / ".codeium" / "windsurf" / "mcp_config.json"
+    args = json.loads(path.read_text())["mcpServers"]["beamtime"]["args"]
+    assert args[-3:] == ["--root", str(root), "mcp"]
+
+
+@posix
+def test_other_prints_json(uv_project: tuple[Path, PythonEnv], home: Path) -> None:
+    """Another agent gets the JSON to paste and nothing is written."""
+    root, env = uv_project
+    change = register(client_named("other"), root, env, home=home)
+    change.run()
+    assert json.loads(change.after)["mcpServers"]["beamtime"]["args"][-3:] == [
+        "--root",
+        str(root),
+        "mcp",
+    ]
+    assert not any(home.iterdir()) and not any(root.iterdir())
+
+
+def test_rules_change(tmp_path: Path) -> None:
+    """The rules block goes into the client's file, keeps the user's text and reports the release."""
+    agent = Settings().agent
+    file = tmp_path / "GEMINI.md"
+    file.write_text("# Mine\n")
+    change = rules_change(client_named("gemini"), tmp_path, agent, ["setup"])
+    assert change.before is None and change.where == "project" and change.after
+    assert change.run() == "added"
+    text = file.read_text()
+    assert text.startswith("# Mine\n") and text.count(START) == text.count(END) == 1
+    again = rules_change(client_named("gemini"), tmp_path, agent, ["setup"])
+    assert again.before == again.after and again.run() == "unchanged"
+    assert not (tmp_path / "AGENTS.md").exists()

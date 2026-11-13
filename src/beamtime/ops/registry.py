@@ -600,7 +600,9 @@ class DemoParams(Params, kw_only=True):
 class McpInstallParams(Params, kw_only=True):
     """Parameters of ``mcp install``."""
 
-    client: Literal["claude-code", "cursor", "codex"] = "claude-code"
+    client: Literal[
+        "claude-code", "codex", "cursor", "vscode", "gemini", "opencode", "windsurf", "other"
+    ] = "claude-code"
     instructions: Instructions = False
     skills: Annotated[
         bool, msgspec.Meta(description="write the Beamtime skills to .claude/skills")

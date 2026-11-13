@@ -328,7 +328,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 2. `check_command(cmd: list[str]) -> tuple[str | None, bool]`: runs `cmd[:-1] + ["--version"]` style probe with a
    5 s timeout and parses version and serve extra.
 
-### A12. Clients, registration and the rules block (sonnet + review) — code
+### A12. Clients, registration and the rules block (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/setup/agents.py` (new `CLIENTS`, `Client`, `register`, `rules_change`),
   `src/beamtime/ops/admin.py` (`mcp_install` 630, `instruction_file` 656, `instructions` 668, `register` 692 moved

@@ -3,7 +3,6 @@
 Agents never run these; they hand the user the command."""
 
 import functools
-import json
 import os
 import platform
 import shutil
@@ -61,7 +60,8 @@ def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
             f.write(f"{entry}\n")
         lines.append(f"added {entry} to {gitignore}")
     if p.instructions:
-        lines.append(instructions(ctx, instruction_file(ctx.root, None)))
+        only_claude = (ctx.root / "CLAUDE.md").exists() and not (ctx.root / "AGENTS.md").exists()
+        lines.append(write_rules(ctx, "claude-code" if only_claude else "other"))
     if not lines:
         lines.append("already set up")
     lines.append(
@@ -264,7 +264,6 @@ def remote_checks(name: str, conf: dict[str, Any]) -> list[tuple[str, bool | Non
     :param name: The remote's name.
     :param conf: Its merged settings.
     :return: ``(check, ok, detail)`` rows."""
-    import subprocess
 
     from beamtime.remote.client import RemoteClient
     from beamtime.remote.sources import spec_of
@@ -320,7 +319,6 @@ def probe_command(host: str, path: str) -> str | None:
     :param path: The remote log dir.
     :return: The command to run there; ``None`` if neither probe succeeds."""
     import re
-    import subprocess
 
     def ssh(line: str) -> subprocess.CompletedProcess:
         return subprocess.run(
@@ -637,96 +635,57 @@ def mcp_install(ctx: Context, p: r.McpInstallParams) -> dict[str, Any]:
 
     :param ctx: The operation context.
     :param p: The parameters.
-    :return: What was changed, or the command to run."""
-    answered = register(ctx, p)
+    :return: What was changed, or the config to paste."""
+    from beamtime.setup.agents import ConfigError, client_named, register
+    from beamtime.setup.scan import read_env
+
+    client = client_named(p.client)
+    try:
+        change = register(client, ctx.root, read_env(ctx.root, os.environ))
+    except ConfigError as e:
+        raise OpError(str(e), code=3) from e
+    if client.name == "other":
+        lines = [f"{change.label}:", change.after]
+    else:
+        try:
+            change.run()
+        except ConfigError as e:
+            raise OpError(str(e), code=3) from e
+        lines = [f"wrote {change.after}"]
+    answered = answer("mcp install", lines)
     if p.skills:
         from beamtime.guide.skills import write_skills
 
         names = [str(f.relative_to(ctx.root)) for f in write_skills(ctx.root)]
         answered["lines"].append(f"wrote {', '.join(names)}")
     if p.instructions:
-        answered["lines"].append(instructions(ctx, instruction_file(ctx.root, p.client)))
+        answered["lines"].append(write_rules(ctx, p.client))
     else:
-        file = instruction_file(ctx.root, p.client).name
         answered["lines"].append(
-            f"`beamtime mcp install --instructions` adds the agent rules to {file}"
+            f"`beamtime mcp install --instructions` adds the agent rules to {client.rules}"
         )
     return answered
 
 
-def instruction_file(root: Path, client: str | None) -> Path:
-    """Pick the instruction file an agent reads: CLAUDE.md for Claude Code, else AGENTS.md.
-
-    :param root: The project root.
-    :param client: The agent client, or ``None`` (``init``: whichever file exists).
-    :return: The file."""
-    only_claude = (root / "CLAUDE.md").exists() and not (root / "AGENTS.md").exists()
-    if client == "claude-code" or (client is None and only_claude):
-        return root / "CLAUDE.md"
-    return root / "AGENTS.md"
-
-
-def instructions(ctx: Context, file: Path) -> str:
-    """Write Beamtime's agent rules into an instruction file, as one marked block.
+def write_rules(ctx: Context, client: str) -> str:
+    """Write Beamtime's agent rules into a client's instruction file, as one marked block.
 
     A rerun replaces the block, so updated rules arrive and the user's own text stays.
 
     :param ctx: The operation context, whose settings hold the agent behaviour.
-    :param file: The instruction file.
+    :param client: The agent client's name.
     :return: What happened."""
-    from beamtime.guide.rules import render, write_block
+    from beamtime.setup.agents import client_named, rules_change
 
-    block = render(ctx.settings.agent, sorted(op.name for op in r.OPS if op.user_only))
-    match write_block(file, block):
+    c = client_named(client)
+    change = rules_change(
+        c, ctx.root, ctx.settings.agent, sorted(o.name for o in r.OPS if o.user_only)
+    )
+    file = ctx.root / c.rules
+    match change.run():
         case "added":
             return f"added Beamtime's agent rules to {file}"
         case "updated":
             return f"updated Beamtime's agent rules in {file}"
         case _:
             return f"{file.name} has Beamtime's agent rules already"
-
-
-def register(ctx: Context, p: r.McpInstallParams) -> dict[str, Any]:
-    """Register ``beamtime mcp`` with an agent client.
-
-    :param ctx: The operation context.
-    :param p: The parameters.
-    :return: What was changed, or the command to run."""
-    exe = shutil.which("beamtime") or str(Path(sys.executable).parent / "beamtime")
-    # Codex's config is user-wide, so every client gets the project named explicitly.
-    args = ["--root", str(ctx.root), "mcp"]
-    match p.client:
-        case "claude-code":
-            cmd = ["claude", "mcp", "add", "--scope", "project", "beamtime", "--", exe]
-            cmd += args
-            if shutil.which("claude") is None:
-                return answer("mcp install", ["run this:", " ".join(cmd)], command=cmd)
-            done = subprocess.run(cmd, cwd=ctx.root, capture_output=True, text=True)
-            if done.returncode != 0:
-                raise OpError(f"`{' '.join(cmd)}` failed: {done.stderr.strip()}")
-            return answer("mcp install", [f"ran {' '.join(cmd)}", done.stdout.strip()])
-        case "cursor":
-            path = ctx.root / ".cursor" / "mcp.json"
-            config = json.loads(path.read_text()) if path.exists() else {}
-            config.setdefault("mcpServers", {})["beamtime"] = {
-                "command": exe,
-                "args": args,
-            }
-            path.parent.mkdir(exist_ok=True)
-            path.write_text(json.dumps(config, indent=2) + "\n")
-            return answer("mcp install", [f"added beamtime to {path}"])
-        case "codex":
-            path = Path.home() / ".codex" / "config.toml"
-            text = path.read_text() if path.exists() else ""
-            if "[mcp_servers.beamtime]" in text:
-                return answer(
-                    "mcp install",
-                    [f"{path} lists beamtime already; edit its --root to switch"],
-                )
-            path.parent.mkdir(exist_ok=True)
-            with path.open("a") as f:
-                f.write(f'\n[mcp_servers.beamtime]\ncommand = "{exe}"\n')
-                f.write(f"args = {json.dumps(args)}\n")
-            return answer("mcp install", [f"added [mcp_servers.beamtime] to {path}"])
-        case _:
-            raise OpError(f"unknown client {p.client!r}", code=2)

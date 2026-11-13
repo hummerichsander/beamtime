@@ -289,9 +289,11 @@ Decided while building the CLI and MCP server (milestone M3):
 - **The agent rules** (`--instructions`) come from the guide package (`guide/parts/instructions.md`)
   and are written as one block between `<!-- beamtime:start -->` and `<!-- beamtime:end -->`; a
   rerun replaces the block and keeps the rest of the file.
-- **`mcp install`** registers `beamtime --root <project> mcp`, so a client that keeps one
-  user-wide config (Codex) still points at the right project. Claude Code uses
-  `claude mcp add --scope project`, Cursor `.cursor/mcp.json`.
+- **`mcp install --client <name>`** is the one-client form of the setup's registration
+  (`setup/agents.py:register`, [layer 10](10-setup.md#agent-clients)): it edits the client's config
+  as data, keeping other servers, and names the project with `--root` where the config is user-wide.
+  `--instructions` writes the generated rules block into the client's rules file (`CLAUDE.md`,
+  `GEMINI.md` or `AGENTS.md`).
 - **`gc` is a dry run** unless given `--yes`; `rm` and `mv` refuse runs whose heartbeat is fresh.
 - **`serve` and `demo`** (M5) are user-only operations in the registry. `serve` refuses to start
   when another `serve` holds the root's lock and names its URL; Ctrl-C and SIGTERM stop it cleanly.
