@@ -101,8 +101,10 @@ def release_of(block: str) -> str | None:
 
 
 def pattern(template: str) -> str:
-    """Turn a template into a regular expression: placeholders match any text on a line, the
-    lines of the optional ones may be missing and whitespace runs match any whitespace.
+    """Turn a template into a regular expression.
+
+    Placeholders match any text on a line, the lines of the optional ones may be missing and
+    whitespace runs match any whitespace.
 
     :param template: The template text.
     :return: The pattern."""
@@ -132,23 +134,25 @@ def read_block(file: Path) -> str | None:
     """Read the rules block from an instruction file.
 
     :param file: The instruction file.
-    :return: The block's text without markers, or ``None`` if the file has none."""
+    :return: The block's text without markers and with ``\n`` line ends, or ``None`` if the file
+        has none."""
     text = file.read_bytes().decode() if file.exists() else ""
     if (found := find_block(text)) is None:
         return None
-    return text[found[0] + len(START) : found[1]].strip()
+    return text[found[0] + len(START) : found[1]].strip().replace("\r\n", "\n")
 
 
 def write_block(file: Path, block: str) -> Literal["added", "updated", "unchanged"]:
-    """Write the rules block into an instruction file, replacing a previous one; text outside
-    the markers stays byte for byte.
+    """Write the rules block into an instruction file, replacing a previous one.
+
+    Text outside the markers stays byte for byte.
 
     :param file: The instruction file, created if missing.
     :param block: The block's text, without markers.
     :return: What happened."""
     text = file.read_bytes().decode() if file.exists() else ""
     newline = "\r\n" if "\r\n" in text else "\n"
-    marked = f"{START}\n{block}\n{END}".replace("\n", newline)
+    marked = f"{START}\n{block}\n{END}".replace("\r\n", "\n").replace("\n", newline)
     if (found := find_block(text)) is None:
         gap = newline if text and not text.endswith(newline * 2) else ""
         file.write_bytes((text + gap + marked + newline).encode())

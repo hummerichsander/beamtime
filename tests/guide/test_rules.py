@@ -121,3 +121,14 @@ def test_crlf_block(tmp_path: Path) -> None:
     assert write_block(file, text) == "unchanged"
     assert write_block(file, "other") == "updated"
     assert file.read_bytes().startswith(b"# Mine\r\n\r\n")
+
+
+def test_crlf_round_trip(tmp_path: Path) -> None:
+    """A block read from a CRLF file has LF line ends and writes back unchanged."""
+    file = tmp_path / "AGENTS.md"
+    file.write_bytes(b"# Mine\r\n")
+    text = render(agent(), USER_ONLY)
+    write_block(file, text)
+    assert read_block(file) == text
+    assert write_block(file, read_block(file)) == "unchanged"
+    assert b"\r\r" not in file.read_bytes()
