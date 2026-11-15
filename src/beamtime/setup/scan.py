@@ -127,6 +127,7 @@ class AgentFound:
     rules_file: str
     has_block: bool
     release: str | None
+    registered: bool
 
 
 class Conflict(NamedTuple):
@@ -199,6 +200,7 @@ def scan(
     disks = read_disks(home, mounts, env)
     scheduler = find_scheduler(env)
     display = has_display(env)
+    agents = read_agents(root, home, env)
     user_remotes = read_level(user_settings(home, env), "user", []).get("remotes") or {}
     return Scan(
         root=root,
@@ -212,12 +214,12 @@ def scan(
         disks=disks,
         scheduler=scheduler,
         display=display,
-        agents=read_agents(root, home, env),
+        agents=agents,
         conflicts=find_conflicts(root),
         past=find_past(root, project.logdir),
         notes=find_notes(root, home, project.logdir),
         stale=(),
-        flow=pick_flow(project, user_remotes, scheduler, display, disks),
+        flow=pick_flow(project, user_remotes, scheduler, display, disks, agents),
     )
 
 
@@ -227,6 +229,7 @@ def pick_flow(
     scheduler: str | None,
     display: bool,
     disks: tuple[Disk, ...],
+    agents: tuple[AgentFound, ...],
 ) -> Flow:
     """Pick the flow from the facts: cluster, teammate, update, current or first setup.
 
@@ -235,11 +238,14 @@ def pick_flow(
     :param scheduler: The scheduler on ``PATH``, if any.
     :param display: Whether the machine has a display.
     :param disks: The disks, among them ``home``.
+    :param agents: The agent clients found.
     :return: The flow."""
     if scheduler or not display or any(d.network for d in disks if d.label == "home"):
         return "cluster"
     if project.settings:
-        return "teammate" if set(project.remotes) - set(user_remotes) else "current"
+        missing = bool(set(project.remotes) - set(user_remotes))
+        unregistered = any(a.command and not a.registered for a in agents)
+        return "teammate" if missing or unregistered else "current"
     return "update" if project.has_logdir else "first"
 
 
@@ -560,7 +566,7 @@ def read_agents(root: Path, home: Path, env: Mapping[str, str]) -> tuple[AgentFo
     :param home: The home directory.
     :param env: The environment variables.
     :return: One entry per client found, in the order of the client table."""
-    from beamtime.setup.agents import CLIENTS, expand_home
+    from beamtime.setup.agents import CLIENTS, expand_home, is_registered
 
     found = []
     for client in CLIENTS:
@@ -583,6 +589,7 @@ def read_agents(root: Path, home: Path, env: Mapping[str, str]) -> tuple[AgentFo
                 rules_file=client.rules,
                 has_block=block is not None,
                 release=release_of(block) if block is not None else None,
+                registered=is_registered(client, root, home),
             )
         )
     return tuple(found)

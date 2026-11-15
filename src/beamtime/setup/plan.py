@@ -358,14 +358,18 @@ class Planner:
         """Plan the project's ``beamtime.yaml``: log dir, agent settings and remote paths.
 
         :return: The change, or ``None`` when the file says it already."""
-        from beamtime.settings import write_agent, write_key, write_remote
+        from beamtime.settings import DEFAULTS, write_agent, write_key, write_remote
 
         a = self.answers
         rows: dict[str, tuple[Any, Any]] = {}
         old = self.given.get("logdir")
+        # a file without the key already means the default; only a missing file gets it written.
+        means = (
+            old if old is not None else DEFAULTS["logdir"] if self.project_file.is_file() else None
+        )
         if (
-            old is None
-            or (self.root / expand_path(str(old))).resolve()
+            means is None
+            or (self.root / expand_path(str(means))).resolve()
             != (self.root / expand_path(self.logdir)).resolve()
         ):
             rows["logdir"] = (old, self.logdir)
@@ -410,7 +414,9 @@ class Planner:
         file = file if isinstance(file, dict) else {}
         valid = check_agent(self.project_file, file, []) or {}
         given = {k: v for k, v in valid.items() if k != "style" and k not in PRESETS["careful"]}
-        if a.agent_style != "careful" or file or a.agents or a.agent_set:
+        # a teammate or a cluster doesn't choose the team's style, so choosing agents writes none.
+        chose = bool(a.agents) and self.scan.flow not in ("teammate", "cluster")
+        if a.agent_style != "careful" or file or chose or a.agent_set:
             given = {"style": a.agent_style, **given}
         for key, text in preset_overrides(a.agent_style, a.agent_set).items():
             given[key] = agent_value(key, text)

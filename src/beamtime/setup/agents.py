@@ -421,6 +421,38 @@ def registered(data: dict[str, Any], keys: list[str]) -> bool:
     return SERVER in data
 
 
+def is_registered(client: Client, root: Path, home: Path) -> bool:
+    """Tell whether any config a client reads for this project lists the beamtime server.
+
+    :param client: The agent client.
+    :param root: The project root.
+    :param home: The home directory.
+    :return: ``True`` when the project's, the machine's or the user-wide config has the entry."""
+    if not client.config:
+        return False
+    root = root.resolve()
+    places = [
+        (
+            expand_home(client.config, home)
+            if client.config.startswith("~/")
+            else root / client.config,
+            [client.key],
+        )
+    ]
+    match client.name:
+        case "claude-code":
+            places.append((machine_config(client, home), ["projects", str(root), client.key]))
+        case "cursor" | "vscode":
+            places.append((machine_config(client, home), [client.key]))
+    try:
+        return any(
+            read_toml(path) if path.suffix == ".toml" else registered(read_json(path), keys)
+            for path, keys in places
+        )
+    except ConfigError:
+        return False
+
+
 def put_json(path: Path, keys: list[str], entry: dict[str, Any], client: Client) -> None:
     """Set the beamtime server in a client's JSON config, keeping everything else.
 

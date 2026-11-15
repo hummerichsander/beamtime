@@ -572,7 +572,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 1. A step is `Step(id, ask: Callable[[Term, Answers, Scan], None], when: Callable[[Answers, Scan], bool],
    summary)`; a flow is a list of steps; `run(term, scan, answers) -> Answers | None`.
 
-### W12. Teammate and cluster flows (sonnet) — code
+### W12. Teammate and cluster flows (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/setup/flow.py`, `tests/setup/test_flow.py`.
 - **Read:** the mockup's `MATE` and `CLUSTER` scenarios; `docs/design/10-setup.md` § The flow.

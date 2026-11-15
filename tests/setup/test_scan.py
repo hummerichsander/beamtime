@@ -80,6 +80,28 @@ def test_flow_current_and_teammate(tmp_path, home):
     assert run(tmp_path, home).flow == "current"
 
 
+def test_flow_teammate_by_an_unregistered_agent(tmp_path, home, tools):
+    """An installed agent client without Beamtime makes a teammate, however complete the project."""
+    (tmp_path / "beamtime.yaml").write_text("logdir: beamtime\n")
+    env = {**DESK, "PATH": tools("cursor")}
+    s = run(tmp_path, home, env=env)
+    assert s.flow == "teammate" and not s.agents[0].registered
+    (tmp_path / ".cursor").mkdir()
+    (tmp_path / ".cursor" / "mcp.json").write_text('{"mcpServers": {"beamtime": {}}}')
+    s = run(tmp_path, home, env=env)
+    assert s.flow == "current" and s.agents[0].registered
+    (tmp_path / ".cursor" / "mcp.json").write_text("{not json")
+    assert run(tmp_path, home, env=env).flow == "teammate"
+
+
+def test_flow_ignores_an_agent_that_is_not_installed(tmp_path, home):
+    """A project file of a client that isn't on this machine asks nothing."""
+    (tmp_path / "beamtime.yaml").write_text("logdir: beamtime\n")
+    (tmp_path / ".cursor").mkdir()
+    s = run(tmp_path, home)
+    assert s.agents and s.flow == "current"
+
+
 def test_flow_cluster_by_scheduler(tmp_path, home):
     bin = tmp_path / "bin"
     bin.mkdir()

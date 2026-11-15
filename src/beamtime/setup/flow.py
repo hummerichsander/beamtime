@@ -3,6 +3,7 @@
 import re
 import shlex
 import shutil
+import socket
 import textwrap
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -11,11 +12,12 @@ from typing import Any
 
 import msgspec
 
-from beamtime.settings import PRESETS, expand_path
+from beamtime.settings import PRESETS, expand_path, user_settings_path
 from beamtime.setup.agents import CLIENTS, client_named
 from beamtime.setup.apply import apply
 from beamtime.setup.importers import detect, files
 from beamtime.setup.plan import (
+    BLOCK_HEADS,
     PATH_START,
     Answers,
     Planner,
@@ -27,8 +29,8 @@ from beamtime.setup.plan import (
     plan,
     review,
 )
-from beamtime.setup.remotes import Probe, probe, remote_name_problem
-from beamtime.setup.scan import Scan
+from beamtime.setup.remotes import SSH_BLOCK, Probe, probe, remote_name_problem
+from beamtime.setup.scan import SCRATCH_VARS, Scan
 from beamtime.setup.term import Aborted, Add, FormRow, Option, Term
 
 NUMBERS = ("no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
@@ -95,11 +97,11 @@ def run(
     :param term: The terminal.
     :param scan: The facts of the project and the machine.
     :param answers: The answers from the flags; the scan's findings fill what they leave open.
-    :param steps: The questions; by default those of the first setup.
+    :param steps: The questions; by default those of the scan's flow.
     :param probe: Asks the remote hosts what they have.
     :param which: Looks up a program on ``PATH``.
     :return: The answers to write, or ``None`` when the person quit or wanted only the command."""
-    steps = steps or FirstSetup(probe=probe, which=which).steps()
+    steps = steps or flow_steps(scan, probe, which)
     fill(scan, answers)
     try:
         intro(term, scan)
@@ -165,12 +167,44 @@ def fill(scan: Scan, answers: Answers) -> None:
 
     :param scan: The facts of the project and the machine.
     :param answers: The answers; changed in place."""
+    if scan.flow in ("teammate", "cluster"):
+        if not answers.agents:
+            answers.agents = [a.client for a in scan.agents if a.command]
+        if answers.git == "record" and BLOCK_HEADS["none"] in read_lines(scan.root / ".gitignore"):
+            answers.git = "none"
+        return
     if answers.runs == "here" and scan.job_scripts and scan.ssh_hosts:
         answers.runs = "both"
     if not answers.agents:
         answers.agents = [a.client for a in scan.agents]
     if not answers.sdk and sdk_applies(scan):
         answers.sdk = True
+
+
+def read_lines(path: Path) -> list[str]:
+    """Read the lines of a file, none when it is missing.
+
+    :param path: The file.
+    :return: The lines."""
+    return path.read_text().splitlines() if path.is_file() else []
+
+
+def flow_steps(
+    scan: Scan, probe: Callable[..., dict[str, Probe]], which: Callable[[str], str | None]
+) -> list[Step]:
+    """List the questions of the scan's flow.
+
+    :param scan: The facts of the project and the machine.
+    :param probe: Asks the remote hosts what they have.
+    :param which: Looks up a program on ``PATH``.
+    :return: The steps."""
+    match scan.flow:
+        case "teammate":
+            return Teammate(probe=probe).steps()
+        case "cluster":
+            return Cluster().steps()
+        case _:
+            return FirstSetup(probe=probe, which=which).steps()
 
 
 def sdk_applies(scan: Scan) -> bool:
@@ -192,12 +226,16 @@ def intro(term: Term, scan: Scan) -> None:
     from beamtime import __version__
 
     root = display_path(scan.root, scan.home)
+    lead = {
+        "teammate": "This project uses Beamtime already. Only this machine's part is left.",
+        "cluster": "This looks like a cluster login node. Setup here is short.",
+    }.get(scan.flow, f"Set up Beamtime for {root}.")
     term.emit(
         [
             f"{term.paint('a', '///')} {term.paint('t', 'beamtime')} "
             f"{term.paint('m', __version__)}",
             term.paint("r", "┌"),
-            term.rail(f"Set up Beamtime for {root}."),
+            term.rail(lead),
             term.rail(
                 term.paint(
                     "m", "Nothing is written until you confirm at the end; ctrl-c leaves no trace."
@@ -219,6 +257,23 @@ def facts(term: Term, scan: Scan) -> list[tuple[str, str]]:
     :return: Pairs of the fact's name and its text."""
     m = lambda text: term.paint("m", text)  # noqa: E731
     out: list[tuple[str, str]] = []
+    if scan.flow == "cluster":
+        names = {"slurm": "SLURM (sbatch)", "pbs": "PBS (qsub)", "lsf": "LSF (bsub)"}
+        machine = [socket.gethostname().split(".")[0], names.get(scan.scheduler or "")]
+        if not scan.display:
+            machine.append("no browser")
+        out.append(("machine", f" {m('·')} ".join(x for x in machine if x)))
+    if scan.project.settings and scan.flow in ("teammate", "cluster"):
+        agent = (Planner.read(scan.root / "beamtime.yaml").get("agent") or {}).get("style")
+        project = ["beamtime.yaml", f"logdir {shown(scan.project.logdir, scan).rstrip('/')}"]
+        if agent:
+            project.append(f"agents {agent}")
+        out.append(("project", f" {m('·')} ".join(project)))
+        if scan.project.remotes:
+            names = f" {m('·')} ".join(scan.project.remotes)
+            out.append(("remotes", f"{names} {m('(from beamtime.yaml)')}"))
+    if scan.flow == "cluster" and (disks := disk_facts(scan)):
+        out.append(("disks", f" {m('·')} ".join(disks)))
     git = scan.git
     out.append(
         ("git", f"{git.branch or 'detached'} {m('· ' + ('clean' if git.clean else 'dirty'))}")
@@ -276,6 +331,24 @@ def facts(term: Term, scan: Scan) -> list[tuple[str, str]]:
     return out
 
 
+def disk_facts(scan: Scan) -> list[str]:
+    """Word the filesystems that matter on a cluster: ``$HOME``, scratch and ``/tmp``.
+
+    :param scan: The facts of the project and the machine.
+    :return: One phrase per disk with a known filesystem."""
+    out = []
+    for d in scan.disks:
+        if not d.fstype:
+            continue
+        if d.label == "home":
+            out.append(f"$HOME is {d.fstype}")
+        elif d.label == "tmp":
+            out.append(f"/tmp is {'local' if not d.network else d.fstype}")
+        elif d.label in SCRATCH_VARS:
+            out.append(f"${{{d.label}}} = {d.path} ({d.fstype})")
+    return out
+
+
 def shown(path: Path, scan: Scan) -> str:
     """Write a path as the person would: below the project, then ``~``, else absolute.
 
@@ -314,6 +387,8 @@ def confirm(term: Term, scan: Scan, answers: Answers, which: Callable[[str], str
     if not changes:
         return "none"
     body = [line if line.startswith(" ") else term.paint("t", line) for line in review(changes)]
+    if scan.flow in ("teammate", "cluster") and all(c.label != "beamtime.yaml" for c in changes):
+        body += ["", f"{term.paint('t', 'beamtime.yaml')}  {term.paint('m', 'unchanged')}"]
     return term.select(
         "Ready. Nothing has been written yet.",
         [
@@ -357,6 +432,8 @@ def next_steps(term: Term, scan: Scan, answers: Answers) -> None:
     :param scan: The facts of the project and the machine.
     :param answers: The answers."""
     name = scan.root.name
+    if scan.flow in ("teammate", "cluster"):
+        return next_steps_there(term, scan, answers)
     if scan.framework == "lightning":
         code = [
             "from beamtime.lightning import BeamtimeLogger",
@@ -379,6 +456,43 @@ def next_steps(term: Term, scan: Scan, answers: Answers) -> None:
             *[f"        {line}" for line in code],
             f"   {a.format('2')}  Look at your runs:  beamtime serve --open",
             f"   {a.format('3')}  {third}",
+        ]
+    )
+
+
+def next_steps_there(term: Term, scan: Scan, answers: Answers) -> None:
+    """Say what to do next on a teammate's machine or a cluster, whose project is set up already.
+
+    :param term: The terminal.
+    :param scan: The facts of the project and the machine.
+    :param answers: The answers."""
+    n = lambda i: term.paint("a", str(i))  # noqa: E731
+    code = lambda text: term.paint("c", text)  # noqa: E731
+    rail = term.paint("r", "└")
+    if scan.flow == "teammate":
+        lines = [
+            f"{rail}  {term.paint('t', 'Beamtime is set up on this machine.')}",
+            "",
+            f"   {n(1)}  See the team's runs from every source:  {code('beamtime serve --open')}",
+        ]
+        if answers.agents:
+            ask = f'"What does the project memory say about {scan.root.name}?"'
+            lines.append(f"   {n(2)}  Ask your agent:  {code(ask)}")
+        return term.emit(lines)
+    where = Path(expand_path(answers.link_logdir or answers.logdir))
+    where = (where if where.is_absolute() else scan.root / where).resolve()
+    name = socket.gethostname().split(".")[0]
+    other = f"or run beamtime init there; it finds {name} in ~/.ssh/config."
+    jobs = f"Jobs need no change: {code('beamtime.init()')} finds the project and writes there."
+    term.emit(
+        [
+            f"{rail}  {term.paint('t', 'Beamtime is set up on this cluster.')}",
+            "",
+            f"   {n(1)}  {jobs}",
+            f"      {term.paint('m', 'A requeued job continues its run.')}",
+            f"   {n(2)}  On your laptop, in the project:",
+            f"        {code(f'beamtime source add {name} {name}:{where}')}",
+            f"      {term.paint('m', other)}",
         ]
     )
 
@@ -560,24 +674,11 @@ class FirstSetup:
         options += [Option(h, h, "added") for h in current if h not in {o.value for o in options}]
         default = list(current) or [o.value for o in options if o.value in named]
 
-        def check(text: str) -> Option | str:
-            host = text.strip()
-            if not host or any(c.isspace() for c in host):
-                return "an ssh alias or user@host"
-            if problem := remote_name_problem(source_name(host)):
-                return problem
-            hint = (
-                "added · used as given"
-                if "@" in host
-                else "added · not in ~/.ssh/config, ssh resolves it"
-            )
-            return Option(host, host, hint)
-
         picked = term.multi(
             "Which machines?",
             options,
             default,
-            Add("Add a host", "an ssh alias or user@host", check),
+            Add("Add a host", "an ssh alias or user@host", check_host),
         )
         a.remotes = [current.get(h) or new_remote(h) for h in picked]
         a.install_remotes = [n for n in a.install_remotes if n in {r.name for r in a.remotes}]
@@ -673,25 +774,7 @@ class FirstSetup:
         :param term: The terminal.
         :param a: The answers; changed in place.
         :param scan: The facts of the project and the machine."""
-        found = {f.client: f for f in scan.agents}
-        hints = {"other": "prints its MCP config to paste"}
-        options = [
-            Option(
-                c.name,
-                c.label,
-                (found_hint(found[c.name], scan) if found[c.name].files else "on PATH")
-                if c.name in found
-                else hints.get(c.name),
-            )
-            for c in CLIENTS
-        ]
-        options.append(Option("none", "None", "I use Beamtime without an agent", exclusive=True))
-        picked = term.multi(
-            "Which coding agents should know about Beamtime?",
-            options,
-            a.agents or ["none"],
-        )
-        a.agents = [v for v in picked if v != "none"]
+        pick_agents(term, a, scan, "Which coding agents should know about Beamtime?")
 
     def ask_style(self, term: Term, a: Answers, scan: Scan) -> None:
         """Ask how much agents do on their own.
@@ -941,6 +1024,429 @@ class FirstSetup:
             )
             == "yes"
         )
+
+
+class Teammate:
+    """The questions of a teammate on a project that uses Beamtime: this machine's part only."""
+
+    def __init__(self, *, probe: Callable[..., dict[str, Probe]] = probe) -> None:
+        """Keep what the questions share: the probe and what it found.
+
+        :param probe: Asks the remote hosts what they have."""
+        self.probe = probe
+        self.probes: dict[str, Probe] = {}
+        self.picked = False
+
+    def steps(self) -> list[Step]:
+        """List the questions in order.
+
+        :return: The steps."""
+        return [
+            Step(
+                id="agents",
+                title="Which coding agents do you use on this machine?",
+                ask=lambda term, a, s: pick_agents(
+                    term, a, s, "Which coding agents do you use on this machine?"
+                ),
+                summary=lambda a, s: ", ".join(client_named(x).label for x in a.agents) or "none",
+            ),
+            Step(
+                id="hosts",
+                title="Which of the project's machines do you use?",
+                ask=self.ask_hosts,
+                when=lambda a, s: bool(s.project.remotes),
+                summary=lambda a, s: ", ".join(r.name for r in a.remotes) or "none",
+            ),
+            Step(
+                id="check",
+                title="Checking the machines",
+                ask=self.ask_check,
+                when=lambda a, s: bool(a.remotes),
+            ),
+            Step(
+                id="ssh",
+                title="Log in once per session?",
+                ask=self.ask_ssh,
+                when=lambda a, s: any(self.shareable(r, s) for r in a.remotes),
+            ),
+            Step(
+                id="reach",
+                title="How do you reach a machine?",
+                ask=self.ask_reach,
+                when=lambda a, s: any(self.unreachable(r, s) for r in a.remotes),
+            ),
+        ]
+
+    def ask_hosts(self, term: Term, a: Answers, scan: Scan) -> None:
+        """Ask which of the project's remotes to use, and which own hosts to add.
+
+        :param term: The terminal.
+        :param a: The answers; changed in place.
+        :param scan: The facts of the project and the machine."""
+        given, mine = project_remotes(scan), user_remotes()
+        current = {(r.name if r.name in given else r.host or r.name): r for r in a.remotes}
+        aliases = {h.name for h in scan.ssh_hosts}
+        options = []
+        for name in given:
+            host = (mine.get(name) or {}).get("host") or name
+            if (mine.get(name) or {}).get("enabled") is False:
+                hint = "beamtime.yaml · skipped on this machine before"
+            elif host == name:
+                hint = f"beamtime.yaml · {'in' if name in aliases else 'not in'} ~/.ssh/config"
+            else:
+                hint = f"beamtime.yaml · as {host} in your settings"
+            options.append(Option(name, name, hint))
+        options += [Option(h, h, "added") for h in current if h not in given]
+        default = (
+            list(current)
+            if self.picked
+            else [n for n in given if (mine.get(n) or {}).get("enabled") is not False]
+        )
+        picked = term.multi(
+            "Which of the project's machines do you use?",
+            options,
+            default,
+            Add("Add a host", "an ssh alias or user@host", check_host),
+        )
+        self.picked = True
+        a.remotes = [current.get(v) or (Remote(v) if v in given else new_remote(v)) for v in picked]
+        a.skip_remotes = [n for n in given if n not in picked]
+
+    def ask_check(self, term: Term, a: Answers, scan: Scan) -> None:
+        """Check every machine at once; one that ssh can't find is named, not asked.
+
+        :param term: The terminal.
+        :param a: The answers.
+        :param scan: The facts of the project and the machine."""
+        self.check(term, a.remotes, scan)
+
+    def check(self, term: Term, remotes: list[Remote], scan: Scan) -> None:
+        """Probe the machines not probed yet, in one task, and word what was found.
+
+        :param term: The terminal.
+        :param remotes: The remotes to check.
+        :param scan: The facts of the project and the machine."""
+        given = project_remotes(scan)
+        todo = {
+            h: (given.get(r.name) or {}).get("path")
+            for r in remotes
+            if (h := self.address(r)) not in self.probes and not self.unreachable(r, scan)
+        }
+        names = [self.address(r) for r in remotes]
+        title = f"Checking {names[0] if len(names) == 1 else f'{len(names)} machines'}"
+        with term.task(title) as task:
+            self.probes.update(self.probe(list(todo), todo) if todo else {})
+            for r in remotes:
+                host = self.address(r)
+                if self.unreachable(r, scan):
+                    task.line(
+                        f"{host.ljust(12)}{term.paint('w', '!')} ssh  "
+                        + term.paint(
+                            "m", "no such host here; add it to ~/.ssh/config or type user@host"
+                        )
+                    )
+                else:
+                    task.line(probe_line(term, host, self.probes[host]))
+
+    def ask_reach(self, term: Term, a: Answers, scan: Scan) -> None:
+        """Ask how to reach each project remote that ssh doesn't know here; empty leaves it out.
+
+        :param term: The terminal.
+        :param a: The answers; changed in place.
+        :param scan: The facts of the project and the machine."""
+        kept: list[Remote] = []
+        for r in a.remotes:
+            if not self.unreachable(r, scan):
+                kept.append(r)
+                continue
+            host = term.text(
+                f"How do you reach {r.name}?",
+                "",
+                f"user@host or an alias; leave empty to skip {r.name}.",
+            ).strip()
+            if not host:
+                a.skip_remotes.append(r.name)
+                continue
+            kept.append(msgspec.structs.replace(r, host=host))
+            self.check(term, kept[-1:], scan)
+        a.remotes = kept
+
+    def ask_ssh(self, term: Term, a: Answers, scan: Scan) -> None:
+        """Ask, per host that needs a password and a code, whether to share one login.
+
+        :param term: The terminal.
+        :param a: The answers; changed in place.
+        :param scan: The facts of the project and the machine."""
+        a.ssh_share = []
+        kept: list[Remote] = []
+        for r in a.remotes:
+            if not self.shareable(r, scan):
+                kept.append(r)
+                continue
+            host = self.address(r)
+            lines = SSH_BLOCK.format(mark="", host=host).splitlines()[1:]
+            while True:
+                choice = term.select(
+                    f"Log in to {host} once per session?",
+                    [
+                        Option("add", "Add these lines and log in now"),
+                        Option("show", "Show them; I'll add them myself"),
+                        Option("skip", f"Skip {host} for now"),
+                    ],
+                    "add",
+                    body=[
+                        "Adds to ~/.ssh/config:",
+                        *[term.paint("c", f"  {line}") for line in lines],
+                        term.paint(
+                            "m",
+                            "Then one login (password and code) lasts while you work; "
+                            "Beamtime reuses it.",
+                        ),
+                    ],
+                )
+                if choice != "show":
+                    break
+                term.say(["Add these lines to ~/.ssh/config yourself, any time:", *lines, ""])
+            if choice == "skip":
+                a.skip_remotes.append(r.name)
+                continue
+            if choice == "add":
+                a.ssh_share.append(r.name)
+            kept.append(r)
+        a.remotes = kept
+
+    def address(self, remote: Remote) -> str:
+        """Say how this machine reaches a remote: its own host, the user's setting, else its name.
+
+        :param remote: The remote.
+        :return: The ssh host."""
+        return remote.host or (user_remotes().get(remote.name) or {}).get("host") or remote.name
+
+    def unreachable(self, remote: Remote, scan: Scan) -> bool:
+        """Tell whether a project remote has no way to be reached from here yet.
+
+        :param remote: The remote.
+        :param scan: The facts of the project and the machine.
+        :return: ``True`` for a remote of the project that is no ssh alias and has no host."""
+        host = self.address(remote)
+        return (
+            remote.name in project_remotes(scan)
+            and "@" not in host
+            and host not in {h.name for h in scan.ssh_hosts}
+        )
+
+    def shareable(self, remote: Remote, scan: Scan) -> bool:
+        """Tell whether a remote asks for a password and a code and is an alias that can share one.
+
+        :param remote: The remote.
+        :param scan: The facts of the project and the machine.
+        :return: ``True`` when the probe saw ``needs_code`` on an alias of the ssh config."""
+        host = self.address(remote)
+        found = self.probes.get(host)
+        return (
+            found is not None
+            and found.status == "needs_code"
+            and host in {h.name for h in scan.ssh_hosts}
+        )
+
+
+class Cluster:
+    """The questions on a cluster login node: role, runs, cache, and agents for role ``full``."""
+
+    def steps(self) -> list[Step]:
+        """List the questions in order.
+
+        :return: The steps."""
+        terminal = tuple(c for c in CLIENTS if c.start or c.name == "other")
+        return [
+            Step(
+                id="role",
+                title="What should this machine do?",
+                ask=self.ask_role,
+                summary=lambda a, s: "record runs" if a.role == "record" else "record and look",
+            ),
+            Step(
+                id="runs",
+                title="Where should runs go on this cluster?",
+                ask=self.ask_runs,
+                summary=lambda a, s: (
+                    f"{a.logdir.rstrip('/')}/ -> {a.link_logdir}"
+                    if a.link_logdir
+                    else "in the checkout"
+                ),
+            ),
+            Step(
+                id="cache",
+                title="Keep an index on this cluster between connections?",
+                ask=self.ask_cache,
+                summary=lambda a, s: "no" if a.cache in (None, "memory") else a.cache,
+            ),
+            Step(
+                id="agents",
+                title="Which coding agents run on this node?",
+                ask=lambda term, a, s: pick_agents(
+                    term, a, s, "Which coding agents run on this node?", terminal
+                ),
+                when=lambda a, s: a.role == "full",
+                summary=lambda a, s: ", ".join(client_named(x).label for x in a.agents) or "none",
+            ),
+        ]
+
+    def ask_role(self, term: Term, a: Answers, scan: Scan) -> None:
+        """Ask whether the node only records runs or also shows them; recording needs no agents.
+
+        :param term: The terminal.
+        :param a: The answers; changed in place.
+        :param scan: The facts of the project and the machine."""
+        a.role = term.select(
+            "What should this machine do?",
+            [
+                Option("record", "Record runs", "I look at them from my laptop"),
+                Option(
+                    "full", "Record runs and look at them here", "agents and the CLI on this node"
+                ),
+            ],
+            a.role,
+        )
+        if a.role == "record":
+            a.agents = []
+
+    def ask_runs(self, term: Term, a: Answers, scan: Scan) -> None:
+        """Ask where runs go: a link to scratch, the checkout, or another place.
+
+        :param term: The terminal.
+        :param a: The answers; changed in place.
+        :param scan: The facts of the project and the machine."""
+        name = a.logdir.rstrip("/")
+        scratch = next((d for d in scan.disks if d.label in SCRATCH_VARS), None)
+        target = f"${{{scratch.label}}}/{scan.root.name}/{Path(name).name}" if scratch else None
+        options = []
+        if target:
+            options.append(Option("link", f"Link {name}/ to {target}", "recommended"))
+        options += [
+            Option("keep", "Keep runs in the checkout", "$HOME has a small quota"),
+            Option("other", "Another place"),
+        ]
+        if a.link_logdir:
+            default = "link" if a.link_logdir == target else "other"
+        else:
+            path = scan.root / expand_path(name)
+            default = "link" if target and (path.is_symlink() or not scan.project.runs) else "keep"
+        match term.select("Where should runs go on this cluster?", options, default):
+            case "link":
+                a.link_logdir = target
+            case "other":
+                typed = term.text("Where?", a.link_logdir or "", "~ and $VARS expand.")
+                a.link_logdir = typed.strip() or None
+            case _:
+                a.link_logdir = None
+
+    def ask_cache(self, term: Term, a: Answers, scan: Scan) -> None:
+        """Ask whether the index survives between connections, on this node's local disk.
+
+        :param term: The terminal.
+        :param a: The answers; changed in place.
+        :param scan: The facts of the project and the machine."""
+        local = "/tmp/{user}/beamtime-cache"
+        kept = a.cache or user_cache()
+        node = socket.gethostname().split(".")[0]
+        options = [
+            Option("memory", "No", "index in memory per connection (default)"),
+            Option("tmp", f"Yes, in {local}", f"local disk on {node}"),
+        ]
+        if kept not in (None, "memory", local):
+            options.append(Option("current", kept, "from your settings"))
+        default = "memory" if kept in (None, "memory") else "tmp" if kept == local else "current"
+        note = "Your laptop's view of these runs starts faster with one, on the same node."
+        match term.select(
+            "Keep an index on this cluster between connections?",
+            options,
+            default,
+            body=[term.paint("m", note)],
+        ):
+            case "tmp":
+                a.cache = local
+            case "current":
+                a.cache = kept
+            case _:
+                a.cache = "memory" if kept else None
+
+
+def project_remotes(scan: Scan) -> dict[str, dict[str, Any]]:
+    """Read the remotes the project's ``beamtime.yaml`` names.
+
+    :param scan: The facts of the project and the machine.
+    :return: Each remote's name with its settings."""
+    return remotes_of(Planner.read(scan.root / "beamtime.yaml"))
+
+
+def user_remotes() -> dict[str, dict[str, Any]]:
+    """Read the remotes this machine's settings name.
+
+    :return: Each remote's name with its settings."""
+    return remotes_of(Planner.read(user_settings_path()))
+
+
+def remotes_of(settings: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Take the ``remotes`` table of a settings file.
+
+    :param settings: The file's mapping.
+    :return: Each remote's name with its settings; empty when the table is missing or malformed."""
+    given = settings.get("remotes")
+    if not isinstance(given, dict):
+        return {}
+    return {n: v if isinstance(v, dict) else {} for n, v in given.items()}
+
+
+def user_cache() -> str | None:
+    """Read the ``cache`` this machine's settings hold.
+
+    :return: The setting, or ``None``."""
+    given = Planner.read(user_settings_path()).get("cache")
+    return given if isinstance(given, str) else None
+
+
+def pick_agents(
+    term: Term, a: Answers, scan: Scan, title: str, clients: tuple[Any, ...] = CLIENTS
+) -> None:
+    """Ask which of the agent clients to set up; the ones the scan found are marked with why.
+
+    :param term: The terminal.
+    :param a: The answers; changed in place.
+    :param scan: The facts of the project and the machine.
+    :param title: The question.
+    :param clients: The clients to offer, from the client table."""
+    found = {f.client: f for f in scan.agents}
+    hints = {"other": "prints its MCP config to paste"}
+    options = [
+        Option(
+            c.name,
+            c.label,
+            (found_hint(found[c.name], scan) if found[c.name].files else "on PATH")
+            if c.name in found
+            else hints.get(c.name),
+        )
+        for c in clients
+    ]
+    options.append(Option("none", "None", "I use Beamtime without an agent", exclusive=True))
+    picked = term.multi(title, options, a.agents or ["none"])
+    a.agents = [v for v in picked if v != "none"]
+
+
+def check_host(text: str) -> Option | str:
+    """Check a typed host as it is typed.
+
+    :param text: An ssh alias or ``user@host``.
+    :return: The row to add, or what is wrong with the text."""
+    host = text.strip()
+    if not host or any(c.isspace() for c in host):
+        return "an ssh alias or user@host"
+    if problem := remote_name_problem(source_name(host)):
+        return problem
+    hint = (
+        "added · used as given" if "@" in host else "added · not in ~/.ssh/config, ssh resolves it"
+    )
+    return Option(host, host, hint)
 
 
 def found_hint(agent: Any, scan: Scan) -> str:

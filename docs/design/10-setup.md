@@ -42,7 +42,7 @@ The scan decides which of four flows runs; the steps are those of the mockup.
 | Flow | When | Asks |
 |---|---|---|
 | first setup | no `beamtime.yaml` and no log dir in the root | where runs happen, log dir, remotes, agents, agent behaviour, agent rules, past work, git, SDK |
-| teammate | `beamtime.yaml` exists, and this machine lacks part of it (a project remote not in the user settings, no agent registered here) | agents on this machine, which project remotes to use, how to reach them, ssh sharing |
+| teammate | `beamtime.yaml` exists, and this machine lacks part of it: a project remote not in the user settings, or an agent client installed here (its command on `PATH`) that Beamtime isn't registered in | agents on this machine, which project remotes to use, how to reach them, ssh sharing |
 | cluster | a scheduler on `PATH` (`sbatch`, `qsub`, `bsub`), no display, or `$HOME` on a network filesystem | role, where runs go (a link to scratch), the cache, agents only with role `full` |
 | update | the setup is older than this release, or anything in [Updating](#updating-an-older-setup) is stale | what to bring up to date (all ticked), and only questions new since that release |
 
@@ -63,9 +63,10 @@ writes the answer into `Answers`), `when(answers, scan)` and, for steps that hol
 shows the review and returns the answers on `Write it`, and `None` for `Show the command and quit`
 (which prints `command()`) or ctrl-c (which prints "Nothing was written."). `setup()` is `run`, then
 `plan()` and `apply()` as one `Setting up` task, then the next steps. `ops/admin.py:init` calls `setup()`
-when stdin and stdout are terminals, there is no `--yes` and the scan's flow is `first`; every other
-case plans from the flags as [above](#answers-flags-and-settings). The teammate, cluster and update
-steps are further lists for the same engine.
+when stdin and stdout are terminals, there is no `--yes` and the scan's flow is `first`, `teammate` or
+`cluster`; every other case plans from the flags as [above](#answers-flags-and-settings). The teammate, cluster and update
+steps are further lists for the same engine; `run` takes the list of the scan's flow, and `init` runs the
+wizard for the first, teammate and cluster flows.
 
 - **`Change an answer`** lists the steps that hold an answer (their `summary` as the hint) and jumps
   to the chosen one; the later steps ask again, each starting on the answer it has, so one change costs
@@ -91,6 +92,51 @@ steps are further lists for the same engine.
   inside another project's log dir is imported through that log dir's root, and the review shows the bytes
   to copy ([Beamtime log dirs](#beamtime-log-dirs)).
 
+### The teammate and cluster flows
+
+Both skip every project question: `beamtime.yaml` is the team's, and the review lists it as `unchanged`
+(a file without `logdir` or `agent` already means the default, and neither is written back). Nothing
+asks for the style or the rules: a teammate or a cluster doesn't choose the team's agent behaviour, so
+choosing agents writes no `agent` block (a style from `--agent-style` or `--agent-set` still does). Past
+work, git and the SDK are not asked either; `git` follows the checkout's own `.gitignore` block (a
+`none` block stays `none`), and `fill()` preselects neither the SDK nor `runs: both`. In both flows
+`fill()` preselects only the agent clients installed here (command on `PATH`), not those a project file
+merely names.
+
+**The teammate** asks, in this order (strings of the mockup's `MATE`):
+
+1. *Which coding agents do you use on this machine?* The installed clients are ticked; a client that
+   is registered already plans no change.
+2. *Which of the project's machines do you use?* One row per remote of `beamtime.yaml` (hint: in or
+   not in `~/.ssh/config`, or the host of the user's own setting), ticked unless this machine skipped
+   it before, plus `+ Add a host` for the person's own. An unticked remote becomes `--skip-remote`; a
+   typed host goes to the user's settings only. Asked only when the project names remotes.
+3. One probe of the picked machines ([Remotes](#remotes)); a project remote that is no alias of
+   `~/.ssh/config`, has no `@` and no host in the user's settings is not probed and says so.
+4. *Log in to `<host>` once per session?* for each alias whose probe says `needs_code`: add the
+   `ControlMaster` lines and log in (`--ssh-share`), show them and ask again, or skip the host (it
+   becomes `--skip-remote`).
+5. *How do you reach `<remote>`?* for each project remote left without a way in: a host or alias
+   (`--remote <name>=<host>`, probed at once), empty skips the remote.
+
+Installing Beamtime on a machine is not part of this flow; `--install-remote` still plans it.
+
+**The cluster** asks:
+
+1. *What should this machine do?* `record` or `full`; `record` empties the agents.
+2. *Where should runs go on this cluster?* link the log dir to `${SCRATCH}/<project>/<logdir>` (the
+   first scratch-like variable the scan found; recommended; the default is to keep when the log dir already holds runs as a plain folder), keep it in the checkout, or another place (`--link-logdir`).
+3. *Keep an index on this cluster between connections?* `No` (memory, written as `cache: memory`
+   only where the default isn't memory already) or `Yes` in `/tmp/{user}/beamtime-cache`; the person's
+   own value in the user settings is offered as a third row.
+4. *Which coding agents run on this node?* only for `full`, terminal agents (clients with a start
+   command, `other`, `None`).
+
+A cluster checkout without a `beamtime.yaml` gets the same questions; the review then shows what is
+written to it. The done step names the next command per flow: on a teammate's machine the team's runs and a
+prompt for the agent, on a cluster that jobs need no change and the `beamtime source add` line for the
+laptop.
+
 ### The scan
 
 `setup/scan.py` reads only local files and runs no subprocess slower than a `--version`. It finds:
@@ -110,14 +156,16 @@ steps are further lists for the same engine.
 | stale items | the checks of [Updating](#updating-an-older-setup) |
 
 The scan's answer to "which flow" is one value: `cluster` when any cluster condition holds (it wins over
-the others and combines with them in the flow), else `teammate`, else `update` for a log dir without a
+the others and combines with them in the flow), else `teammate` (a `beamtime.yaml` with a remote the user
+settings lack, or with an installed agent client whose config, project or user, doesn't list the
+`beamtime` server; a person who declines the registration is asked again by the next plain `init`), else `update` for a log dir without a
 `beamtime.yaml`, `first` for neither, and `current` for a `beamtime.yaml` with nothing missing. A job
 script names a host when an ssh alias or host name appears in it as a whole word; the environment
 is `None` when the project has none. `no display` counts only on Linux; macOS and Windows always have one.
 
 The agents are the clients of the table with a project file (their MCP config, `.claude/`, `.cursor/`,
 `.gemini/`, `CLAUDE.md`, `GEMINI.md`) or their command on `PATH`; a shared `AGENTS.md` alone names none.
-Each carries its rules file and, when it holds the block, the release that wrote it. Past runs are
+Each carries its rules file, whether its config lists the `beamtime` server (`registered`, read with `agents.py`'s `is_registered` over the project file, the machine's file and the user-wide file) and, when the rules file holds the block, the release that wrote it. Past runs are
 looked for to depth 3 below the root, outside the log dir, hidden folders and environments; a folder
 with event files, `offline-run-*` folders, `mlruns/`, `mlflow.db` or a `_run.json` is a source, and
 sibling folders of one kind merge into their parent (`tb_logs/model/version_0`, `version_1` are one

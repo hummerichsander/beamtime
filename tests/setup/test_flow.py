@@ -650,3 +650,421 @@ def test_init_asks_only_on_a_terminal_for_a_first_setup(
     (root / "beamtime.yaml").unlink()
     init(ctx, InitParams())
     assert seen == ["first"]
+
+
+MATE_AGENTS = "Which coding agents do you use on this machine?"
+MATE_HOSTS = "Which of the project's machines do you use?"
+MATE_SSH, MATE_REACH = "Log in to juwels once per session?", "How do you reach lab-gpu?"
+LAB = "jdoe@lab-gpu.physik.example.org"
+
+
+def mate_probe(hosts: list[str], paths: dict[str, str | None] | None = None) -> dict[str, Probe]:
+    """Answer for the teammate's machines: juwels asks for a code, any other host is fine.
+
+    :param hosts: The ssh hosts.
+    :param paths: The log dir per host.
+    :return: One probe per host."""
+    code = Probe("juwels", "needs_code", detail="Permission denied (keyboard-interactive)")
+    fine = Probe("lab-gpu", "ok", command="beamtime", version="0.3.0")
+    return {h: code if h == "juwels" else fine for h in hosts}
+
+
+def make_mate(base: Path, home: Path, path: str, env: dict[str, str] | None = None) -> Scan:
+    """Build the mockup's teammate project: the team's files, two remotes, and Cursor on this machine.
+
+    :param base: The folder the project goes in.
+    :param home: The fake home, which gets an ssh config with juwels only.
+    :param path: The ``PATH`` of the machine.
+    :param env: More environment variables of the machine.
+    :return: The scan."""
+    from beamtime.guide.rules import render, write_block
+    from beamtime.ops.registry import OPS
+    from beamtime.settings import resolve_agent
+    from beamtime.setup.plan import gitignore_text
+
+    root = base / "egnn-md"
+    root.mkdir()
+    team = {
+        "logdir": "beamtime",
+        "agent": {"style": "careful"},
+        "remotes": {
+            "juwels": {"path": "${SCRATCH}/egnn-md/beamtime"},
+            "lab-gpu": {"path": "~/egnn-md/beamtime"},
+        },
+    }
+    (root / "beamtime.yaml").write_text(yaml.safe_dump(team, sort_keys=False))
+    (root / "pyproject.toml").write_text("[project]\nname = 'egnn'\n[tool.uv]\n")
+    (root / ".venv" / "lib" / "python3.12" / "site-packages").mkdir(parents=True)
+    (root / ".mcp.json").write_text('{"mcpServers": {"beamtime": {"command": "uv"}}}')
+    (root / ".gitignore").write_text(gitignore_text("", "beamtime", "record"))
+    user_only = sorted(o.name for o in OPS if o.user_only)
+    write_block(root / "AGENTS.md", render(resolve_agent({"style": "careful"}), user_only))
+    (home / ".ssh").mkdir(parents=True)
+    (home / ".ssh" / "config").write_text("Host juwels\n  User jdoe\n")
+    machine = {"DISPLAY": ":0", "PATH": path, **(env or {})}
+    return scan(root, home=home, mounts=Path("/nonexistent"), env=machine)
+
+
+@pytest.fixture
+def mate(tmp_path: Path, home: Path, tools) -> Scan:
+    """The teammate's project in the test's folder, with Cursor installed and unregistered.
+
+    :param tmp_path: The test's temporary directory.
+    :param home: The fake home.
+    :param tools: Makes a ``PATH`` of fake programs.
+    :return: The scan."""
+    return make_mate(tmp_path, home, tools("cursor"))
+
+
+def team(
+    scan: Scan, script: list[tuple[str, bytes]], answers: Answers | None = None
+) -> tuple[Session, Answers]:
+    """Run the questions of the scan's flow on a terminal, with the teammate's fake probe.
+
+    :param scan: The scan.
+    :param script: The keys.
+    :param answers: The starting answers; by default those of no flag.
+    :return: The session and the answers it filled."""
+    answers = answers or Answers.defaults(scan)
+    done = drive(lambda t: run(t, scan, answers, probe=mate_probe, which=fake_which), script)
+    return done, answers
+
+
+MATE_KEYS = [
+    (MATE_AGENTS, ENTER),
+    (MATE_HOSTS, ENTER),
+    (MATE_SSH, ENTER),
+    (MATE_REACH, LAB.encode() + ENTER),
+]
+
+
+@posix
+def test_teammate_asks_the_machines_part_only(mate: Scan) -> None:
+    """A project with beamtime.yaml and two remotes asks agents, remotes, how to reach, ssh sharing."""
+    assert mate.flow == "teammate"
+    done, answers = team(mate, [*MATE_KEYS, (REVIEW, CTRL_C)])
+    assert done.stuck is None
+    assert titles(done.output) == [MATE_AGENTS, MATE_HOSTS, MATE_SSH, MATE_REACH]
+    assert answers.agents == ["cursor"]
+    assert answers.remotes == [Remote("juwels"), Remote("lab-gpu", LAB)]
+    assert answers.ssh_share == ["juwels"] and answers.skip_remotes == []
+    out = done.output
+    assert "This project uses Beamtime already. Only this machine's part is left." in out
+    assert "lab-gpu is not there" not in out and "no such host here" in out
+    assert "needs a password or code" in out and "ControlMaster auto" in out
+    review = out.split(REVIEW)[1]
+    assert "beamtime.yaml  unchanged" in review and "this machine" in review
+    assert "remotes.lab-gpu" in review and f"host: {LAB}" in review.replace("'", "")
+    assert "MCP server for Cursor" in review and "AGENTS.md" not in review
+    labels = [c.label for c in plan(mate, answers, which=fake_which)]
+    assert "beamtime.yaml" not in labels and ".gitignore" not in labels
+    assert answers.rules and "AGENTS.md" not in labels
+
+
+@posix
+def test_teammate_show_the_command_makes_the_same_answers(mate: Scan) -> None:
+    """The command printed in the teammate flow, parsed back, gives the answers of the prompts."""
+    done, answers = team(mate, [*MATE_KEYS, (REVIEW, DOWN + DOWN + ENTER)])
+    assert done.stuck is None and done.value is None
+    again = Answers.from_params(parse(printed_command(done.output)), mate)
+    assert again == answers
+    assert "--ssh-share juwels" in done.output and f"--remote lab-gpu={LAB}" in done.output
+
+
+@posix
+def test_teammate_skips_what_the_person_leaves_out(mate: Scan) -> None:
+    """An empty way to reach a host, and Skip at the ssh question, leave both remotes out."""
+    script = [
+        (MATE_AGENTS, SPACE + ENTER),
+        (MATE_HOSTS, ENTER),
+        (MATE_SSH, DOWN + DOWN + ENTER),
+        (MATE_REACH, ENTER),
+        (REVIEW, CTRL_C),
+    ]
+    done, answers = team(mate, script)
+    assert done.stuck is None
+    assert answers.agents == [] and answers.remotes == [] and answers.ssh_share == []
+    assert answers.skip_remotes == ["juwels", "lab-gpu"]
+    again = Answers.from_params(
+        parse(["init", "--yes", "--no-agents", "--skip-remote", "juwels", "--skip-remote", "lab-gpu"]),
+        mate,
+    )
+    assert again == answers
+
+
+@posix
+def test_teammate_shows_the_ssh_lines_then_asks_again(mate: Scan) -> None:
+    """Show them prints the block and asks the same question again."""
+    script = [
+        (MATE_AGENTS, ENTER),
+        (MATE_HOSTS, ENTER),
+        (MATE_SSH, DOWN + ENTER),
+        (MATE_SSH, ENTER),
+        (MATE_REACH, ENTER),
+        (REVIEW, CTRL_C),
+    ]
+    done, answers = team(mate, script)
+    assert done.stuck is None and answers.ssh_share == ["juwels"]
+    assert "ControlPersist 12h" in done.output.split("yourself, any time:")[1]
+
+
+@posix
+def test_teammate_adds_a_host_of_their_own(mate: Scan) -> None:
+    """A typed host is the person's own: it goes to their settings and is probed like the others."""
+    script = [
+        (MATE_AGENTS, ENTER),
+        (MATE_HOSTS, DOWN + DOWN + ENTER + b"me@box.example.org" + ENTER + ENTER),
+        (MATE_SSH, DOWN + DOWN + ENTER),
+        (MATE_REACH, LAB.encode() + ENTER),
+        (REVIEW, CTRL_C),
+    ]
+    done, answers = team(mate, script)
+    assert done.stuck is None
+    assert answers.remotes == [Remote("lab-gpu", LAB), Remote("box", "me@box.example.org")]
+    assert answers.skip_remotes == ["juwels"]
+
+
+@posix
+def test_teammate_abort_leaves_no_trace(mate: Scan, home: Path) -> None:
+    """Ctrl-c at any question of the teammate flow, the review included, writes nothing."""
+    before = snapshot(mate.root, home)
+    for at in range(len(MATE_KEYS) + 1):
+        script = [*MATE_KEYS[:at], (REVIEW if at == len(MATE_KEYS) else MATE_KEYS[at][0], CTRL_C)]
+        done, _ = team(mate, script)
+        assert done.stuck is None and done.output.rstrip().endswith("Nothing was written.")
+        assert snapshot(mate.root, home) == before
+
+
+@posix
+def test_teammate_writes_only_this_machine(mate: Scan, home: Path, monkeypatch) -> None:
+    """Writing it changes the user settings and the agent's config, and not one file of the team."""
+    shared = snapshot(mate.root)
+    answers = Answers.defaults(mate)
+    done = drive(
+        lambda t: setup(t, mate, answers, probe=mate_probe, which=fake_which),
+        [*MATE_KEYS[:2], (MATE_SSH, DOWN + DOWN + ENTER), *MATE_KEYS[3:], (REVIEW, ENTER)],
+    )
+    assert done.stuck is None
+    mine = yaml.safe_load((home / ".config" / "beamtime" / "settings.yaml").read_text())
+    assert mine["remotes"]["lab-gpu"]["host"] == LAB
+    assert mine["remotes"]["juwels"] == {"enabled": False}
+    assert (mate.root / ".cursor" / "mcp.json").is_file()
+    changed = {k for k, v in snapshot(mate.root).items() if shared.get(k) != v}
+    assert changed == {str(mate.root / ".cursor" / "mcp.json")}
+    assert "Beamtime is set up on this machine." in done.output
+    assert "beamtime serve --open" in done.output
+
+
+@posix
+def test_teammate_for_a_missing_registration_only(tmp_path: Path, home: Path, tools) -> None:
+    """With the remotes in the user settings, an unregistered agent alone starts the flow."""
+    mine = home / ".config" / "beamtime"
+    mine.mkdir(parents=True)
+    (mine / "settings.yaml").write_text(
+        yaml.safe_dump({"remotes": {"juwels": {"host": "juwels"}, "lab-gpu": {"host": LAB}}})
+    )
+    found = make_mate(tmp_path, home, tools("cursor"))
+    assert found.flow == "teammate"
+    script = [(MATE_AGENTS, ENTER), (MATE_HOSTS, ENTER), (MATE_SSH, ENTER), (REVIEW, CTRL_C)]
+    done, answers = team(found, script)
+    assert done.stuck is None and answers.agents == ["cursor"]
+    assert answers.remotes == [Remote("juwels"), Remote("lab-gpu")]
+    assert "Checking 2 machines" in done.output and MATE_REACH not in titles(done.output)
+    assert titles(done.output) == [MATE_AGENTS, MATE_HOSTS, MATE_SSH]
+
+
+@posix
+def test_teammate_keeps_a_team_that_ignores_the_whole_log_dir(
+    tmp_path: Path, home: Path, tools
+) -> None:
+    """A .gitignore that keeps the whole log dir out stays as the team wrote it."""
+    from beamtime.setup.plan import gitignore_text
+
+    found = make_mate(tmp_path, home, tools("cursor"))
+    (found.root / ".gitignore").write_text(gitignore_text("", "beamtime", "none"))
+    done, answers = team(found, [*MATE_KEYS, (REVIEW, CTRL_C)])
+    assert answers.git == "none"
+    assert ".gitignore" not in [c.label for c in plan(found, answers, which=fake_which)]
+
+
+def test_a_team_file_without_log_dir_or_agent_stays_unchanged(tmp_path: Path, home: Path, tools) -> None:
+    """A beamtime.yaml that names remotes only stays as it is, whatever agents the person picks."""
+    found = make_mate(tmp_path, home, tools("cursor"))
+    remotes = {"remotes": {"juwels": {"path": "/p"}}}
+    (found.root / "beamtime.yaml").write_text(yaml.safe_dump(remotes))
+    answers = Answers.defaults(found)
+    answers.agents = ["cursor"]
+    assert "beamtime.yaml" not in [c.label for c in plan(found, answers, which=fake_which)]
+
+
+CL_ROLE, CL_RUNS = "What should this machine do?", "Where should runs go on this cluster?"
+CL_CACHE = "Keep an index on this cluster between connections?"
+CL_AGENTS = "Which coding agents run on this node?"
+SCRATCH_LINK = "${SCRATCH}/egnn-md/beamtime"
+
+
+def make_cluster(base: Path, home: Path, path: str) -> Scan:
+    """Build the mockup's cluster checkout: beamtime.yaml from git, sbatch, nfs home, scratch.
+
+    :param base: The folder the project goes in.
+    :param home: The fake home, which is on nfs.
+    :param path: The ``PATH`` of the node.
+    :return: The scan."""
+    root = base / "egnn-md"
+    root.mkdir()
+    (root / "beamtime.yaml").write_text("logdir: beamtime\n")
+    (root / ".gitignore").write_text("beamtime/**/_*\n")
+    scratch = base / "scratch"
+    scratch.mkdir()
+    mounts = base / "mounts"
+    mounts.write_text(
+        f"/dev/sda1 / ext4 rw 0 0\nserver:/h {home.resolve()} nfs4 rw 0 0\n"
+        f"gpfs0 {scratch.resolve()} gpfs rw 0 0\n"
+    )
+    env = {"PATH": path, "SCRATCH": str(scratch)}
+    return scan(root, home=home, mounts=mounts, env=env)
+
+
+@pytest.fixture
+def cluster(tmp_path: Path, home: Path, tools, monkeypatch: pytest.MonkeyPatch) -> Scan:
+    """The cluster checkout in the test's folder, with sbatch and Claude Code on ``PATH``.
+
+    :param tmp_path: The test's temporary directory.
+    :param home: The fake home.
+    :param tools: Makes a ``PATH`` of fake programs.
+    :param monkeypatch: The environment patcher, for ``$SCRATCH``.
+    :return: The scan."""
+    monkeypatch.setenv("SCRATCH", str(tmp_path / "scratch"))
+    return make_cluster(tmp_path, home, tools("sbatch", "claude"))
+
+
+def on_cluster(
+    scan: Scan, script: list[tuple[str, bytes]], answers: Answers | None = None
+) -> tuple[Session, Answers]:
+    """Run the cluster questions on a terminal.
+
+    :param scan: The scan.
+    :param script: The keys.
+    :param answers: The starting answers; by default those of no flag.
+    :return: The session and the answers it filled."""
+    answers = answers or Answers.defaults(scan)
+    return drive(lambda t: run(t, scan, answers, which=fake_which), script), answers
+
+
+@posix
+def test_cluster_recording_asks_role_link_and_cache(cluster: Scan) -> None:
+    """Role record asks the link and the cache, and no agents, and the project file is unchanged."""
+    assert cluster.flow == "cluster"
+    done, answers = on_cluster(
+        cluster, [(CL_ROLE, ENTER), (CL_RUNS, ENTER), (CL_CACHE, ENTER), (REVIEW, CTRL_C)]
+    )
+    assert done.stuck is None
+    assert titles(done.output) == [CL_ROLE, CL_RUNS, CL_CACHE]
+    assert answers.role == "record" and answers.agents == [] and answers.cache is None
+    assert answers.link_logdir == SCRATCH_LINK
+    out = done.output
+    assert "This looks like a cluster login node. Setup here is short." in out
+    assert "SLURM (sbatch)" in out and "no browser" not in out and "$HOME is nfs4" in out
+    review = out.split(REVIEW)[1]
+    assert "log dir link" in review and "beamtime.yaml  unchanged" in review
+
+
+@posix
+def test_cluster_full_asks_agents_too(cluster: Scan) -> None:
+    """Role full adds the agents, starting on the one found, and the cache can go to local disk."""
+    script = [
+        (CL_ROLE, DOWN + ENTER),
+        (CL_RUNS, DOWN + ENTER),
+        (CL_CACHE, DOWN + ENTER),
+        (CL_AGENTS, ENTER),
+        (REVIEW, CTRL_C),
+    ]
+    done, answers = on_cluster(cluster, script)
+    assert done.stuck is None
+    assert titles(done.output) == [CL_ROLE, CL_RUNS, CL_CACHE, CL_AGENTS]
+    assert answers.role == "full" and answers.agents == ["claude-code"]
+    assert answers.link_logdir is None and answers.cache == "/tmp/{user}/beamtime-cache"
+
+
+@posix
+def test_cluster_another_place_for_runs(cluster: Scan) -> None:
+    """Another place asks for the path and links it."""
+    script = [
+        (CL_ROLE, ENTER),
+        (CL_RUNS, DOWN + DOWN + ENTER),
+        ("Where?", b"/p/project/egnn" + ENTER),
+        (CL_CACHE, ENTER),
+        (REVIEW, CTRL_C),
+    ]
+    done, answers = on_cluster(cluster, script)
+    assert done.stuck is None and answers.link_logdir == "/p/project/egnn"
+
+
+@posix
+@pytest.mark.parametrize("role", [ENTER, DOWN + ENTER])
+def test_cluster_show_the_command_makes_the_same_answers(cluster: Scan, role: bytes) -> None:
+    """The cluster flow's printed command, parsed back, gives the answers of the prompts."""
+    script = [
+        (CL_ROLE, role),
+        (CL_RUNS, ENTER),
+        (CL_CACHE, DOWN + ENTER),
+        *([(CL_AGENTS, ENTER)] if role != ENTER else []),
+        (REVIEW, DOWN + DOWN + ENTER),
+    ]
+    done, answers = on_cluster(cluster, script)
+    assert done.stuck is None and done.value is None
+    again = Answers.from_params(parse(printed_command(done.output)), cluster)
+    assert again == answers
+    assert f"--link-logdir '{SCRATCH_LINK}'" in done.output
+
+
+@posix
+def test_cluster_abort_leaves_no_trace(cluster: Scan, home: Path) -> None:
+    """Ctrl-c at any cluster question writes nothing."""
+    before = snapshot(cluster.root, home)
+    keys = [(CL_ROLE, ENTER), (CL_RUNS, ENTER), (CL_CACHE, ENTER)]
+    for at in range(len(keys) + 1):
+        script = [*keys[:at], (REVIEW if at == len(keys) else keys[at][0], CTRL_C)]
+        done, _ = on_cluster(cluster, script)
+        assert done.stuck is None and done.output.rstrip().endswith("Nothing was written.")
+        assert snapshot(cluster.root, home) == before
+
+
+@posix
+def test_cluster_writes_the_link_and_the_cache(cluster: Scan, home: Path, tmp_path: Path) -> None:
+    """Writing it links the log dir to scratch and sets the cache, and leaves beamtime.yaml alone."""
+    team_file = (cluster.root / "beamtime.yaml").read_bytes()
+    answers = Answers.defaults(cluster)
+    script = [(CL_ROLE, ENTER), (CL_RUNS, ENTER), (CL_CACHE, DOWN + ENTER), (REVIEW, ENTER)]
+    done = drive(lambda t: setup(t, cluster, answers, which=fake_which), script)
+    assert done.stuck is None
+    link = cluster.root / "beamtime"
+    assert link.is_symlink() and link.resolve() == (tmp_path / "scratch" / "egnn-md" / "beamtime").resolve()
+    mine = yaml.safe_load((home / ".config" / "beamtime" / "settings.yaml").read_text())
+    assert mine["cache"] == "/tmp/{user}/beamtime-cache" and "remotes" not in mine
+    assert (cluster.root / "beamtime.yaml").read_bytes() == team_file
+    assert "Beamtime is set up on this cluster." in done.output
+    assert "beamtime source add " in done.output and "Jobs need no change" in done.output
+
+
+def test_init_asks_on_a_terminal_in_every_flow_but_the_current_one(
+    tmp_path: Path, home: Path, monkeypatch: pytest.MonkeyPatch, tools
+) -> None:
+    """``init`` runs the wizard for a teammate and a cluster too, on a terminal and without --yes."""
+    from beamtime.ops.admin import init
+    from beamtime.ops.context import Context
+
+    seen: list[str] = []
+    monkeypatch.setattr(
+        "beamtime.setup.flow.setup",
+        lambda term, found, answers, **kw: seen.append(found.flow) or [],
+    )
+    monkeypatch.setattr(sys, "stdin", Tty())
+    monkeypatch.setattr(sys, "stdout", Tty())
+    monkeypatch.setenv("PATH", tools("cursor"))
+    root = make_mate(tmp_path, home, tools("cursor")).root
+    init(Context.make(root=root), InitParams())
+    assert seen == ["teammate"]
+    monkeypatch.setenv("PATH", tools("cursor", "sbatch"))
+    init(Context.make(root=root), InitParams())
+    assert seen == ["teammate", "cluster"]

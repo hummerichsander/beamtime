@@ -42,8 +42,8 @@ def answer(kind: str, lines: list[str], **fields: Any) -> dict[str, Any]:
 def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
     """Set up the project and this machine: ask in a terminal, else plan from the flags.
 
-    With a terminal and no ``--yes``, a first setup runs the wizard. Otherwise nothing is asked, and
-    nothing is written without ``--yes``.
+    With a terminal and no ``--yes``, a first setup, a teammate's or a cluster's runs the wizard.
+    Otherwise nothing is asked, and nothing is written without ``--yes``.
 
     :param ctx: The operation context.
     :param p: The parameters.
@@ -63,7 +63,12 @@ def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
         answers = Answers.from_params(p, found)
     except ValueError as e:
         raise OpError(str(e), code=2) from e
-    if not p.yes and found.flow == "first" and sys.stdin.isatty() and sys.stdout.isatty():
+    if (
+        not p.yes
+        and found.flow in ("first", "teammate", "cluster")
+        and sys.stdin.isatty()
+        and sys.stdout.isatty()
+    ):
         from beamtime.setup.flow import setup
         from beamtime.setup.term import Term
 
