@@ -545,10 +545,13 @@ class Planner:
         a = self.answers
         config = self.scan.home / ".ssh" / "config"
         out: list[Change] = []
-        for name in dict.fromkeys(a.ssh_share):
+        hosts: dict[str, None] = {}
+        for name in a.ssh_share:
             host = self.host_of(name, "--ssh-share")
             if "@" in host:
                 raise ValueError(f"--ssh-share {name}: name an alias of ~/.ssh/config, not {host}")
+            hosts[host] = None
+        for host in hosts:
             out += ssh_share_changes(host, config, display_path(config, self.scan.home))
         for name in dict.fromkeys(a.install_remotes):
             out.append(install_change(self.host_of(name, "--install-remote"), name, __version__))

@@ -84,9 +84,10 @@ def test_probe_reports_each_host(ssh: Path) -> None:
 def test_probe_timeout(ssh: Path) -> None:
     """A host that doesn't answer fails alone after its timeout, the others are not held up."""
     start = time.monotonic()
-    found = probe(["slow", "ok", "needs_code"], timeout=1)
+    # 3 s, not less: on a loaded machine the fake ssh of a quick host can take a second to start.
+    found = probe(["slow", "ok", "needs_code"], timeout=3)
     assert time.monotonic() - start < 10
-    assert found["slow"].status == "failed" and "within 1 s" in found["slow"].detail
+    assert found["slow"].status == "failed" and "within 3 s" in found["slow"].detail
     assert found["ok"].status == "ok" and found["needs_code"].status == "needs_code"
 
 
@@ -196,3 +197,19 @@ def test_remote_names_follow_one_rule(name: str, ctx: Context) -> None:
         with pytest.raises(ValueError, match=r"--remote 'a.b': a remote name can't contain"):
             Remote.parse(name)
     assert Remote.parse("fine-name=h:/p").name == "fine-name"
+
+
+def test_ssh_share_of_one_host_twice(ssh: Path, project: Path, home: Path) -> None:  # noqa: F811
+    """Two names for one host plan one block; blocks for two hosts stay a blank line apart."""
+    config = home / ".ssh" / "config"
+    config.parent.mkdir()
+    config.write_text("Host jw\n  User me\n")
+    changes = make_plan(
+        project, home, "--remote", "juwels=jw", "--remote", "other",
+        "--ssh-share", "juwels", "--ssh-share", "jw", "--ssh-share", "other",
+    )  # fmt: skip
+    assert [c.after for c in changes if c.where == "remote"] == ["ssh -fN jw", "ssh -fN other"]
+    apply(changes)
+    text = config.read_text()
+    assert text.count("# beamtime: one login per session for jw") == 1
+    assert "ControlPersist 12h\n\n# beamtime: one login per session for other\n" in text

@@ -209,11 +209,15 @@ def ssh_share_changes(host: str, config: Path, label: str) -> list["Change"]:
     from beamtime.setup.plan import Change
 
     block = SSH_BLOCK.format(mark=SSH_MARK, host=host)
+    mark = block.splitlines()[0]
     out = []
-    old = config.read_text() if config.is_file() else ""
-    if block.splitlines()[0] not in old.splitlines():
+    if mark not in read_lines(config):
 
         def append() -> str:
+            # read again: an earlier change of the same apply may have appended a block.
+            old = config.read_text() if config.is_file() else ""
+            if mark in old.splitlines():
+                return "already there"
             config.parent.mkdir(mode=0o700, exist_ok=True)
             gap = "" if not old or old.endswith("\n\n") else "\n" if old.endswith("\n") else "\n\n"
             with config.open("a") as f:
@@ -235,3 +239,11 @@ def ssh_share_changes(host: str, config: Path, label: str) -> list["Change"]:
 
     out.append(Change(where="remote", label=host, before=None, after=f"ssh -fN {host}", run=login))
     return out
+
+
+def read_lines(path: Path) -> list[str]:
+    """Read a file's lines, none when it is missing.
+
+    :param path: The file.
+    :return: Its lines."""
+    return path.read_text().splitlines() if path.is_file() else []

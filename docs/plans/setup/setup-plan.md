@@ -520,7 +520,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 - **Done:** with `--yes` and no terminal, `init` writes `beamtime.yaml` (`logdir`, `agent`, remote paths), the user
   settings (`cache`, remote host and command, `enabled: false`), the log dir link and its `.git/info/exclude` line,
   the marked `.gitignore` block for `record` and `none`, agent registrations and rules (A12), imports (I11–I16) and the
-  SDK (K11), in the review's order; without `--yes` and no terminal it prints the review and the command and changes
+  SDK (K11); without `--yes` and no terminal it prints the review and the command and changes
   nothing; a failing change stops the apply and the answer names what was done.
 - **Risks:** an existing `beamtime/` line in `.gitignore` is replaced by the block (`test_gitignore_upgrade`); a
   rerun writes nothing new (`test_init_is_idempotent`); defaults are not written (`test_defaults_not_written`);
