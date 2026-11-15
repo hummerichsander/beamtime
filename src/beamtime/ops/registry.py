@@ -541,7 +541,7 @@ class InitParams(Params, kw_only=True):
         msgspec.Meta(description="the agent preset"),
     ] = None
     agent_set: Annotated[
-        list[str], msgspec.Meta(description="single agent settings, KEY=VALUE,KEY=VALUE")
+        list[str], msgspec.Meta(description="one agent setting, KEY=VALUE (repeatable)")
     ] = msgspec.field(default_factory=list)
     no_rules: Annotated[bool, msgspec.Meta(description="write no rules block")] = False
     import_: Annotated[

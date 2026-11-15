@@ -104,14 +104,14 @@ the scan's defaults, plus `--yes`.
 | `--runs here\|remote\|both` | where runs happen | decides the questions |
 | `--logdir <path>` | the log dir; a path outside the project is linked in (`--link-logdir`) | `beamtime.yaml: logdir` |
 | `--link-logdir <path>` | make the project's log dir a link to `<path>` (scratch on a cluster) | a symlink in the checkout |
-| `--remote <name>[=<host>][:<path>]` (repeatable) | a remote: its source name, how this machine reaches it, its log dir there | `path` to `beamtime.yaml`; `host`, `command` to the user settings |
+| `--remote <name>[=<host>][:<path>]` (repeatable) | a remote: its source name (no `@`, `/`, `=` or `:`, the rule of `source add`), how this machine reaches it, its log dir there | `path` to `beamtime.yaml`; `host`, `command` to the user settings |
 | `--skip-remote <name>` (repeatable) | a project remote this machine doesn't use | user settings: `remotes.<name>.enabled: false` |
 | `--install-remote <name>` (repeatable) | `pip install --user beamtime==<this version>` there, after the review | the remote's `~/.local` |
 | `--ssh-share <name>` (repeatable) | add ControlMaster lines for a host with a second factor | `~/.ssh/config` |
 | `--cache memory\|<path>` | the index cache of this machine | user settings: `cache` |
 | `--agents a,b,...` \| `--no-agents` | which agent clients get the MCP server and rules | each client's config, see [Agent clients](#agent-clients) |
 | `--agent-style careful\|hands-on\|analysis` | the agent preset | `beamtime.yaml: agent.style` |
-| `--agent-set k=v,...` | single agent settings | `beamtime.yaml: agent.<k>` |
+| `--agent-set k=v` (repeatable; `k=v,k=v` also parses) | single agent settings; the printed command has one flag per key, so a value may hold commas | `beamtime.yaml: agent.<k>` |
 | `--no-rules` | no rules block | – |
 | `--import <path>` (repeatable) | runs to copy in (TensorBoard, W&B offline, MLflow, CSV, Beamtime) | `imported/<name>/` in the log dir |
 | `--import-notes <path>`, `--import-memory <path>` (repeatable) | notes and memory files | the agent hand-off, or notes as written |
@@ -233,11 +233,18 @@ for any number of hosts:
    host), `beamtime --version` and the command found (`probe_command`, [layer 4](04-remotes.md#configuration)),
    `python3 --version`, and the filesystem type of the default path's parent. A login that needs a
    password or code fails under `BatchMode` with `keyboard-interactive` and is reported as such.
+   `setup/remotes.py:probe(hosts, paths) -> dict[str, Probe]` runs one ssh per host in threads, each
+   with a 30 s timeout that fails that host alone; a `Probe` has `status` (`ok`, `needs_code`,
+   `unknown_host`, `no_beamtime`, `old_python`, or `failed` with the reason), `command`, `version`,
+   `python` and `fstype`. The command is `beamtime` on the `PATH`, else the venv next to the path's
+   project.
 3. **Per host**: install if missing, then its log dir path (default: `${SCRATCH}/<project>/beamtime`
    where the host has `$SCRATCH`, else `~/<project>/beamtime`). Variables expand on that host.
 4. **Install** is `ssh <host> 'python3 -m pip install --user beamtime[serve]==<this version>'`,
    run after the review, as the last apply step. A remote Python older than 3.11 can't run the CLI:
    the step says so and offers only skipping or the command with another interpreter.
+   `--install-remote <name>` plans exactly this change (`where: remote`, over `BatchMode` ssh, pinned to
+   the running version); the name must be a remote of the answers or the settings.
 5. **Second factor**: for a host that needs one, the wizard offers these lines, shown in full,
    appended to `~/.ssh/config` as a marked block, then `ssh -fN <host>` in the same terminal so ssh
    asks for the password and code itself:
@@ -249,6 +256,13 @@ for any number of hosts:
      ControlPath ~/.ssh/cm-%r@%h-%p
      ControlPersist 12h
    ```
+
+   `--ssh-share <name>` plans two changes: the block, left out when the file already has the marker
+   line (so it is appended once; the file is created with mode 600), and `ssh -fN <host>`, run
+   attached to the terminal (no captured streams), skipped when `ssh -O check` finds the master open.
+   The name is a remote or an alias of the ssh config, and the host must be an alias, not `user@host`.
+   Both are planned only when asked for, and come last in the plan, after the settings and imports, so
+   the installs can use the shared login.
 
 A remote's `path` goes to `beamtime.yaml` (shared); its `host` and `command` go to the user settings.
 A teammate's own added host goes to their settings only.
@@ -695,7 +709,7 @@ appearing as work finishes) and the review.
 | `setup/flow.py` | the steps of the four flows: which questions, their defaults from the scan |
 | `setup/term.py` | the prompt primitives |
 | `setup/agents.py` | the client table, `mcp_command()`, registering, the rules block written to files |
-| `setup/remotes.py` | the parallel probe, installs, ssh sharing |
+| `setup/remotes.py` | the parallel probe, `probe_command` (also used by `source add`), the remote name rule, installs, ssh sharing |
 | `setup/importers/` | `tensorboard`, `wandb`, `mlflow`, `csv`, `beamtime`, and the one run writer |
 | `setup/stale.py`, `setup/changes.py` | the update checks; the noticeable changes per release |
 | `guide/rules.py`, `guide/rules/` | the rules template, its history, rendering and matching |
@@ -705,8 +719,8 @@ appearing as work finishes) and the review.
 `ops/admin.py:init` becomes the entry that builds `Answers` from flags and either runs the flow (a
 terminal, no `--yes`) or plans and applies directly.
 
-`plan()` orders the changes project, machine, agents, imports (remote ones follow, from the remotes
-step); `where` groups them in the review. What it decides:
+`plan()` orders the changes project, machine, agents, imports, then the remote ones of `--ssh-share` and
+`--install-remote`; `where` groups them in the review. What it decides:
 
 - **`beamtime.yaml`** gets `logdir`, `agent` and remote `path`s, only where the file lacks the value or
   says another. An `agent` the project has already is kept; `--agent-style` and `--agent-set` change it

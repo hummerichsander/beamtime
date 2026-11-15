@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import msgspec
 
 from beamtime.settings import expand_path
+from beamtime.setup.remotes import remote_name_problem
 
 if TYPE_CHECKING:
     from beamtime.ops.registry import InitParams
@@ -63,8 +64,8 @@ class Remote(msgspec.Struct, frozen=True):
                 raise ValueError(f"--remote {text!r}: no host after '='")
         elif rest:
             path = rest[1:]
-        if not name:
-            raise ValueError(f"--remote {text!r}: no name")
+        if problem := remote_name_problem(name):
+            raise ValueError(f"--remote {text!r}: {problem}")
         if path is not None and not path.startswith(PATH_START):
             raise ValueError(f"--remote {text!r}: a path starts with /, ~ or $")
         return cls(name, host, path)
@@ -136,7 +137,7 @@ class Answers(msgspec.Struct, kw_only=True):
             if agent not in names:
                 raise ValueError(f"unknown agent {agent!r}; choose from {', '.join(names)}")
         agent_set = {}
-        for item in filter(None, p.agent_set):
+        for item in (pair for text in p.agent_set for pair in split_agent_set(text)):
             key, sep, value = item.partition("=")
             if not sep or key not in AGENT_KEYS:
                 raise ValueError(
@@ -174,6 +175,16 @@ class Answers(msgspec.Struct, kw_only=True):
         )
 
 
+def split_agent_set(text: str) -> list[str]:
+    """Split ``k=v,k=v`` into pairs, only at a comma before a key, so values keep their commas.
+
+    :param text: One ``--agent-set`` value.
+    :return: The ``KEY=VALUE`` pairs."""
+    from beamtime.settings import AGENT_KEYS
+
+    return [pair for pair in re.split(rf",(?=(?:{'|'.join(AGENT_KEYS)})=)", text) if pair]
+
+
 def flags(answers: Answers, scan: "Scan") -> list[str]:
     """List the flags that turn the scan's defaults into the answers, in flag table order.
 
@@ -201,8 +212,7 @@ def flags(answers: Answers, scan: "Scan") -> list[str]:
             case "agents":
                 out.append(f"--agents {shlex.quote(','.join(value))}" if value else "--no-agents")
             case "agent_set":
-                pairs = ",".join(f"{k}={v}" for k, v in value.items())
-                out.append(f"--agent-set {shlex.quote(pairs)}")
+                out += [f"--agent-set {shlex.quote(f'{k}={v}')}" for k, v in value.items()]
             case "rules":
                 out.append("--no-rules")
             case "imports":
@@ -293,6 +303,7 @@ class Planner:
             *self.agents(),
             *self.imports(),
             self.notes(),
+            *self.remote_changes(),
         ]
         return [c for c in found if c is not None]
 
@@ -522,6 +533,43 @@ class Planner:
             after=show_rows({k: v[1] for k, v in rows.items()}),
             run=run,
         )
+
+    def remote_changes(self) -> list[Change]:
+        """Plan the shared ssh logins, then the installs, both only for the hosts asked for.
+
+        :return: The changes, last in the plan so an install can use the shared login.
+        :raises ValueError: A name is no remote or host this machine knows, or no alias."""
+        from beamtime import __version__
+        from beamtime.setup.remotes import install_change, ssh_share_changes
+
+        a = self.answers
+        config = self.scan.home / ".ssh" / "config"
+        out: list[Change] = []
+        for name in dict.fromkeys(a.ssh_share):
+            host = self.host_of(name, "--ssh-share")
+            if "@" in host:
+                raise ValueError(f"--ssh-share {name}: name an alias of ~/.ssh/config, not {host}")
+            out += ssh_share_changes(host, config, display_path(config, self.scan.home))
+        for name in dict.fromkeys(a.install_remotes):
+            out.append(install_change(self.host_of(name, "--install-remote"), name, __version__))
+        return out
+
+    def host_of(self, name: str, flag: str) -> str:
+        """Find the ssh host a remote name stands for.
+
+        :param name: A remote of the answers or settings; for ``--ssh-share`` also an ssh host.
+        :param flag: The flag the name came with, for the message.
+        :return: The host.
+        :raises ValueError: The name is none of those."""
+        for r in self.answers.remotes:
+            if r.name == name:
+                return r.host or r.name
+        mine = self.user.get("remotes") or {}
+        if name in {**(self.given.get("remotes") or {}), **mine}:
+            return (mine.get(name) or {}).get("host") or name
+        if flag == "--ssh-share" and any(h.name == name for h in self.scan.ssh_hosts):
+            return name
+        raise ValueError(f"{flag} {name}: no remote of that name; add it with --remote {name}")
 
     def agents(self) -> list[Change]:
         """Plan the MCP registration, the skills and the rules block of every chosen client.

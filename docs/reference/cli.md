@@ -608,7 +608,7 @@ beamtime init
 | `--agents` |  | agent clients that get the MCP server and the rules |
 | `--no-agents` | `False` | register no agent client |
 | `--agent-style` |  | the agent preset |
-| `--agent-set` |  | single agent settings, KEY=VALUE,KEY=VALUE |
+| `--agent-set` |  | one agent setting, KEY=VALUE (repeatable) |
 | `--no-rules` | `False` | write no rules block |
 | `--import` |  | runs to copy in: TensorBoard, W&B offline, MLflow, CSV, Beamtime |
 | `--import-notes` |  | notes files to hand to the agent or copy |

@@ -64,6 +64,16 @@ def step_value(text: str) -> Any:
     return scalar(text)
 
 
+def agent_pairs(text: str) -> list[str]:
+    """Read one ``--agent-set`` value: a pair, or pairs joined by commas.
+
+    :param text: The flag value.
+    :return: The ``KEY=VALUE`` pairs."""
+    from beamtime.setup.plan import split_agent_set
+
+    return split_agent_set(text) or [text]
+
+
 def pair(text: str) -> tuple[str, str]:
     """Read a ``name=value`` flag value.
 
@@ -132,6 +142,8 @@ def add_field(parser: argparse.ArgumentParser, field: Any, positional: bool) -> 
             kw |= {"action": "append", "type": evidence_item, "default": [], "metavar": "ITEM"}
         case "remote" | "skip_remote" | "install_remote" | "ssh_share":
             kw |= {"action": "append", "default": [], "metavar": "NAME"}
+        case "agent_set":
+            kw |= {"action": "extend", "default": [], "type": agent_pairs, "metavar": "KEY=VALUE"}
         case "import" | "import_notes" | "import_memory":
             kw |= {"action": "append", "default": [], "metavar": "PATH"}
         case _ if members == (bool,):

@@ -320,34 +320,6 @@ def remote_checks(name: str, conf: dict[str, Any]) -> list[tuple[str, bool | Non
     return rows
 
 
-def probe_command(host: str, path: str) -> str | None:
-    """Find how to start Beamtime on a remote host: on its ``PATH``, else the venv next to the
-    project the log dir sits in.
-
-    :param host: The ssh host.
-    :param path: The remote log dir.
-    :return: The command to run there; ``None`` if neither probe succeeds."""
-    import re
-
-    def ssh(line: str) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, line],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-
-    if ssh("command -v beamtime").returncode == 0:
-        return "beamtime"
-    # the remote shell expands the path's ~, ${VAR} and {user}, as the remote end does for it.
-    venv = f"{path.rstrip('/')}/../.venv/bin/beamtime".replace("{user}", "${USER}")
-    expanded = "${HOME}" + venv[1:] if venv.startswith("~") else venv
-    quoted = '"' + re.sub(r'(["\\`])', r"\\\1", expanded) + '"'
-    if ssh(f"test -x {quoted}").returncode == 0:
-        return venv
-    return None
-
-
 def source_add(ctx: Context, p: r.SourceAddParams) -> dict[str, Any]:
     """Add a remote to the settings: the user's by default, probing ssh for how to start
     Beamtime there unless ``--command`` is given.
@@ -356,7 +328,10 @@ def source_add(ctx: Context, p: r.SourceAddParams) -> dict[str, Any]:
     :param p: The parameters.
     :return: What was written."""
     from beamtime.settings import load, user_settings_path, write_remote
+    from beamtime.setup.remotes import probe_command, remote_name_problem
 
+    if (problem := remote_name_problem(p.name)) is not None:
+        raise OpError(f"{p.name!r}: {problem}", code=2)
     host, _, path = p.remote.partition(":")
     if not host or not path.startswith(("/", "~", "$")):
         raise OpError(f"{p.remote!r}: give host:/absolute/path/to/beamtime", code=2)

@@ -279,3 +279,16 @@ def test_custom_block_follows_live_data_over_ssh(container, project: Path) -> No
             server.wait(timeout=30)
     finally:
         proc.kill()
+
+
+def test_probe_and_install_over_ssh(container) -> None:
+    """One probe finds Beamtime in the container; the pinned install runs there."""
+    from beamtime import __version__
+    from beamtime.setup.plan import Change
+    from beamtime.setup.remotes import install_change, probe
+
+    found = probe(["box"], {"box": "/data/beamtime"})["box"]
+    assert found.status == "ok" and found.version == __version__ and found.python
+    change: Change = install_change("box", "box", __version__)
+    assert change.run().startswith("installed beamtime[serve]==")
+    assert probe(["box"])["box"].status == "ok"

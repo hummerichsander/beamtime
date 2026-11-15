@@ -168,6 +168,16 @@ def test_command_round_trips(scene: Scan) -> None:
     assert repeat(command(answers, scene), scene) == answers
 
 
+def test_agent_set_repeats_and_keeps_commas(scene: Scan) -> None:
+    """Each key has its own ``--agent-set`` in the command, so a value with a comma survives."""
+    argv = ["init", "--agent-set", "seeds=5", "--agent-set", "main_metric=a,b,launch_runs=allowed"]
+    answers = Answers.from_params(parse(argv), scene)
+    assert answers.agent_set == {"seeds": "5", "main_metric": "a,b", "launch_runs": "allowed"}
+    printed = command(answers, scene)
+    assert printed.count("--agent-set") == 3 and "--agent-set main_metric=a,b" in printed
+    assert repeat(printed, scene) == answers
+
+
 def test_round_trip_of_each_answer_alone(scene: Scan) -> None:
     """Each flag alone survives the trip, including those that undo a default."""
     for argv in (

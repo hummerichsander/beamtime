@@ -297,7 +297,7 @@ def test_source_probe_expands_the_path_on_the_remote(
     """The venv probe lets the remote shell expand ``~`` and ``${VAR}`` in the log dir's path."""
     import subprocess
 
-    from beamtime.ops.admin import probe_command
+    from beamtime.setup.remotes import probe_command
 
     home = tmp_path / "home"
     venv = home / "proj" / ".venv" / "bin" / "beamtime"

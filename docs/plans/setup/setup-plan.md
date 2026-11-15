@@ -534,7 +534,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 ## R. Remotes
 
-### R11. Probe, install and ssh sharing (sonnet + review) — code
+### R11. Probe, install and ssh sharing (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/remotes.py`, `src/beamtime/setup/plan.py` (remote changes),
   `src/beamtime/ops/admin.py` (`probe_command` 311 moved, `source_add` 340 calls it), new
