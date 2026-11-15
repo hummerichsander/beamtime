@@ -9,6 +9,8 @@ from typing import Literal
 from beamtime.settings import AgentSettings
 
 START, END = "<!-- beamtime:start -->", "<!-- beamtime:end -->"
+# the instruction files of the agent clients (tests keep this equal to the client table's).
+RULES_FILES = ("CLAUDE.md", "AGENTS.md", "GEMINI.md")
 # the newest release that wrote each history text.
 RELEASES = {"0.1.0.md": "0.1.1", "0.2.0.md": "0.2.1"}
 LAUNCH = {
@@ -98,6 +100,22 @@ def release_of(block: str) -> str | None:
         if re.fullmatch(pattern(template(f"history/{name}")), text):
             return RELEASES[name]
     return None
+
+
+def outdated_release(root: Path) -> str | None:
+    """Name the oldest release behind the rules blocks of a project, if any is older than this one.
+
+    :param root: The project root.
+    :return: The release, or ``None`` without a block, with current blocks, or with hand-edited
+        ones."""
+    from importlib.metadata import version
+
+    found = []
+    for name in RULES_FILES:
+        if (file := root / name).is_file() and (block := read_block(file)) is not None:
+            if (release := release_of(block)) is not None and release != version("beamtime"):
+                found.append(release)
+    return min(found, key=lambda r: [int(n) for n in re.findall(r"\d+", r)], default=None)
 
 
 def pattern(template: str) -> str:

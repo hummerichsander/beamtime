@@ -13,6 +13,7 @@ import time
 import pytest
 import yaml
 
+from beamtime import __version__
 from beamtime.guide.rules import END, RELEASES, START, render, write_block
 from beamtime.settings import Settings
 from beamtime.setup.scan import PythonEnv, scan
@@ -153,7 +154,7 @@ def test_disks(tmp_path, home):
 
 def test_env_uv(project_tree, home):
     env = run(project_tree, home).env
-    assert env == PythonEnv("uv", project_tree / ".venv", "3.11", "0.2.0", True)
+    assert env == PythonEnv("uv", project_tree / ".venv", "3.11", __version__, True)
 
 
 def test_env_version_without_import(project_tree, home, monkeypatch):
@@ -162,7 +163,7 @@ def test_env_version_without_import(project_tree, home, monkeypatch):
     (packages / "beamtime" / "__init__.py").write_text("raise RuntimeError('imported')\n")
     monkeypatch.syspath_prepend(str(packages))
     monkeypatch.delitem(sys.modules, "beamtime", raising=False)
-    assert run(project_tree, home).env.beamtime_version == "0.2.0"
+    assert run(project_tree, home).env.beamtime_version == __version__
 
 
 def test_env_without_serve(project_tree, home):

@@ -610,7 +610,7 @@ beamtime init
 | `--agent-style` |  | the agent preset |
 | `--agent-set` |  | one agent setting, KEY=VALUE (repeatable) |
 | `--no-rules` | `False` | write no rules block |
-| `--import` |  | runs to copy in: TensorBoard, W&B offline, MLflow, CSV, Beamtime |
+| `--import` |  | runs to copy in: TensorBoard, W&B offline, MLflow, CSV, Beamtime ('' for none) |
 | `--import-notes` |  | notes files to hand to the agent or copy |
 | `--import-memory` |  | memory files to hand to the agent or copy |
 | `--git` |  | commit the research record, or ignore the whole log dir |

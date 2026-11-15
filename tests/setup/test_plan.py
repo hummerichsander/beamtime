@@ -11,6 +11,7 @@ import msgspec
 import pytest
 import yaml
 
+from beamtime import __version__
 from beamtime.cli import build_parser, params_of
 from beamtime.format.tree import iter_runs
 from beamtime.ops import call
@@ -19,8 +20,13 @@ from beamtime.ops.registry import InitParams
 from beamtime.setup.apply import ApplyError, apply
 from beamtime.setup.plan import Answers, Change, Remote, command, flags, plan, review
 from beamtime.setup.scan import Scan, scan
+from beamtime.setup.stale import Stale
 
 DESK = {"DISPLAY": ":0", "PATH": ""}
+STALE = (
+    Stale(item="rules", before="CLAUDE.md has the 0.1.1 rules", after="the 0.3.0 rules"),
+    Stale(item="mcp", before="Claude Code does not start", after="beamtime mcp"),
+)
 
 
 def look(root: Path, home: Path, **env: str) -> Scan:
@@ -82,7 +88,7 @@ def scene(request, tmp_path: Path, home: Path) -> Scan:
             (root / "beamtime" / "g" / "r1" / "_run.json").write_text("{}")
     found = look(root, home, **env)
     assert found.flow == request.param
-    return dataclasses.replace(found, stale=("rules", "mcp") if request.param == "update" else ())
+    return dataclasses.replace(found, stale=STALE if request.param == "update" else ())
 
 
 def test_every_flag_parses() -> None:
@@ -130,7 +136,7 @@ def test_defaults_come_from_the_scan(scene: Scan) -> None:
     a = Answers.from_params(parse(["init"]), scene)
     assert a == Answers.defaults(scene)
     assert a.logdir == ("runs" if scene.flow == "teammate" else "beamtime")
-    assert a.update == list(scene.stale)
+    assert a.update == [s.item for s in scene.stale]
     assert (a.agents, a.imports, a.remotes, a.sdk, a.cache) == ([], [], [], False, None)
     assert command(a, scene) == "beamtime init --yes"
 
@@ -398,13 +404,11 @@ def test_a_projects_own_agent_settings_stay(project: Path, home: Path) -> None:
 
 def test_sdk_step(project: Path, home: Path) -> None:
     """The SDK step is left out when Beamtime is current, and planned when it is old or lacks serve."""
-    from beamtime import __version__
-
     def sdk(*argv: str) -> list[Change]:
         return [c for c in make_plan(project, home, *argv) if "environment" in c.label]
 
     packages = project / ".venv" / "lib" / "python3.11" / "site-packages"
-    shutil.rmtree(packages / "beamtime-0.2.0.dist-info")
+    shutil.rmtree(packages / f"beamtime-{__version__}.dist-info")
     (packages / "beamtime-0.0.1.dist-info").mkdir()
     (change,) = sdk("--sdk")
     assert change.before == "beamtime 0.0.1" and "uv add beamtime" in change.after
@@ -457,7 +461,7 @@ def test_a_failing_install_names_what_was_done(project: Path, home: Path, monkey
 
     monkeypatch.setattr("beamtime.setup.sdk.subprocess.run", fail)
     packages = project / ".venv" / "lib" / "python3.11" / "site-packages"
-    shutil.rmtree(packages / "beamtime-0.2.0.dist-info")
+    shutil.rmtree(packages / f"beamtime-{__version__}.dist-info")
     ctx = Context.make(root=project, caller="cli")
     with pytest.raises(OpError, match=r"done: beamtime.yaml, \.gitignore"):
         call("init", {"sdk": True, "yes": True}, ctx)

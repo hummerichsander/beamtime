@@ -1069,8 +1069,21 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         "sources": sources(ctx),
         "snapshots": snapshots(ctx),
         "memory": memory,
+        "setup": setup_note(ctx.root),
         "meta": {"freshness": freshness.dump() if freshness else None},
     }
+
+
+def setup_note(root: Path) -> str | None:
+    """Say when the rules block of the project is from an older release.
+
+    :param root: The project root.
+    :return: The line for ``status``, or ``None`` when the setup is current or has no rules."""
+    from beamtime.guide.rules import outdated_release
+
+    if (release := outdated_release(root)) is None:
+        return None
+    return f"set up with {release}; `beamtime init` updates it"
 
 
 def sources(ctx: Context) -> list[dict[str, Any]]:

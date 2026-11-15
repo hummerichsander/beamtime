@@ -368,3 +368,5 @@ def main(argv: list[str] | None = None) -> None:
             print(text)
     if answer.get("meta", {}).get("failed"):
         sys.exit(1)
+    if code := answer.get("meta", {}).get("exit"):
+        sys.exit(code)

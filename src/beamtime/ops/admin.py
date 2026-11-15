@@ -43,11 +43,14 @@ def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
     """Set up the project and this machine: ask in a terminal, else plan from the flags.
 
     With a terminal and no ``--yes``, a first setup, a teammate's or a cluster's runs the wizard.
-    Otherwise nothing is asked, and nothing is written without ``--yes``.
+    Otherwise nothing is asked, and nothing is written without ``--yes``. With ``--check`` it
+    only lists what is stale and asks for exit code 3 when something is.
 
     :param ctx: The operation context.
     :param p: The parameters.
     :return: What was changed, or the review and the command when nothing was written."""
+    import dataclasses
+
     import msgspec
 
     from beamtime.setup.apply import ApplyError, apply
@@ -59,6 +62,12 @@ def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
         p = msgspec.structs.replace(p, agents=["claude-code" if only_claude else "other"])
     found = scan(ctx.root)
     fields = {"root": str(ctx.root), "logdir": str(found.project.logdir)}
+    if p.check:
+        lines = [s.line for s in found.stale]
+        out = answer("init", lines or ["nothing is stale"], written=[], **fields)
+        out["stale"] = [dataclasses.asdict(s) for s in found.stale]
+        out["meta"] = {"exit": 3} if lines else {}
+        return out
     try:
         answers = Answers.from_params(p, found)
     except ValueError as e:

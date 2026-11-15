@@ -197,12 +197,12 @@ the scan's defaults, plus `--yes`.
 | `--agent-style careful\|hands-on\|analysis` | the agent preset | `beamtime.yaml: agent.style` |
 | `--agent-set k=v` (repeatable; `k=v,k=v` also parses) | single agent settings; the printed command has one flag per key, so a value may hold commas | `beamtime.yaml: agent.<k>` |
 | `--no-rules` | no rules block | – |
-| `--import <path>` (repeatable) | runs to copy in (TensorBoard, W&B offline, MLflow, CSV, Beamtime) | `imported/<name>/` in the log dir |
+| `--import <path>` (repeatable; `''` for none) | runs to copy in (TensorBoard, W&B offline, MLflow, CSV, Beamtime); default the Beamtime runs of a stale `runs` item | `imported/<name>/` in the log dir |
 | `--import-notes <path>`, `--import-memory <path>` (repeatable) | notes and memory files | the agent hand-off, or notes as written |
 | `--git record\|none` | commit the research record, or ignore the whole log dir | `.gitignore` |
 | `--sdk` \| `--no-sdk` | add the SDK to the project environment with its own tool | `pyproject.toml`, `requirements.txt`, ... |
 | `--role record\|full` | on a cluster: only record runs, or also look at them here | decides the questions |
-| `--update <items>` | stale items to bring up to date: `rules`, `mcp`, `skills`, `settings`, `sdk`, `remote:<name>`; default all | per item |
+| `--update <items>` | stale items to bring up to date: `rules`, `mcp`, `skills`, `settings`, `sdk`, `remote:<name>`; default all ticked (runs are `--import`) | per item |
 | `--migrate-with <agent>` | start this agent with the `migrate` prompt after the apply step | – |
 | `--check` | list what is stale and exit (0 nothing, 3 something); asks and writes nothing | – |
 | `--yes` | write without the review | – |
@@ -219,7 +219,7 @@ steer the command and are not answers. `--instructions`, the old form of the rul
 hidden alias that sets `rules`. `command(answers, scan)` prints `beamtime init --yes` and one line per
 flag whose answer differs from the defaults, values quoted for a shell; running it gives equal
 `Answers`. A flag that undoes a default has its own form (`--no-agents`, `--no-sdk`, `--no-rules`,
-`--update ''`).
+`--update ''`, `--import ''`).
 
 **Without a terminal** (stdin or stdout not a TTY) the wizard asks nothing. It builds `Answers` from
 the flags and the conservative defaults: nothing outside the project happens unless a flag names it
@@ -733,17 +733,18 @@ goes stale is the setup around it, and each item has a check in `setup/stale.py`
 
 | Item | Stale when | Update |
 |---|---|---|
-| `rules` | the block differs from what this release generates for the project's agent settings | replace the block |
-| `mcp` | a client's MCP command doesn't start (`--version` fails) or isn't what `mcp_command()` picks now | rewrite that entry |
-| `skills` | `.claude/skills/beamtime-*` differs from this release's skills | rewrite them |
+| `rules` | the block is from an older release (a hand-edited block is listed, unticked) | replace the block |
+| `mcp` | a registered MCP command doesn't start (`--version` fails, run in the project root) or isn't what `mcp_command()` picks now (`--root` aside); nothing is listed when no command could replace it | rewrite that entry |
+| `skills` | the project has Beamtime skills and one differs from this release's or is missing | rewrite them |
 | `settings` | a key this release no longer reads (the `MOVED` keys, e.g. `colormap`) | remove it, keeping the rest of the file |
 | `sdk` | the project environment has an older Beamtime | the tool's upgrade command |
 | `remote:<name>` | the remote's Beamtime is older than this one | `pip install --user -U` there, after the review |
-| runs | Beamtime runs in the project outside the log dir | an import into the log dir |
+| `runs` | Beamtime runs in the project outside the log dir, whose run names the log dir lacks | an import into the log dir (the default `--import`, `--import ''` declines) |
 
 - **The setup's release** is found without stamps: `guide/rules/history/` keeps the rules text of
-  every release that changed it (0.1.0, 0.2.0, this release's template), and the block is matched
-  against each, with the template's placeholders as wildcards. The newest matching release names the
+  every earlier release that changed it (`0.1.0.md`, `0.2.0.md`), `guide/rules/rules.md` is this
+  release's template, and the block is matched against each, with the template's placeholders as
+  wildcards (`guide/rules.py:release_of`). The newest matching release names the
   setup ("set up with 0.1.1" names the last release that wrote that text). A block that matches none
   was edited by hand: its update is offered unticked, with the diff.
 - The wizard first checks the data and says it is fine (runs, notes, proposals and views read as
@@ -751,11 +752,22 @@ goes stale is the setup around it, and each item has a check in `setup/stale.py`
   then asks only the questions new since the setup's release (e.g. agent behaviour and the rules
   choice for a 0.1 setup), and ends with the few changes a person would notice, from a short list kept
   per release in `setup/changes.py`.
-- **`beamtime init --check`** runs the checks without a terminal, prints one line per stale item and
-  exits 3 if there is one, 0 otherwise; for CI and for agents, who hand the user `beamtime init`.
-- **`beamtime status`** (and the MCP `status`) adds one line when the rules block is from an older
-  release: "set up with 0.1.1; `beamtime init` updates it". Only the rules check runs there, since it
-  reads two small files.
+- **`beamtime init --check`** runs the checks without a terminal, prints one line per stale item
+  (`item: before -> after`) and exits 3 if there is one (the answer's `meta.exit`), 0 otherwise; for CI
+  and for agents, who hand the user `beamtime init`. It is local: `remote:<name>` needs a probe, so
+  `stale_remote(name, version)` is checked by the wizard after its probe and `--update remote:<name>`
+  installs there without a check.
+- **`Scan.stale`** holds the items (`Stale(item, before, after, ticked, path)`) of a project that has a
+  `beamtime.yaml` or a log dir; a set-up project with any is in the `update` flow. `Answers.defaults`
+  ticks the items of `--update` (all but `runs` and an unticked one) and makes each `runs` item's folder
+  an `--import`. `plan()` plans each ticked item: the rules block of every file that has one, every
+  registered MCP entry, the skills, the removal of moved keys from `beamtime.yaml`, the SDK upgrade
+  (`uv add 'beamtime>=X'` and its kin) and the remote install. `setup/changes.py:since(release, current)`
+  gives the lines for the end of the wizard.
+- **`beamtime status`** (and the MCP `status`, as the answer's `setup`) adds one line when the rules block
+  is from an older release: "set up with 0.1.1; `beamtime init` updates it". Only the rules check runs
+  there, since it reads two small files (`guide/rules.py:outdated_release`, over `RULES_FILES`); nothing
+  of `beamtime.setup` is imported.
 
 ## The terminal
 
@@ -799,7 +811,7 @@ appearing as work finishes) and the review.
 | `setup/agents.py` | the client table, `mcp_command()`, registering, the rules block written to files |
 | `setup/remotes.py` | the parallel probe, `probe_command` (also used by `source add`), the remote name rule, installs, ssh sharing |
 | `setup/importers/` | `tensorboard`, `wandb`, `mlflow`, `csv`, `beamtime`, and the one run writer |
-| `setup/stale.py`, `setup/changes.py` | the update checks; the noticeable changes per release |
+| `setup/stale.py`, `setup/changes.py` | `Stale`, `find()` and one check per item; the noticeable changes per release (`since()`) |
 | `guide/rules.py`, `guide/rules/` | the rules template, its history, rendering and matching |
 | `index/cache.py` | `resolve_cache()` |
 | `settings.py` | `cache`, `agent` (presets, validation, resolution), `remotes.<name>.enabled` |

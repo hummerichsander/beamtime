@@ -171,14 +171,20 @@ def mcp_command(
     return None
 
 
-def check_command(cmd: list[str]) -> tuple[str | None, bool]:
+def check_command(cmd: list[str], cwd: Path | None = None) -> tuple[str | None, bool]:
     """Ask a candidate command for its version and whether it has the serve extra.
 
     :param cmd: The command that starts the server, ending in ``mcp``.
+    :param cwd: The folder to run it in; default the current one.
     :return: The version and whether the serve extra is present; ``(None, False)`` when it fails."""
     try:
         out = subprocess.run(
-            [*cmd[:-1], "--version"], capture_output=True, text=True, timeout=5, check=True
+            [*cmd[:-1], "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=True,
+            cwd=cwd,
         ).stdout
     except (OSError, subprocess.SubprocessError):
         return None, False
@@ -421,16 +427,13 @@ def registered(data: dict[str, Any], keys: list[str]) -> bool:
     return SERVER in data
 
 
-def is_registered(client: Client, root: Path, home: Path) -> bool:
-    """Tell whether any config a client reads for this project lists the beamtime server.
+def config_places(client: Client, root: Path, home: Path) -> list[tuple[Path, list[str]]]:
+    """List the configs a client reads for this project and the keys of their servers table.
 
     :param client: The agent client.
-    :param root: The project root.
+    :param root: The project root, resolved.
     :param home: The home directory.
-    :return: ``True`` when the project's, the machine's or the user-wide config has the entry."""
-    if not client.config:
-        return False
-    root = root.resolve()
+    :return: The file and the nested keys of the servers table, for each place."""
     places = [
         (
             expand_home(client.config, home)
@@ -444,10 +447,22 @@ def is_registered(client: Client, root: Path, home: Path) -> bool:
             places.append((machine_config(client, home), ["projects", str(root), client.key]))
         case "cursor" | "vscode":
             places.append((machine_config(client, home), [client.key]))
+    return places
+
+
+def is_registered(client: Client, root: Path, home: Path) -> bool:
+    """Tell whether any config a client reads for this project lists the beamtime server.
+
+    :param client: The agent client.
+    :param root: The project root.
+    :param home: The home directory.
+    :return: ``True`` when the project's, the machine's or the user-wide config has the entry."""
+    if not client.config:
+        return False
     try:
         return any(
             read_toml(path) if path.suffix == ".toml" else registered(read_json(path), keys)
-            for path, keys in places
+            for path, keys in config_places(client, root.resolve(), home)
         )
     except ConfigError:
         return False

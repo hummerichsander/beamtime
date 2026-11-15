@@ -631,6 +631,8 @@ def render_status(answer: dict[str, Any]) -> str:
             f"memory    {memory['version']}"
             + (f"; {since} note(s) since, `beamtime memory update .`" if since else "; current")
         )
+    if answer.get("setup"):
+        lines.append(f"setup     {answer['setup']}")
     if answer["web_ui"]:
         lines.append(f"web UI    {answer['web_ui']}")
     if answer["remotes"]:

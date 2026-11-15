@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from beamtime import __version__
+
 
 @pytest.fixture
 def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -35,7 +37,7 @@ def project_tree(tmp_path: Path) -> Path:
     )
     (root / "pyproject.toml").write_text("[project]\nname = 'demo'\n[tool.uv]\n")
     packages = root / ".venv" / "lib" / "python3.11" / "site-packages"
-    for dist in ("beamtime-0.2.0", "starlette-0.40.0", "uvicorn-0.30.0"):
+    for dist in (f"beamtime-{__version__}", "starlette-0.40.0", "uvicorn-0.30.0"):
         (packages / f"{dist}.dist-info").mkdir(parents=True)
     return root
 

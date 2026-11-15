@@ -581,7 +581,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
   missing from `~/.ssh/config`, and ssh sharing, and the review lists `beamtime.yaml` as unchanged; a fixture
   cluster (`sbatch` on `PATH`, `$HOME` on nfs) asks role, link and cache, and agents only for role `full`.
 
-### W13. Stale checks, `--check` and the status line (sonnet + review) — code
+### W13. Stale checks, `--check` and the status line (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/stale.py`, new `src/beamtime/setup/changes.py`, `src/beamtime/setup/scan.py`
   (`Scan.stale`), `src/beamtime/ops/registry.py` (`InitParams.check`), `src/beamtime/ops/reading.py` (`status`

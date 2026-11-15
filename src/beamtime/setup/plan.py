@@ -7,6 +7,7 @@ import shlex
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -125,7 +126,8 @@ class Answers(msgspec.Struct, kw_only=True):
             logdir=logdir.relative_to(scan.root.resolve()).as_posix() if inside else str(logdir),
             agent_style=style,
             agent_set=preset_overrides(style, knobs),
-            update=list(scan.stale),
+            imports=[s.path for s in scan.stale if s.item == "runs" and s.ticked and s.path],
+            update=[s.item for s in scan.stale if s.ticked and s.item in UPDATE_ITEMS],
         )
 
     @classmethod
@@ -179,7 +181,7 @@ class Answers(msgspec.Struct, kw_only=True):
             agent_style=style,
             agent_set=preset_overrides(style, agent_set),
             rules=base.rules and not p.no_rules or p.instructions,
-            imports=list(p.import_),
+            imports=[i for i in p.import_ if i] if p.import_ else base.imports,
             import_notes=list(p.import_notes),
             import_memory=list(p.import_memory),
             git=p.git or base.git,
@@ -263,7 +265,7 @@ def flags(answers: Answers, scan: "Scan") -> list[str]:
             case "rules":
                 out.append("--no-rules")
             case "imports":
-                out += [f"--import {shlex.quote(v)}" for v in value]
+                out += [f"--import {shlex.quote(v)}" for v in value] or ["--import ''"]
             case "import_notes" | "import_memory":
                 out += [f"--{f.name.replace('_', '-')} {shlex.quote(v)}" for v in value]
             case "sdk":
@@ -348,11 +350,21 @@ class Planner:
             self.sdk(),
             self.user_settings(),
             *self.agents(),
+            *self.updates(),
             *self.imports(),
             self.notes(),
             *self.remote_changes(),
         ]
-        return [c for c in found if c is not None]
+        seen: set[tuple[str, str, str]] = set()
+        out = []
+        for change in found:
+            if (
+                change is not None
+                and (key := (change.where, change.label, change.after)) not in seen
+            ):
+                seen.add(key)
+                out.append(change)
+        return out
 
     def beamtime_yaml(self) -> Change | None:
         """Plan the project's ``beamtime.yaml``: log dir, agent settings and remote paths.
@@ -615,6 +627,11 @@ class Planner:
             out += ssh_share_changes(host, config, display_path(config, self.scan.home))
         for name in dict.fromkeys(a.install_remotes):
             out.append(install_change(self.host_of(name, "--install-remote"), name, __version__))
+        for item in a.update:
+            if item.startswith("remote:") and (name := item.removeprefix("remote:")) not in (
+                a.install_remotes
+            ):
+                out.append(install_change(self.host_of(name, "--update"), name, __version__))
         return out
 
     def host_of(self, name: str, flag: str) -> str:
@@ -672,6 +689,75 @@ class Planner:
         for client in {c.rules: c for c in clients}.values():
             if read_block(self.root / client.rules) != block:
                 out.append(rules_change(client, self.root, agent, user_only))
+        return out
+
+    def updates(self) -> list[Change]:
+        """Plan what ``--update`` brings up to date in a setup an older release made.
+
+        The rules and the MCP entries are rewritten where the scan found them, never added to a
+        client that has none; remotes and runs go through ``remote_changes`` and ``imports``.
+
+        :return: The changes.
+        :raises ValueError: A client can't be registered."""
+        from beamtime import __version__
+        from beamtime.guide.rules import read_block, render
+        from beamtime.ops.registry import OPS
+        from beamtime.settings import resolve_agent
+        from beamtime.setup.agents import ConfigError, client_named, register, rules_change
+        from beamtime.setup.sdk import sdk_change
+        from beamtime.setup.stale import moved_keys, stale_sdk, stale_skills
+
+        a = self.answers
+        out: list[Change] = []
+        found = {f.client: client_named(f.client) for f in self.scan.agents}
+        if "rules" in a.update and a.rules:
+            agent = resolve_agent(self.agent_given())
+            user_only = sorted(o.name for o in OPS if o.user_only)
+            block = render(agent, user_only)
+            files = {c.rules: c for f in self.scan.agents if f.has_block for c in [found[f.client]]}
+            out += [
+                rules_change(c, self.root, agent, user_only)
+                for c in files.values()
+                if read_block(self.root / c.rules) != block
+            ]
+        if "mcp" in a.update:
+            for f in self.scan.agents:
+                if not f.registered:
+                    continue
+                try:
+                    out.append(
+                        register(
+                            found[f.client],
+                            self.root,
+                            self.scan.env,
+                            home=self.scan.home,
+                            which=self.which,
+                        )
+                    )
+                except ConfigError as e:
+                    raise ValueError(f"{found[f.client].label}: {e}") from e
+        if "skills" in a.update and stale_skills(self.root) is not None:
+            out.append(skills_change(self.root))
+        if "settings" in a.update and (keys := moved_keys(self.root)):
+            out.append(
+                Change(
+                    where="project",
+                    label="beamtime.yaml",
+                    before=f"sets {', '.join(keys)}",
+                    after="removed",
+                    run=partial(drop_keys, self.project_file, keys),
+                )
+            )
+        if (
+            "sdk" in a.update
+            and stale_sdk(self.scan.env) is not None
+            and (
+                change := sdk_change(
+                    self.scan.env, __version__, self.mcp_from_env(), root=self.root, upgrade=True
+                )
+            )
+        ):
+            out.append(change)
         return out
 
     def imports(self) -> list[Change]:
@@ -854,6 +940,17 @@ def skills_change(root: Path) -> Change:
         after=f"{len(SKILLS)} skills",
         run=lambda: f"{len(write_skills(root))} skills",
     )
+
+
+def drop_keys(file: Path, keys: list[str]) -> None:
+    """Remove top-level settings from a settings file, keeping the rest as written.
+
+    :param file: The settings file.
+    :param keys: The settings to remove."""
+    from beamtime.settings import replace_entry
+
+    for key in keys:
+        replace_entry(file, key, "")
 
 
 def release(version: str) -> tuple[int, ...]:

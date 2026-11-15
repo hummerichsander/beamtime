@@ -9,7 +9,7 @@ import sys
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, NamedTuple
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 from beamtime.format.constants import RUN
 from beamtime.guide.rules import END, find_block, read_block, release_of
@@ -18,6 +18,9 @@ from beamtime.ops.admin import SKIP
 from beamtime.sdk.paths import DEFAULT_LOGDIR, SETTINGS
 from beamtime.settings import read_level
 from beamtime.setup.importers import PRUNED, Found, detect
+
+if TYPE_CHECKING:
+    from beamtime.setup.stale import Stale
 
 Flow = Literal["first", "teammate", "cluster", "update", "current"]
 
@@ -174,7 +177,7 @@ class Scan:
     conflicts: tuple[Conflict, ...]
     past: tuple[Past, ...]
     notes: tuple[Notes, ...]
-    stale: tuple[str, ...]
+    stale: tuple["Stale", ...]
     flow: Flow
 
 
@@ -202,12 +205,27 @@ def scan(
     display = has_display(env)
     agents = read_agents(root, home, env)
     user_remotes = read_level(user_settings(home, env), "user", []).get("remotes") or {}
+    past = find_past(root, project.logdir)
+    python = read_env(root, env)
+    stale = ()
+    if project.settings or project.has_logdir:
+        from beamtime.setup.stale import find
+
+        stale = find(
+            root,
+            home=home,
+            logdir=project.logdir,
+            agents=agents,
+            past=past,
+            env=python,
+            which=lambda name: shutil.which(name, path=env.get("PATH") or ""),
+        )
     return Scan(
         root=root,
         home=home,
         project=project,
         git=read_git(root, project.logdir),
-        env=read_env(root, env),
+        env=python,
         framework=find_framework(files),
         job_scripts=find_job_scripts(root, files, hosts),
         ssh_hosts=hosts,
@@ -216,10 +234,10 @@ def scan(
         display=display,
         agents=agents,
         conflicts=find_conflicts(root),
-        past=find_past(root, project.logdir),
+        past=past,
         notes=find_notes(root, home, project.logdir),
-        stale=(),
-        flow=pick_flow(project, user_remotes, scheduler, display, disks, agents),
+        stale=stale,
+        flow=pick_flow(project, user_remotes, scheduler, display, disks, agents, stale),
     )
 
 
@@ -230,6 +248,7 @@ def pick_flow(
     display: bool,
     disks: tuple[Disk, ...],
     agents: tuple[AgentFound, ...],
+    stale: tuple["Stale", ...] = (),
 ) -> Flow:
     """Pick the flow from the facts: cluster, teammate, update, current or first setup.
 
@@ -239,13 +258,14 @@ def pick_flow(
     :param display: Whether the machine has a display.
     :param disks: The disks, among them ``home``.
     :param agents: The agent clients found.
+    :param stale: The stale items found.
     :return: The flow."""
     if scheduler or not display or any(d.network for d in disks if d.label == "home"):
         return "cluster"
     if project.settings:
         missing = bool(set(project.remotes) - set(user_remotes))
         unregistered = any(a.command and not a.registered for a in agents)
-        return "teammate" if missing or unregistered else "current"
+        return "teammate" if missing or unregistered else "update" if stale else "current"
     return "update" if project.has_logdir else "first"
 
 

@@ -548,6 +548,7 @@ class InitParams(Params, kw_only=True):
         list[str],
         msgspec.Meta(
             description="runs to copy in: TensorBoard, W&B offline, MLflow, CSV, Beamtime"
+            " ('' for none)"
         ),
     ] = msgspec.field(name="import", default_factory=list)
     import_notes: Annotated[
