@@ -169,11 +169,6 @@ def fill(scan: Scan, answers: Answers) -> None:
         answers.runs = "both"
     if not answers.agents:
         answers.agents = [a.client for a in scan.agents]
-    if answers.agent_style == "careful" and not answers.agent_set:
-        given = Planner.read(scan.root / "beamtime.yaml").get("agent") or {}
-        if given.get("style") in STYLE_NAMES:
-            answers.agent_style = given["style"]
-        answers.agent_set = {k: str(v) for k, v in given.items() if k in TUNE}
     if not answers.sdk and sdk_applies(scan):
         answers.sdk = True
 
@@ -722,19 +717,20 @@ class FirstSetup:
             body=[term.paint("m", b) for b in body],
         )
         self.fine = chosen == "custom"
-        a.agent_style = "careful" if self.fine else chosen
         if not self.fine:
-            a.agent_set = {}
+            a.agent_style, a.agent_set = chosen, {}
 
     def ask_tune(self, term: Term, a: Answers, scan: Scan) -> None:
-        """Ask for each agent setting, starting from the careful preset.
+        """Ask for each agent setting, starting from the project's values; keep what differs from
+        the style's preset.
 
         :param term: The terminal.
         :param a: The answers; changed in place.
         :param scan: The facts of the project and the machine."""
+        preset = PRESETS[a.agent_style]
         rows, start = [], {}
         for key, (label, values) in TUNE.items():
-            have = a.agent_set.get(key, str(PRESETS["careful"][key]))
+            have = a.agent_set.get(key, str(preset[key]))
             if have not in [stored for _, stored in values]:
                 values = [*values, (have, have)]
             rows.append(FormRow(key, label, tuple(shown for shown, _ in values)))
@@ -743,17 +739,19 @@ class FirstSetup:
         a.agent_set = {}
         for key, (_, values) in TUNE.items():
             stored = next((s for d, s in values if d == chosen[key]), chosen[key])
-            if stored != str(PRESETS["careful"][key]):
+            if stored != str(preset[key]):
                 a.agent_set[key] = stored
 
     def tune_summary(self, a: Answers, scan: Scan) -> str:
-        """Word the agent settings that differ from careful.
+        """Word the agent settings that differ from the style's preset.
 
         :param a: The answers.
         :param scan: The facts of the project and the machine.
         :return: One line."""
         changed = [f"{TUNE[k][0]} {SHOWN.get(v, v)}" for k, v in a.agent_set.items() if k in TUNE]
-        return f"custom: {', '.join(changed)}" if changed else "same as careful"
+        return (
+            f"custom: {', '.join(changed)}" if changed else f"same as {STYLE_NAMES[a.agent_style]}"
+        )
 
     def ask_rules(self, term: Term, a: Answers, scan: Scan) -> None:
         """Ask whether to write the rules block, showing it.

@@ -73,9 +73,10 @@ steps are further lists for the same engine.
   as its default.
 - **What is preselected.** `fill()` sets, where a flag left the plain default of
   `Answers.defaults`: `runs` to `both` when a job script and ssh hosts were found, the found agents,
-  `sdk` when the environment lacks Beamtime and can take it, and the project's own `agent` (its style
-  and the single keys the wizard asks) when `beamtime.yaml` has one, so a project's choice is the
-  default and never the built-in preset. Past work is preselected when found in the project; Beamtime
+  `sdk` when the environment lacks Beamtime and can take it. The project's own `agent` (its style and
+  the single keys that differ from that preset) is already `Answers.defaults`, for flags and prompts
+  alike, so a project's choice is the default and never the built-in preset; a project with single
+  keys starts on `Choose each setting`, whose form starts from the project's resolved values. Past work is preselected when found in the project; Beamtime
   log dirs of other projects are offered and never ticked. `git` starts on `record`.
 - **Conventions are not asked** (see [Agent settings](#agent-settings)); the style step says where to
   set them.
@@ -389,7 +390,11 @@ a set of values; single keys override it.
 
 - `style` is `careful` (default), `hands-on`, `analysis` or `custom` (the wizard's "Choose each
   setting", which starts from careful). The file stores `style`, the keys that differ from the preset,
-  and the conventions the user set; readers resolve the preset first. A preset's values change only with
+  and the conventions the user set; readers resolve the preset first.
+- **The chosen style is written.** `init` (wizard or `--agent-style`) writes the chosen style with the
+  single keys that differ from its preset; choosing another preset drops the project's old single keys,
+  and the conventions in the file stay. A file that already resolves to the same values is left as
+  written. A preset's values change only with
   a changelog line.
 - **Careful is today's behaviour.** A project without `agent` behaves as careful, so nothing changes
   for existing projects.

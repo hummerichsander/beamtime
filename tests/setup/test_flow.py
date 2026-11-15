@@ -480,6 +480,115 @@ def test_existing_agent_style_is_the_default(tmp_path: Path, home: Path) -> None
     assert FirstSetup().steps()
 
 
+class Picks:
+    """A terminal that answers ``select`` with one choice and ``form`` with its start values."""
+
+    def __init__(self, choice: str) -> None:
+        """Keep the choice.
+
+        :param choice: What ``select`` answers."""
+        self.choice = choice
+        self.start: dict[str, str] = {}
+
+    def select(self, *args: object, **kwargs: object) -> str:
+        """Answer with the choice.
+
+        :return: The choice."""
+        return self.choice
+
+    def form(self, title: str, rows: object, start: dict[str, str]) -> dict[str, str]:
+        """Take the start values as they are.
+
+        :param title: The form's title.
+        :param rows: The rows.
+        :param start: The values it starts on.
+        :return: The start values."""
+        self.start = dict(start)
+        return start
+
+    def paint(self, role: str, text: str) -> str:
+        """Leave text uncolored.
+
+        :param role: The color role.
+        :param text: The text.
+        :return: The text."""
+        return text
+
+
+@pytest.fixture
+def hands_on(tmp_path: Path, home: Path) -> Scan:
+    """A project whose ``beamtime.yaml`` says hands-on, five seeds and a main metric.
+
+    :param tmp_path: The test's temporary directory.
+    :param home: The fake home.
+    :return: The scan."""
+    root = tmp_path / "p"
+    root.mkdir()
+    (root / "beamtime.yaml").write_text(
+        yaml.safe_dump({"agent": {"style": "hands-on", "seeds": 5, "main_metric": "val/loss"}})
+    )
+    return scan(root, home=home, mounts=Path("/nonexistent"), env={"DISPLAY": ":0", "PATH": ""})
+
+
+def written_agent(found: Scan, answers: Answers) -> dict:
+    """Apply the plan of the answers and read back the project's ``agent``.
+
+    :param found: The scan.
+    :param answers: The answers.
+    :return: The ``agent`` mapping in ``beamtime.yaml``."""
+    apply(plan(found, answers, which=fake_which))
+    return yaml.safe_load((found.root / "beamtime.yaml").read_text())["agent"]
+
+
+def same_command(found: Scan, answers: Answers) -> bool:
+    """Say whether the printed command makes the same answers.
+
+    :param found: The scan.
+    :param answers: The answers.
+    :return: ``True`` when they are equal."""
+    words = shlex.split(command(answers, found).replace("\\\n", " "))
+    return Answers.from_params(parse(words[1:]), found) == answers
+
+
+@pytest.mark.parametrize("style", ["careful", "analysis"])
+def test_another_preset_is_written_and_drops_overrides(hands_on: Scan, style: str) -> None:
+    """Picking another preset writes it without the old single keys; the conventions stay."""
+    answers = Answers.defaults(hands_on)
+    assert (answers.agent_style, answers.agent_set) == ("hands-on", {"seeds": "5"})
+    FirstSetup().ask_style(Picks(style), answers, hands_on)
+    assert same_command(hands_on, answers)
+    assert written_agent(hands_on, answers) == {"style": style, "main_metric": "val/loss"}
+
+
+@pytest.mark.parametrize("style", ["careful", "analysis"])
+def test_agent_style_flag_is_written(hands_on: Scan, style: str) -> None:
+    """``--agent-style`` on a hands-on project writes that preset, as the wizard does."""
+    answers = Answers.from_params(InitParams(agent_style=style, yes=True), hands_on)
+    assert answers.agent_set == {}
+    assert written_agent(hands_on, answers) == {"style": style, "main_metric": "val/loss"}
+
+
+def test_each_setting_starts_from_the_projects_values(hands_on: Scan) -> None:
+    """``Choose each setting`` starts on hands-on's values with the project's seeds."""
+    answers = Answers.defaults(hands_on)
+    setup = FirstSetup()
+    picks = Picks("custom")
+    setup.ask_style(picks, answers, hands_on)
+    setup.ask_tune(picks, answers, hands_on)
+    assert picks.start["launch_runs"] == "allowed" and picks.start["seeds"] == "5"
+    assert (answers.agent_style, answers.agent_set) == ("hands-on", {"seeds": "5"})
+    agent = {"style": "hands-on", "seeds": 5, "main_metric": "val/loss"}
+    assert written_agent(hands_on, answers) == agent
+
+
+def test_a_dropped_override_returns_to_the_preset(hands_on: Scan) -> None:
+    """A single key set back to the preset leaves the file and the command alike."""
+    answers = Answers.defaults(hands_on)
+    answers.agent_set = {}
+    assert same_command(hands_on, answers)
+    assert written_agent(hands_on, answers) == {"style": "hands-on", "main_metric": "val/loss"}
+
+
 def test_typed_subfolder_reads_as_its_log_dir(tmp_path: Path, home: Path) -> None:
     """A typed folder inside another log dir offers that log dir's runs and name, as the review."""
     other = beamtime_logdir(tmp_path)

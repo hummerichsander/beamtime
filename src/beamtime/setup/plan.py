@@ -17,6 +17,7 @@ from beamtime.setup.remotes import remote_name_problem
 
 if TYPE_CHECKING:
     from beamtime.ops.registry import InitParams
+    from beamtime.settings import AgentSettings
     from beamtime.setup.importers import Found
     from beamtime.setup.scan import Scan
 
@@ -107,12 +108,23 @@ class Answers(msgspec.Struct, kw_only=True):
     def defaults(cls, scan: "Scan") -> "Answers":
         """The conservative answers of a scan: nothing outside the project unless a flag names it.
 
+        The agent style and its overrides are the project's own, from its ``beamtime.yaml``.
+
         :param scan: The facts of the project and the machine.
         :return: The answers without any flag."""
+        from beamtime.settings import PRESETS, check_agent
+
         logdir = scan.project.logdir
         inside = logdir.is_relative_to(scan.root.resolve())
+        file = scan.root / "beamtime.yaml"
+        agent = check_agent(file, Planner.read(file).get("agent") or {}, []) or {}
+        style = agent.get("style", "careful")
+        style = "careful" if style == "custom" else style
+        knobs = {k: str(v) for k, v in agent.items() if k in PRESETS["careful"]}
         return cls(
             logdir=logdir.relative_to(scan.root.resolve()).as_posix() if inside else str(logdir),
+            agent_style=style,
+            agent_set=preset_overrides(style, knobs),
             update=list(scan.stale),
         )
 
@@ -144,6 +156,9 @@ class Answers(msgspec.Struct, kw_only=True):
                     f"--agent-set {item!r}: write KEY=VALUE with a key of {', '.join(AGENT_KEYS)}"
                 )
             agent_set[key] = value
+        style = p.agent_style or base.agent_style
+        if style == base.agent_style:
+            agent_set = {**base.agent_set, **agent_set}
         update = None if p.update is None else [u for u in p.update if u]
         for item in update or []:
             remote = item.startswith("remote:") and len(item) > len("remote:")
@@ -161,8 +176,8 @@ class Answers(msgspec.Struct, kw_only=True):
             ssh_share=list(p.ssh_share),
             cache=p.cache,
             agents=[a for a in p.agents if a],
-            agent_style=p.agent_style or base.agent_style,
-            agent_set=agent_set,
+            agent_style=style,
+            agent_set=preset_overrides(style, agent_set),
             rules=base.rules and not p.no_rules or p.instructions,
             imports=list(p.import_),
             import_notes=list(p.import_notes),
@@ -173,6 +188,30 @@ class Answers(msgspec.Struct, kw_only=True):
             update=base.update if update is None else update,
             migrate_with=p.migrate_with,
         )
+
+
+def preset_overrides(style: str, agent_set: dict[str, str]) -> dict[str, str]:
+    """Drop the single keys that only repeat a style's preset; conventions always stay.
+
+    :param style: The agent style.
+    :param agent_set: The single keys as ``--agent-set`` text.
+    :return: The keys that differ from the preset.
+    :raises ValueError: A value is not valid for its key."""
+    from beamtime.settings import PRESETS
+
+    preset = PRESETS[style]
+    return {k: v for k, v in agent_set.items() if k not in preset or agent_value(k, v) != preset[k]}
+
+
+def same_agent(a: "AgentSettings", b: "AgentSettings") -> bool:
+    """Say whether two agent settings mean the same knobs, wherever their values come from.
+
+    :param a: The one settings.
+    :param b: The other.
+    :return: ``True`` when every knob and convention is equal; ``custom`` means careful's values."""
+    return dataclasses.replace(a, style="", source={}) == dataclasses.replace(
+        b, style="", source={}
+    )
 
 
 def split_agent_set(text: str) -> list[str]:
@@ -191,10 +230,15 @@ def flags(answers: Answers, scan: "Scan") -> list[str]:
     :param answers: The answers.
     :param scan: The facts the defaults come from.
     :return: One string per flag, its value quoted for a shell."""
+    from beamtime.settings import PRESETS
+
     base = Answers.defaults(scan)
     out = []
     for f in msgspec.structs.fields(Answers):
         value, default = getattr(answers, f.name), getattr(base, f.name)
+        if f.name == "agent_set" and answers.agent_style != base.agent_style:
+            # another style drops the project's overrides, as from_params does.
+            default = {}
         if value == default:
             continue
         match f.name:
@@ -212,6 +256,9 @@ def flags(answers: Answers, scan: "Scan") -> list[str]:
             case "agents":
                 out.append(f"--agents {shlex.quote(','.join(value))}" if value else "--no-agents")
             case "agent_set":
+                # a key the project overrides and the answers drop goes back to the preset.
+                preset = PRESETS[answers.agent_style]
+                value = {**{k: str(preset[k]) for k in default if k not in value}, **value}
                 out += [f"--agent-set {shlex.quote(f'{k}={v}')}" for k, v in value.items()]
             case "rules":
                 out.append("--no-rules")
@@ -351,18 +398,25 @@ class Planner:
         )
 
     def agent_given(self) -> dict[str, Any]:
-        """The ``agent`` setting the project gets: what it has, the style and the single keys.
+        """The ``agent`` setting the project gets: the chosen style, the keys that differ from its
+        preset, and the conventions the file has.
 
         :return: The mapping to write; empty when nothing is to be written.
         :raises ValueError: A value of ``--agent-set`` is not valid for its key."""
+        from beamtime.settings import PRESETS, check_agent, resolve_agent
+
         a = self.answers
-        given = dict(self.given.get("agent") or {})
-        if a.agent_style != "careful":
-            given["style"] = a.agent_style
-        elif not given and (a.agents or a.agent_set):
-            given["style"] = "careful"
-        for key, text in a.agent_set.items():
+        file = self.given.get("agent")
+        file = file if isinstance(file, dict) else {}
+        valid = check_agent(self.project_file, file, []) or {}
+        given = {k: v for k, v in valid.items() if k != "style" and k not in PRESETS["careful"]}
+        if a.agent_style != "careful" or file or a.agents or a.agent_set:
+            given = {"style": a.agent_style, **given}
+        for key, text in preset_overrides(a.agent_style, a.agent_set).items():
             given[key] = agent_value(key, text)
+        # a file that already means these values stays as written.
+        if file and same_agent(resolve_agent(given), resolve_agent(valid)):
+            return file
         return given
 
     def logdir_link(self) -> Change | None:
