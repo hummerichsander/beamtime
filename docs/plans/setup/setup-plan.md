@@ -140,6 +140,11 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 10. **Conventions are the user's** (your decision, settled in the W11 review): setup neither detects nor asks for
     `main_metric`, `direction`, `seed_key` and `domain`; a set value has the source `project` and the guide labels it
     `beamtime.yaml`. The `detected` source kind and `settings.DETECTED_KEYS` are gone. D11 and the mockup say so.
+11. **The update is planned in W13, shown in W14** (settled in the W13 review): `Scan.stale`, `Answers.defaults`
+    (ticked items into `--update`, a `runs` item's folder into `--import`) and `Planner.updates()` make `init --yes`
+    act on every ticked item, so `init --check` exits 0 after it. W14 adds only the screens: it renders `Scan.stale`
+    plus `stale_remote()` after its probe, maps the ticks to `Answers.update` and `Answers.imports`, and plans
+    through `plan()`. Rejected: leaving `--yes` without updates until W14, because W13's Done line needs it.
 
 ## F. Foundations
 
@@ -598,12 +603,16 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 ### W14. The update flow (sonnet) — code
 
-- **Touches:** `src/beamtime/setup/flow.py`, `tests/setup/test_flow.py`.
-- **Read:** the mockup's `UPGRADE` scenario; `docs/design/10-setup.md` § Updating an older setup.
+- **Touches:** `src/beamtime/setup/flow.py`, `src/beamtime/ops/admin.py` (the `update` flow joins the terminal
+  branch), `tests/setup/test_flow.py`.
+- **Read:** the mockup's `UPGRADE` scenario; `docs/design/10-setup.md` § Updating an older setup; decision 11
+  (the planning exists: `Scan.stale`, `Answers.defaults`, `Planner.updates()`, `stale_remote()`,
+  `changes.py:since()`; reuse the `old` fixture of `tests/setup/test_stale.py`).
 - **Check:** `uv run pytest -q tests/setup`.
 - **Done:** on the 0.1.1 fixture the flow prints the data check, the stale list all ticked with `+ Add a path`,
   asks agent behaviour and rules as new, reviews with "your data · nothing is rewritten" first and the unticked
-  items as kept, and ends with `changes.py`'s lines for 0.1 → 0.3.
+  items as kept, and ends with `changes.py`'s lines for 0.1 → 0.3; a remote the probe finds older is listed as
+  `remote:<name>`, and the screens' answers give the same `plan()` as the printed command.
 
 ### W15. The agent hand-off (sonnet) — code
 
