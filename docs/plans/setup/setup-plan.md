@@ -1,9 +1,12 @@
-# Setup: an interactive `beamtime init`
+# Setup: an interactive `beamtime setup`
 
 Base commit `ebb5b27`, branch `main`. Proposed 2026-11-12, based on `docs/plans/setup/decisions.md` (the input),
 the agreed mockup `docs/design/10-setup-mockup.html`, the spec `docs/design/10-setup.md` (approved 2026-11-12), the
 `imported_from` and scoped-move additions to `docs/design/01-storage.md`, and the interview of 2026-11-12. It ships
 in 0.3.0 with refactor 2. Behaviour changes are allowed; they are listed in [Breaking changes](#breaking-changes).
+Updated 2026-11-15 at `fb352bd` (branch `setup`, F11 to W13 done) with the user's decisions 14 to 17 of
+`decisions.md`: reconfiguring a current setup (W16), the rename to `beamtime setup` (N11) and a proposal word limit
+(G14). Tickets marked done name `beamtime init`, as the command was then; from N11 on it is `beamtime setup`.
 
 Run a ticket with `/run-ticket docs/plans/setup/setup-plan.md <ID>` in a fresh session; review tickets marked
 `+ review` with `/review-ticket docs/plans/setup/setup-plan.md <ID>` on a stronger model.
@@ -13,21 +16,25 @@ Run a ticket with `/run-ticket docs/plans/setup/setup-plan.md <ID>` in a fresh s
 
 The outcome this plan commits to, checked against at the end and in every review:
 
-- **Done means:** `beamtime init` in a terminal runs the four flows of the mockup (first setup, teammate, cluster,
-  update), each answer has a flag, nothing is written before the review is confirmed, and "Show the command"
-  prints a `beamtime init --yes ...` that makes the same plan. Without a terminal it asks nothing and writes only
+- **Done means:** `beamtime setup` (renamed from `init`, no alias) in a terminal runs the four flows of the mockup
+  (first setup, teammate, cluster, update) and, in a current setup, reconfigures from the saved answers; each
+  answer has a flag, nothing is written before the review is confirmed, and "Show the command" prints a
+  `beamtime setup --yes ...` that makes the same plan. Without a terminal it asks nothing and writes only
   with `--yes`. The `cache` setting is resolved by one function for the CLI, `serve`, MCP and `serve --stdio`.
   `beamtime.yaml: agent` drives `beamtime guide` and a generated rules block. Agents get a portable MCP command for
   seven clients. Runs from TensorBoard, W&B offline, MLflow, CSV and other Beamtime log dirs import with
-  `imported_from`. `init --check` and `status` report a stale setup, and the `migrate` prompt hands notes and
-  memory to an agent.
+  `imported_from`. `setup --check` and `status` report a stale setup, and the `migrate` prompt hands notes and
+  memory to an agent. `agent.proposal_words` reaches the guide, the wizard's form and a soft warning of
+  `proposal set`.
 - **Confirmed by:** the full checks and `uv run pytest -q -n0 tests/test_budgets.py`; `uv run pytest -q tests/setup`
   (scan fixtures, flags-equal-prompts per scenario, no-trace aborts, pty runs of the four flows, importer fixtures,
-  `--check` against 0.1.1 and 0.2.0 setups); `ticket.py status` shows every ticket done; by hand, `beamtime init` in
-  a scratch copy of a project reproduces the mockup's first-setup screens.
+  `--check` against 0.1.1 and 0.2.0 setups, reconfiguring a current setup); `ticket.py status` shows every ticket
+  done; `beamtime init` is an unknown command; by hand, `beamtime setup` in a scratch copy of a project reproduces
+  the mockup's first-setup screens, and a second `beamtime setup` there opens the list of answers.
 - **Out of scope:** reading another project's runs in place (a local-path source); calling a model from the
   wizard; importing TensorBoard images, histograms or text and MLflow artifacts; a pure-Python `.wandb` reader;
-  Windows-specific polish beyond the `msvcrt` input path; publishing the release.
+  Windows-specific polish beyond the `msvcrt` input path; publishing the release; `beamtime ps`/`stop` and reusing
+  a running `serve` (planned separately).
 
 ## Findings
 
@@ -42,6 +49,9 @@ Evidence: **code** (read, not run; the ticket starts with a failing test); **rep
 | 5 | Two rules texts exist across releases (0.1.0 = 0.1.1, 0.2.0 = 0.2.1 = HEAD) | `git show <tag>:src/beamtime/guide/parts/instructions.md` hashes | reproduced | G12 |
 | 6 | The index cache doesn't know which log dir it indexes | `index/store.py` `meta` holds only `schema` (155) | code | F13 |
 | 7 | Moves apply to every file in the log dir | `format/moves.py` `current` 57, `earlier` 43 | code | F14 |
+| 8 | `init` in a set-up, current project answers "already set up" and asks nothing, so changing one answer means flags; a rules block whose `agent` settings were edited stays as written | `ops/admin.py:init` 76–94 (terminal branch only for `first`, `teammate`, `cluster`); `stale.py:stale_rules` 72 matches the current release | code | W16 |
+| 9 | The command is `init`, which reads like the SDK's `beamtime.init()` | `ops/registry.py` op `init` 1152–1158; 109 lines outside the plans name it (N11's grep) | reproduced | N11 |
+| 10 | No proposal length knob; agents write long proposals that freeze once a run records them | `settings.py` `PRESETS` 31, `AGENT_KEYS` 94; `ops/record.py:proposal_set` 246 warns only on unknown metrics | code | G14 |
 
 ## Brief
 
@@ -66,6 +76,10 @@ What the tickets build together, so a session doesn't rediscover the design:
 - **Importers** (`setup/importers/`): each source module has `detect(path) -> Found | None` and `runs(path) ->
   Iterator[Imported]`; `write.py:write_run(logdir, dest, imported)` is the one writer, reusing
   `synth/summary.py:card_and_preview`; Beamtime log dirs copy through `beamtime.py` instead.
+- **Names after N11**: the command and op are `setup` (`SetupParams`, `ops/admin.py:setup`, answer kind
+  `setup`); `beamtime.init()` in the SDK and `flow.setup()` keep theirs. No `init` alias anywhere.
+- **Reconfiguring** (W16): `Answers.saved(scan)` is what is set up; `plan(scan, Answers.saved(scan))` is empty
+  except for a rules refresh; `flow.reconfigure()` asks only the picked step and the steps it newly enables.
 - **Voice and output**: plain, no emoji, no exclamation marks; the wizard's strings are the mockup's
   (`docs/design/10-setup-mockup.html`, its `<script>`), which win over paraphrase.
 
@@ -80,13 +94,13 @@ is marked done in the ticket's own commit.
    the real `~/.ssh`, `~/.codex` or `~/.claude`. Budgets: `uv run pytest -q -n0 tests/test_budgets.py` after any
    ticket that touches `cli/`, `settings.py`, `index/cache.py` or `ops/registry.py`.
 2. Generated files: `docs/reference/cli.md` is generated by `uv run python docs/site/reference.py` and checked by
-   `tests/test_docs.py`; rebuild and commit it in every ticket that changes CLI flags (P11, A12, W13). These tickets
-   also all edit `ops/registry.py`, so they run one after another.
+   `tests/test_docs.py`; rebuild and commit it in every ticket that changes CLI flags or command names (P11, A12,
+   W13, N11). These tickets also all edit `ops/registry.py`, so they run one after another.
 3. Rules: CLAUDE.md's Python style; `sdk/`, `format/` and `synth/` stay standard library plus PyYAML
    (`tests/test_boundaries.py`); the wizard uses only the standard library for terminal I/O; no module-level
    PyYAML, NumPy or `importlib.metadata` in modules `beamtime runs` loads. Never touch `tests/golden/schema1/`.
-4. Spec: `docs/design/10-setup.md` (and `01-storage.md` for F14, I11, I15). A deviation is written back into the spec
-   in the same commit.
+4. Spec: `docs/design/10-setup.md` (and `01-storage.md` for F14, I11, I15; `09-research-record.md` and
+   `08-cli-mcp.md` for G14). A deviation is written back into the spec in the same commit.
 5. Ticket budget: 140k tokens per ticket session; split a ticket that would exceed it.
 6. Recording: one commit per ticket, subject `<ID>: <what changed>`, which also appends ` — **done**` to the
    ticket's heading. The hash stays in git (`ticket.py status`).
@@ -104,10 +118,14 @@ I11 ─┬─ I12 I13 I14 I16   │       independent of each other
 G13                   │
 S12 (after I11 F13 A12) ─┤
 K11 (after S11) ───────┤
-P11 (registry) ─ P12 ─ R11 ─ W11 ─ W12 ─ W13 (registry) ─ W14 ─ W15 ─ D11 ─ Z
+P11 (registry) ─ P12 ─ R11 ─ W11 ─ W12 ─ W13 (registry) ─ N11 (registry) ─ G14 ─ W14 ─ W15 ─ W16 ─ D11 ─ Z
 ```
 
-What's left runs in this order: F11 F12 F13 F14 T11 S11 A11 G11 G12 G13 A12 I11 I12 I13 I14 I15 I16 S12 K11 P11 P12 R11 W11 W12 W13 W14 W15 D11 Z
+What's left runs in this order: F11 F12 F13 F14 T11 S11 A11 G11 G12 G13 A12 I11 I12 I13 I14 I15 I16 S12 K11 P11 P12 R11 W11 W12 W13 N11 G14 W14 W15 W16 D11 Z
+
+N11 runs first of what is left, so every later ticket is written and tested against `beamtime setup`. G14, W14, W15
+and W16 all edit `setup/flow.py` (and W14, W16 the terminal branch of `ops/admin.py:setup`), so they run one after
+another; W16 comes after W14 because both add a flow to `run()`. D11 documents all of it.
 
 F11 and F12 both edit `settings.py`; P11, A12 and W13 edit `ops/registry.py` and regenerate `docs/reference/cli.md`. I12,
 I13, I14 and I16 are independent of each other and of the G/A tickets.
@@ -145,6 +163,22 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
     act on every ticked item, so `init --check` exits 0 after it. W14 adds only the screens: it renders `Scan.stale`
     plus `stale_remote()` after its probe, maps the ticks to `Answers.update` and `Answers.imports`, and plans
     through `plan()`. Rejected: leaving `--yes` without updates until W14, because W13's Done line needs it.
+
+12. **The command is `beamtime setup`** (your decision, 2026-11-15): no `init` alias, before 0.3 ships; the op,
+    its params (`SetupParams`), the answer kind, messages and docs follow. The SDK's `beamtime.init()` keeps its
+    name. Rejected: keeping `init` as a hidden alias, because 0.3 is the release that changes setup anyway.
+13. **Reconfigure a current setup** (your decision, 2026-11-15): on a terminal, the `current` flow opens the
+    `Change an answer` list from `Answers.saved(scan)`; picking a step asks it and the later steps it newly enables
+    (proposed detail), then the review; `Change an answer` returns to the list. A current-release rules block whose
+    `agent` settings changed is planned there; `--check` and `status` stay quiet about it. Without a terminal
+    nothing changes ("already set up"; `--update rules` rewrites the block). Rejected: reporting the mismatch in
+    `--check` (the W13 review), because the release is current and the user edited the settings on purpose.
+14. **`agent.proposal_words`** (your decision, 2026-11-15; name fitted to the `agent:` key): default 150 in every
+    preset, `positive_int`. Counted (proposed) as the words of `statement`, `rationale` and every prediction's
+    `description`. The guide's Defaults names it (left out when `research_record` is `off`) and the proposals
+    part fills `{{agent.proposal_words}}`; `proposal set` adds a warning line and still writes; the wizard's form
+    has a `proposal length` row (100, 150, 300 words). The rules block does not carry it. Rejected: refusing long
+    proposals, because the knobs are guidance (spec § Agent settings).
 
 ## F. Foundations
 
@@ -406,6 +440,39 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
   `guide notes`, `guide memory`, `note_add`, `memory_update`, the diff-before-edit rule and "never delete or change
   the source files"; nine prompts in total.
 
+### G14. A proposal word limit (sonnet) — code
+
+- **Touches:** `src/beamtime/settings.py` (`PRESETS` 31–66, `AGENT_KEYS` 94–108, `AgentSettings` 137–155),
+  `src/beamtime/record/proposals.py` (new `words`), `src/beamtime/ops/record.py` (`proposal_set` 246–273),
+  `src/beamtime/guide/__init__.py` (`defaults` 120), `src/beamtime/guide/parts/proposals.md` (§ Write one before
+  launching), `src/beamtime/setup/flow.py` (`TUNE` 43–59), `tests/test_settings.py` (`test_presets_table` 32),
+  `tests/guide/test_guide.py`, `tests/record/test_writes.py`, `tests/setup/test_flow.py`.
+- **Read:** `docs/design/10-setup.md` § Agent settings (the `proposal_words` row and bullet), § How `beamtime guide`
+  reads them; `docs/design/09-research-record.md` § Proposals (first paragraphs); decision 14.
+- **Check:** `uv run pytest -q tests/test_settings.py tests/guide tests/record tests/setup/test_flow.py tests/mcp`;
+  then the full checks.
+- **Done:** every preset resolves `proposal_words == 150`; `agent: {proposal_words: 80}` resolves to 80 with source
+  `project` and `proposal_words: 0` is a settings problem; `guide` prints "Keep a proposal near 150 words: statement,
+  rationale and prediction descriptions. (default)" and leaves it out for `analysis`; `guide proposals` names the
+  limit; `proposal set` with a 200-word statement under `proposal_words: 150` writes the version and its answer has
+  the spec's warning line; at 150 words or fewer there is none; the wizard's `Agent settings` form has a
+  `proposal length` row and `--agent-set proposal_words=300` plans `agent.proposal_words: 300`.
+- **Risks:** prediction names, `where` filters and numbers don't count (`test_proposal_words_prose_only`); a
+  proposal without `rationale` or descriptions counts the statement alone (`test_proposal_words_statement_only`); a
+  remote group's `proposal set` warns from the remote's settings, as `memory update` does (through `ctx.settings`);
+  the pty form scripts of `test_flow.py` still reach the review with one more row (`test_tune_form`).
+
+1. `PRESETS[*]["proposal_words"] = 150`; `AGENT_KEYS["proposal_words"] = positive_int` (before the conventions);
+   `AgentSettings.proposal_words: int`.
+2. `proposals.words(p: Proposal) -> int`: `len(" ".join(texts).split())` over `statement`, `rationale` and each
+   prediction's `description`, skipping `None`.
+3. `proposal_set`: after `metric_warnings`, append the spec's warning when `words(proposal) >
+   ctx.settings.agent.proposal_words`; the write happens either way.
+4. `defaults()`: the line after the record line, keys `["proposal_words"]`, left out when `research_record ==
+   "off"`; `proposals.md` gains one sentence with `{{agent.proposal_words}}`.
+5. `TUNE["proposal_words"] = ("proposal length", [("100 words", "100"), ("150 words", "150"), ("300 words",
+   "300")])`, after `significance`.
+
 ## I. Importers
 
 ### I11. Importer interface, run writer, CSV (sonnet + review) — code — **done**
@@ -603,16 +670,17 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 ### W14. The update flow (sonnet) — code
 
-- **Touches:** `src/beamtime/setup/flow.py`, `src/beamtime/ops/admin.py` (the `update` flow joins the terminal
-  branch), `tests/setup/test_flow.py`.
+- **Touches:** `src/beamtime/setup/flow.py`, `src/beamtime/ops/admin.py` (`setup`, renamed in N11: the `update`
+  flow joins the terminal branch), `tests/setup/test_flow.py`.
 - **Read:** the mockup's `UPGRADE` scenario; `docs/design/10-setup.md` § Updating an older setup; decision 11
   (the planning exists: `Scan.stale`, `Answers.defaults`, `Planner.updates()`, `stale_remote()`,
   `changes.py:since()`; reuse the `old` fixture of `tests/setup/test_stale.py`).
 - **Check:** `uv run pytest -q tests/setup`.
 - **Done:** on the 0.1.1 fixture the flow prints the data check, the stale list all ticked with `+ Add a path`,
   asks agent behaviour and rules as new, reviews with "your data · nothing is rewritten" first and the unticked
-  items as kept, and ends with `changes.py`'s lines for 0.1 → 0.3; a remote the probe finds older is listed as
-  `remote:<name>`, and the screens' answers give the same `plan()` as the printed command.
+  items as kept, and ends with `changes.py`'s lines for 0.1 → 0.3 (the rename to `beamtime setup` among them); a
+  remote the probe finds older is listed as `remote:<name>`, and the screens' answers give the same `plan()` as the
+  printed `beamtime setup --yes` command.
 
 ### W15. The agent hand-off (sonnet) — code
 
@@ -621,26 +689,111 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 - **Check:** `uv run pytest -q tests/setup`.
 - **Done:** after a write with notes or a conflict and an agent that can start, the hand-off offers start, copy and
   later; "start" calls `os.execvp` with the client's command and the paths (patched in tests); "copy" uses the
-  first clipboard tool found or prints the prompt; `--migrate-with <agent>` alone, in a set-up project, goes
-  straight to the hand-off.
+  first clipboard tool found or prints the prompt; "later" prints `beamtime setup --migrate-with <agent>`;
+  `beamtime setup --migrate-with <agent>` alone, in a set-up project, goes straight to the hand-off (before W16's
+  list of answers, which it skips).
+
+### W16. Reconfiguring a current setup (sonnet + review) — code
+
+- **Touches:** `src/beamtime/setup/plan.py` (new `Answers.saved`; `Answers.from_params` 134–192 gains `base`),
+  `src/beamtime/setup/flow.py` (`run` 86–127, `pick_answer` 404–415, `intro` 221; new `reconfigure`),
+  `src/beamtime/ops/admin.py` (`setup`, the terminal branch 76–88 and the `already set up` answer 93–94),
+  `tests/setup/test_flow.py`, `tests/setup/test_plan.py`.
+- **Read:** `docs/design/10-setup.md` § Reconfiguring; § The wizard (the `Change an answer` bullet); decision 13.
+- **Check:** `uv run pytest -q tests/setup tests/ops`; then the full checks.
+- **Done:** on a project made by `beamtime setup --yes --agents claude-code` (with a project remote whose path is
+  `${SCRATCH}/x/beamtime`), `plan(scan, Answers.saved(scan)) == []`; after `beamtime.yaml: agent` is edited to
+  `hands-on`, it is exactly the rules change of `CLAUDE.md`; in a `pty`, `beamtime setup` there lists every applying
+  step with its summary plus `Review the changes`, picking the git step and `no` asks nothing else and the review
+  lists only `.gitignore`; with the edited agent setting the list carries the spec's line, the cursor starts on
+  `Review the changes`, and Enter reviews the rules change; "Show the command" prints a command whose `plan()`
+  equals the review's; without a terminal `setup` still answers "already set up" and `setup --yes --update rules`
+  rewrites the edited block.
+- **Risks:** saved answers never re-register, re-import or tick the SDK (`fill()` is not called;
+  `test_saved_plans_nothing`); picking agents from none to Claude Code also asks the style and the rules
+  (`test_reconfigure_new_steps`); `Change an answer` at the review returns to the list, not to the step order
+  (`test_reconfigure_change_again`); a remote switched off with `enabled: false` stays off
+  (`test_saved_skip_remote`); ctrl-c on the list leaves no trace (`test_reconfigure_abort`).
+- **Stop if:** `Answers.saved` can't reproduce a setup without a fact the scan doesn't have (a client's registration
+  scope, a remote's host); name the fact instead of re-reading client files in `flow.py`.
+
+1. `Answers.saved(scan) -> Answers`, the spec's fields; the project and user files are read with `Planner.read`
+   (`scan.root / "beamtime.yaml"`, `scan.home`'s user settings). `from_params(p, scan, base: Answers | None = None)`
+   fills from `base` instead of `defaults(scan)` when given.
+2. `ops/admin.py:setup`: on a terminal without `--yes` the flow `current` joins the wizard, with `base=
+   Answers.saved(found)`; without a terminal nothing changes.
+3. `flow.reconfigure(term, scan, answers, steps) -> Answers | None`: the list is `pick_answer` with a last
+   `Option("review", "Review the changes")`; after a pick, ask the step, then each later step whose `when` was false
+   before and is true now; then `confirm()`; `change` loops to the list. `run()` calls it for `scan.flow ==
+   "current"` instead of `fill()` and the steps in order; `intro` says "Set up with <version>. Pick what to change."
+
+## N. The command's name
+
+### N11. `beamtime init` becomes `beamtime setup` (sonnet) — code
+
+- **Touches:** `src/beamtime/ops/registry.py` (`InitParams` 495 → `SetupParams`, the op 1152–1158: name, kind,
+  summary), `src/beamtime/ops/admin.py` (`init` 42–110 → `setup`, `apply_failed` 113–121), `src/beamtime/ops/answers.py`
+  (`BARE` 603), `src/beamtime/ops/reading.py` (215, `setup_note` 1086), `src/beamtime/ops/authored.py` (34),
+  `src/beamtime/setup/plan.py` (1, 20, `from_params` 134–137, `command` 280–286), `src/beamtime/setup/flow.py` (485),
+  `src/beamtime/setup/changes.py` (13, one new 0.3 line), `src/beamtime/setup/stale.py` (34),
+  `src/beamtime/setup/remotes.py` (57), `src/beamtime/setup/__init__.py` (1), `src/beamtime/cli/__init__.py` (198),
+  `scripts/release.py` (132), `README.md` (13), `docs/quickstart.md` (15), `docs/design/10-setup-mockup.html` (12
+  places), `docs/reference/cli.md` (regenerated); `tests/ops/test_ops.py` (214, 429–482), `tests/setup/test_plan.py`,
+  `tests/setup/test_flow.py`, `tests/setup/test_stale.py`, `tests/setup/test_scan.py` (323),
+  `tests/setup/test_remotes.py` (194), `tests/guide/test_rules.py` (11).
+- **Read:** `docs/design/10-setup.md` (opening paragraphs; § The wizard, the `ops/admin.py:setup` sentence;
+  § Decisions, last three); decision 12.
+- **Check:** the grep below prints nothing; `uv run python docs/site/reference.py`; `uv run pytest -q tests/setup
+  tests/ops tests/guide tests/cli tests/test_docs.py`; `uv run pytest -q -n0 tests/test_budgets.py`; `uv run python
+  docs/plans/setup/drive-mockup.py docs/design/10-setup-mockup.html` where Chrome is installed; then the full checks.
+- **Done:** `beamtime setup --check` and `beamtime setup --yes` behave as `init` did; `beamtime init` exits with
+  argparse's unknown-command error; `status` says "set up with 0.1.1; `beamtime setup` updates it"; the printed
+  review command starts `beamtime setup --yes`; the MCP instructions' and the rules block's user-only list names
+  `setup`; `changes.py:since("0.1.1", ...)` includes the rename; and this prints nothing:
+  ```
+  git grep -nE 'beamtime init|init --|InitParams|"init"|``init``' -- src tests scripts README.md docs \
+    ':!docs/plans' ':!src/beamtime/guide/rules/history' ':!src/beamtime/serve/static' ':!src/beamtime/__init__.py' \
+    ':!src/beamtime/sdk' ':!tests/sdk' | grep -vE '"git", "init"|git\("init"|"-C", str\(tmp_path\), "init"|up to 0\.2'
+  ```
+- **Risks:** the SDK's `beamtime.init()` and its docs stay untouched (`tests/sdk`, the grep's exclusions); the
+  history rules texts keep `init` byte for byte, so `release_of` still names 0.1.1 and 0.2.1 (`tests/guide/test_rules.py`);
+  inside `ops/admin.py:setup` the wizard is imported as `from beamtime.setup.flow import setup as wizard`, so the
+  names don't shadow (`tests/setup/test_flow.py`); the CLI import budget (`tests/test_budgets.py`).
+- **Stop if:** something outside this list (a skill, the web UI, a generated plugin file) names the command.
+
+A pure rename, no behaviour change. The design documents already say `setup` (the plan update's commit); the
+CHANGELOG line is Z's.
+
+1. Op `setup`, kind `setup`, summary "Set up this project and this machine, or change the setup.";
+   `InitParams` → `SetupParams` everywhere; answers' `kind` is `setup`.
+2. Every message that prints the command says `beamtime setup` (the `status` line, the "no log dir" errors, the
+   apply failure, the printed command, the flow's remote hint).
+3. `changes.py`: a 0.3 line "The setup command is now `beamtime setup`; `init` is gone."
+4. The mockup: the command in its strings and margins becomes `beamtime setup`; `drive-mockup.py` still runs.
 
 ## D. Docs
 
 ### D11. User docs (sonnet) — code
 
-- **Touches:** `docs/quickstart.md`, `docs/guides/settings.md`, `docs/guides/remotes.md`, `docs/guides/cluster.md`,
-  `docs/guides/agents.md`, new `docs/guides/setup.md`, `docs/nav.json`, `docs/design/10-setup-mockup.html`.
+- **Touches:** `README.md`, `docs/quickstart.md`, `docs/guides/settings.md`, `docs/guides/remotes.md`,
+  `docs/guides/cluster.md`, `docs/guides/agents.md`, new `docs/guides/setup.md`, `docs/nav.json`,
+  `docs/design/10-setup-mockup.html`.
 - **Read:** `docs/design/10-setup.md`; CLAUDE.md § Layout (docs bullet: simple main pages, advanced topics in
   `guides/`).
 - **Check:** `uv run pytest -q tests/test_docs.py`; `cd web && npm run docs`.
-- **Done:** the quickstart starts with `beamtime init`; the settings guide documents `cache`, `agent` and
-  `enabled`; the cluster guide uses `--link-logdir` and `cache`; the new setup guide lists every flag with an
-  example `--yes` command and the update path; the mockup neither detects nor asks for the conventions and
-  labels them `beamtime.yaml` (Decision 10).
+- **Done:** the quickstart starts with `beamtime setup`, and no page says `beamtime init` except the setup guide's
+  one line that 0.2's `init` is now `setup` (decision 12); the settings guide documents `cache`, `agent` (with
+  `proposal_words`) and `enabled`; the agents guide names `proposal_words` and `proposal set`'s warning; the cluster
+  guide uses `--link-logdir` and `cache`; the new setup guide lists every flag with an example `--yes` command, the
+  update path, reconfiguring a current setup (the list of answers, the rules refresh, `--update rules` without a
+  terminal), and that `setup --yes` copies Beamtime runs found outside the log dir into it by default (a copy, the
+  originals stay; `--import ''` declines); the mockup neither detects nor asks for the conventions and labels them
+  `beamtime.yaml` (decision 10), and its `Choose each setting` form has the `proposal length` row (decision 14).
 
 ## Z. Close
 
-- **Touches:** `CHANGELOG.md` (0.3.0 section), `CLAUDE.md` (Status and Layout: `setup/`), `docs/design/10-setup.md`
+- **Touches:** `CHANGELOG.md` (0.3.0 section: the rename as a breaking change, reconfiguring, `proposal_words`),
+  `CLAUDE.md` (Status and Layout: `setup/`), `docs/design/10-setup.md`
   (Status line, Implementation notes), `docs/design/00-overview.md` if names changed.
 - **Read:** `docs/design/10-setup.md`; [Breaking changes](#breaking-changes).
 - **Check:** the full checks; `uv run pytest -q -n0 tests/test_budgets.py`; `uv run python
@@ -652,12 +805,14 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 | What | Before | After | Migration |
 |---|---|---|---|
-| `beamtime init` without a terminal | writes `beamtime.yaml` and `.gitignore` | prints the review and the command; writes only with `--yes` | add `--yes` to scripts |
-| `.gitignore` from `init` | `beamtime/` | a marked block ignoring run data only (`--git record`) | `--git none` keeps the old behaviour |
+| the setup command | `beamtime init` | `beamtime setup`; `init` is an unknown command (no alias) | replace `init` with `setup` in scripts and docs |
+| `beamtime setup` without a terminal | `init` wrote `beamtime.yaml` and `.gitignore` | prints the review and the command; writes only with `--yes` | add `--yes` to scripts |
+| `beamtime setup` in a set-up, current project, on a terminal | – (`init` said "already set up") | opens the list of answers to change | none; ctrl-c leaves it as it was |
+| `.gitignore` from `setup` | `beamtime/` | a marked block ignoring run data only (`--git record`) | `--git none` keeps the old behaviour |
 | `serve --stdio` cache on a remote with a local `$HOME` | always memory unless `--cache` | the remote's own `cache` setting if set, else memory | none |
 | `cache_dir()` with `cache: memory` | – | a runtime dir; the index lives in a per-process temp dir | none |
-| `mcp install` into shared files | absolute path of `beamtime` | a portable command, or the client's machine scope | rerun `beamtime init` (the `mcp` update item) |
-| the agent rules block | fixed text from `instructions.md` | generated from `agent` settings | rerun `beamtime init` (the `rules` update item) |
+| `mcp install` into shared files | absolute path of `beamtime` | a portable command, or the client's machine scope | run `beamtime setup` (the `mcp` update item) |
+| the agent rules block | fixed text from `instructions.md` | generated from `agent` settings | run `beamtime setup` (the `rules` update item) |
 | `beamtime --version` | `beamtime 0.3.0` | adds `(no serve extra)` when the extra is missing | parse the first two words |
 | `_moves.jsonl` | three fields | optional `within` | older Beamtime releases apply a `within` move everywhere |
 
@@ -670,3 +825,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 - The `wandb` datastore reader's import path and API across versions — I14.
 - Claude Code's project-memory folder escaping — S12 checks against `~/.claude/projects` on this machine.
 - `msvcrt` input on Windows — T11 tests only the POSIX path; Windows runs the numbered fallback in CI.
+- That `Answers.saved` can be built from the scan and the two settings files alone, so a current setup plans
+  nothing — W16 starts with `test_saved_plans_nothing`.
+- That nothing outside N11's list (skills generated by `scripts/build-plugin`, the web UI) prints the command —
+  N11's grep covers `src`, `tests`, `scripts` and `docs`.

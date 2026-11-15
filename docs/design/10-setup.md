@@ -1,14 +1,15 @@
-# Setup: `beamtime init`
+# Setup: `beamtime setup`
 
 Status: **draft; for review before planning.** The experience is agreed in the mockup
 ([10-setup-mockup.html](10-setup-mockup.html), four scenarios; each step's margin names its flag and
 where the answer lands); the decisions behind it are in `docs/plans/setup/decisions.md`.
 
-`beamtime init` sets up a project for Beamtime: it asks a few questions, shows everything it will
+`beamtime setup` sets up a project for Beamtime: it asks a few questions, shows everything it will
 change, and writes it only once the user confirms. It is often the first contact with Beamtime, so
-it has to be short, plain and safe. One command covers four situations: a first setup, a teammate
-joining a project that uses Beamtime already, a cluster login node, and updating a setup made by an
-older release.
+it has to be short, plain and safe. One command covers five situations: a first setup, a teammate
+joining a project that uses Beamtime already, a cluster login node, updating a setup made by an
+older release, and changing an answer of a current setup. The command was `beamtime init` up to 0.2;
+0.3 renames it to `beamtime setup`, with no `init` alias.
 
 ## Principles
 
@@ -19,7 +20,7 @@ older release.
 3. **No trace before the review.** Nothing is written, installed, imported or logged into until the
    review is confirmed; ctrl-c at any point leaves the project and the machine as they were.
 4. **One command.** Every answer is a flag. The review can print the whole setup as one
-   `beamtime init --yes ...` command, which makes the same setup on another machine or in a script.
+   `beamtime setup --yes ...` command, which makes the same setup on another machine or in a script.
 5. **Two places.** Each answer says where it lands: the project's `beamtime.yaml` (shared through
    git) or the machine's `~/.config/beamtime/settings.yaml`. A teammate is asked only the machine's
    questions.
@@ -31,13 +32,13 @@ older release.
 8. **Beamtime's voice** ([design/README.md](../../design/README.md)): plain, short, no emoji, no
    exclamation marks.
 
-`init` is a user-only command ([layer 8](08-cli-mcp.md#user-only-commands-cli-only)): agents never run
-it; `beamtime status` and `beamtime init --check` tell them when the setup is stale, and they hand the
+`setup` is a user-only command ([layer 8](08-cli-mcp.md#user-only-commands-cli-only)): agents never run
+it; `beamtime status` and `beamtime setup --check` tell them when the setup is stale, and they hand the
 user the command.
 
 ## The flow
 
-The scan decides which of four flows runs; the steps are those of the mockup.
+The scan decides which of five flows runs; the steps are those of the mockup.
 
 | Flow | When | Asks |
 |---|---|---|
@@ -45,6 +46,7 @@ The scan decides which of four flows runs; the steps are those of the mockup.
 | teammate | `beamtime.yaml` exists, and this machine lacks part of it: a project remote not in the user settings, or an agent client installed here (its command on `PATH`) that Beamtime isn't registered in | agents on this machine, which project remotes to use, how to reach them, ssh sharing |
 | cluster | a scheduler on `PATH` (`sbatch`, `qsub`, `bsub`), no display, or `$HOME` on a network filesystem | role, where runs go (a link to scratch), the cache, agents only with role `full` |
 | update | the setup is older than this release, or anything in [Updating](#updating-an-older-setup) is stale | what to bring up to date (all ticked), and only questions new since that release |
+| reconfigure | `beamtime.yaml` exists and nothing is missing or stale (the scan's `current`) | nothing up front: the list of every answer with its current value, then only what the user picks ([Reconfiguring](#reconfiguring)) |
 
 The cluster flow combines with the others: a cluster checkout with a `beamtime.yaml` from git asks the
 cluster questions and skips the project's. Every flow ends with the same three steps: **review**
@@ -53,7 +55,9 @@ cluster questions and skips the project's. Every flow ends with the same three s
 was done; a rerun picks up what is still missing), and **done** (three next steps for this project,
 with code for its framework).
 
-Running `beamtime init` in a project that is set up and current says so in one line and asks nothing.
+Running `beamtime setup` in a terminal in a project that is set up and current opens the list of answers
+([Reconfiguring](#reconfiguring)); without a terminal it plans from the flags as always and says
+"already set up" when there is nothing to change.
 
 ### The wizard
 
@@ -62,11 +66,12 @@ writes the answer into `Answers`), `when(answers, scan)` and, for steps that hol
 `summary(answers, scan)`. `run(term, scan, answers) -> Answers | None` asks the steps in order, then
 shows the review and returns the answers on `Write it`, and `None` for `Show the command and quit`
 (which prints `command()`) or ctrl-c (which prints "Nothing was written."). `setup()` is `run`, then
-`plan()` and `apply()` as one `Setting up` task, then the next steps. `ops/admin.py:init` calls `setup()`
-when stdin and stdout are terminals, there is no `--yes` and the scan's flow is `first`, `teammate` or
-`cluster`; every other case plans from the flags as [above](#answers-flags-and-settings). The teammate, cluster and update
-steps are further lists for the same engine; `run` takes the list of the scan's flow, and `init` runs the
-wizard for the first, teammate and cluster flows.
+`plan()` and `apply()` as one `Setting up` task, then the next steps. `ops/admin.py:setup` (the
+operation, renamed from `init` with its `SetupParams`) calls `flow.setup()` when stdin and stdout are
+terminals and there is no `--yes`, for every flow the scan picks; every other case plans from the
+flags as [above](#answers-flags-and-settings). The teammate, cluster and update steps are further lists
+for the same engine; `run` takes the list of the scan's flow, and for `current` it runs
+`reconfigure()` instead of the steps in order.
 
 - **`Change an answer`** lists the steps that hold an answer (their `summary` as the hint) and jumps
   to the chosen one; the later steps ask again, each starting on the answer it has, so one change costs
@@ -137,6 +142,35 @@ written to it. The done step names the next command per flow: on a teammate's ma
 prompt for the agent, on a cluster that jobs need no change and the `beamtime source add` line for the
 laptop.
 
+### Reconfiguring
+
+A project that is set up and current (the scan's flow `current`) opens the wizard on the `Change an
+answer` screen, starting from what is set up rather than from the defaults:
+
+- **The saved answers.** `Answers.saved(scan)` is `Answers.defaults(scan)` (the log dir, the project's
+  `agent`) plus what this checkout and machine have: `runs` is `both` when `beamtime.yaml` names
+  remotes, else `here`; `remotes` are the project's enabled remotes with their `path` from
+  `beamtime.yaml` and their `host` from the user settings; `skip_remotes` the ones this machine
+  switched off; `agents` the clients the scan found registered; `rules` whether a registered client's
+  rules file holds the block (on when none is registered); `git` is `none` when `.gitignore` holds the
+  `none` block, else `record`. Nothing is preselected on top (`fill()` is not called), so
+  `plan(scan, Answers.saved(scan))` is empty, except for the rules refresh below. Flags given on the
+  command line apply on top of the saved answers (`Answers.from_params(p, scan, base=...)`).
+- **The list.** Every step of the first setup that holds an answer and applies is one row, its
+  `summary` as the hint, plus a last row `Review the changes`. Picking a step asks that step only, then
+  each later step that did not apply before the pick and applies now (choosing an agent where there was
+  none asks the style and the rules; `both` where runs were `here` asks the machines), then shows the
+  usual review. `Change an answer` at the review comes back to the list. The cursor starts on the first
+  step, or on `Review the changes` when the saved answers already plan a change.
+- **A rules block that no longer matches the settings.** When a registered client's rules file holds a
+  block of this release that differs from what `beamtime.yaml: agent` generates now (the settings were
+  edited after the setup), the saved answers plan that block's rewrite; the list says so in one line
+  above the rows ("The rules in CLAUDE.md don't match beamtime.yaml; the review rewrites them."). This
+  is not a stale item: `setup --check` and `status` stay quiet about it, since the release is current.
+  Without a terminal, `beamtime setup --yes --update rules` rewrites it.
+- `Show the command` prints the command of the answers as everywhere, so it names the registered agents;
+  running it plans the same changes.
+
 ### The scan
 
 `setup/scan.py` reads only local files and runs no subprocess slower than a `--version`. It finds:
@@ -158,7 +192,7 @@ laptop.
 The scan's answer to "which flow" is one value: `cluster` when any cluster condition holds (it wins over
 the others and combines with them in the flow), else `teammate` (a `beamtime.yaml` with a remote the user
 settings lack, or with an installed agent client whose config, project or user, doesn't list the
-`beamtime` server; a person who declines the registration is asked again by the next plain `init`), else `update` for a log dir without a
+`beamtime` server; a person who declines the registration is asked again by the next plain `setup`), else `update` for a log dir without a
 `beamtime.yaml`, `first` for neither, and `current` for a `beamtime.yaml` with nothing missing. A job
 script names a host when an ssh alias or host name appears in it as a whole word; the environment
 is `None` when the project has none. `no display` counts only on Linux; macOS and Windows always have one.
@@ -213,10 +247,11 @@ the scan's defaults, plus `--yes`.
 
 `Answers.defaults(scan)` holds the conservative answers (the log dir the scan found, careful, rules on,
 everything that reaches outside the project off, `update` the scan's stale items); `Answers.from_params`
-fills what a flag leaves open from it and refuses unknown agents, agent keys or `--update` items, a
+fills what a flag leaves open from it (or from `base`, the saved answers when
+[reconfiguring](#reconfiguring)) and refuses unknown agents, agent keys or `--update` items, a
 malformed `--remote` and contradicting pairs (`--agents` with `--no-agents`, `--sdk` with `--no-sdk`). `--check` and `--yes`
 steer the command and are not answers. `--instructions`, the old form of the rules flag, stays as a
-hidden alias that sets `rules`. `command(answers, scan)` prints `beamtime init --yes` and one line per
+hidden alias that sets `rules`. `command(answers, scan)` prints `beamtime setup --yes` and one line per
 flag whose answer differs from the defaults, values quoted for a shell; running it gives equal
 `Answers`. A flag that undoes a default has its own form (`--no-agents`, `--no-sdk`, `--no-rules`,
 `--update ''`, `--import ''`).
@@ -225,7 +260,7 @@ flag whose answer differs from the defaults, values quoted for a shell; running 
 the flags and the conservative defaults: nothing outside the project happens unless a flag names it
 (no remote installs, no ssh config, no imports, no SDK, no agent start), and detected agents are
 registered only when `--agents` names them. Without `--yes` it prints the review and the command and
-exits 0 without writing; with `--yes` it applies. `init --check` never needs a terminal.
+exits 0 without writing; with `--yes` it applies. `setup --check` never needs a terminal.
 
 ### Settings
 
@@ -396,7 +431,7 @@ install, a teammate's machine. It never points into a project virtualenv when an
 | a conda environment with `beamtime[serve]` | `conda run --no-capture-output -n <env> beamtime mcp` (`-n base` for the conda install itself) |
 | a tool install on `PATH` with the serve extra (pipx, `uv tool`, `pip --user`, a global or conda-base install) | `beamtime mcp` in shared files; the absolute path of that launcher in this machine's files |
 | none of these, but `uv` is on `PATH` | `uvx --from 'beamtime[serve]' beamtime mcp` |
-| a pip virtualenv only | its `bin/beamtime` by absolute path, in this machine's files only; `init --check` reports it when it is gone |
+| a pip virtualenv only | its `bin/beamtime` by absolute path, in this machine's files only; `setup --check` reports it when it is gone |
 
 - **The uv command** names the project as `.` in shared files and by its absolute root in machine
   files. A project whose Python is older than 3.11 cannot host the server and falls through, as does
@@ -429,6 +464,7 @@ a set of values; single keys override it.
 | `research_record` | `off`, `encouraged`, `required` | `encouraged` | `encouraged` | `off` |
 | `seeds` | an integer ≥ 1 | 3 | 3 | 3 |
 | `significance` | a number in (0, 1) | 0.95 | 0.95 | 0.95 |
+| `proposal_words` | an integer ≥ 1 | 150 | 150 | 150 |
 | `memory_tokens` | an integer ≥ 1 | 1500 | 1500 | 1500 |
 | `render_rounds` | an integer ≥ 1 | 2 | 2 | 2 |
 | `custom_blocks` | `builtin_first`, `free` | `builtin_first` | `builtin_first` | `builtin_first` |
@@ -439,7 +475,7 @@ a set of values; single keys override it.
 - `style` is `careful` (default), `hands-on`, `analysis` or `custom` (the wizard's "Choose each
   setting", which starts from careful). The file stores `style`, the keys that differ from the preset,
   and the conventions the user set; readers resolve the preset first.
-- **The chosen style is written.** `init` (wizard or `--agent-style`) writes the chosen style with the
+- **The chosen style is written.** `setup` (wizard or `--agent-style`) writes the chosen style with the
   single keys that differ from its preset; choosing another preset drops the project's old single keys,
   and the conventions in the file stay. A file that already resolves to the same values is left as
   written. A preset's values change only with
@@ -456,6 +492,13 @@ a set of values; single keys override it.
   ([research record](09-research-record.md#statistics)); `agent.significance` is what agents write
   into the proposals they draft. `memory update` warns beyond `memory_tokens` instead of the fixed
   1.5k.
+- **`proposal_words`** is the length agents keep a proposal to, counted as the whitespace-separated
+  words of its `statement`, its `rationale` and every prediction's `description` (names, filters and
+  numbers don't count). `proposal set` (`proposal_set`) writes a longer proposal anyway and adds one
+  line to its answer: "warning: 212 words, beyond this project's limit of 150 (agent.proposal_words);
+  a proposal is frozen once a run records it, so shorten it now". It never refuses. The wizard asks
+  for it in `Choose each setting` (100, 150 or 300 words; another value of the file is kept as a row),
+  and `--agent-set proposal_words=<n>` sets it.
 - **Fixed, never settable**: writes are additive; agents never run user-only commands; agents ask
   through the tools rather than reading run files.
 - Unknown keys and values outside the table are settings problems, reported by `beamtime settings`
@@ -474,6 +517,7 @@ From this project's beamtime.yaml (agent: careful); the user's own instructions 
 
 - Ask before you launch a run. (careful)
 - Write a proposal with predictions before a launch; 3 seeds per point; significance 0.95. (default)
+- Keep a proposal near 150 words: statement, rationale and prediction descriptions. (default)
 - Main metric val/loss, lower is better; seeds in config.seed. (beamtime.yaml)
 - After a verdict or decision, update the group's memory; keep it near 1500 tokens. (default)
 - Save views when they pass validation; at most 2 render rounds. (default)
@@ -483,13 +527,15 @@ From this project's beamtime.yaml (agent: careful); the user's own instructions 
 
 A value equal to the built-in careful preset is marked `default`; one set by the project names the
 preset or `beamtime.yaml`; the four conventions only ever come from the file, so they are marked
-`beamtime.yaml`. `guide` reads the settings through the
+`beamtime.yaml`. The proposal length line is left out when `research_record` is `off`, like the rules
+block's `record_line`; the proposals part of the guide names the limit too
+(`{{agent.proposal_words}}`). The rules block does not carry the limit. `guide` reads the settings through the
 same `Context` as every operation, so a remote group's guide reads the remote project's settings.
 
 ### The rules block
 
 Exactly two choices: write the rules (Beamtime is the record), or skip (`--no-rules`, nothing is
-written; a later `beamtime init` offers it again). The block goes into each chosen client's rules
+written; a later `beamtime setup` offers it again). The block goes into each chosen client's rules
 file between `<!-- beamtime:start -->` and `<!-- beamtime:end -->`; a rerun replaces only the block.
 It is generated from the agent settings by `guide/rules.py` from the template `guide/rules/rules.md`,
 so text and settings agree:
@@ -548,7 +594,7 @@ linking the imported runs it cites as evidence; to draft the project's memory fr
 conflict, to show the diff that replaces the experiment section of the instruction file with a pointer
 to Beamtime, and edit only after the user agrees; never to delete or change the source files; to name
 itself as author. The hand-off step offers each chosen client that can start with a prompt, "Copy the
-prompt" (for editor agents), or "Later" (`beamtime init --migrate-with <agent>` brings it back).
+prompt" (for editor agents), or "Later" (`beamtime setup --migrate-with <agent>` brings it back).
 Starting one replaces the wizard's process with the agent's interactive session in the same terminal
 (`os.execvp`), so the user watches it and can steer.
 
@@ -727,7 +773,7 @@ from it; a pip project without a virtualenv only gets the `requirements.txt` lin
 
 ## Updating an older setup
 
-Updating is `beamtime init` again. Data never migrates: every file reads in every later release. What
+Updating is `beamtime setup` again. Data never migrates: every file reads in every later release. What
 goes stale is the setup around it, and each item has a check in `setup/stale.py` that returns
 `Stale(item, before, after)` or nothing:
 
@@ -752,9 +798,9 @@ goes stale is the setup around it, and each item has a check in `setup/stale.py`
   then asks only the questions new since the setup's release (e.g. agent behaviour and the rules
   choice for a 0.1 setup), and ends with the few changes a person would notice, from a short list kept
   per release in `setup/changes.py`.
-- **`beamtime init --check`** runs the checks without a terminal, prints one line per stale item
+- **`beamtime setup --check`** runs the checks without a terminal, prints one line per stale item
   (`item: before -> after`) and exits 3 if there is one (the answer's `meta.exit`), 0 otherwise; for CI
-  and for agents, who hand the user `beamtime init`. It is local: `remote:<name>` needs a probe, so
+  and for agents, who hand the user `beamtime setup`. It is local: `remote:<name>` needs a probe, so
   `stale_remote(name, version)` is checked by the wizard after its probe and `--update remote:<name>`
   installs there without a check.
 - **`Scan.stale`** holds the items (`Stale(item, before, after, ticked, path)`) of a project that has a
@@ -765,7 +811,7 @@ goes stale is the setup around it, and each item has a check in `setup/stale.py`
   (`uv add 'beamtime>=X'` and its kin) and the remote install. `setup/changes.py:since(release, current)`
   gives the lines for the end of the wizard.
 - **`beamtime status`** (and the MCP `status`, as the answer's `setup`) adds one line when the rules block
-  is from an older release: "set up with 0.1.1; `beamtime init` updates it". Only the rules check runs
+  is from an older release: "set up with 0.1.1; `beamtime setup` updates it". Only the rules check runs
   there, since it reads two small files (`guide/rules.py:outdated_release`, over `RULES_FILES`); nothing
   of `beamtime.setup` is imported.
 
@@ -796,7 +842,7 @@ appearing as work finishes) and the review.
   an ellipsis, so a long hint never wraps the rail.
 - **Ctrl-c** restores the terminal and prints "Nothing was written." before the apply step; during it,
   what was done so far.
-- **Import budget**: the wizard's modules load only when `init` runs; the plain CLI path stays within
+- **Import budget**: the wizard's modules load only when `setup` runs; the plain CLI path stays within
   `tests/test_budgets.py`.
 
 ## Module layout
@@ -804,9 +850,9 @@ appearing as work finishes) and the review.
 | Module | Holds |
 |---|---|
 | `setup/scan.py` | `Scan` and `scan(root)`: the facts above, local only |
-| `setup/plan.py` | `Answers` (msgspec, one field per flag), `Change` (where it lands, label, before, after, run) and `plan(scan, answers) -> list[Change]`; `review(changes)` writes the plan as text |
+| `setup/plan.py` | `Answers` (msgspec, one field per flag; `defaults()`, `saved()`, `from_params()`), `Change` (where it lands, label, before, after, run) and `plan(scan, answers) -> list[Change]`; `review(changes)` writes the plan as text |
 | `setup/apply.py` | `apply(changes, say) -> list[Change]` runs a plan in order; `ApplyError(done, failed, error)` stops it at the first failure and names what was done |
-| `setup/flow.py` | `Step`, `run()` and `setup()` ([The wizard](#the-wizard)), the questions of each flow, their defaults from the scan |
+| `setup/flow.py` | `Step`, `run()`, `setup()` and `reconfigure()` ([The wizard](#the-wizard), [Reconfiguring](#reconfiguring)), the questions of each flow, their defaults from the scan |
 | `setup/term.py` | the prompt primitives |
 | `setup/agents.py` | the client table, `mcp_command()`, registering, the rules block written to files |
 | `setup/remotes.py` | the parallel probe, `probe_command` (also used by `source add`), the remote name rule, installs, ssh sharing |
@@ -816,7 +862,7 @@ appearing as work finishes) and the review.
 | `index/cache.py` | `resolve_cache()` |
 | `settings.py` | `cache`, `agent` (presets, validation, resolution), `remotes.<name>.enabled` |
 
-`ops/admin.py:init` becomes the entry that builds `Answers` from flags and either runs the flow (a
+`ops/admin.py:setup` becomes the entry that builds `Answers` from flags and either runs the flow (a
 terminal, no `--yes`) or plans and applies directly.
 
 `plan()` orders the changes project, machine, agents, imports, then the remote ones of `--ssh-share` and
@@ -841,7 +887,7 @@ terminal, no `--yes`) or plans and applies directly.
   a path that holds nothing to import, a client that can't be registered) is a `ValueError` raised by
   `plan()`, before anything is written.
 
-`init` without `--yes` and without a terminal prints the review and the command, writes nothing and exits
+`setup` without `--yes` and without a terminal prints the review and the command, writes nothing and exits
 0; with `--yes` it applies, and a failing change ends the answer with an error naming what was done. `mcp install` calls `setup/agents.py`.
 
 ## Testing
@@ -862,12 +908,12 @@ terminal, no `--yes`) or plans and applies directly.
 - **The MCP command**: per environment kind, the chosen command, and that shared files never get an
   absolute path.
 - **Updating**: a project set up with each earlier release's files is detected as that release, and
-  `--check` exits 3, then 0 after `init --yes`.
+  `--check` exits 3, then 0 after `setup --yes`.
 - **Remotes**: the probe and the install over real ssh in the Docker test (`BEAMTIME_DOCKER=1`).
 
 ## Decisions
 
-- One command, `beamtime init`, for first setups, teammates, clusters and updates; no separate migrate
+- One command, `beamtime setup`, for first setups, teammates, clusters and updates; no separate migrate
   wizard.
 - Nothing is written before the review; every answer is a flag; without a terminal nothing is asked
   and nothing outside the project happens unless a flag names it.
@@ -881,3 +927,9 @@ terminal, no `--yes`) or plans and applies directly.
 - Imports copy, never move; each imported run records `imported_from`; Beamtime log dirs copy without
   conversion and keep their paths meaningful through moves scoped with `within`.
 - The wizard never calls a model; the `migrate` prompt hands judgment to the user's agent.
+- The command is `beamtime setup` from 0.3 on, without an `init` alias; `beamtime.init()` in the SDK
+  keeps its name.
+- A current setup reconfigures: the list of answers starting from what is set up, asking only what the
+  user picks; a rules block whose settings changed is refreshed there, not reported by `--check`.
+- `agent.proposal_words` (default 150) is guidance: the guide names it, `proposal set` warns beyond it
+  and never refuses.

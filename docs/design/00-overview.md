@@ -19,7 +19,7 @@ canonical names that every layer uses, the scope of v1, and the cross-cutting ru
 | 7 | [07-web-ui.md](07-web-ui.md) | the web UI |
 | 8 | [08-cli-mcp.md](08-cli-mcp.md) | the CLI and the MCP server, and the API both use |
 | – | [09-research-record.md](09-research-record.md) | proposals, predictions, checks, notes, memory |
-| – | [10-setup.md](10-setup.md) | `beamtime init`: first setup, teammates, clusters, updates; agent settings and rules, imports |
+| – | [10-setup.md](10-setup.md) | `beamtime setup`: first setup, teammates, clusters, updates; agent settings and rules, imports |
 
 ## Canonical names
 
@@ -109,10 +109,10 @@ reader blocks, and installs no SIGTERM handler.
 
 ## Onboarding and documentation
 
-- `beamtime init` sets up a project interactively, or from flags ([setup](10-setup.md)), `beamtime demo` generates a sample log dir and serves it, and
+- `beamtime setup` sets up a project interactively, or from flags ([setup](10-setup.md)), `beamtime demo` generates a sample log dir and serves it, and
   `beamtime doctor` checks root and log dir resolution, write access, Chromium, and remote
   reachability.
 - User documentation is separate from this design: a quickstart, a cluster recipe (`BEAMTIME_LOGDIR`,
   batch scripts, remotes), and a Lightning page. Agents use `beamtime guide`.
 - Importers for TensorBoard, W&B offline, MLflow and CSV runs, and for other Beamtime log dirs, are part
-  of `beamtime init` ([setup](10-setup.md#past-work)).
+  of `beamtime setup` ([setup](10-setup.md#past-work)).

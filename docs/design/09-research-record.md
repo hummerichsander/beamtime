@@ -29,6 +29,11 @@ backlinks.
 A proposal states what a group's runs are expected to show and why. It can sit on a group or on a
 run.
 
+A proposal is short: agents keep it near the project's `agent.proposal_words` (150 words of statement,
+rationale and prediction descriptions by default, [setup](10-setup.md#agent-settings)), and
+`proposal set` warns beyond it, since a proposal is frozen once a run records it. The limit is
+guidance; a longer proposal is still written.
+
 ### Versions
 
 Each save is a new file in `proposal/`; the newest version is the current one.

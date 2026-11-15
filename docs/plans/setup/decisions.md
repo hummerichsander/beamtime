@@ -102,6 +102,31 @@ setup, a teammate joining, a cluster login node, and updating an older setup.
     set; after the user moves to an unticked row, Enter ticks it too and confirms ("this one too").
     The footer shows how many are selected.
 
+## Decisions after the spec (2026-11-15)
+
+Taken while W14, W15 and D11 were still queued; the spec and the plan follow them.
+
+14. **Reconfigure after setup.** `beamtime setup` in a terminal, in a project that is set up and
+    current, no longer says so in one line and asks nothing. It opens the existing "Change an answer"
+    screen starting from the saved settings: every step with its current answer, then only what the
+    user picks, then the usual review and apply. A rules block of this release whose
+    `beamtime.yaml: agent` settings changed since is refreshed through this flow, not by `--check`
+    (as the W13 review recommended).
+15. **`beamtime init` becomes `beamtime setup`**, with no `init` alias, before 0.3 ships: the CLI, the
+    operation (`SetupParams`), the generated CLI reference, the guide, the messages that print the
+    command (the `status` line, the printed review command, errors) and the spec. The SDK's
+    `beamtime.init()` keeps its name. Earlier decisions above say `init`; read them as `setup`.
+16. **A proposal word limit.** `beamtime.yaml: agent.proposal_words` (default 150, in every preset),
+    next to the other agent knobs (the project setting is `agent:`, singular). The wizard's agent
+    settings form asks for it; `beamtime guide` names it in the agent instructions, marked as a
+    default like the other knobs; `proposal set` gives a soft warning beyond it and never refuses,
+    since proposals are frozen once a run records them.
+17. **Out of scope here:** `beamtime ps`/`stop` and reusing a running `serve`; they are planned
+    separately.
+
+For the user docs (from the W13 review): `beamtime setup --yes` copies Beamtime runs found outside
+the log dir into it by default (a copy, the originals stay; `--import ''` declines).
+
 ## Flags (as drafted in the mockup)
 
 `--runs here|remote|both`, `--logdir`, `--remote <host>:<path>` (repeatable), `--install-remote`,

@@ -217,8 +217,8 @@ remotes:
   (`command -v beamtime`, then the venv next to the path, whose `~`, `${VAR}` and `{user}` the
   remote shell expands) unless `--command` is given.
   `source list` and `source rm <name>` read and edit the same settings; all three are user-only.
-  A name can't contain `@`, `/`, `=` or `:`, since they spell a place, a path or a flag value; `init --remote` checks the same rule.
-- `beamtime init` adds any number of remotes at once, probes them together, installs Beamtime there on
+  A name can't contain `@`, `/`, `=` or `:`, since they spell a place, a path or a flag value; `setup --remote` checks the same rule.
+- `beamtime setup` adds any number of remotes at once, probes them together, installs Beamtime there on
   request and offers ssh sharing for hosts with a second factor ([setup](10-setup.md#remotes)).
   `remotes.<name>.enabled: false` in the user settings skips a project remote on one machine.
 

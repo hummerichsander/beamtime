@@ -263,7 +263,7 @@ How views look and behave is [layer 5](05-views.md). For storage:
   data is from the original run; `proposals` and `proposal_hashes` keep only the run's own entry
   (`.`) and gain the destination's ancestors, as a new run would. `key` goes and `job_key` becomes
   `null`: the copy is no launch's run, and resuming the source's key must never continue the copy.
-- **`imported_from`** (optional) is set by an import in `beamtime init` ([setup](10-setup.md#past-work))
+- **`imported_from`** (optional) is set by an import in `beamtime setup` ([setup](10-setup.md#past-work))
   and records where the run came from:
 
   ```json

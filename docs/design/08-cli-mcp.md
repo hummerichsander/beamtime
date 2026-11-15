@@ -63,7 +63,7 @@ wherever a group does.
 | `beamtime name <run> <name>` | `name` | gives a run a display name (a new version in its `name/` folder) |
 | `beamtime cp <run or group> <dest-group>` | `cp` | copies it under a new run id (or ids); `--name`, `--with-checkpoints`, `--with-record`; never modifies the source ([layer 1](01-storage.md#_artifactsjsonl)); on one remote (`@au/a @au/b`), across sources refused ([layer 4](04-remotes.md#routing-and-merging)) |
 | `beamtime note rm <id>` | – | user only: moves a note and the versions it replaced to the trash |
-| `beamtime proposal set <group> <file>` | `proposal_set` | saves a new proposal version; superseding a frozen version requires `--reason` |
+| `beamtime proposal set <group> <file>` | `proposal_set` | saves a new proposal version; superseding a frozen version requires `--reason`; warns beyond the project's `agent.proposal_words` ([setup](10-setup.md#agent-settings)) |
 | `beamtime memory update <group> <file>` | `memory_update` | saves a new memory version; warns beyond the size budget |
 
 ### Views and blocks (CLI and MCP)
@@ -93,7 +93,7 @@ the user the command ([Policy](#policy)).
 
 | Command | Does |
 |---|---|
-| `beamtime init` | sets up a project, interactively or from flags: log dir, remotes, agents and their rules, imports, git, SDK; also updates an older setup; `--check` lists what is stale ([setup](10-setup.md)) |
+| `beamtime setup` | sets up a project, interactively or from flags: log dir, remotes, agents and their rules, imports, git, SDK; also updates an older setup and, in a current one, changes single answers; `--check` lists what is stale; `beamtime init` up to 0.2 ([setup](10-setup.md)) |
 | `beamtime mcp install --client <name>` | registers `beamtime mcp` with an agent client (Claude Code, Codex, Cursor, …); `--instructions` adds the agent rules to the client's instruction file (`CLAUDE.md` for Claude Code, else `AGENTS.md`) |
 | `beamtime demo [dir]` | generates a sample log dir from the evaluation generator (once, in `beamtime-demo/`) and serves it |
 | `beamtime doctor` | checks root and log dir resolution, write access, Chromium, remote reachability and the remote's Beamtime version |
@@ -314,4 +314,4 @@ Decided while building the CLI and MCP server (milestone M3):
   distinguish errors, usage, validation failures and missing items.
 - MCP over stdio (`beamtime mcp`, also over ssh), with about 35 small tools, nine prompts, and token
   budgets with cursors.
-- `beamtime init`, `demo`, `doctor` and `mcp install` cover onboarding.
+- `beamtime setup`, `demo`, `doctor` and `mcp install` cover onboarding.
