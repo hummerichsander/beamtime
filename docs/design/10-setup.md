@@ -429,8 +429,8 @@ From this project's beamtime.yaml (agent: careful); the user's own instructions 
 ```
 
 A value equal to the built-in careful preset is marked `default`; one set by the project names the
-preset or `beamtime.yaml`; the four conventions only ever come from the file. (The guide still
-labels them `detected, in beamtime.yaml`; the label becomes `beamtime.yaml`.) `guide` reads the settings through the
+preset or `beamtime.yaml`; the four conventions only ever come from the file, so they are marked
+`beamtime.yaml`. `guide` reads the settings through the
 same `Context` as every operation, so a remote group's guide reads the remote project's settings.
 
 ### The rules block

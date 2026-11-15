@@ -137,6 +137,9 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
    whichever is on `PATH`; without one, the prompt is printed. No new dependency.
 9. **Imported run ids** use the source's start time and fresh random suffix (`format/ids.py`); Beamtime imports
    keep their ids. Deduplication is by `imported_from.path` plus `id`, looked up by walking `imported/` only.
+10. **Conventions are the user's** (your decision, settled in the W11 review): setup neither detects nor asks for
+    `main_metric`, `direction`, `seed_key` and `domain`; a set value has the source `project` and the guide labels it
+    `beamtime.yaml`. The `detected` source kind and `settings.DETECTED_KEYS` are gone. D11 and the mockup say so.
 
 ## F. Foundations
 
@@ -617,13 +620,14 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 ### D11. User docs (sonnet) — code
 
 - **Touches:** `docs/quickstart.md`, `docs/guides/settings.md`, `docs/guides/remotes.md`, `docs/guides/cluster.md`,
-  `docs/guides/agents.md`, new `docs/guides/setup.md`, `docs/nav.json`.
+  `docs/guides/agents.md`, new `docs/guides/setup.md`, `docs/nav.json`, `docs/design/10-setup-mockup.html`.
 - **Read:** `docs/design/10-setup.md`; CLAUDE.md § Layout (docs bullet: simple main pages, advanced topics in
   `guides/`).
 - **Check:** `uv run pytest -q tests/test_docs.py`; `cd web && npm run docs`.
 - **Done:** the quickstart starts with `beamtime init`; the settings guide documents `cache`, `agent` and
   `enabled`; the cluster guide uses `--link-logdir` and `cache`; the new setup guide lists every flag with an
-  example `--yes` command and the update path.
+  example `--yes` command and the update path; the mockup neither detects nor asks for the conventions and
+  labels them `beamtime.yaml` (Decision 10).
 
 ## Z. Close
 

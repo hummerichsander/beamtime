@@ -23,6 +23,7 @@ from beamtime.setup.plan import (
     command,
     display_path,
     import_name,
+    log_root,
     plan,
     review,
 )
@@ -869,8 +870,13 @@ class FirstSetup:
         path = (scan.root / expand_path(text.strip())).resolve()
         if not text.strip() or not path.exists():
             return f"{text.strip() or 'a path'}: no such file or folder"
+        from beamtime.format.tree import is_run
+
         value = shown(path, scan)
         if found := detect(path):
+            if found.kind == "beamtime" and not is_run(path):
+                found = detect(source := log_root(path)) or found
+                path = source
             self.rows[value] = Row("imports", found.n, found.label, import_name(path), found.kind)
         elif n := sum(1 for _ in files(path)):
             memory = re.search(r"memory|^claude\.md$|^agents\.md$", path.name, re.IGNORECASE)

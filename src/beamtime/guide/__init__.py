@@ -52,8 +52,8 @@ BLOCKS = {
     "builtin_first": "Reuse built-in and library blocks before writing a custom block.",
     "free": "Write a custom block whenever it serves the view better.",
 }
-DETECTED = ("main_metric", "direction", "seed_key")
-ORIGINS = {"project": "beamtime.yaml", "detected": "detected, in beamtime.yaml", "preset": "{}"}
+CONVENTIONS = ("main_metric", "direction", "seed_key")
+ORIGINS = {"project": "beamtime.yaml", "preset": "{}"}
 ESSENTIAL = ("key", "x", "y", "field", "file")
 GENERIC = {
     "group": "my-sweep",
@@ -137,7 +137,7 @@ def defaults(agent: AgentSettings) -> str:
     if agent.seed_key:
         convention.append(f"seeds in {agent.seed_key}")
     if convention:
-        lines.append(("; ".join(convention) + ".", list(DETECTED)))
+        lines.append(("; ".join(convention) + ".", list(CONVENTIONS)))
     lines += [
         (
             f"{MEMORY[agent.memory_updates]}; keep it near {agent.memory_tokens} tokens.",
@@ -171,9 +171,9 @@ def origin(agent: AgentSettings, keys: list[str]) -> str:
 
     :param agent: The agent settings.
     :param keys: The knobs the line states.
-    :return: ``default``, the preset's name, ``beamtime.yaml`` or ``detected, in beamtime.yaml``."""
+    :return: ``default``, the preset's name or ``beamtime.yaml``."""
     found = {agent.source.get(k, "default") for k in keys}
-    for kind in ("project", "detected", "preset"):
+    for kind in ("project", "preset"):
         if kind in found:
             return ORIGINS[kind].format(agent.style)
     return "default"

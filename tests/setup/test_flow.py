@@ -480,6 +480,19 @@ def test_existing_agent_style_is_the_default(tmp_path: Path, home: Path) -> None
     assert FirstSetup().steps()
 
 
+def test_typed_subfolder_reads_as_its_log_dir(tmp_path: Path, home: Path) -> None:
+    """A typed folder inside another log dir offers that log dir's runs and name, as the review."""
+    other = beamtime_logdir(tmp_path)
+    (other / "g" / "sub" / "r2").mkdir(parents=True)
+    (other / "g" / "sub" / "r2" / "_run.json").write_text("{}")
+    root = tmp_path / "p"
+    root.mkdir()
+    found = scan(root, home=home, mounts=Path("/nonexistent"), env={"DISPLAY": ":0", "PATH": ""})
+    row = FirstSetup().check_path(str(other / "g" / "sub"), found, False)
+    assert row.label == "2 Beamtime runs"
+    assert "imported/egnn-v1 " in row.hint
+
+
 def test_over_a_pipe_without_raw_keys(tmp_path: Path, home: Path) -> None:
     """The numbered fallback runs the whole wizard: questions, writing and next steps."""
     root = tmp_path / "plain"

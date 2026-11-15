@@ -70,10 +70,10 @@ def record_line(agent: AgentSettings) -> str:
 
 
 def conventions(agent: AgentSettings) -> str:
-    """Name the detected main metric and seed key, as far as they are known.
+    """Name the project's main metric and seed key, as far as it sets them.
 
     :param agent: The agent settings.
-    :return: The sentence, or an empty string when nothing was detected."""
+    :return: The sentence, or an empty string when the project sets none."""
     parts = []
     if agent.main_metric:
         direction = f" ({DIRECTION[agent.direction]})" if agent.direction else ""

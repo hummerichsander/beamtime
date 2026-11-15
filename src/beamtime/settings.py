@@ -90,7 +90,7 @@ def nonempty_str(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
-# each knob's allowed values, or a validator; the last four are detected conventions.
+# each knob's allowed values, or a validator; the last four are the user's conventions.
 AGENT_KEYS: dict[str, tuple[str, ...] | Callable[[Any], bool]] = {
     "launch_runs": ("never", "ask", "allowed"),
     "memory_updates": ("suggest", "after_verdicts"),
@@ -111,7 +111,6 @@ VALIDATOR_HINTS: dict[Callable[[Any], bool], str] = {
     probability: "a number between 0 and 1",
     nonempty_str: "a non-empty string",
 }
-DETECTED_KEYS = ("main_metric", "direction", "seed_key", "domain")
 
 
 def expand_path(path: str, user: str | None = None) -> str:
@@ -152,9 +151,7 @@ class AgentSettings:
     direction: str | None = None
     seed_key: str | None = None
     domain: str | None = None
-    source: dict[str, Literal["default", "preset", "project", "detected"]] = field(
-        default_factory=dict
-    )
+    source: dict[str, Literal["default", "preset", "project"]] = field(default_factory=dict)
 
 
 @dataclass(kw_only=True)
@@ -219,7 +216,7 @@ def resolve_agent(given: dict[str, Any]) -> AgentSettings:
     for key in AGENT_KEYS:
         if key in given:
             knobs[key] = given[key]
-            source[key] = "detected" if key in DETECTED_KEYS else "project"
+            source[key] = "project"
     return AgentSettings(style=style, **knobs, source=source)
 
 

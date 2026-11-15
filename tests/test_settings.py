@@ -52,7 +52,7 @@ def test_preset_with_override(home: Path) -> None:
     assert agent.source["seeds"] == "project"
     assert agent.source["significance"] == "preset"
     assert (agent.main_metric, agent.direction, agent.seed_key) == ("val/loss", "min", None)
-    assert agent.source["main_metric"] == "detected"
+    assert agent.source["main_metric"] == "project"
 
 
 def test_custom_starts_from_careful(home: Path) -> None:

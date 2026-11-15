@@ -202,7 +202,7 @@ def test_agent_settings_reach_the_guide(project: Path) -> None:
     assert "- You may launch runs. (hands-on)" in lines
     assert any("5 seeds per point" in line and line.endswith("(beamtime.yaml)") for line in lines)
     metric = "- Main metric val/loss, lower is better; seeds in config.seed."
-    assert f"{metric} (detected, in beamtime.yaml)" in lines
+    assert f"{metric} (beamtime.yaml)" in lines
     assert "From this project's beamtime.yaml (agent: hands-on)" in text
     assert "plan 5 seeds per point" in call("guide", {"part": "proposals"}, ctx)["text"]
     assert "(5 in this project)" in call("guide", {"part": "predictions"}, ctx)["text"]
