@@ -552,7 +552,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 ## W. Wizard
 
-### W11. The flow engine and the first setup (sonnet + review) — code
+### W11. The flow engine and the first setup (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/setup/flow.py`, `src/beamtime/ops/admin.py` (`init`), new
   `tests/setup/test_flow.py`.

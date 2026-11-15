@@ -55,6 +55,41 @@ with code for its framework).
 
 Running `beamtime init` in a project that is set up and current says so in one line and asks nothing.
 
+### The wizard
+
+`setup/flow.py` runs the steps. A `Step` has an `id`, a `title`, `ask(term, answers, scan)` (asks and
+writes the answer into `Answers`), `when(answers, scan)` and, for steps that hold an answer, a
+`summary(answers, scan)`. `run(term, scan, answers) -> Answers | None` asks the steps in order, then
+shows the review and returns the answers on `Write it`, and `None` for `Show the command and quit`
+(which prints `command()`) or ctrl-c (which prints "Nothing was written."). `setup()` is `run`, then
+`plan()` and `apply()` as one `Setting up` task, then the next steps. `ops/admin.py:init` calls `setup()`
+when stdin and stdout are terminals, there is no `--yes` and the scan's flow is `first`; every other
+case plans from the flags as [above](#answers-flags-and-settings). The teammate, cluster and update
+steps are further lists for the same engine.
+
+- **`Change an answer`** lists the steps that hold an answer (their `summary` as the hint) and jumps
+  to the chosen one; the later steps ask again, each starting on the answer it has, so one change costs
+  one Enter per later question. The answers are one mutable `Answers`, which is also what a step reads
+  as its default.
+- **What is preselected.** `fill()` sets, where a flag left the plain default of
+  `Answers.defaults`: `runs` to `both` when a job script and ssh hosts were found, the found agents,
+  `sdk` when the environment lacks Beamtime and can take it, and the project's own `agent` (its style
+  and the single keys the wizard asks) when `beamtime.yaml` has one, so a project's choice is the
+  default and never the built-in preset. Past work is preselected when found in the project; Beamtime
+  log dirs of other projects are offered and never ticked. `git` starts on `record`.
+- **Conventions are not asked** (see [Agent settings](#agent-settings)); the style step says where to
+  set them.
+- **The first setup** asks, in this order: where runs happen; the log dir (not for `remote`); the
+  machines (not for `here`), then one probe of all of them and per machine the install question
+  (only where the probe found no Beamtime) and the log dir there; the agents (`None` skips the next
+  three); the style (`Choose each setting` adds the form of the single keys); the rules; past work;
+  git; the SDK (only for an environment without Beamtime). A machine whose Python can't run Beamtime
+  is named and left out. The default log dir of a machine is `${SCRATCH}/<project>/beamtime` where the
+  probe saw `$SCRATCH` (`Probe.scratch`), else `~/<project>/beamtime`.
+- **Typed paths** (`+ Add a host`, `+ Add a path`) are checked when typed, as the found ones are. A path
+  inside another project's log dir is imported through that log dir's root, and the review shows the bytes
+  to copy ([Beamtime log dirs](#beamtime-log-dirs)).
+
 ### The scan
 
 `setup/scan.py` reads only local files and runs no subprocess slower than a `--version`. It finds:
@@ -236,7 +271,7 @@ for any number of hosts:
    `setup/remotes.py:probe(hosts, paths) -> dict[str, Probe]` runs one ssh per host in threads, each
    with a 30 s timeout that fails that host alone; a `Probe` has `status` (`ok`, `needs_code`,
    `unknown_host`, `no_beamtime`, `old_python`, or `failed` with the reason), `command`, `version`,
-   `python` and `fstype`. The command is `beamtime` on the `PATH`, else the venv next to the path's
+   `python`, `fstype` and `scratch` (whether `$SCRATCH` is set there). The command is `beamtime` on the `PATH`, else the venv next to the path's
    project.
 3. **Per host**: install if missing, then its log dir path (default: `${SCRATCH}/<project>/beamtime`
    where the host has `$SCRATCH`, else `~/<project>/beamtime`). Variables expand on that host.
@@ -348,21 +383,20 @@ a set of values; single keys override it.
 | `memory_tokens` | an integer ≥ 1 | 1500 | 1500 | 1500 |
 | `render_rounds` | an integer ≥ 1 | 2 | 2 | 2 |
 | `custom_blocks` | `builtin_first`, `free` | `builtin_first` | `builtin_first` | `builtin_first` |
-| `main_metric`, `direction` | a metric key; `min` or `max` | detected | detected | detected |
-| `seed_key` | a config field | detected (`config.seed`) | | |
-| `domain` | `ml`, `simulation` | detected (`ml`) | | |
+| `main_metric`, `direction` | a metric key; `min` or `max` | not set | not set | not set |
+| `seed_key` | a config field | not set | | |
+| `domain` | `ml`, `simulation` | not set | | |
 
 - `style` is `careful` (default), `hands-on`, `analysis` or `custom` (the wizard's "Choose each
   setting", which starts from careful). The file stores `style`, the keys that differ from the preset,
-  and the detected conventions; readers resolve the preset first. A preset's values change only with
+  and the conventions the user set; readers resolve the preset first. A preset's values change only with
   a changelog line.
 - **Careful is today's behaviour.** A project without `agent` behaves as careful, so nothing changes
   for existing projects.
-- **Detected conventions** come from the project's runs when there are any: `main_metric` is the
-  metric most runs log under a `val`-like prefix with `loss`, `acc`, `error` or `mae` in its name
-  (`views/defaults.py:ordered_metrics`), `direction` from the name (`acc` higher, `loss`, `error`,
-  `mae` lower); `seed_key` is the config key named `seed` or `*_seed` that varies; `domain` is `ml`
-  when the code uses a deep-learning framework, else `simulation`. Without runs they are left out.
+- **Conventions are the user's.** The wizard neither asks for nor guesses `main_metric`, `direction`,
+  `seed_key` and `domain`, not from the runs and not from the code. The user sets them afterwards under
+  `agent:` in `beamtime.yaml`, and the agent step says where. Without them the guide and the rules
+  block leave the convention line out. A value the project already has stays as it is.
 - **The knobs are guidance, not enforcement.** Beamtime never runs experiments, so it cannot refuse a
   launch; `research_record: required` tells agents never to launch without a proposal. The files
   keep meaning the same everywhere: a proposal's own `significance` default stays 0.95
@@ -387,7 +421,7 @@ From this project's beamtime.yaml (agent: careful); the user's own instructions 
 
 - Ask before you launch a run. (careful)
 - Write a proposal with predictions before a launch; 3 seeds per point; significance 0.95. (default)
-- Main metric val/loss, lower is better; seeds in config.seed. (detected, in beamtime.yaml)
+- Main metric val/loss, lower is better; seeds in config.seed. (beamtime.yaml)
 - After a verdict or decision, update the group's memory; keep it near 1500 tokens. (default)
 - Save views when they pass validation; at most 2 render rounds. (default)
 - Reuse built-in and library blocks before writing a custom block. (default)
@@ -395,7 +429,8 @@ From this project's beamtime.yaml (agent: careful); the user's own instructions 
 ```
 
 A value equal to the built-in careful preset is marked `default`; one set by the project names the
-preset or `beamtime.yaml`; detected conventions say `detected`. `guide` reads the settings through the
+preset or `beamtime.yaml`; the four conventions only ever come from the file. (The guide still
+labels them `detected, in beamtime.yaml`; the label becomes `beamtime.yaml`.) `guide` reads the settings through the
 same `Context` as every operation, so a remote group's guide reads the remote project's settings.
 
 ### The rules block
@@ -435,7 +470,7 @@ spaces for `_`.
 - `launch_line`: "Never launch runs yourself.", "Ask before you launch a run.", or "You may launch
   runs."
 - `conventions` is "Main metric {{main_metric}} ({{direction_word}}), seeds in {{seed_key}}." with the
-  parts that were detected (`direction_word` is "lower is better" or "higher is better"); without any, the
+  parts the project sets (`direction_word` is "lower is better" or "higher is better"); without any, the
   line is left out.
 - `user_only` is generated from the registry, as the MCP instructions are.
 - `release_of(block)` turns each template into a pattern: a placeholder matches any text on its line,
@@ -706,7 +741,7 @@ appearing as work finishes) and the review.
 | `setup/scan.py` | `Scan` and `scan(root)`: the facts above, local only |
 | `setup/plan.py` | `Answers` (msgspec, one field per flag), `Change` (where it lands, label, before, after, run) and `plan(scan, answers) -> list[Change]`; `review(changes)` writes the plan as text |
 | `setup/apply.py` | `apply(changes, say) -> list[Change]` runs a plan in order; `ApplyError(done, failed, error)` stops it at the first failure and names what was done |
-| `setup/flow.py` | the steps of the four flows: which questions, their defaults from the scan |
+| `setup/flow.py` | `Step`, `run()` and `setup()` ([The wizard](#the-wizard)), the questions of each flow, their defaults from the scan |
 | `setup/term.py` | the prompt primitives |
 | `setup/agents.py` | the client table, `mcp_command()`, registering, the rules block written to files |
 | `setup/remotes.py` | the parallel probe, `probe_command` (also used by `source add`), the remote name rule, installs, ssh sharing |
@@ -753,7 +788,9 @@ terminal, no `--yes`) or plans and applies directly.
   printed `--yes` command produce the same plan.
 - **No trace**: every scenario aborted at every step leaves the tree and the fake home byte-identical.
 - **The terminal**: the primitives run against a pseudo-terminal (`pty`) with scripted keys; the
-  numbered fallback reads from a pipe.
+  numbered fallback reads from a pipe. A whole flow is scripted one prompt at a time: the test waits for
+  the prompt's title on the screen, then types its keys (keys typed ahead are flushed when the next
+  prompt enters raw mode).
 - **Importers**: small checked-in fixtures per source (a TensorBoard event file, an MLflow file store
   and `mlflow.db`, a W&B offline run, a CSV) and a golden Beamtime log dir; imported runs answer `runs`
   and `series` like native ones; a second import adds nothing.

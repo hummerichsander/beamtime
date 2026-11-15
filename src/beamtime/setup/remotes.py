@@ -30,6 +30,7 @@ fi
 echo "how=$how"
 [ -n "$c" ] && echo "version=$("$c" --version 2>/dev/null)"
 echo "python=$(python3 --version 2>&1)"
+echo "scratch=${{SCRATCH:+yes}}"
 if [ -n "$p" ]; then
   d=$(dirname "$p"); while [ ! -d "$d" ] && [ "$d" != / ]; do d=$(dirname "$d"); done
   echo "fstype=$(df -PT "$d" 2>/dev/null | awk 'NR==2 {{print $2}}')"
@@ -49,6 +50,7 @@ class Probe:
     python: str | None = None
     fstype: str | None = None
     detail: str = ""
+    scratch: bool = False
 
 
 def remote_name_problem(name: str) -> str | None:
@@ -146,7 +148,11 @@ def probe_host(host: str, path: str | None, timeout: float) -> Probe:
             command = f"{path.rstrip('/')}/../.venv/bin/beamtime".replace("{user}", "${USER}")
     fstype = facts.get("fstype") or None
     kept = dict(
-        command=command, version=version[0] if version else None, python=python, fstype=fstype
+        command=command,
+        version=version[0] if version else None,
+        python=python,
+        fstype=fstype,
+        scratch=facts.get("scratch") == "yes",
     )
     if command is not None:
         return Probe(host, "ok", **kept)

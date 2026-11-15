@@ -102,12 +102,14 @@ def test_probe_line_runs_in_a_shell(ssh: Path, tmp_path: Path, monkeypatch: pyte
         tool.write_text(f"#!/bin/sh\necho '{text}'\n")
         tool.chmod(0o755)
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("SCRATCH", str(home))
     fake = os.environ["PATH"].split(os.pathsep)[0]
     monkeypatch.setenv("PATH", f"{fake}:{venv.parent.parent}:/usr/bin:/bin")
     found = probe(["local"], {"local": "~/proj/beamtime"})["local"]
     assert found.status == "ok" and found.version == "0.2.2", found
     assert found.command == "~/proj/beamtime/../.venv/bin/beamtime"
     assert found.python == "3.12.1"
+    assert found.scratch
 
 
 def test_install_and_ssh_share_only_when_asked(project: Path, home: Path) -> None:  # noqa: F811

@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from beamtime.format import constants as c
 from beamtime.format.io import read_json
@@ -25,6 +25,9 @@ from beamtime.ops.context import Context, OpError
 from beamtime.ops.reading import find_run
 from beamtime.settings import user_settings_path
 
+if TYPE_CHECKING:
+    from beamtime.setup.apply import ApplyError
+
 
 def answer(kind: str, lines: list[str], **fields: Any) -> dict[str, Any]:
     """Build the answer of a user-only command.
@@ -37,7 +40,10 @@ def answer(kind: str, lines: list[str], **fields: Any) -> dict[str, Any]:
 
 
 def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
-    """Set up the project and this machine: plan from the flags, then write only with ``--yes``.
+    """Set up the project and this machine: ask in a terminal, else plan from the flags.
+
+    With a terminal and no ``--yes``, a first setup runs the wizard. Otherwise nothing is asked, and
+    nothing is written without ``--yes``.
 
     :param ctx: The operation context.
     :param p: The parameters.
@@ -52,12 +58,24 @@ def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
         only_claude = (ctx.root / "CLAUDE.md").exists() and not (ctx.root / "AGENTS.md").exists()
         p = msgspec.structs.replace(p, agents=["claude-code" if only_claude else "other"])
     found = scan(ctx.root)
+    fields = {"root": str(ctx.root), "logdir": str(found.project.logdir)}
     try:
         answers = Answers.from_params(p, found)
+    except ValueError as e:
+        raise OpError(str(e), code=2) from e
+    if not p.yes and found.flow == "first" and sys.stdin.isatty() and sys.stdout.isatty():
+        from beamtime.setup.flow import setup
+        from beamtime.setup.term import Term
+
+        try:
+            written = setup(Term.detect(), found, answers)
+        except ApplyError as e:
+            raise apply_failed(e) from e
+        return answer("init", [], written=written, **fields)
+    try:
         changes = plan(found, answers)
     except ValueError as e:
         raise OpError(str(e), code=2) from e
-    fields = {"root": str(ctx.root), "logdir": str(found.project.logdir)}
     if not changes:
         return answer("init", ["already set up"], written=[], **fields)
     if not p.yes:
@@ -73,12 +91,20 @@ def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
     try:
         done = apply(changes, lines.append)
     except ApplyError as e:
-        raise OpError(
-            f"{e}\ndone: {', '.join(c.label for c in e.done) or 'nothing'}\n"
-            "run `beamtime init` again to pick up what is missing"
-        ) from e
+        raise apply_failed(e) from e
     lines.append("next: log runs with beamtime.init() in your training script")
     return answer("init", lines, written=[c.label for c in done], **fields)
+
+
+def apply_failed(e: "ApplyError") -> OpError:
+    """Word a failed apply: what stopped it and what was done before.
+
+    :param e: The ``ApplyError``.
+    :return: The error to raise."""
+    return OpError(
+        f"{e}\ndone: {', '.join(c.label for c in e.done) or 'nothing'}\n"
+        "run `beamtime init` again to pick up what is missing"
+    )
 
 
 def settings(ctx: Context, p: r.NoParams) -> dict[str, Any]:

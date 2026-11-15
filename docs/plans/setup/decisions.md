@@ -62,8 +62,8 @@ setup, a teammate joining, a cluster login node, and updating an older setup.
    - rigor: `research_record` (off / encouraged (default) / required), seeds per point (3),
      significance (0.95);
    - budgets: memory tokens (~1.5k), render rounds (2), custom blocks (built-in first / free);
-   - conventions, detected from runs: main metric and direction, seed key (`config.seed`), domain
-     (ml / simulation).
+   - conventions: main metric and direction, seed key (`config.seed`), domain (ml / simulation); the
+     wizard does not detect or ask for them, the user sets them in `beamtime.yaml: agent` afterwards.
    Fixed, never settable: writes are additive; agents never run user-only commands; agents ask
    through the tools. `beamtime guide` reads the knobs and marks defaults as defaults.
 7. **Agent rules: Beamtime is the record, or skip.** Exactly two choices. The block is written to each
