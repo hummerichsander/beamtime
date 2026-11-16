@@ -226,24 +226,22 @@ const hasAgents = a => (a.agents || []).length && !(a.agents || []).includes("no
 
 const TUNE = [
   { k: "launch_runs", label: "launch runs", vals: ["never", "ask", "allowed"] },
-  { k: "memory", label: "memory updates", vals: ["suggest", "after verdicts"] },
-  { k: "views", label: "save views", vals: ["draft for me", "save"] },
-  { k: "record", label: "research record", vals: ["off", "encouraged", "required"] },
+  { k: "memory_updates", label: "memory updates", vals: ["suggest", "after verdicts"] },
+  { k: "save_views", label: "save views", vals: ["draft for me", "save"] },
+  { k: "research_record", label: "research record", vals: ["off", "encouraged", "required"] },
   { k: "seeds", label: "seeds per point", vals: ["2", "3", "5"] },
   { k: "significance", label: "significance", vals: ["0.90", "0.95", "0.99"] },
   { k: "proposal_words", label: "proposal length", vals: ["100 words", "150 words", "300 words"] },
   { k: "memory_tokens", label: "memory budget", vals: ["1k", "1.5k", "3k"] },
   { k: "render_rounds", label: "render rounds", vals: ["1", "2", "3"] },
   { k: "custom_blocks", label: "custom blocks", vals: ["built-in first", "free"] },
-  { k: "main_metric", label: "main metric", vals: ["val/loss ↓", "val/energy_mae ↓", "val/force_mae ↓"], det: true },
-  { k: "seed_key", label: "seed key", vals: ["config.seed", "config.data_seed"], det: true },
-  { k: "domain", label: "domain", vals: ["ml", "simulation"], det: true },
 ];
-const BASE = { main_metric: "val/loss ↓", seed_key: "config.seed", domain: "ml", seeds: "3", significance: "0.95", memory_tokens: "1.5k", render_rounds: "2", custom_blocks: "built-in first" };
+const STORED = { "after verdicts": "after_verdicts", "draft for me": "draft", "built-in first": "builtin_first", "0.90": "0.9", "100 words": "100", "150 words": "150", "300 words": "300", "1k": "1000", "1.5k": "1500", "3k": "3000" };
+const BASE = { seeds: "3", significance: "0.95", proposal_words: "150 words", memory_tokens: "1.5k", render_rounds: "2", custom_blocks: "built-in first" };
 const PRESETS = {
-  careful: { ...BASE, launch_runs: "ask", memory: "after verdicts", views: "save", record: "encouraged" },
-  handson: { ...BASE, launch_runs: "allowed", memory: "after verdicts", views: "save", record: "encouraged" },
-  light: { ...BASE, launch_runs: "ask", memory: "suggest", views: "save", record: "off" },
+  careful: { ...BASE, launch_runs: "ask", memory_updates: "after verdicts", save_views: "save", research_record: "encouraged" },
+  handson: { ...BASE, launch_runs: "allowed", memory_updates: "after verdicts", save_views: "save", research_record: "encouraged" },
+  light: { ...BASE, launch_runs: "ask", memory_updates: "suggest", save_views: "save", research_record: "off" },
 };
 const RULE_FILE = { "claude-code": "CLAUDE.md", gemini: "GEMINI.md" };
 const ruleFiles = a => [...new Set((a.agents || []).filter(x => x !== "none").map(x => RULE_FILE[x] || "AGENTS.md"))];
@@ -266,8 +264,8 @@ function rulesPreview(a, v) {
     q("- Results, conclusions, dead ends and open questions go into a note on"),
     q("  the run or group (`note_add`); what should outlive the session goes"),
     q("  into the memory. Not into this file, NOTES.md or your own memory."),
-    q(`- Before a run: a proposal with predictions (${t.record}), ${t.seeds} seeds.`),
-    q(`- ${launch}. Main metric ${t.main_metric}, seeds in ${t.seed_key}.`),
+    q(`- Before a run: a proposal with predictions (${t.research_record}), ${t.seeds} seeds.`),
+    q(`- ${launch}.`),
     q("- Writes add new files; never edit or delete in the log dir."),
   ];
 }
@@ -293,7 +291,7 @@ function rulesStep({ conflict = null, isNew = false } = {}) {
     },
   };
 }
-function styleStep(nRuns, isNew = false) {
+function styleStep(isNew = false) {
   return {
     id: "style", kind: "select", when: hasAgents,
     title: () => "How much should agents do on their own?",
@@ -304,12 +302,12 @@ function styleStep(nRuns, isNew = false) {
       { v: "light", label: "Analysis only", hint: "no proposals; tables, charts and views" },
       { v: "fine", label: "Choose each setting" },
     ],
-    body: () => [sp("m", `Detected: main metric ${sp("c", "val/loss ↓")}, seeds in ${sp("c", "config.seed")} (from ${nRuns} runs).`)],
+    body: () => [sp("m", "Main metric, seed key and domain are not asked;"), sp("m", "set them later under agent: in beamtime.yaml.")],
     def: () => "careful",
-    summary: v => `${styleName({ style: v })} · val/loss ↓ · config.seed`,
+    summary: v => styleName({ style: v }),
     note: {
       name: "Agent behaviour",
-      why: "Three presets instead of a dozen settings. Careful is exactly today's behaviour. The project's main metric and seed key are read from the runs, so the agent guide speaks the project's language.",
+      why: "Three presets instead of a dozen settings. Careful is exactly today's behaviour. The main metric, seed key and domain are yours: set them under agent: in beamtime.yaml, which the guide then labels beamtime.yaml. Setup neither detects nor asks for them.",
       flag: "--agent-style careful|hands-on|analysis",
       store: "beamtime.yaml: agent (shared, so every agent on the team works the same way)",
     },
@@ -516,11 +514,11 @@ const FIRST = {
         store: "Each agent's own config (.mcp.json, ~/.codex/config.toml, ...) and a marked block in CLAUDE.md or AGENTS.md.",
       },
     },
-    styleStep(14),
+    styleStep(),
     {
       id: "tune", kind: "form", when: a => hasAgents(a) && a.style === "fine",
       title: () => "Agent settings",
-      hint: () => "Starts from Careful. Detected values are marked.",
+      hint: () => "Starts from Careful.",
       rows: () => TUNE,
       def: () => ({ ...PRESETS.careful }),
       summary: v => {
@@ -530,7 +528,7 @@ const FIRST = {
       note: {
         name: "Agent settings",
         why: "Every knob that `beamtime guide` and the agent rules read. The three rules that protect your data stay fixed: writes add new files, agents never run your commands, and they ask through the tools.",
-        flag: "--agent-set launch_runs=allowed,seeds=5",
+        flag: "--agent-set launch_runs=allowed --agent-set seeds=5",
         store: "beamtime.yaml: agent.* (shared)",
       },
     },
@@ -663,8 +661,7 @@ const FIRST = {
     if (a.agents) f.push(hasAgents(a) ? `--agents ${a.agents.join(",")}` : "--no-agents");
     if (a.style && hasAgents(a)) f.push(`--agent-style ${a.style === "fine" ? "careful" : { careful: "careful", handson: "hands-on", light: "analysis" }[a.style]}`);
     if (a.tune && a.style === "fine") {
-      const ch = TUNE.filter(r => a.tune[r.k] !== PRESETS.careful[r.k]).map(r => `${r.k}=${a.tune[r.k].replace(/ ↓/, "").replace(/ /g, "-")}`);
-      if (ch.length) f.push(`--agent-set ${ch.join(",")}`);
+      TUNE.filter(r => a.tune[r.k] !== PRESETS.careful[r.k]).forEach(r => f.push(`--agent-set ${r.k}=${STORED[a.tune[r.k]] || a.tune[r.k]}`));
     }
     if (a.rules === "none" && hasAgents(a)) f.push("--no-rules");
     if (a.import) {
@@ -688,8 +685,7 @@ function reviewFirst(a) {
   L.push(h("beamtime.yaml", "project · shared through git"));
   if (a.where !== "remote") L.push(kv("logdir", a.logdir || "beamtime/"));
   if (hasAgents(a)) {
-    const t = tuned(a);
-    L.push(kv("agent", `${styleName(a)} · main metric ${t.main_metric} · seeds ${t.seed_key}`));
+    L.push(kv("agent", styleName(a)));
   }
   hs.forEach(x => L.push(kv(`remotes.${x}`, `path ${rpathOf(a, x)}`)));
   L.push("");
@@ -1178,7 +1174,7 @@ const UPGRADE = {
       ],
       note: {
         name: "Your data",
-        why: "The first worry after an upgrade is whether the data must be migrated. It never must: every file states its schema and every version reads forever. The wizard still checks and says so before asking anything, and a log dir alone never makes init write.",
+        why: "The first worry after an upgrade is whether the data must be migrated. It never must: every file states its schema and every version reads forever. The wizard still checks and says so before asking anything, and a log dir alone never makes setup write.",
         store: "Nothing; runs are never rewritten.",
       },
     },
@@ -1204,18 +1200,18 @@ const UPGRADE = {
         store: "Shown per item in the review.",
       },
     },
-    styleStep(214, true),
+    styleStep(true),
     {
       id: "tune", kind: "form", when: a => hasAgents(a) && a.style === "fine",
       title: () => "Agent settings",
-      hint: () => "Starts from Careful. Detected values are marked.",
+      hint: () => "Starts from Careful.",
       rows: () => TUNE,
       def: () => ({ ...PRESETS.careful }),
       summary: v => {
         const changed = TUNE.filter(r => v[r.k] !== PRESETS.careful[r.k]).map(r => `${r.label} ${v[r.k]}`);
         return changed.length ? `custom: ${changed.join(", ")}` : "same as careful";
       },
-      note: { name: "Agent settings", why: "The same knobs as on a first setup.", flag: "--agent-set launch_runs=allowed,seeds=5", store: "beamtime.yaml: agent.* (shared)" },
+      note: { name: "Agent settings", why: "The same knobs as on a first setup.", flag: "--agent-set launch_runs=allowed --agent-set seeds=5", store: "beamtime.yaml: agent.* (shared)" },
     },
     rulesStep({ isNew: true }),
     {
@@ -1229,18 +1225,17 @@ const UPGRADE = {
         L.push("");
         L.push(`${sp("c", "beamtime.yaml")}  ${sp("m", "project · shared through git")}`);
         if (u.includes("settings")) L.push(kv("colormap", "removed"));
-        if (hasAgents(a)) L.push(kv("agent", `${styleName(a)} · main metric ${tuned(a).main_metric} ${sp("m", "(new)")}`));
+        if (hasAgents(a)) L.push(kv("agent", `${styleName(a)} ${sp("m", "(new)")}`));
         L.push("");
         L.push(`${sp("c", "in the project")}`);
         if (u.includes("rules") && a.rules !== "none") L.push(kv("CLAUDE.md", "rules 0.1.1 → 0.3.0 · Beamtime is the record"));
-        if (u.includes("rules") && a.rules === "none") L.push(kv("CLAUDE.md", "the 0.1.1 block is removed"));
         if (u.includes("mcp")) L.push(kv(".mcp.json", "uv run beamtime mcp"));
         if (u.includes("skills")) L.push(kv(".claude/skills/", "6 skills"));
         if (u.includes("sdk")) L.push(kv(".venv", "beamtime 0.1.1 → 0.3.0"));
         upd(a).filter(isRuns).forEach(x => L.push(kv(destOf(x.v === "runs-old" ? { dest: "beamtime/runs-old" } : x), `${x.n} runs copied from ${x.path}`)));
         upd(a).filter(x => x.user && !isRuns(x) && x.kind !== "none").forEach(x => L.push(kv(x.label, importHint(x, a).split("→")[1].trim().replace(/\s+· added$/, ""))));
         if (u.includes("juwels")) { L.push(""); L.push(sp("c", "other machines")); L.push(kv("juwels", "pip install --user -U beamtime==0.3.0")); }
-        const kept = UPDATES.filter(x => !u.includes(x.v));
+        const kept = UPDATES.filter(x => !u.includes(x.v) || (x.v === "rules" && a.rules === "none"));
         if (kept.length) { L.push(""); L.push(`${sp("c", "kept as they are")}  ${sp("m", kept.map(x => x.label).join(" · "))}`); }
         return L;
       },
@@ -1260,7 +1255,7 @@ const UPGRADE = {
         const u = upd(a).map(x => x.v);
         const L = [];
         if (u.includes("settings") || hasAgents(a)) L.push({ d: 240, h: ok("beamtime.yaml", [u.includes("settings") && "colormap removed", hasAgents(a) && "agent added"].filter(Boolean).join(" · ")) });
-        if (u.includes("rules")) L.push({ d: 220, h: ok("CLAUDE.md", a.rules === "none" ? "rules block removed" : "rules 0.3.0, your text kept") });
+        if (u.includes("rules") && a.rules !== "none") L.push({ d: 220, h: ok("CLAUDE.md", "rules 0.3.0, your text kept") });
         if (u.includes("mcp")) L.push({ d: 220, h: ok(".mcp.json", "uv run beamtime mcp") });
         if (u.includes("skills")) L.push({ d: 260, h: ok(".claude/skills/", "6 skills") });
         if (u.includes("sdk")) L.push({ d: 900, h: ok(".venv", "beamtime 0.3.0") });
@@ -1469,7 +1464,7 @@ function active() {
     st.rows(a).forEach((r, i) => {
       const on = i === S.row;
       const vals = r.vals.map(v => S.form[r.k] === v ? `<span class="inv" data-row="${i}" data-val="${esc(v)}">${esc(v)}</span>` : `<span class="m" data-row="${i}" data-val="${esc(v)}" style="cursor:pointer">${esc(v)}</span>`).join("  ");
-      out.push(`<div class="ln opt${on ? " on" : ""}" data-frow="${i}">${RAIL}  ${on ? sp("a", "›") : " "} ${on ? sp("a", pad(r.label, 17)) : sp("c", pad(r.label, 17))}${vals}${r.det ? "  " + sp("m", "detected") : ""}</div>`);
+      out.push(`<div class="ln opt${on ? " on" : ""}" data-frow="${i}">${RAIL}  ${on ? sp("a", "›") : " "} ${on ? sp("a", pad(r.label, 17)) : sp("c", pad(r.label, 17))}${vals}</div>`);
     });
   }
   out.push(ln(`${sp("r", "└")}  ${sp("k", keysFor(st))}`));

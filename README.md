@@ -10,7 +10,7 @@ for you and your coding agent.
 
 ```sh
 pip install 'beamtime[serve]'
-beamtime setup
+beamtime setup             # looks at your project, asks a few questions, writes after you confirm
 ```
 
 ```python
@@ -31,8 +31,8 @@ beamtime mcp install       # and in Claude Code
 **[hummerichsander.github.io/beamtime](https://hummerichsander.github.io/beamtime/)**: start with
 the [quickstart](https://hummerichsander.github.io/beamtime/quickstart.html), then
 [how it works](https://hummerichsander.github.io/beamtime/how-it-works.html). The guides cover
-agents, proposals and verdicts, pages, clusters, remote machines, PyTorch Lightning, sharing and
-figures, and settings. The same pages are in [`docs/`](docs/index.md).
+setting up a project, agents, proposals and verdicts, pages, clusters, remote machines, PyTorch
+Lightning, sharing and figures, and settings. The same pages are in [`docs/`](docs/index.md).
 
 ## License
 

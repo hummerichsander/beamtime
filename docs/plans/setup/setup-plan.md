@@ -773,7 +773,7 @@ CHANGELOG line is Z's.
 
 ## D. Docs
 
-### D11. User docs (sonnet) — code
+### D11. User docs (sonnet) — code — **done**
 
 - **Touches:** `README.md`, `docs/quickstart.md`, `docs/guides/settings.md`, `docs/guides/remotes.md`,
   `docs/guides/cluster.md`, `docs/guides/agents.md`, new `docs/guides/setup.md`, `docs/nav.json`,

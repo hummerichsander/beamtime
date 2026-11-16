@@ -3,6 +3,11 @@
 Beamtime on your laptop can show a cluster's runs next to your own, live, over ssh. Nothing runs
 on the cluster except a short-lived Beamtime process started by ssh.
 
+`beamtime setup` does steps 1 to 3 for you: it finds the hosts in `~/.ssh/config`, checks all of
+them at once (login, Beamtime and Python there), can install Beamtime and add the ssh lines of step 2,
+and writes the remote. [Setting up a project](setup.md) lists the flags (`--remote`, `--install-remote`,
+`--ssh-share`). The steps below are the same by hand.
+
 ## 1. Install Beamtime there
 
 ```sh
@@ -39,6 +44,10 @@ remotes:
     command: ~/.local/bin/beamtime        # how the remote shell runs Beamtime
     path: ${SCRATCH}/myproject/beamtime   # the log dir there; ~ and ${VAR} expand there
 ```
+
+A teammate who clones the project runs `beamtime setup` once: it asks only how they reach the
+project's remotes. A remote this machine doesn't use is switched off with `--skip-remote NAME`, which
+writes `enabled: false` for it in the user settings ([Settings](settings.md#remote-machines)).
 
 ## 4. Use it
 

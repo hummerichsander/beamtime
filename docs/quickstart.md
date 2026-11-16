@@ -15,8 +15,12 @@ Then, in your project folder:
 beamtime setup
 ```
 
-This creates `beamtime.yaml` and a `beamtime/` folder for your runs (and keeps that folder out of
-git).
+It looks at your project, asks a few questions (press Enter to take what it found), shows what it
+will change and writes only when you confirm. You get `beamtime.yaml`, a `beamtime/` folder for
+your runs (run data stays out of git, your notes and proposals don't), and, if you pick a coding
+agent, its Beamtime server and rules. Earlier runs from TensorBoard, Weights & Biases, MLflow or CSV
+files can come along. See [Setting up a project](guides/setup.md) for every question and flag, and
+for changing an answer later.
 
 ## 2. Log a run
 
@@ -53,12 +57,13 @@ No runs yet? `beamtime demo --open` opens a sample project to look around in.
 beamtime mcp install
 ```
 
-Now ask Claude Code something like *"How did last night's runs go?"* or *"Build a page that shows
+If you chose an agent in the setup, this is done already. Now ask Claude Code something like *"How did last night's runs go?"* or *"Build a page that shows
 which time step keeps the energy stable."* For Cursor and Codex, and for what agents may and may not do,
 see [Working with an agent](guides/agents.md).
 
 ## Next
 
 - Say what you expect before you run, and record what you found: [Proposals and verdicts](guides/research-record.md).
+- Every setup question and flag, and updating after an upgrade: [Setting up a project](guides/setup.md).
 - Running on a cluster? See [Runs on a cluster](guides/cluster.md).
 - Using PyTorch Lightning? See [PyTorch Lightning](guides/lightning.md).

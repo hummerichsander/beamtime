@@ -4,6 +4,7 @@
     {
       "title": "Guides",
       "pages": [
+        "guides/setup.md",
         "guides/agents.md",
         "guides/research-record.md",
         "guides/views.md",

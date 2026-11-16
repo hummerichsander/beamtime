@@ -5,6 +5,9 @@ you see in the browser.
 
 ## Connect
 
+`beamtime setup` offers this for every agent it finds ([Setting up a project](setup.md)). To connect
+one by hand:
+
 ```sh
 beamtime mcp install                     # Claude Code
 beamtime mcp install --client cursor
@@ -35,10 +38,25 @@ Agents read everything and **add**: notes, proposals, verdicts, memory and pages
 a new file with the agent as its author; nothing is overwritten.
 
 Agents never **delete, move or set up** anything. For those, they tell you the command to run
-yourself: `beamtime rm`, `beamtime mv`, `beamtime gc`, `beamtime serve`, `beamtime set`.
+yourself: `beamtime setup`, `beamtime rm`, `beamtime mv`, `beamtime gc`, `beamtime serve`,
+`beamtime set`. When your setup is out of date, `beamtime status` and `beamtime setup --check` say so,
+and your agent hands you `beamtime setup`.
+
+## How much agents do
+
+The `agent` setting in `beamtime.yaml` says how much agents do on their own: whether they may
+launch runs, how many seeds and what significance a proposal asks for, how long a proposal may be,
+and more. `beamtime setup` asks for a preset (careful, hands-on or analysis only) and writes it;
+[Settings](settings.md#agent) lists every key.
+
+One of them is `proposal_words` (150 by default): agents keep a proposal's statement, rationale and
+prediction descriptions to about that many words, since a proposal is frozen once a run records it.
+`beamtime proposal set` still writes a longer one, and adds a line to its answer:
+`warning: 212 words, beyond this project's limit of 150 (agent.proposal_words); a proposal is frozen
+once a run records it, so shorten it now`.
 
 ## The agent's manual
 
 `beamtime guide` prints what agents read about Beamtime: how to write proposals, how to build
-pages, and checklists. Its defaults are marked as defaults; your own instruction file can change
-them ("always put the run table first").
+pages, and checklists. Its defaults come from the `agent` setting and say where each value comes
+from; your own instruction file can change them ("always put the run table first").

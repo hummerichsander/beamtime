@@ -3,16 +3,50 @@
 Beamtime runs inside your job like on your laptop: it needs no server, no network and no database
 on the cluster.
 
+## Setting up the checkout
+
+On the cluster, in your project's checkout:
+
+```sh
+beamtime setup
+```
+
+On a login node it asks only the cluster questions: what the machine does (`record` only, or also
+look at runs), where runs go, and whether to keep an index between connections. Without a terminal:
+
+```sh
+beamtime setup --yes --role record --link-logdir '${SCRATCH}/myproject/beamtime' --cache memory
+```
+
+If the project already has a `beamtime.yaml` from git, it is left as it is. The cluster questions
+come again whenever you run `beamtime setup` there; with nothing to change it ends with "Nothing to
+change." See [Setting up a project](setup.md).
+
 ## Where runs go
 
-Put runs on scratch space, not in your home directory:
+Put runs on scratch space, not in your home directory. `--link-logdir` makes the project's log dir a
+link to scratch (the link is local to this checkout, so it is kept out of git, and a log dir that
+already holds runs is never replaced). For a job script or a one-off, the environment variable
+works too:
 
 ```sh
 export BEAMTIME_LOGDIR=$SCRATCH/myproject/beamtime
 ```
 
-Beamtime keeps its index cache in `~/.cache/beamtime/`. If your home directory is on a network
-filesystem, point the cache at local disk: `export BEAMTIME_CACHE=/tmp/$USER/beamtime-cache`.
+## The index cache
+
+Beamtime keeps its index cache in `~/.cache/beamtime/`. SQLite is unsafe on network filesystems, so
+a cache on NFS, Lustre, GPFS, BeeGFS, CIFS or sshfs is refused: the index then lives in memory for
+the length of the process, and `beamtime doctor` says why. To choose where it goes, set `cache` in
+`~/.config/beamtime/settings.yaml` (see [Settings](settings.md#cache)), or give `--cache` to
+`beamtime setup`:
+
+```sh
+beamtime setup --yes --cache /tmp/{user}/beamtime-cache   # local disk, kept between connections
+beamtime setup --yes --cache memory                       # no index kept
+```
+
+`BEAMTIME_CACHE` overrides the setting for one session.
 
 ## Several GPUs or nodes
 
