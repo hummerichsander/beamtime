@@ -480,12 +480,13 @@ def judge_checklist(ctx: Any, page: str, items: list[str], folder: Path) -> dict
     }
 
 
-def ask(prompt: str, folder: Path, *, tools: str) -> dict[str, Any]:
+def ask(prompt: str, folder: Path, *, tools: str, model: str = JUDGE) -> dict[str, Any]:
     """Ask the judge model and read the JSON in its answer.
 
     :param prompt: The question.
     :param folder: The working directory.
     :param tools: Built-in tools it may use, e.g. ``Read``; empty for none.
+    :param model: The judge model; the comparison benchmark pins a full model id.
     :return: The parsed JSON, or ``{error}``.
     :raises JudgeStalled: When the answer says the usage limit is reached."""
     command = [
@@ -493,7 +494,7 @@ def ask(prompt: str, folder: Path, *, tools: str) -> dict[str, Any]:
         "-p",
         prompt,
         "--model",
-        JUDGE,
+        model,
         "--tools",
         tools,
         "--allowedTools",

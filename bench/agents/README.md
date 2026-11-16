@@ -149,3 +149,10 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   `table_ids` (17 rows), `table_values` (lr, seed, val/acc within 1e-6; the prompt asks for full precision) and `table_finished`
   (yes/no for finished or not; running, lost and killed are not told apart). `find-runs` compares at
   exactly 0.922 without tolerance.
+  The `chart` task's `judge` list holds five statements (scatter of val/acc against lr, log x, about 15
+  points with the failed and killed runs left out, the peak at 3e-4 readable, labelled axes); each
+  becomes a check `judge1`..`judge5` next to `file`, answered by `score.ask` with the pinned model
+  (`grade(..., model=)`) from the PNG alone, run in a fresh folder holding only a copy of the image
+  (`Grade.notes` keeps the judge's reasons). A file that is not a PNG (PDF, SVG) scores 0 on `file` and
+  all items without a judge call; a usage-limit answer raises `score.JudgeStalled`, so the session
+  stays ungraded.

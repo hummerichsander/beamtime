@@ -4,6 +4,9 @@ import csv
 import json
 import math
 import re
+import shutil
+import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -11,6 +14,7 @@ from typing import Any
 import yaml
 
 TASKS = Path(__file__).resolve().parent / "tasks"
+AGENTS = Path(__file__).resolve().parents[1]
 SETUPS = ["mcp", "cli", "files", "tensorboard"]
 PNG = b"\x89PNG\r\n\x1a\n"
 COLUMNS = ("run_id", "lr", "seed", "finished", "val_acc")
@@ -65,6 +69,7 @@ class Grade:
     score: float
     correct: bool
     checks: dict[str, float]
+    notes: dict[str, str] = field(default_factory=dict)
 
 
 def load_tasks(directory: Path = TASKS) -> dict[str, Task]:
@@ -95,21 +100,83 @@ def answer_json(text: str) -> dict[str, Any] | None:
     return answer if isinstance(answer, dict) else None
 
 
-def grade(task: Task, answer_text: str, truth: dict[str, Any], project: Path) -> Grade:
+def grade(
+    task: Task,
+    answer_text: str,
+    truth: dict[str, Any],
+    project: Path,
+    *,
+    model: str | None = None,
+) -> Grade:
     """Grade a reply: the score is the share of checks passed, a missing block fails all of them.
+
+    A task with ``judge`` items adds one check per item (``judge1``, ...), asked of a model that
+    sees only the PNG the answer names under ``file``; they score 0 when the ``file`` check fails.
 
     :param task: The task.
     :param answer_text: The agent's last message.
     :param truth: The expected values of this task (``truth.compute(...)[task.id]``).
     :param project: The folder the agent worked in; files it names must lie inside.
-    :return: The grade."""
+    :param model: The pinned judge model id; the harness default when ``None``.
+    :return: The grade.
+    :raises score.JudgeStalled: When the judge hits its usage limit; the session stays ungraded."""
     answer = answer_json(answer_text)
     checks = {
         name: 0.0 if answer is None else run_check(name, spec, answer, truth, project)
         for name, spec in task.checks.items()
     }
+    notes: dict[str, str] = {}
+    if task.judge:
+        image = project_png(project, answer) if checks.get("file") else None
+        marks = judge_chart(image, task.judge, model=model) if image else {}
+        for i in range(len(task.judge)):
+            checks[f"judge{i + 1}"] = float(bool(marks.get(i + 1, {}).get("yes")))
+            if why := marks.get(i + 1, {}).get("why"):
+                notes[f"judge{i + 1}"] = str(why)
     score = sum(checks.values()) / len(checks)
-    return Grade(score=score, correct=score == 1, checks=checks)
+    return Grade(score=score, correct=score == 1, checks=checks, notes=notes)
+
+
+def project_png(project: Path, answer: dict[str, Any] | None) -> Path | None:
+    """Find the PNG an answer names.
+
+    :param project: The agent's folder.
+    :param answer: The parsed answer.
+    :return: The path, or ``None`` when it names no file inside the project."""
+    try:
+        return project_file(project, (answer or {}).get("file"))
+    except (ValueError, OSError):
+        return None
+
+
+def judge_chart(image: Path, items: list[str], *, model: str | None) -> dict[int, dict[str, Any]]:
+    """Ask the judge about each checklist item from the figure alone.
+
+    The judge runs in a fresh folder that holds a copy of the image and nothing else.
+
+    :param image: The agent's PNG.
+    :param items: What the figure must show, one statement each.
+    :param model: The judge model id; the harness default when ``None``.
+    :return: The judge's marks by item number (from 1) as ``{yes, why}``; empty when it gave no
+        usable answer.
+    :raises score.JudgeStalled: When the judge hits its usage limit."""
+    sys.path.append(str(AGENTS))
+    import score
+
+    listed = "\n".join(f"{i + 1}. {item}" for i, item in enumerate(items))
+    prompt = (
+        "Read the image chart.png with the Read tool. It is a figure an analyst made from "
+        "experiment logs. Answer each checklist item about what the figure shows, strictly: yes "
+        f"only if the image clearly shows it.\n{listed}\n"
+        'Answer with JSON only: {"items": [{"item": int, "yes": bool, "why": str}]}'
+    )
+    with tempfile.TemporaryDirectory(prefix="bt-judge-") as folder:
+        shutil.copyfile(image, Path(folder) / "chart.png")
+        answer = score.ask(prompt, Path(folder), tools="Read", model=model or score.JUDGE)
+    listed_marks = answer.get("items", [])
+    return {
+        m["item"]: m for m in listed_marks if isinstance(m, dict) and isinstance(m.get("item"), int)
+    }
 
 
 def run_check(

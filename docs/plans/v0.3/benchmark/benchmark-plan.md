@@ -297,7 +297,7 @@ One function per task id (names in J71), each pure Python over `runs/*/*/metrics
 2. `answer_json(text) -> dict | None`; `grade(task, text, truth, project) -> Grade` with `score` the
    share of checks passed and `correct = score == 1`.
 
-### J72. Chart grading with the judge (sonnet) — code
+### J72. Chart grading with the judge (sonnet) — code — **done**
 
 - **Touches:** `bench/agents/compare/grade.py` (`judge_chart`), `bench/agents/compare/tasks/chart.yaml` (`judge` list),
   `tests/bench/test_compare_grade.py` (stubbed `ask`).

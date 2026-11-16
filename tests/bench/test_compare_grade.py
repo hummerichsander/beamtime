@@ -11,10 +11,12 @@ import pytest
 
 COMPARE = Path(__file__).resolve().parents[2] / "bench" / "agents" / "compare"
 sys.path.insert(0, str(COMPARE))
+sys.path.insert(0, str(COMPARE.parent))
 
 import data  # noqa: E402
 import formats  # noqa: E402
 import grade  # noqa: E402
+import score  # noqa: E402
 import truth as truth_module  # noqa: E402
 
 NOW = datetime(2026, 10, 26, 12, 0, 0, tzinfo=timezone.utc)
@@ -123,6 +125,29 @@ def reply(answer: dict[str, Any] | None, *, before: str = "Done.") -> str:
     if answer is None:
         return before
     return f"{before}\n\n```json\n{json.dumps(answer)}\n```\n"
+
+
+@pytest.fixture(autouse=True)
+def judge(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    """Stub the judge model: it answers yes to all five chart items and records every call.
+
+    :param monkeypatch: Replaces ``score.ask``.
+    :return: One dict per call with the prompt, the model, the tools and the folder's files."""
+    calls: list[dict[str, Any]] = []
+
+    def ask(prompt: str, folder: Path, *, tools: str, model: str = score.JUDGE) -> dict[str, Any]:
+        calls.append(
+            {
+                "prompt": prompt,
+                "model": model,
+                "tools": tools,
+                "files": sorted(p.name for p in folder.iterdir()),
+            }
+        )
+        return {"items": [{"item": i, "yes": True, "why": f"ok {i}"} for i in range(1, 6)]}
+
+    monkeypatch.setattr(score, "ask", ask)
+    return calls
 
 
 @pytest.fixture
@@ -323,6 +348,76 @@ def test_chart_file(
         ("../" + outside.name, False),
     ):
         assert grade.grade(chart, reply({"file": name}), truth, project).correct is ok, name
+
+
+def test_chart_judge_items(
+    tasks: dict[str, grade.Task], project: Path, judge: list[dict[str, Any]]
+) -> None:
+    """The five items count as checks next to the file; the pinned model judges the image."""
+    chart = tasks["chart"]
+    assert len(chart.judge) == 5
+    result = grade.grade(chart, reply({"file": "fig.png"}), TRUTH["chart"], project, model="pinned")
+    assert list(result.checks) == ["file", "judge1", "judge2", "judge3", "judge4", "judge5"]
+    assert result.correct and result.notes["judge2"] == "ok 2"
+    assert [c["model"] for c in judge] == ["pinned"] and judge[0]["tools"] == "Read"
+    for i, item in enumerate(chart.judge, 1):
+        assert f"{i}. {item}" in judge[0]["prompt"]
+
+
+def test_chart_judge_marks(
+    tasks: dict[str, grade.Task], project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A no, a missing item and an unreadable answer each score 0 on their own item only."""
+    partial = {
+        "items": [{"item": 1, "yes": True}, {"item": 2, "yes": False}, {"item": 3, "yes": True}]
+    }
+    chart, text = tasks["chart"], reply({"file": "fig.png"})
+    monkeypatch.setattr(score, "ask", lambda *a, **k: partial)
+    result = grade.grade(chart, text, TRUTH["chart"], project)
+    judged = [result.checks[f"judge{i}"] for i in range(1, 6)]
+    assert result.checks["file"] == 1.0 and judged == [1.0, 0.0, 1.0, 0.0, 0.0]
+    monkeypatch.setattr(score, "ask", lambda *a, **k: {"error": "no JSON"})
+    result = grade.grade(chart, text, TRUTH["chart"], project)
+    assert result.score == pytest.approx(1 / 6)
+
+
+def test_not_png(tasks: dict[str, grade.Task], project: Path, judge: list[dict[str, Any]]) -> None:
+    """A PDF or SVG instead of a PNG scores the file 0 and is not judged."""
+    for name, content in (("fig.pdf", b"%PDF-1.4"), ("fig.svg", b"<svg/>")):
+        (project / name).write_bytes(content)
+        result = grade.grade(tasks["chart"], reply({"file": name}), TRUTH["chart"], project)
+        assert result.checks["file"] == 0.0 and result.score == 0.0, name
+    assert judge == []
+
+
+def test_no_block_not_judged(
+    tasks: dict[str, grade.Task], project: Path, judge: list[dict[str, Any]]
+) -> None:
+    """A reply without a json block scores 0 everywhere and costs no judge call."""
+    result = grade.grade(tasks["chart"], "Here it is.", TRUTH["chart"], project)
+    assert result.score == 0.0 and len(result.checks) == 6 and judge == []
+
+
+def test_judge_sees_only_image(
+    tasks: dict[str, grade.Task], project: Path, judge: list[dict[str, Any]]
+) -> None:
+    """The judge's folder holds one image; the project's other files and path stay out of reach."""
+    grade.grade(tasks["chart"], reply({"file": "fig.png"}), TRUTH["chart"], project)
+    assert judge[0]["files"] == ["chart.png"]
+    assert str(project) not in judge[0]["prompt"] and "table.csv" not in judge[0]["prompt"]
+
+
+def test_judge_usage_limit(
+    tasks: dict[str, grade.Task], project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A usage-limit answer raises, so the session stays ungraded instead of scoring 0."""
+
+    def ask(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise score.JudgeStalled("You've hit your limit")
+
+    monkeypatch.setattr(score, "ask", ask)
+    with pytest.raises(score.JudgeStalled):
+        grade.grade(tasks["chart"], reply({"file": "fig.png"}), TRUTH["chart"], project)
 
 
 def test_table_checks(tasks: dict[str, grade.Task], project: Path) -> None:
