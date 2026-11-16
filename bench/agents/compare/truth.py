@@ -14,7 +14,7 @@ EGNN = "realistic/egnn-bench"
 TOKENIZER = "tokenizer/bpe-vs-unigram"
 
 LEVEL = 0.95
-FIND_MIN = 0.925
+FIND_MIN = 0.922
 FASTEST_AT = 0.85
 PREDICTION_MIN = 0.1
 
@@ -219,7 +219,7 @@ def chart(runs: list[TruthRun]) -> dict[str, Any]:
 
 
 def find_runs(runs: list[TruthRun]) -> dict[str, Any]:
-    """Find every run of the project whose last logged val/acc is at least 0.925.
+    """Find every run of the project whose last logged val/acc is at least 0.922.
 
     :param runs: All runs.
     :return: ``ids``, sorted; the status of a run does not matter."""

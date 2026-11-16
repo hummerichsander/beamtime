@@ -149,6 +149,9 @@ What's left runs in this order: N71 M71 M72 M73 M74 J71 J72 J73 J74 L71 L72 U71 
     show a PDF). Only tasks run in every setup enter the figures; all eight are.
 13. **Docs** (from the brief): `docs/guides/benchmark.md` (method, fairness rules, tasks, table,
     figures) in `docs/nav.json` under Guides; the README gets a short section with figure (a) and a link.
+14. **`find-runs` threshold 0.922** (review of M74): at 0.925 seed 8 has a run at 0.92489, which
+    `beamtime runs` prints as `0.925` (three digits), so the CLI setup would be graded wrong for
+    reading its own table. At 0.922 every seed's nearest run is at least 9.7e-4 away (0.926: 6.3e-4).
 
 ## N. Harness repair
 
@@ -281,7 +284,7 @@ One function per task id (names in J71), each pure Python over `runs/*/*/metrics
 | `sweep-summary` | summarize realistic/egnn-bench: mean final validation/w1_energy per arm over completed runs, the best arm, runs to leave out | `per_arm`, `best_arm`, `exclude` | close 1 % each, equal, set equal | 400 s |
 | `check-prediction` | "unigram lowers final val/ppl vs BPE by more than 0.1" in tokenizer/bpe-vs-unigram: supported at 95 %? | `verdict`, `effect`, `ci` | equal (`confirmed`), close 0.05 abs, contains truth effect | 300 s |
 | `chart` | figure of final val/acc vs lr for scaling/lr-sweep, one point per completed run, log x, as a PNG | `file` | exists and is PNG; judged (J72) | 600 s |
-| `find-runs` | every run in the project whose last val/acc is at least 0.925 | `runs: [id]` | F1 = 1 for correct; score F1 | 400 s |
+| `find-runs` | every run in the project whose last val/acc is at least 0.922 | `runs: [id]` | F1 = 1 for correct; score F1 | 400 s |
 | `fastest` | which lr in scaling/lr-sweep first reaches val/acc 0.85 (mean step over seeds of completed runs) | `lr`, `step` | equal, close 10 % | 400 s |
 | `table` | CSV of every run of scaling/lr-sweep: run id, lr, seed, status, final val/acc; say where | `file` | file in the project; 17 rows; values close 1e-6; status words map to finished/failed/killed | 300 s |
 

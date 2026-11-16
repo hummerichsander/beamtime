@@ -195,5 +195,12 @@ def test_find_runs_counts_every_status(made: Made) -> None:
     ids = set(made.truth["find-runs"]["ids"])
     finals = {r.id: r.final("val/acc") for r in truth.load_runs(made.files, made.logdir)}
 
-    assert ids == {i for i, v in finals.items() if v is not None and v >= 0.925}
+    assert ids == {i for i, v in finals.items() if v is not None and v >= truth.FIND_MIN}
     assert ids
+
+
+def test_find_runs_threshold_survives_rounding(made: Made) -> None:
+    """No run's last val/acc lies within 5e-4 of the threshold, so three digits decide alike."""
+    finals = [r.final("val/acc") for r in truth.load_runs(made.files, made.logdir)]
+
+    assert min(abs(v - truth.FIND_MIN) for v in finals if v is not None and v == v) > 5e-4
