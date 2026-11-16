@@ -117,3 +117,8 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   at `dest/beamtime` and strips what states the answers: `_synth.json`, every `proposal/`, `notes/` and
   `memory/` folder outside runs, and `proposals`/`proposal_hashes` in each `_run.json` (its mtime, the
   heartbeat, is kept). The manifest's roles are returned, never written. Seeds 7, 8 and 9.
+- `compare/formats.py`: `export_runs(logdir)` reads every run once (group, run id = folder name, config,
+  effective metrics with resumed attempts resolved, output, status); `export_files(logdir, dest)` writes
+  the plain-files baseline `dest/runs/<group>/<run id>/{config.json, metrics.csv, output.log}`. The CSV
+  has `step`, `time` and the sorted metric keys; a metric not logged at a step is an empty cell, `nan`
+  and `inf` are written as Python writes them, and there is no status file.
