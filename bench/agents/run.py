@@ -110,7 +110,9 @@ def project(task: Task, folder: Path, guide: Path | None) -> tuple[Path, dict[st
     :param folder: The run's folder.
     :param guide: A directory of guide parts that replace the shipped ones, or ``None``.
     :return: The project root and the generated runs by role."""
-    from beamtime.ops.admin import END, START, instructions
+    from beamtime.guide.rules import END, START, render, write_block
+    from beamtime.ops.context import Context
+    from beamtime.ops.registry import OPS
     from beamtime.synth import generate
 
     root = folder / "proj"
@@ -125,7 +127,9 @@ def project(task: Task, folder: Path, guide: Path | None) -> tuple[Path, dict[st
         remote = {"path": str(box / "beamtime"), "command": command, "transport": "command"}
         config["remotes"] = {task.remote: remote}
     (root / "beamtime.yaml").write_text(yaml.safe_dump(config))
-    instructions(root, root / "CLAUDE.md")
+    ctx = Context.make(root=root)
+    user_only = sorted(o.name for o in OPS if o.user_only)
+    write_block(root / "CLAUDE.md", render(ctx.settings.agent, user_only))
     if guide is not None and (rules := guide / "instructions.md").is_file():
         (root / "CLAUDE.md").write_text(f"{START}\n{rules.read_text().strip()}\n{END}\n")
     beamtime = Path(sys.executable).parent / "beamtime"

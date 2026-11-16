@@ -150,7 +150,7 @@ What's left runs in this order: N71 M71 M72 M73 M74 J71 J72 J73 J74 L71 L72 U71 
 
 ## N. Harness repair
 
-### N71. Restore the rules block in run.py (sonnet) — reproduced
+### N71. Restore the rules block in run.py (sonnet) — reproduced — **done**
 
 - **Touches:** `bench/agents/run.py` (`project` 106–139: the import 113, `instructions(...)` 128, the
   `--guide` override 129–130), new `tests/bench/__init__.py`, new `tests/bench/test_harness.py`.
