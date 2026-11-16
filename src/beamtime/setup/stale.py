@@ -31,7 +31,7 @@ class Stale:
 
     @property
     def line(self) -> str:
-        """The item as one line, as ``init --check`` prints it.
+        """The item as one line, as ``setup --check`` prints it.
 
         :return: E.g. ``rules: CLAUDE.md has the 0.1.1 rules -> the 0.3.0 rules``."""
         return f"{self.item}: {self.before} -> {self.after}"

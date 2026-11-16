@@ -482,7 +482,7 @@ def next_steps_there(term: Term, scan: Scan, answers: Answers) -> None:
     where = Path(expand_path(answers.link_logdir or answers.logdir))
     where = (where if where.is_absolute() else scan.root / where).resolve()
     name = socket.gethostname().split(".")[0]
-    other = f"or run beamtime init there; it finds {name} in ~/.ssh/config."
+    other = f"or run beamtime setup there; it finds {name} in ~/.ssh/config."
     jobs = f"Jobs need no change: {code('beamtime.init()')} finds the project and writes there."
     term.emit(
         [

@@ -17,7 +17,7 @@ import pytest
 import yaml
 
 from beamtime.cli import build_parser, params_of
-from beamtime.ops.registry import InitParams
+from beamtime.ops.registry import SetupParams
 from beamtime.setup.apply import apply
 from beamtime.setup.flow import FirstSetup, fill, run, setup
 from beamtime.setup.plan import Answers, Remote, command, plan
@@ -147,12 +147,12 @@ def snapshot(*roots: Path) -> dict[str, bytes]:
     }
 
 
-def parse(words: list[str]) -> InitParams:
+def parse(words: list[str]) -> SetupParams:
     """Parse command line words the way the CLI does.
 
     :param words: The words after ``beamtime``.
-    :return: The parameters of ``init``."""
-    return msgspec.convert(params_of("init", build_parser().parse_args(words)), InitParams)
+    :return: The parameters of ``setup``."""
+    return msgspec.convert(params_of("setup", build_parser().parse_args(words)), SetupParams)
 
 
 def printed_command(output: str) -> list[str]:
@@ -444,7 +444,7 @@ def tree(root: Path, home: Path) -> dict[str, str]:
 def test_write_it_gives_the_files_of_the_command(
     egnn: Scan, tmp_path: Path, home: Path, tools, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Write it makes the same files as ``init --yes`` with the command the review prints."""
+    """Write it makes the same files as ``setup --yes`` with the command the review prints."""
     keys = [(t, b"2" + ENTER if t == SDK else k) for t, k in TO_REVIEW]
     answers = Answers.defaults(egnn)
     wrote = drive(
@@ -459,7 +459,7 @@ def test_write_it_gives_the_files_of_the_command(
     monkeypatch.setenv("HOME", str(twin_home))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(twin_home / ".config"))
     words = shlex.split(command(answers, egnn).replace("\\\n", " "))
-    assert words[:3] == ["beamtime", "init", "--yes"]
+    assert words[:3] == ["beamtime", "setup", "--yes"]
     apply(plan(twin, Answers.from_params(parse(words[1:]), twin), which=fake_which))
     assert tree(twin.root, twin_home) == tree(egnn.root, home)
     assert int(tree(twin.root, twin_home)["runs"]) >= 2
@@ -563,7 +563,7 @@ def test_another_preset_is_written_and_drops_overrides(hands_on: Scan, style: st
 @pytest.mark.parametrize("style", ["careful", "analysis"])
 def test_agent_style_flag_is_written(hands_on: Scan, style: str) -> None:
     """``--agent-style`` on a hands-on project writes that preset, as the wizard does."""
-    answers = Answers.from_params(InitParams(agent_style=style, yes=True), hands_on)
+    answers = Answers.from_params(SetupParams(agent_style=style, yes=True), hands_on)
     assert answers.agent_set == {}
     assert written_agent(hands_on, answers) == {"style": style, "main_metric": "val/loss"}
 
@@ -626,11 +626,11 @@ class Tty(StringIO):
         return True
 
 
-def test_init_asks_only_on_a_terminal_for_a_first_setup(
+def test_setup_asks_only_on_a_terminal_for_a_first_setup(
     tmp_path: Path, home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``init`` runs the wizard for a first setup on a terminal without ``--yes``, else not."""
-    from beamtime.ops.admin import init
+    """``setup`` runs the wizard for a first setup on a terminal without ``--yes``, else not."""
+    from beamtime.ops.admin import setup
     from beamtime.ops.context import Context
 
     root = tmp_path / "p"
@@ -641,14 +641,14 @@ def test_init_asks_only_on_a_terminal_for_a_first_setup(
         lambda term, found, answers, **kw: seen.append(found.flow) or [],
     )
     ctx = Context.make(root=root)
-    init(ctx, InitParams())
+    setup(ctx, SetupParams())
     assert seen == []
     monkeypatch.setattr(sys, "stdin", Tty())
     monkeypatch.setattr(sys, "stdout", Tty())
-    init(ctx, InitParams(yes=True))
+    setup(ctx, SetupParams(yes=True))
     assert seen == [] and (root / "beamtime.yaml").exists()
     (root / "beamtime.yaml").unlink()
-    init(ctx, InitParams())
+    setup(ctx, SetupParams())
     assert seen == ["first"]
 
 
@@ -786,7 +786,7 @@ def test_teammate_skips_what_the_person_leaves_out(mate: Scan) -> None:
     assert answers.agents == [] and answers.remotes == [] and answers.ssh_share == []
     assert answers.skip_remotes == ["juwels", "lab-gpu"]
     again = Answers.from_params(
-        parse(["init", "--yes", "--no-agents", "--skip-remote", "juwels", "--skip-remote", "lab-gpu"]),
+        parse(["setup", "--yes", "--no-agents", "--skip-remote", "juwels", "--skip-remote", "lab-gpu"]),
         mate,
     )
     assert again == answers
@@ -1047,11 +1047,11 @@ def test_cluster_writes_the_link_and_the_cache(cluster: Scan, home: Path, tmp_pa
     assert "beamtime source add " in done.output and "Jobs need no change" in done.output
 
 
-def test_init_asks_on_a_terminal_in_every_flow_but_the_current_one(
+def test_setup_asks_on_a_terminal_in_every_flow_but_the_current_one(
     tmp_path: Path, home: Path, monkeypatch: pytest.MonkeyPatch, tools
 ) -> None:
-    """``init`` runs the wizard for a teammate and a cluster too, on a terminal and without --yes."""
-    from beamtime.ops.admin import init
+    """``setup`` runs the wizard for a teammate and a cluster too, on a terminal and without --yes."""
+    from beamtime.ops.admin import setup
     from beamtime.ops.context import Context
 
     seen: list[str] = []
@@ -1063,8 +1063,8 @@ def test_init_asks_on_a_terminal_in_every_flow_but_the_current_one(
     monkeypatch.setattr(sys, "stdout", Tty())
     monkeypatch.setenv("PATH", tools("cursor"))
     root = make_mate(tmp_path, home, tools("cursor")).root
-    init(Context.make(root=root), InitParams())
+    setup(Context.make(root=root), SetupParams())
     assert seen == ["teammate"]
     monkeypatch.setenv("PATH", tools("cursor", "sbatch"))
-    init(Context.make(root=root), InitParams())
+    setup(Context.make(root=root), SetupParams())
     assert seen == ["teammate", "cluster"]

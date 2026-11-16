@@ -587,12 +587,12 @@ beamtime block import <group>
 
 ## Setup and housekeeping
 
-### `beamtime init` *(you)*
+### `beamtime setup` *(you)*
 
-Set up this project: log dir in .gitignore, beamtime.yaml.
+Set up this project and this machine, or change the setup.
 
 ```sh
-beamtime init
+beamtime setup
 ```
 
 | Option | Default | |

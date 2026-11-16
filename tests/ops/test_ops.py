@@ -211,8 +211,8 @@ def fake_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 @pytest.mark.usefixtures("fake_home")
 def test_init_is_idempotent(ctx: Context, project: Path) -> None:
     """init writes beamtime.yaml and the .gitignore block once."""
-    call("init", {"yes": True}, ctx)
-    assert call("init", {"yes": True}, ctx)["lines"] == ["already set up"]
+    call("setup", {"yes": True}, ctx)
+    assert call("setup", {"yes": True}, ctx)["lines"] == ["already set up"]
     assert (project / ".gitignore").read_text().count("# beamtime:") == 1
     assert "logdir: beamtime" in (project / "beamtime.yaml").read_text()
 
@@ -426,24 +426,24 @@ def test_set_writes_beamtime_yaml_and_keeps_the_rest(ctx: Context, project: Path
 
 @pytest.mark.usefixtures("fake_home")
 def test_instructions_block(project: Path) -> None:
-    """init --instructions adds the agent rules as one marked block; a rerun replaces it."""
+    """setup --instructions adds the agent rules as one marked block; a rerun replaces it."""
     from beamtime.guide.rules import END, START
 
     ctx = Context.make(caller="cli")
     (project / "AGENTS.md").write_text("# My rules\n\nBe brief.\n")
-    call("init", {"instructions": True, "yes": True}, ctx)
+    call("setup", {"instructions": True, "yes": True}, ctx)
     text = (project / "AGENTS.md").read_text()
     assert text.startswith("# My rules\n\nBe brief.\n") and text.count(START) == 1
     assert "`guide`" in text and "@<name>/<group>" in text
     stale = text.replace("Read `guide`", "Read the old guide")
     (project / "AGENTS.md").write_text(stale + "\nMine after.\n")
-    lines = call("init", {"instructions": True, "yes": True}, ctx)["lines"]
+    lines = call("setup", {"instructions": True, "yes": True}, ctx)["lines"]
     again = (project / "AGENTS.md").read_text()
     assert any("updated" in line for line in lines)
     assert again.count(START) == 1 and "Read `guide`" in again and again.endswith("Mine after.\n")
     assert again.index(END) < again.index("Mine after.")
     assert not any(
-        "Agent rules" in line for line in call("init", {"instructions": True, "yes": True}, ctx)["lines"]
+        "Agent rules" in line for line in call("setup", {"instructions": True, "yes": True}, ctx)["lines"]
     )
 
 
@@ -479,7 +479,7 @@ def test_init_and_mcp_install_work_without_a_local_log_dir(
     ctx = Context.make(caller="cli")
     assert not ctx.logdir.is_dir()
 
-    init = call("init", {"instructions": True, "yes": True}, ctx)
+    init = call("setup", {"instructions": True, "yes": True}, ctx)
     assert any("AGENTS.md" in line for line in init["lines"])
     assert "@<name>/<group>" in (root / "AGENTS.md").read_text()
 

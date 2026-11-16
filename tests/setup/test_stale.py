@@ -20,12 +20,12 @@ from beamtime.ops.context import Context
 from beamtime.settings import resolve_agent
 from beamtime.setup.agents import CLIENTS
 from beamtime.setup.changes import since
-from beamtime.ops.registry import InitParams
+from beamtime.ops.registry import SetupParams
 from beamtime.setup.plan import Answers, flags
 from beamtime.setup.scan import scan
 from beamtime.setup.stale import Stale, stale_remote
 
-USER_ONLY = ["init", "serve"]
+USER_ONLY = ["setup", "serve"]
 posix = pytest.mark.skipif(sys.platform == "win32", reason="the fake programs are shell scripts")
 
 
@@ -184,7 +184,7 @@ def test_mcp_that_starts_and_is_picked_is_current(old: Path, home: Path, bin: Pa
 def test_check_exits_3_then_0_after_yes(
     old: Path, home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """``init --check`` prints a line per item and exits 3; ``init --yes`` brings everything up to date."""
+    """``setup --check`` prints a line per item and exits 3; ``setup --yes`` brings everything up to date."""
 
     def upgraded(commands: list[list[str]], root: Path, requirements: Path | None) -> None:
         packages = root / ".venv" / "lib" / "python3.11" / "site-packages"
@@ -193,7 +193,7 @@ def test_check_exits_3_then_0_after_yes(
 
     monkeypatch.setattr("beamtime.setup.sdk.install", upgraded)
     with pytest.raises(SystemExit) as stop:
-        main(["--root", str(old), "init", "--check"])
+        main(["--root", str(old), "setup", "--check"])
     assert stop.value.code == 3
     lines = capsys.readouterr().out.strip().splitlines()
     assert [line.split(":")[0] for line in lines] == [
@@ -201,14 +201,14 @@ def test_check_exits_3_then_0_after_yes(
     ]  # fmt: skip
     assert not (old / "beamtime" / "imported").exists()
 
-    main(["--root", str(old), "init", "--yes"])
+    main(["--root", str(old), "setup", "--yes"])
     capsys.readouterr()
     assert START in (old / "CLAUDE.md").read_text() and "0.1.0" not in (old / "CLAUDE.md").read_text()
     assert "colormap" not in (old / "beamtime.yaml").read_text()
     assert (old / "beamtime" / "imported").is_dir()
     assert json.loads((old / ".mcp.json").read_text())["mcpServers"]["beamtime"]["command"] == "uv"
 
-    main(["--root", str(old), "init", "--check"])
+    main(["--root", str(old), "setup", "--check"])
     assert capsys.readouterr().out.strip() == "nothing is stale"
 
 
@@ -217,15 +217,15 @@ def test_stale_runs_are_the_default_import_and_can_be_declined(old: Path, home: 
     """The runs outside the log dir are imported by default; ``--import ''`` says none."""
     found = look(old, home)
     assert Answers.defaults(found).imports == ["runs-old/"]
-    none = Answers.from_params(msgspec.convert({"import": [""]}, InitParams), found)
+    none = Answers.from_params(msgspec.convert({"import": [""]}, SetupParams), found)
     assert none.imports == [] and flags(none, found) == ["--import ''"]
-    assert Answers.from_params(msgspec.convert({}, InitParams), found).imports == ["runs-old/"]
+    assert Answers.from_params(msgspec.convert({}, SetupParams), found).imports == ["runs-old/"]
 
 
 @posix
 def test_check_json_lists_the_items(old: Path, home: Path) -> None:
     """The answer carries each item's fields and asks for exit code 3."""
-    answer = call("init", {"check": True}, Context.make(root=old, caller="cli"))
+    answer = call("setup", {"check": True}, Context.make(root=old, caller="cli"))
     assert answer["meta"] == {"exit": 3}
     assert {s["item"] for s in answer["stale"]} >= {"rules", "mcp", "skills"}
     assert answer["written"] == []
@@ -236,7 +236,7 @@ def test_status_line(old: Path, home: Path) -> None:
     """``status`` names the release of an old rules block, and says nothing for current or no rules."""
     context = Context.make(root=old, caller="cli")
     assert call("status", {}, context)["setup"] == (
-        f"set up with {RELEASES['0.1.0.md']}; `beamtime init` updates it"
+        f"set up with {RELEASES['0.1.0.md']}; `beamtime setup` updates it"
     )
     write_block(old / "CLAUDE.md", "Written by hand.")
     assert call("status", {}, context)["setup"] is None
@@ -280,6 +280,7 @@ def test_remote_is_stale_when_older() -> None:
 def test_changes_since_a_release() -> None:
     """The noticeable changes are those of the releases after the setup's, up to the current one."""
     lines = since("0.1.1", "0.3.0")
-    assert len(lines) == 5 and lines[0].startswith("Charts")
+    assert len(lines) == 6 and lines[0].startswith("Charts")
+    assert "The setup command is now `beamtime setup`; `init` is gone." in lines
     assert since("0.2.1", "0.3.0") == lines[3:]
     assert since("0.3.0", "0.3.0") == []

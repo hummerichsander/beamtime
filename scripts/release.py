@@ -129,7 +129,7 @@ def smoke(wheel: Path, version: str) -> None:
         if version not in run(str(beamtime), "--version", capture=True):
             fail(f"the installed beamtime isn't {version}")
         project.mkdir()
-        run(str(beamtime), "--root", str(project), "init")
+        run(str(beamtime), "--root", str(project), "setup")
         run(str(python), "-c", SMOKE, cwd=project)
         runs = run(str(beamtime), "--root", str(project), "runs", "smoke", "--json", capture=True)
         if '"finished"' not in runs:

@@ -39,7 +39,7 @@ def answer(kind: str, lines: list[str], **fields: Any) -> dict[str, Any]:
     return {"kind": kind, "lines": lines, **fields, "meta": {}}
 
 
-def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
+def setup(ctx: Context, p: r.SetupParams) -> dict[str, Any]:
     """Set up the project and this machine: ask in a terminal, else plan from the flags.
 
     With a terminal and no ``--yes``, a first setup, a teammate's or a cluster's runs the wizard.
@@ -64,7 +64,7 @@ def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
     fields = {"root": str(ctx.root), "logdir": str(found.project.logdir)}
     if p.check:
         lines = [s.line for s in found.stale]
-        out = answer("init", lines or ["nothing is stale"], written=[], **fields)
+        out = answer("setup", lines or ["nothing is stale"], written=[], **fields)
         out["stale"] = [dataclasses.asdict(s) for s in found.stale]
         out["meta"] = {"exit": 3} if lines else {}
         return out
@@ -78,20 +78,20 @@ def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
         and sys.stdin.isatty()
         and sys.stdout.isatty()
     ):
-        from beamtime.setup.flow import setup
+        from beamtime.setup.flow import setup as wizard
         from beamtime.setup.term import Term
 
         try:
-            written = setup(Term.detect(), found, answers)
+            written = wizard(Term.detect(), found, answers)
         except ApplyError as e:
             raise apply_failed(e) from e
-        return answer("init", [], written=written, **fields)
+        return answer("setup", [], written=written, **fields)
     try:
         changes = plan(found, answers)
     except ValueError as e:
         raise OpError(str(e), code=2) from e
     if not changes:
-        return answer("init", ["already set up"], written=[], **fields)
+        return answer("setup", ["already set up"], written=[], **fields)
     if not p.yes:
         lines = [
             *review(changes),
@@ -100,14 +100,14 @@ def init(ctx: Context, p: r.InitParams) -> dict[str, Any]:
             "",
             command(answers, found),
         ]
-        return answer("init", lines, written=[], **fields)
+        return answer("setup", lines, written=[], **fields)
     lines: list[str] = []
     try:
         done = apply(changes, lines.append)
     except ApplyError as e:
         raise apply_failed(e) from e
     lines.append("next: log runs with beamtime.init() in your training script")
-    return answer("init", lines, written=[c.label for c in done], **fields)
+    return answer("setup", lines, written=[c.label for c in done], **fields)
 
 
 def apply_failed(e: "ApplyError") -> OpError:
@@ -117,7 +117,7 @@ def apply_failed(e: "ApplyError") -> OpError:
     :return: The error to raise."""
     return OpError(
         f"{e}\ndone: {', '.join(c.label for c in e.done) or 'nothing'}\n"
-        "run `beamtime init` again to pick up what is missing"
+        "run `beamtime setup` again to pick up what is missing"
     )
 
 

@@ -1,4 +1,4 @@
-"""What ``beamtime init`` changes: the answers, the changes and the command."""
+"""What ``beamtime setup`` changes: the answers, the changes and the command."""
 
 import dataclasses
 import os
@@ -17,7 +17,7 @@ from beamtime.settings import expand_path
 from beamtime.setup.remotes import remote_name_problem
 
 if TYPE_CHECKING:
-    from beamtime.ops.registry import InitParams
+    from beamtime.ops.registry import SetupParams
     from beamtime.settings import AgentSettings
     from beamtime.setup.importers import Found
     from beamtime.setup.scan import Scan
@@ -131,10 +131,10 @@ class Answers(msgspec.Struct, kw_only=True):
         )
 
     @classmethod
-    def from_params(cls, p: "InitParams", scan: "Scan") -> "Answers":
+    def from_params(cls, p: "SetupParams", scan: "Scan") -> "Answers":
         """Fill the answers from the flags, and what a flag leaves open from the scan.
 
-        :param p: The parameters of ``init``.
+        :param p: The parameters of ``setup``.
         :param scan: The facts of the project and the machine.
         :return: The answers.
         :raises ValueError: A flag value is malformed, or two flags contradict each other."""
@@ -278,12 +278,12 @@ def flags(answers: Answers, scan: "Scan") -> list[str]:
 
 
 def command(answers: Answers, scan: "Scan") -> str:
-    """Write the ``beamtime init --yes`` command that makes the same plan, one flag to a line.
+    """Write the ``beamtime setup --yes`` command that makes the same plan, one flag to a line.
 
     :param answers: The answers.
     :param scan: The facts the defaults come from.
     :return: The command as a shell line with ``\\`` continuations."""
-    words = ["beamtime init --yes", *flags(answers, scan)]
+    words = ["beamtime setup --yes", *flags(answers, scan)]
     return " \\\n  ".join(words)
 
 

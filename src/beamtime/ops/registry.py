@@ -492,8 +492,8 @@ Instructions = Annotated[
 ]
 
 
-class InitParams(Params, kw_only=True):
-    """Parameters of ``init``: one field per answer of the setup (``docs/design/10-setup.md``)."""
+class SetupParams(Params, kw_only=True):
+    """Parameters of ``setup``: one field per answer of the setup (``docs/design/10-setup.md``)."""
 
     runs: Annotated[
         Literal["here", "remote", "both"] | None,
@@ -1150,12 +1150,12 @@ METHODS = [
         summary="Generate a sample log dir and serve it.",
     ),
     Op(
-        name="init",
-        kind="init",
-        params=InitParams,
-        impl=f"{A}:init",
+        name="setup",
+        kind="setup",
+        params=SetupParams,
+        impl=f"{A}:setup",
         user_only=True,
-        summary="Set up this project: log dir in .gitignore, beamtime.yaml.",
+        summary="Set up this project and this machine, or change the setup.",
     ),
     Op(
         name="mcp install",

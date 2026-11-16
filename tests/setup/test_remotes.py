@@ -191,7 +191,7 @@ def test_names_must_be_known(project: Path, home: Path) -> None:  # noqa: F811
 
 @pytest.mark.parametrize("name", ["a@b", "a/b", "a=b", "a:b"])
 def test_remote_names_follow_one_rule(name: str, ctx: Context) -> None:
-    """``init --remote`` and ``source add`` refuse the same names, with one line."""
+    """``setup --remote`` and ``source add`` refuse the same names, with one line."""
     assert remote_name_problem(name) == "a remote name can't contain @, /, = or :"
     with pytest.raises(OpError, match="can't contain @, /, = or :"):
         call("source add", {"name": name, "remote": "h:/p", "command": "bt"}, ctx)

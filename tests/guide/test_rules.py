@@ -8,7 +8,7 @@ from beamtime.guide.rules import END, RELEASES, START, read_block, release_of, r
 from beamtime.settings import AgentSettings, Settings
 
 HISTORY = files("beamtime.guide") / "rules" / "history"
-USER_ONLY = ["init", "serve", "settings"]
+USER_ONLY = ["setup", "serve", "settings"]
 
 
 def agent(**given: str) -> AgentSettings:
@@ -24,7 +24,7 @@ def test_render_each_preset(style: str) -> None:
     """Every preset renders the spec's block, with its launch and record lines."""
     text = render(agent(style=style), USER_ONLY)
     assert text.startswith("## Experiments: Beamtime is the record")
-    assert "Never run user commands (init, serve, settings);" in text
+    assert "Never run user commands (setup, serve, settings);" in text
     assert "{{" not in text
     assert ("Ask before you launch a run." in text) == (style != "hands-on")
     assert ("You may launch runs." in text) == (style == "hands-on")

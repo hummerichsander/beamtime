@@ -133,7 +133,7 @@ h2 { margin: 0; font: 600 18px var(--sans); }
         <rect x="7" y="10" width="12" height="3" rx="1.5" transform="rotate(-35 13 11.5)"/>
         <rect x="12" y="5" width="12" height="3" rx="1.5" transform="rotate(-35 18 6.5)"/>
       </svg>
-      beamtime init · draft 3
+      beamtime setup · draft 3
     </div>
     <h1>The first five minutes with Beamtime</h1>
     <p class="lede">A clickable draft of the setup wizard. Pick a scenario and answer with the keyboard or the mouse; the margin explains each step, its flag and where the answer is stored. Lists that come from detection take your own entries too: try “+ Add a path” and “+ Add a host”. Draft 3 adds the agent rules, Beamtime log dirs as a source of past work, and the update path for older setups.</p>
@@ -188,7 +188,7 @@ h2 { margin: 0; font: 600 18px var(--sans); }
       <li><span class="lab">two places</span><p>Each answer says where it lands: beamtime.yaml for the team, ~/.config/beamtime for this machine. A teammate who clones the project gets only this machine's questions.</p></li>
       <li><span class="lab">presets</span><p>Agent behaviour starts from three presets, and Careful is today's behaviour. Single settings are one step further, for those who want them.</p></li>
       <li><span class="lab">the record</span><p>The agent rules say plainly that Beamtime holds the experimental record: agents look things up there and write findings there, not into CLAUDE.md, loose notes or their private memory. The block is generated from the agent settings, so the two never disagree.</p></li>
-      <li><span class="lab">one command to update</span><p>Data never migrates: every file reads in every later version. What an upgrade changes is the setup around the data (rules, MCP config, skills, settings, remote installs), so rerunning beamtime init is the update, not a separate wizard. In CI or for an agent, beamtime init --check lists what is stale without asking.</p></li>
+      <li><span class="lab">one command to update</span><p>Data never migrates: every file reads in every later version. What an upgrade changes is the setup around the data (rules, MCP config, skills, settings, remote installs), so rerunning beamtime setup is the update, not a separate wizard. In CI or for an agent, beamtime setup --check lists what is stale without asking.</p></li>
       <li><span class="lab">judgment to agents</span><p>Turning old notes and memory files into typed, linked notes needs judgment. The wizard hands that to the agent you chose and starts it if you ask; it never calls a model by itself.</p></li>
       <li><span class="lab">any terminal</span><p>Arrow keys, space and Enter, with numbers as shortcuts. Without a terminal it asks nothing and takes the flags or the defaults. Standard library only, so the CLI stays fast to start.</p></li>
       <li><span class="lab">voice</span><p>The app's voice: plain and short, states in lowercase, no emoji and no exclamation marks.</p></li>
@@ -254,7 +254,7 @@ function rulesPreview(a, v) {
   const t = tuned(a);
   const launch = { never: "Never launch runs", ask: "Ask before you launch a run", allowed: "You may launch runs" }[t.launch_runs];
   const q = s => `  ${sp("c", s)}`;
-  if (v === "none") return [sp("m", "No block is written. Agents get the MCP server and find `guide` on their own,"), sp("m", "but nothing tells them where findings belong. A later beamtime init offers it again.")];
+  if (v === "none") return [sp("m", "No block is written. Agents get the MCP server and find `guide` on their own,"), sp("m", "but nothing tells them where findings belong. A later beamtime setup offers it again.")];
   return [sp("m", `Written to ${ruleFiles(a).join(" and ")}, between beamtime markers:`), "",
     q("## Experiments: Beamtime is the record"),
     q("This project's experimental record lives in Beamtime: runs, proposals,"),
@@ -379,7 +379,7 @@ function detectPath(t) {
 const FIRST = {
   cwd: "~/research/egnn-md",
   intro: [
-    `${sp("m", "~/research/egnn-md $")} ${sp("c", "beamtime init")}`,
+    `${sp("m", "~/research/egnn-md $")} ${sp("c", "beamtime setup")}`,
     "",
     `${sp("a", "///")} ${sp("t", "beamtime")} ${sp("m", "0.3.0")}`,
     sp("r", "┌"),
@@ -630,7 +630,7 @@ const FIRST = {
       options: a => [
         ...a.agents.filter(x => agent(x).start).map(x => ({ v: x, label: `Start ${agent(x).label} now`, hint: agent(x).start })),
         { v: "copy", label: "Copy the prompt", hint: "for an editor-based agent" },
-        { v: "later", label: "Later", hint: "beamtime init --migrate brings this back" },
+        { v: "later", label: "Later", hint: "beamtime setup --migrate brings this back" },
       ],
       def: a => a.agents.find(x => agent(x).start) || "copy",
       note: {
@@ -779,7 +779,7 @@ function doneFirst(a) {
 const MATE = {
   cwd: "~/code/egnn-md",
   intro: [
-    `${sp("m", "~/code/egnn-md $")} ${sp("c", "beamtime init")}`,
+    `${sp("m", "~/code/egnn-md $")} ${sp("c", "beamtime setup")}`,
     "",
     `${sp("a", "///")} ${sp("t", "beamtime")} ${sp("m", "0.3.0")}`,
     sp("r", "┌"),
@@ -977,7 +977,7 @@ const MATE = {
 const CLUSTER = {
   cwd: "~/egnn-md",
   intro: [
-    `${sp("m", "jwlogin07:~/egnn-md $")} ${sp("c", "beamtime init")}`,
+    `${sp("m", "jwlogin07:~/egnn-md $")} ${sp("c", "beamtime setup")}`,
     "",
     `${sp("a", "///")} ${sp("t", "beamtime")} ${sp("m", "0.3.0")}`,
     sp("r", "┌"),
@@ -1104,7 +1104,7 @@ const CLUSTER = {
         `   ${sp("m", "A requeued job continues its run.")}`,
         `${sp("a", "2")}  On your laptop, in the project:`,
         `     ${sp("c", "beamtime source add juwels juwels:/p/scratch/cegnn/egnn-md/beamtime")}`,
-        `   ${sp("m", "or run beamtime init there; it finds juwels in ~/.ssh/config.")}`,
+        `   ${sp("m", "or run beamtime setup there; it finds juwels in ~/.ssh/config.")}`,
         "",
         `${sp("m", "jwlogin07:~/egnn-md $")} ${sp("blink", "▍")}`,
       ],
@@ -1137,7 +1137,7 @@ const UPGRADE = {
   seed: { agents: ["claude-code"] },
   cwd: "~/research/egnn-md",
   intro: [
-    `${sp("m", "~/research/egnn-md $")} ${sp("c", "beamtime init")}`,
+    `${sp("m", "~/research/egnn-md $")} ${sp("c", "beamtime setup")}`,
     "",
     `${sp("a", "///")} ${sp("t", "beamtime")} ${sp("m", "0.3.0")}`,
     sp("r", "┌"),
@@ -1162,7 +1162,7 @@ const UPGRADE = {
       ],
       note: {
         name: "Look around",
-        why: "The same scan as a first setup, run in a project that has one. The rules block is compared with the text every release wrote, so the wizard knows which version set the project up without stamping files. After an upgrade, `beamtime status` prints one line when a project's setup is older: \"set up with 0.1.1; beamtime init updates it\".",
+        why: "The same scan as a first setup, run in a project that has one. The rules block is compared with the text every release wrote, so the wizard knows which version set the project up without stamping files. After an upgrade, `beamtime status` prints one line when a project's setup is older: \"set up with 0.1.1; beamtime setup updates it\".",
         store: "Nothing.",
       },
     },
@@ -1284,7 +1284,7 @@ const UPGRADE = {
         ...(hasAgents(a) && a.rules !== "none" ? ["Agents read the new rules from their next session on.", ""] : []),
         `${sp("m", "~/research/egnn-md $")} ${sp("blink", "▍")}`,
       ],
-      note: { name: "Done", why: "An upgrade ends with the few changes a person would trip over, not the whole changelog. In CI or from an agent, `beamtime init --check` lists what is stale without asking anything and exits non-zero if something is." },
+      note: { name: "Done", why: "An upgrade ends with the few changes a person would trip over, not the whole changelog. In CI or from an agent, `beamtime setup --check` lists what is stale without asking anything and exits non-zero if something is." },
     },
   ],
   cmd: a => {
@@ -1313,7 +1313,7 @@ function changeStep() {
 }
 
 const cmdLines = flags => {
-  const all = ["beamtime init --yes", ...flags];
+  const all = ["beamtime setup --yes", ...flags];
   return all.map((x, i) => (i ? "  " : "") + x + (i < all.length - 1 ? " \\" : ""));
 };
 

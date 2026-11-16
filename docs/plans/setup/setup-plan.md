@@ -729,7 +729,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 
 ## N. The command's name
 
-### N11. `beamtime init` becomes `beamtime setup` (sonnet) — code
+### N11. `beamtime init` becomes `beamtime setup` (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/ops/registry.py` (`InitParams` 495 → `SetupParams`, the op 1152–1158: name, kind,
   summary), `src/beamtime/ops/admin.py` (`init` 42–110 → `setup`, `apply_failed` 113–121), `src/beamtime/ops/answers.py`

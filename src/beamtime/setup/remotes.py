@@ -54,7 +54,7 @@ class Probe:
 
 
 def remote_name_problem(name: str) -> str | None:
-    """Check a remote's name, the rule ``source add`` and ``init --remote`` share.
+    """Check a remote's name, the rule ``source add`` and ``setup --remote`` share.
 
     :param name: The name.
     :return: A one-line reason, or ``None`` when the name is fine."""

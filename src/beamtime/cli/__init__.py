@@ -195,7 +195,7 @@ class Version(argparse.Action):
 
         from beamtime import __version__
 
-        # init reads the second word to tell whether this install can serve `beamtime mcp`.
+        # setup reads the second word to tell whether this install can serve `beamtime mcp`.
         extra = "" if find_spec("mcp") else " (no serve extra)"
         print(f"beamtime {__version__}{extra}")
         parser.exit()

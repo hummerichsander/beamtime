@@ -12,7 +12,7 @@ also works on Python 3.10.
 Then, in your project folder:
 
 ```sh
-beamtime init
+beamtime setup
 ```
 
 This creates `beamtime.yaml` and a `beamtime/` folder for your runs (and keeps that folder out of

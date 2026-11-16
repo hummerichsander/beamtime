@@ -10,7 +10,7 @@ for you and your coding agent.
 
 ```sh
 pip install 'beamtime[serve]'
-beamtime init
+beamtime setup
 ```
 
 ```python

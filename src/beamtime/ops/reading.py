@@ -71,7 +71,7 @@ def evaluate(ctx: Context, query: dict[str, Any]) -> dict[str, Any]:
     if not ctx.logdir.is_dir():
         raise OpError(
             f"no log dir at {ctx.logdir}; runs appear there once a script calls "
-            "beamtime.init() (or set BEAMTIME_LOGDIR, or `beamtime init` to set up)",
+            "beamtime.init() (or set BEAMTIME_LOGDIR, or `beamtime setup` to set up)",
             code=4,
         )
     try:
@@ -212,7 +212,7 @@ def run_members(
     :param metrics: Whether to include each run's card statistics by metric.
     :return: One ``RunFacts`` per run."""
     if not ctx.logdir.is_dir():
-        raise OpError(f"no log dir at {ctx.logdir}; `beamtime init` sets one up", code=4)
+        raise OpError(f"no log dir at {ctx.logdir}; `beamtime setup` sets one up", code=4)
     try:
         with Index(logdir=ctx.logdir, settings=ctx.settings) as index:
             found = resolve(index, target, sources=ctx.remotes)
@@ -1083,7 +1083,7 @@ def setup_note(root: Path) -> str | None:
 
     if (release := outdated_release(root)) is None:
         return None
-    return f"set up with {release}; `beamtime init` updates it"
+    return f"set up with {release}; `beamtime setup` updates it"
 
 
 def sources(ctx: Context) -> list[dict[str, Any]]:

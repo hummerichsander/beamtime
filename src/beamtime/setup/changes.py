@@ -10,7 +10,8 @@ CHANGES: dict[str, tuple[str, ...]] = {
         "A run is named by its id, its name, or an id suffix of four characters or more.",
     ),
     "0.3.0": (
-        "`beamtime init` sets up a project and `beamtime init --check` lists what is stale.",
+        "The setup command is now `beamtime setup`; `init` is gone.",
+        "`beamtime setup` sets up a project and `beamtime setup --check` lists what is stale.",
         "`beamtime status` says when the setup is older than the installed release.",
     ),
 }

@@ -320,7 +320,7 @@ def rules_file(path: Path, preface: str = "") -> str:
     :param path: The file.
     :param preface: Text before the block.
     :return: The block."""
-    block = render(Settings().agent, ["init", "serve", "settings"])
+    block = render(Settings().agent, ["setup", "serve", "settings"])
     write_block(path, block)
     path.write_text(preface + path.read_text())
     return block
