@@ -668,7 +668,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
 - **Risks:** `status` doesn't import `setup/` beyond `guide/rules.py` (`test_budgets`); a hand-edited block is
   reported but not ticked (`test_edited_block_unticked`).
 
-### W14. The update flow (sonnet) — code
+### W14. The update flow (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/setup/flow.py`, `src/beamtime/ops/admin.py` (`setup`, renamed in N11: the `update`
   flow joins the terminal branch), `tests/setup/test_flow.py`.

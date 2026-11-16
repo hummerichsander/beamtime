@@ -664,6 +664,8 @@ class Planner:
 
         a = self.answers
         clients = [c for name in a.agents for c in CLIENTS if c.name == name]
+        updating = self.scan.flow == "update"
+        has_block = {f.client for f in self.scan.agents if f.has_block}
         env = self.scan.env
         if env is not None and a.sdk and self.mcp_from_env():
             env = dataclasses.replace(env, has_serve=True)
@@ -675,10 +677,16 @@ class Planner:
                 raise ValueError(f"{client.label}: {e}") from e
             if change.before is None or "mcp" in a.update or client.name == "other":
                 out.append(change)
-            if client.skills and any(
-                not (self.root / ".claude" / "skills" / n / "SKILL.md").is_file()
-                or (self.root / ".claude" / "skills" / n / "SKILL.md").read_text() != skill_text(n)
-                for n in SKILLS
+            # an update changes skills and existing rules blocks only where --update says so.
+            if (
+                client.skills
+                and (not updating or "skills" in a.update)
+                and any(
+                    not (self.root / ".claude" / "skills" / n / "SKILL.md").is_file()
+                    or (self.root / ".claude" / "skills" / n / "SKILL.md").read_text()
+                    != skill_text(n)
+                    for n in SKILLS
+                )
             ):
                 out.append(skills_change(self.root))
         if not a.rules:
@@ -687,6 +695,8 @@ class Planner:
         user_only = sorted(o.name for o in OPS if o.user_only)
         block = render(agent, user_only)
         for client in {c.rules: c for c in clients}.values():
+            if updating and client.name in has_block:
+                continue
             if read_block(self.root / client.rules) != block:
                 out.append(rules_change(client, self.root, agent, user_only))
         return out

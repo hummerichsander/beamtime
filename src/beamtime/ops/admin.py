@@ -42,7 +42,8 @@ def answer(kind: str, lines: list[str], **fields: Any) -> dict[str, Any]:
 def setup(ctx: Context, p: r.SetupParams) -> dict[str, Any]:
     """Set up the project and this machine: ask in a terminal, else plan from the flags.
 
-    With a terminal and no ``--yes``, a first setup, a teammate's or a cluster's runs the wizard.
+    With a terminal and no ``--yes``, a first setup, a teammate's, a cluster's or an update runs
+    the wizard.
     Otherwise nothing is asked, and nothing is written without ``--yes``. With ``--check`` it
     only lists what is stale and asks for exit code 3 when something is.
 
@@ -74,7 +75,7 @@ def setup(ctx: Context, p: r.SetupParams) -> dict[str, Any]:
         raise OpError(str(e), code=2) from e
     if (
         not p.yes
-        and found.flow in ("first", "teammate", "cluster")
+        and found.flow in ("first", "teammate", "cluster", "update")
         and sys.stdin.isatty()
         and sys.stdout.isatty()
     ):

@@ -4,6 +4,7 @@ import dataclasses
 import os
 import re
 import shlex
+import shutil
 import sys
 import threading
 import time
@@ -16,7 +17,9 @@ import msgspec
 import pytest
 import yaml
 
+from beamtime import __version__
 from beamtime.cli import build_parser, params_of
+from beamtime.guide.rules import write_block
 from beamtime.ops.registry import SetupParams
 from beamtime.setup.apply import apply
 from beamtime.setup.flow import FirstSetup, fill, run, setup
@@ -26,8 +29,9 @@ from beamtime.setup.scan import Past, Scan, scan
 from beamtime.setup.term import Term
 
 from .test_importers import event, simple, start, write_events
+from .test_stale import bin, look, old  # noqa: F401
 
-ENTER, SPACE, DOWN, CTRL_C = b"\r", b" ", b"\x1b[B", b"\x03"
+ENTER, SPACE, DOWN, UP, CTRL_C = b"\r", b" ", b"\x1b[B", b"\x1b[A", b"\x03"
 WHERE, LOGDIR, HOSTS = (
     "Where do your runs happen?",
     "Where should runs on this machine go?",
@@ -1081,3 +1085,187 @@ def test_setup_asks_on_a_terminal_in_every_flow_but_the_current_one(
     monkeypatch.setenv("PATH", tools("cursor", "sbatch"))
     setup(Context.make(root=root), SetupParams())
     assert seen == ["teammate", "cluster"]
+
+
+UPDATES = f"What should be brought up to {__version__}?"
+
+
+def old_probe(hosts: list[str], paths: dict[str, str | None] | None = None) -> dict[str, Probe]:
+    """Answer for the update project's machine: juwels has Beamtime 0.1.1.
+
+    :param hosts: The ssh hosts.
+    :param paths: The log dir per host.
+    :return: One probe per host."""
+    return {h: Probe(h, "ok", command="beamtime", version="0.1.1") for h in hosts}
+
+
+@pytest.fixture
+def upgrade(old: Path, home: Path) -> Scan:
+    """The project set up with 0.1.1 (the ``old`` fixture), and a remote juwels this machine knows.
+
+    :param old: The project root.
+    :param home: The fake home.
+    :return: The scan."""
+    (old / "beamtime.yaml").write_text(
+        "schema: 1\ncolormap: viridis\nremotes:\n  juwels:\n    path: /p/scratch/egnn/beamtime\n"
+    )
+    (home / ".ssh").mkdir(parents=True)
+    (home / ".ssh" / "config").write_text("Host juwels\n  User jdoe\n")
+    (home / ".config" / "beamtime").mkdir(parents=True)
+    (home / ".config" / "beamtime" / "settings.yaml").write_text("remotes:\n  juwels: {}\n")
+    return look(old, home)
+
+
+def refresh(scan_: Scan, script: list[tuple[str, bytes]], **kw) -> tuple[Session, Answers]:
+    """Run the questions of the update on a terminal with the old remote's probe.
+
+    :param scan_: The scan.
+    :param script: The keys.
+    :return: The session and the answers it filled."""
+    answers = Answers.defaults(scan_)
+    done = drive(lambda t: run(t, scan_, answers, probe=old_probe, which=fake_which, **kw), script)
+    return done, answers
+
+
+def plan_of(scan_: Scan, answers: Answers) -> list[tuple[str, str, str | None, str]]:
+    """Reduce a plan to what it shows: where, label, before, after.
+
+    :param scan_: The scan.
+    :param answers: The answers.
+    :return: One tuple per change."""
+    return [(c.where, c.label, c.before, c.after) for c in plan(scan_, answers, which=fake_which)]
+
+
+@posix
+def test_update_asks_what_is_stale_then_what_is_new(upgrade: Scan) -> None:
+    """The data check, the ticked list with a remote the probe found old, then style and rules."""
+    assert upgrade.flow == "update"
+    done, answers = refresh(
+        upgrade, [(UPDATES, ENTER), (STYLE, ENTER), (RULES, ENTER), (REVIEW, CTRL_C)]
+    )
+    assert done.stuck is None
+    out = done.output
+    assert "its setup is from 0.1.1." in out and "Only what surrounds them is updated." in out
+    assert "read as they are" in out and "! beamtime 0.1.1" in out
+    assert titles(out) == [UPDATES, STYLE, RULES]
+    assert "remote:juwels" in answers.update
+    assert answers.update == ["rules", "mcp", "skills", "settings", "sdk", "remote:juwels"]
+    assert answers.imports == ["runs-old/"] and answers.agents == ["claude-code"]
+    assert "+ Add a path" in out and "New since your setup" in out
+    review = out.split(REVIEW)[1]
+    assert review.index("your data  nothing is rewritten") < review.index("beamtime.yaml")
+    assert "kept as they are" not in review
+    assert "pip install --user" in review and "colormap" in review
+
+
+@posix
+def test_update_lists_what_was_unticked_as_kept(upgrade: Scan) -> None:
+    """An unticked item is not planned, even where a chosen agent would plan it again."""
+    untick = DOWN + DOWN + SPACE + DOWN + DOWN + DOWN + DOWN + SPACE + UP
+    done, answers = refresh(
+        upgrade, [(UPDATES, untick + ENTER), (STYLE, ENTER), (RULES, ENTER), (REVIEW, CTRL_C)]
+    )
+    assert done.stuck is None
+    assert answers.update == ["rules", "mcp", "settings", "sdk"]
+    review = done.output.split(REVIEW)[1]
+    assert "kept as they are  Claude Code skills · Beamtime on juwels" in review
+    labels = [label for _, label, _, _ in plan_of(upgrade, answers)]
+    assert ".claude/skills/" not in labels and "juwels" not in labels and "Agent rules in CLAUDE.md" in labels
+
+
+@posix
+def test_update_keeps_a_rules_block_edited_by_hand(upgrade: Scan, home: Path) -> None:
+    """A hand-edited block starts unticked and stays as it is, whatever the agent answers say."""
+    write_block(upgrade.root / "CLAUDE.md", "Written by hand.")
+    found = look(upgrade.root, home)
+    done, answers = refresh(
+        found, [(UPDATES, ENTER), (STYLE, ENTER), (RULES, ENTER), (REVIEW, CTRL_C)]
+    )
+    assert done.stuck is None and "rules" not in answers.update and answers.rules
+    assert "kept as they are  Agent rules" in done.output.split(REVIEW)[1]
+    assert not [c for c in plan_of(found, answers) if "CLAUDE.md" in c[1]]
+
+
+@posix
+def test_update_command_makes_the_same_plan(upgrade: Scan) -> None:
+    """The printed ``beamtime setup --yes`` command, parsed back, plans what the screens plan."""
+    untick = DOWN + DOWN + SPACE + DOWN
+    keys = [(UPDATES, untick + ENTER), (STYLE, DOWN + ENTER), (RULES, ENTER)]
+    done, answers = refresh(upgrade, [*keys, (REVIEW, DOWN + DOWN + ENTER)])
+    assert done.stuck is None and done.value is None
+    assert "kept as they are  Claude Code skills" in done.output.split(REVIEW)[1]
+    again = Answers.from_params(parse(printed_command(done.output)), upgrade)
+    assert again.update == answers.update and again.imports == answers.imports
+    assert plan_of(upgrade, again) == plan_of(upgrade, answers) != []
+    assert "--agent-style hands-on" in done.output and "remote:juwels" in done.output
+
+
+@posix
+def test_update_abort_leaves_no_trace(upgrade: Scan, home: Path) -> None:
+    """Ctrl-c at any question of the update, the review included, writes nothing."""
+    before = snapshot(upgrade.root, home)
+    keys = [(UPDATES, ENTER), (STYLE, ENTER), (RULES, ENTER)]
+    for at in range(len(keys) + 1):
+        script = [*keys[:at], (REVIEW if at == len(keys) else keys[at][0], CTRL_C)]
+        done, _ = refresh(upgrade, script)
+        assert done.stuck is None and done.output.rstrip().endswith("Nothing was written.")
+        assert snapshot(upgrade.root, home) == before
+
+
+@posix
+def test_update_writes_and_ends_with_what_changed(
+    upgrade: Scan, home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Writing it brings the project up to date, leaves the data alone and lists the changes."""
+    import beamtime
+
+    def upgraded(commands: list[list[str]], root: Path, requirements: Path | None) -> None:
+        packages = root / ".venv" / "lib" / "python3.11" / "site-packages"
+        shutil.rmtree(packages / "beamtime-0.1.1.dist-info")
+        (packages / f"beamtime-{__version__}.dist-info").mkdir()
+
+    monkeypatch.setattr("beamtime.setup.sdk.install", upgraded)
+    monkeypatch.setattr(beamtime, "__version__", "0.3.0", raising=False)
+    untick = DOWN * 6 + SPACE + UP
+    answers = Answers.defaults(upgrade)
+    done = drive(
+        lambda t: setup(t, upgrade, answers, probe=old_probe, which=fake_which),
+        [
+            ("What should be brought up to 0.3.0?", untick + ENTER),
+            (STYLE, ENTER),
+            (RULES, ENTER),
+            (REVIEW, ENTER),
+        ],
+    )
+    assert done.stuck is None
+    root = upgrade.root
+    assert "colormap" not in (root / "beamtime.yaml").read_text()
+    assert "Written by hand" not in (root / "CLAUDE.md").read_text()
+    assert (root / "beamtime" / "imported").is_dir() and (root / "runs-old").is_dir()
+    out = done.output
+    assert "Beamtime 0.3.0 is set up. Nothing in beamtime/ was rewritten." in out
+    assert "Changed since 0.1.1, where you may notice it" in out
+    assert "The setup command is now `beamtime setup`; `init` is gone." in out
+    assert "Agents read the new rules from their next session on." in out
+    assert [s.item for s in look(root, home).stale] == []
+
+
+def test_setup_asks_on_a_terminal_for_an_update(
+    upgrade: Scan, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``setup`` runs the wizard for an update on a terminal, and plans from the flags without one."""
+    from beamtime.ops.admin import setup as operation
+    from beamtime.ops.context import Context
+
+    seen: list[str] = []
+    monkeypatch.setattr(
+        "beamtime.setup.flow.setup",
+        lambda term, found, answers, **kw: seen.append(found.flow) or [],
+    )
+    context = Context.make(root=upgrade.root)
+    operation(context, SetupParams())
+    assert seen == []
+    monkeypatch.setattr(sys, "stdin", Tty())
+    monkeypatch.setattr(sys, "stdout", Tty())
+    operation(context, SetupParams())
+    assert seen == ["update"]

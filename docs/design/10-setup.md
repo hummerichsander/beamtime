@@ -171,6 +171,35 @@ answer` screen, starting from what is set up rather than from the defaults:
 - `Show the command` prints the command of the answers as everywhere, so it names the registered agents;
   running it plans the same changes.
 
+### The update flow
+
+The scan picks it for a project whose setup is stale ([Updating](#updating-an-older-setup)). It asks, in
+this order (strings of the mockup's `UPGRADE`), after an intro that names the setup's release ("its setup
+is from 0.1.1"; the oldest release behind a rules block, `setup_release()`):
+
+1. *Checking runs, notes and views*, a task that says the data needs nothing (runs, notes and
+   proposals, views and the index) before anything is asked.
+2. *Checking juwels* (one probe of every enabled remote the project or this machine names that ssh
+   can reach): a remote whose Beamtime is older than this one is marked `!` and becomes the item
+   `remote:<name>` (`stale_remote()`), ticked.
+3. *What should be brought up to 0.3.0?*: one row per `Scan.stale` item, with its before and after,
+   plus the remotes of step 2, all ticked except a hand-edited rules block, and `+ Add a path` for more
+   past work (the check of the first setup). The ticks are `Answers.update`, a `runs` row's folder is an
+   `Answers.imports` entry, an added path fills the import answers as in the first setup.
+4. *How much should agents do on their own?*, its form and *Tell agents that Beamtime is the record?*,
+   marked "New since your setup", only when agents are registered and the setup is from before 0.3.0
+   (or its release is unknown). `Answers.agents` is the clients with a registration, so a client the
+   setup never registered stays out. *Skip* leaves the rules blocks as they are; it never removes one.
+
+The review opens with "your data  nothing is rewritten" and the log dir's counts, lists the changes
+as everywhere, and ends with "kept as they are" and the names of the items left unticked (a rules
+block is kept as well when the answer is *Skip*). In an update flow the plan changes skills and the
+rules blocks that exist only through `--update`: an unticked item is not planned by the agent
+answers either. The apply task is called *Updating*. The wizard ends with "Beamtime 0.3.0 is set up.
+Nothing in beamtime/ was rewritten.", `changes.py:since(setup release, this release)` and, when rules
+were written, "Agents read the new rules from their next session on." Without a terminal `setup
+--yes` plans the same from the flags.
+
 ### The scan
 
 `setup/scan.py` reads only local files and runs no subprocess slower than a `--version`. It finds:
@@ -852,7 +881,7 @@ appearing as work finishes) and the review.
 | `setup/scan.py` | `Scan` and `scan(root)`: the facts above, local only |
 | `setup/plan.py` | `Answers` (msgspec, one field per flag; `defaults()`, `saved()`, `from_params()`), `Change` (where it lands, label, before, after, run) and `plan(scan, answers) -> list[Change]`; `review(changes)` writes the plan as text |
 | `setup/apply.py` | `apply(changes, say) -> list[Change]` runs a plan in order; `ApplyError(done, failed, error)` stops it at the first failure and names what was done |
-| `setup/flow.py` | `Step`, `run()`, `setup()` and `reconfigure()` ([The wizard](#the-wizard), [Reconfiguring](#reconfiguring)), the questions of each flow, their defaults from the scan |
+| `setup/flow.py` | `Step`, `run()`, `setup()` and `reconfigure()` ([The wizard](#the-wizard), [Reconfiguring](#reconfiguring)), the questions of each flow (`FirstSetup`, `Teammate`, `Cluster`, `Update`), their defaults from the scan |
 | `setup/term.py` | the prompt primitives |
 | `setup/agents.py` | the client table, `mcp_command()`, registering, the rules block written to files |
 | `setup/remotes.py` | the parallel probe, `probe_command` (also used by `source add`), the remote name rule, installs, ssh sharing |

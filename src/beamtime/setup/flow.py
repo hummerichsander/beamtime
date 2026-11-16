@@ -6,7 +6,7 @@ import shutil
 import socket
 import textwrap
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +15,7 @@ import msgspec
 from beamtime.settings import PRESETS, expand_path, user_settings_path
 from beamtime.setup.agents import CLIENTS, client_named
 from beamtime.setup.apply import apply
+from beamtime.setup.changes import since
 from beamtime.setup.importers import detect, files
 from beamtime.setup.plan import (
     BLOCK_HEADS,
@@ -27,10 +28,12 @@ from beamtime.setup.plan import (
     import_name,
     log_root,
     plan,
+    release,
     review,
 )
 from beamtime.setup.remotes import SSH_BLOCK, Probe, probe, remote_name_problem
 from beamtime.setup.scan import SCRATCH_VARS, Scan
+from beamtime.setup.stale import Stale, stale_remote
 from beamtime.setup.term import Aborted, Add, FormRow, Option, Term
 
 NUMBERS = ("no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
@@ -65,6 +68,17 @@ RULE_OPTIONS = [
     Option("record", "Write the rules", "Beamtime is the record"),
     Option("none", "Skip", "only the MCP server; agents find the tools on their own"),
 ]
+
+
+UPDATE_LABELS = {
+    "rules": "Agent rules",
+    "mcp": "MCP server registration",
+    "skills": "Claude Code skills",
+    "settings": "beamtime.yaml",
+    "sdk": "SDK in the project environment",
+}
+AGENT_SINCE = "0.3.0"
+Frame = Callable[[Term, Scan, Answers], tuple[list[str], list[str]]]
 
 
 def always(answers: Answers, scan: Scan) -> bool:
@@ -105,7 +119,8 @@ def run(
     :param probe: Asks the remote hosts what they have.
     :param which: Looks up a program on ``PATH``.
     :return: The answers to write, or ``None`` when the person quit or wanted only the command."""
-    steps = steps or flow_steps(scan, probe, which)
+    update = Update(probe=probe, which=which) if scan.flow == "update" else None
+    steps = steps or (update.steps() if update else flow_steps(scan, probe, which))
     fill(scan, answers)
     try:
         intro(term, scan)
@@ -114,7 +129,7 @@ def run(
             for step in steps[start:]:
                 if step.when(answers, scan):
                     step.ask(term, answers, scan)
-            match confirm(term, scan, answers, which):
+            match confirm(term, scan, answers, which, update.frame if update else None):
                 case "write":
                     return answers
                 case "change":
@@ -152,7 +167,7 @@ def setup(
     changes = plan(scan, final, which=which)
     said: list[str] = []
     try:
-        with term.task("Setting up") as task:
+        with term.task("Updating" if scan.flow == "update" else "Setting up") as task:
 
             def line(text: str) -> None:
                 said.append(text)
@@ -171,6 +186,10 @@ def fill(scan: Scan, answers: Answers) -> None:
 
     :param scan: The facts of the project and the machine.
     :param answers: The answers; changed in place."""
+    if scan.flow == "update":
+        if not answers.agents:
+            answers.agents = [a.client for a in scan.agents if a.registered]
+        return
     if scan.flow in ("teammate", "cluster"):
         if not answers.agents:
             answers.agents = [a.client for a in scan.agents if a.command]
@@ -230,9 +249,12 @@ def intro(term: Term, scan: Scan) -> None:
     from beamtime import __version__
 
     root = display_path(scan.root, scan.home)
+    old = setup_release(scan)
     lead = {
         "teammate": "This project uses Beamtime already. Only this machine's part is left.",
         "cluster": "This looks like a cluster login node. Setup here is short.",
+        "update": "This project uses Beamtime already; its setup is "
+        + (f"from {old}." if old else "older than this release."),
     }.get(scan.flow, f"Set up Beamtime for {root}.")
     term.emit(
         [
@@ -240,6 +262,15 @@ def intro(term: Term, scan: Scan) -> None:
             f"{term.paint('m', __version__)}",
             term.paint("r", "┌"),
             term.rail(lead),
+            *(
+                [
+                    term.rail(
+                        "Runs, notes and views need nothing. Only what surrounds them is updated."
+                    )
+                ]
+                if scan.flow == "update"
+                else []
+            ),
             term.rail(
                 term.paint(
                     "m", "Nothing is written until you confirm at the end; ctrl-c leaves no trace."
@@ -267,6 +298,17 @@ def facts(term: Term, scan: Scan) -> list[tuple[str, str]]:
         if not scan.display:
             machine.append("no browser")
         out.append(("machine", f" {m('·')} ".join(x for x in machine if x)))
+    if scan.flow == "update":
+        from beamtime import __version__
+
+        if was := setup_release(scan):
+            out.append(
+                ("beamtime", f"{__version__} here {m('· the project was set up with ' + was)}")
+            )
+        out.append(("log dir", f"{shown(scan.project.logdir, scan)} {m('·')} {counts(scan)}"))
+        if scan.project.remotes:
+            names = f" {m('·')} ".join(scan.project.remotes)
+            out.append(("remotes", f"{names} {m('(from beamtime.yaml)')}"))
     if scan.project.settings and scan.flow in ("teammate", "cluster"):
         agent = (Planner.read(scan.root / "beamtime.yaml").get("agent") or {}).get("style")
         project = ["beamtime.yaml", f"logdir {shown(scan.project.logdir, scan).rstrip('/')}"]
@@ -353,6 +395,32 @@ def disk_facts(scan: Scan) -> list[str]:
     return out
 
 
+def setup_release(scan: Scan) -> str | None:
+    """Name the oldest release that wrote a rules block of this project.
+
+    :param scan: The facts of the project and the machine.
+    :return: The release, or ``None`` when no block has one (none, or edited by hand)."""
+    found = [a.release for a in scan.agents if a.has_block and a.release]
+    return min(found, key=release, default=None)
+
+
+def counts(scan: Scan) -> str:
+    """Count what the log dir holds, in words.
+
+    :param scan: The facts of the project and the machine.
+    :return: E.g. ``214 runs, 31 notes, 4 proposals, 2 memories``."""
+    p = scan.project
+    words = [
+        (p.runs, "run", "runs"),
+        (p.notes, "note", "notes"),
+        (p.proposals, "proposal", "proposals"),
+        (p.memories, "memory", "memories"),
+    ]
+    return (
+        ", ".join(f"{n} {one if n == 1 else many}" for n, one, many in words if n) or "no runs yet"
+    )
+
+
 def shown(path: Path, scan: Scan) -> str:
     """Write a path as the person would: below the project, then ``~``, else absolute.
 
@@ -375,13 +443,20 @@ def notes_name(notes: Any) -> str:
     return notes.path.name + ("/" if notes.path.is_dir() else "")
 
 
-def confirm(term: Term, scan: Scan, answers: Answers, which: Callable[[str], str | None]) -> str:
+def confirm(
+    term: Term,
+    scan: Scan,
+    answers: Answers,
+    which: Callable[[str], str | None],
+    frame: Frame | None = None,
+) -> str:
     """Show the review and ask what to do with it.
 
     :param term: The terminal.
     :param scan: The facts of the project and the machine.
     :param answers: The answers.
     :param which: Looks up a program on ``PATH``.
+    :param frame: The lines before and after the changes, for flows that have them.
     :return: ``write``, ``change``, ``command``, or ``none`` when there is nothing to change."""
     try:
         changes = plan(scan, answers, which=which)
@@ -391,6 +466,9 @@ def confirm(term: Term, scan: Scan, answers: Answers, which: Callable[[str], str
     if not changes:
         return "none"
     body = [line if line.startswith(" ") else term.paint("t", line) for line in review(changes)]
+    if frame:
+        head, tail = frame(term, scan, answers)
+        body = [*head, *body, *tail]
     if scan.flow in ("teammate", "cluster") and all(c.label != "beamtime.yaml" for c in changes):
         body += ["", f"{term.paint('t', 'beamtime.yaml')}  {term.paint('m', 'unchanged')}"]
     return term.select(
@@ -436,6 +514,8 @@ def next_steps(term: Term, scan: Scan, answers: Answers) -> None:
     :param scan: The facts of the project and the machine.
     :param answers: The answers."""
     name = scan.root.name
+    if scan.flow == "update":
+        return next_steps_updated(term, scan, answers)
     if scan.flow in ("teammate", "cluster"):
         return next_steps_there(term, scan, answers)
     if scan.framework == "lightning":
@@ -462,6 +542,31 @@ def next_steps(term: Term, scan: Scan, answers: Answers) -> None:
             f"   {a.format('3')}  {third}",
         ]
     )
+
+
+def next_steps_updated(term: Term, scan: Scan, answers: Answers) -> None:
+    """Say that the data stayed, and what changed since the setup's release.
+
+    :param term: The terminal.
+    :param scan: The facts of the project and the machine.
+    :param answers: The answers."""
+    from beamtime import __version__
+
+    old = setup_release(scan)
+    logdir = shown(scan.project.logdir, scan)
+    lines = [
+        f"{term.paint('r', '└')}  "
+        + term.paint("t", f"Beamtime {__version__} is set up. Nothing in {logdir} was rewritten.")
+    ]
+    if changed := since(old or "0.0.0", __version__):
+        title = (
+            f"Changed {f'since {old}' if old else 'in recent releases'}, where you may notice it"
+        )
+        lines += ["", f"   {term.paint('m', title)}"]
+        lines += [f"   {term.paint('a', '·')}  {line}" for line in changed]
+    if answers.agents and answers.rules:
+        lines += ["", "   Agents read the new rules from their next session on."]
+    term.emit(lines)
 
 
 def next_steps_there(term: Term, scan: Scan, answers: Answers) -> None:
@@ -514,6 +619,9 @@ class Row:
 
 class FirstSetup:
     """The questions of the first setup, in the order of the mockup."""
+
+    style_hint: str | None = None
+    rules_hint = "Agents read this block at the start of every session."
 
     def __init__(
         self,
@@ -801,6 +909,7 @@ class FirstSetup:
             "How much should agents do on their own?",
             options,
             default,
+            self.style_hint,
             body=[term.paint("m", b) for b in body],
         )
         self.fine = chosen == "custom"
@@ -873,7 +982,7 @@ class FirstSetup:
             "Tell agents that Beamtime is the record?",
             RULE_OPTIONS,
             "record" if a.rules else "none",
-            "Agents read this block at the start of every session.",
+            self.rules_hint,
             body,
         )
         a.rules = choice == "record"
@@ -1028,6 +1137,232 @@ class FirstSetup:
             )
             == "yes"
         )
+
+
+class Update(FirstSetup):
+    """The questions of an update: what is stale, and only what is new since the setup's release."""
+
+    style_hint = "New since your setup: one preset instead of rules spelled out by hand."
+    rules_hint = "New since your setup: the rules say where findings belong."
+
+    def __init__(
+        self,
+        *,
+        probe: Callable[..., dict[str, Probe]] = probe,
+        which: Callable[[str], str | None] = shutil.which,
+    ) -> None:
+        """Keep what the questions share, and the stale remotes the probe finds.
+
+        :param probe: Asks the remote hosts what they have.
+        :param which: Looks up a program on ``PATH``."""
+        super().__init__(probe=probe, which=which)
+        self.remote_stale: list[Stale] = []
+        self.total = 0
+
+    def steps(self) -> list[Step]:
+        """List the questions in order; the agent questions only for a setup before they existed.
+
+        :return: The steps."""
+        from beamtime import __version__
+
+        new = [s for s in super().steps() if s.id in ("style", "tune", "rules")]
+        return [
+            Step(id="data", title="Checking runs, notes and views", ask=self.ask_data),
+            Step(
+                id="check",
+                title="Checking machines",
+                ask=self.ask_check,
+                when=lambda a, s: bool(self.hosts(s)),
+            ),
+            Step(
+                id="updates",
+                title=f"What should be brought up to {__version__}?",
+                ask=self.ask_updates,
+                summary=self.updates_summary,
+            ),
+            *[
+                replace(step, when=lambda a, s, ask=step.when: ask(a, s) and self.agents_are_new(s))
+                for step in new
+            ],
+        ]
+
+    def agents_are_new(self, scan: Scan) -> bool:
+        """Say whether the setup is older than the agent settings and the rules question.
+
+        :param scan: The facts of the project and the machine.
+        :return: ``True`` when its release is before 0.3.0 or unknown."""
+        return (old := setup_release(scan)) is None or release(old) < release(AGENT_SINCE)
+
+    def ask_data(self, term: Term, a: Answers, scan: Scan) -> None:
+        """Say that the data needs nothing, before anything is asked.
+
+        :param term: The terminal.
+        :param a: The answers.
+        :param scan: The facts of the project and the machine."""
+        p = scan.project
+        done = lambda key, text: (  # noqa: E731
+            f"{term.paint('g', '✓')} {key.ljust(15)}{term.paint('m', text)}"
+        )
+        with term.task("Checking runs, notes and views") as task:
+            if p.runs:
+                task.line(done(f"{p.runs} runs", "read as they are"))
+            if p.notes or p.proposals or p.memories:
+                task.line(done("notes, proposals", "read as they are"))
+            task.line(done("views", "read as they are"))
+            task.line(done("index", "a cache; rebuilt in the background when its schema changed"))
+
+    def hosts(self, scan: Scan) -> dict[str, str]:
+        """List the remotes of the project and of this machine that are not switched off.
+
+        :param scan: The facts of the project and the machine.
+        :return: Each remote's name with the ssh host it is reached by."""
+        mine, given = user_remotes(), project_remotes(scan)
+        names = [*given, *(n for n in mine if n not in given)]
+        return {
+            n: (mine.get(n) or {}).get("host") or n
+            for n in names
+            if (mine.get(n) or {}).get("enabled") is not False
+        }
+
+    def ask_check(self, term: Term, a: Answers, scan: Scan) -> None:
+        """Probe the remotes at once; one with an older Beamtime becomes a ticked item.
+
+        :param term: The terminal.
+        :param a: The answers; ``update`` gains the stale remotes.
+        :param scan: The facts of the project and the machine."""
+        given = {**user_remotes(), **project_remotes(scan)}
+        aliases = {h.name for h in scan.ssh_hosts}
+        hosts = self.hosts(scan)
+        reach = {n: h for n, h in hosts.items() if "@" in h or h in aliases}
+        names = list(hosts)
+        self.remote_stale = []
+        with term.task(
+            f"Checking {names[0] if len(names) == 1 else f'{len(names)} machines'}"
+        ) as t:
+            found = (
+                self.probe(
+                    list(reach.values()),
+                    {h: (given.get(n) or {}).get("path") for n, h in reach.items()},
+                )
+                if reach
+                else {}
+            )
+            for name, host in hosts.items():
+                if name not in reach:
+                    t.line(
+                        f"{name.ljust(12)}{term.paint('w', '!')} ssh  "
+                        + term.paint("m", "no such host here; add it to ~/.ssh/config")
+                    )
+                    continue
+                t.line(probe_line(term, name, found[host]))
+                if found[host].status == "ok" and (item := stale_remote(name, found[host].version)):
+                    self.remote_stale.append(item)
+                    if item.item not in a.update:
+                        a.update = [*a.update, item.item]
+
+    def ask_updates(self, term: Term, a: Answers, scan: Scan) -> None:
+        """Ask which stale items to bring up to date, and which more past work to bring in.
+
+        :param term: The terminal.
+        :param a: The answers; ``update`` and the imports are changed in place.
+        :param scan: The facts of the project and the machine."""
+        from beamtime import __version__
+
+        by_agent = bool(a.agents)
+        current = [*a.update, *a.imports, *a.import_notes, *a.import_memory]
+        options = []
+        for stale in [*scan.stale, *self.remote_stale]:
+            if stale.item != "runs":
+                options.append(
+                    Option(stale.item, self.name_of(stale), f"{stale.before}  →  {stale.after}")
+                )
+            elif past := next(
+                (p for p in scan.past if shown(p.found.path, scan) == stale.path), None
+            ):
+                found = past.found
+                self.rows[stale.path] = Row(
+                    "imports", found.n, found.label, import_name(found.path), found.kind
+                )
+                options.append(self.option(stale.path, by_agent, True))
+        shown_rows = {o.value for o in options}
+        options += [
+            self.option(v, by_agent, False)
+            for v in self.rows
+            if v in current and v not in shown_rows
+        ]
+        self.total = len(options)
+        picked = term.multi(
+            f"What should be brought up to {__version__}?",
+            options,
+            current,
+            Add(
+                "Add a path",
+                "another log dir, notes folder or memory files",
+                lambda t: self.check_path(t, scan, by_agent),
+            ),
+        )
+        items = {s.item for s in [*scan.stale, *self.remote_stale]}
+        a.update = [*(u for u in a.update if u not in items), *(v for v in picked if v in items)]
+        for field in ("imports", "import_notes", "import_memory"):
+            setattr(a, field, [v for v in picked if v in self.rows and self.rows[v].field == field])
+
+    def updates_summary(self, a: Answers, scan: Scan) -> str:
+        """Count what is brought up to date.
+
+        :param a: The answers.
+        :param scan: The facts of the project and the machine.
+        :return: One line."""
+        n = len(a.update) + len(a.imports) + len(a.import_notes) + len(a.import_memory)
+        return f"{n} of {self.total} things"
+
+    def name_of(self, stale: Stale) -> str:
+        """Name a stale item as a row of the list.
+
+        :param stale: The item.
+        :return: E.g. ``Agent rules``, ``Beamtime on juwels`` or the folder of runs."""
+        if stale.item.startswith("remote:"):
+            return f"Beamtime on {stale.item.removeprefix('remote:')}"
+        return stale.path or UPDATE_LABELS.get(stale.item, stale.item)
+
+    def kept(self, a: Answers, scan: Scan) -> list[str]:
+        """Name the stale items the answers leave as they are.
+
+        :param a: The answers.
+        :param scan: The facts of the project and the machine.
+        :return: The names, in the order of the list."""
+        out = []
+        for stale in [*scan.stale, *self.remote_stale]:
+            match stale.item:
+                case "runs":
+                    taken = stale.path in a.imports
+                case "rules":
+                    taken = "rules" in a.update and a.rules
+                case _:
+                    taken = stale.item in a.update
+            if not taken:
+                out.append(self.name_of(stale))
+        return out
+
+    def frame(self, term: Term, scan: Scan, a: Answers) -> tuple[list[str], list[str]]:
+        """Write the lines around the review: the data, untouched, first, and what was kept last.
+
+        :param term: The terminal.
+        :param scan: The facts of the project and the machine.
+        :param a: The answers.
+        :return: The lines before the changes and the lines after them."""
+        logdir = shown(scan.project.logdir, scan)
+        head = [
+            f"{term.paint('t', 'your data')}  {term.paint('m', 'nothing is rewritten')}",
+            f"  {term.paint('m', logdir.ljust(18))}{counts(scan)} · as they are",
+            "",
+        ]
+        kept = self.kept(a, scan)
+        tail = (
+            ["", f"{term.paint('t', 'kept as they are')}  {term.paint('m', ' · '.join(kept))}"]
+            if kept
+            else []
+        )
+        return head, tail
 
 
 class Teammate:
@@ -1491,6 +1826,11 @@ def probe_line(term: Term, host: str, found: Probe) -> str:
     name = host.ljust(12)
     match found.status:
         case "ok":
+            from beamtime import __version__
+
+            if found.version and release(found.version) < release(__version__):
+                warn, note = term.paint("w", "!"), m(f"· older than {__version__}")
+                return f"{name}{good} ssh  {warn} beamtime {found.version}  {note}"
             disk = f" {m('· ' + disk_note(found))}" if disk_note(found) else ""
             return f"{name}{good} ssh  {good} beamtime {found.version}{disk}"
         case "no_beamtime":
