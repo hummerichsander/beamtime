@@ -208,6 +208,22 @@ def test_answer_json_ignores_other_fences() -> None:
     assert grade.answer_json("```json\n[1, 2]\n```") is None
 
 
+@pytest.mark.parametrize("info", ["python3", "c++", "py title=x", "shell-session"])
+def test_answer_json_after_other_info_strings(info: str) -> None:
+    """A fence whose info string is not a plain word does not swallow the answer after it."""
+    text = f'```{info}\nx = 1\n```\n\nDone.\n\n```JSON\n{{"a": 1}}\n```\n'
+    assert grade.answer_json(text) == {"a": 1}
+
+
+def test_unknown_check_kind(tmp_path: Path) -> None:
+    """A task file with a misspelt check kind fails on load instead of scoring 0."""
+    (tmp_path / "x.yaml").write_text(
+        "prompt: p\nanswer: '{}'\ntime_limit_s: 1\nchecks:\n  a: {kind: equals, truth: a}\n"
+    )
+    with pytest.raises(ValueError, match="equals"):
+        grade.load_tasks(tmp_path)
+
+
 @pytest.mark.parametrize("lr", [0.0003, "0.0003", "3e-4", "3.0e-4", "3E-4", 3e-4])
 def test_lr_forms(tasks: dict[str, grade.Task], project: Path, lr: Any) -> None:
     """A learning rate written in any form equals the truth as a float."""

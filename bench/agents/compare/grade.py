@@ -15,6 +15,18 @@ SETUPS = ["mcp", "cli", "files", "tensorboard"]
 PNG = b"\x89PNG\r\n\x1a\n"
 COLUMNS = ("run_id", "lr", "seed", "finished", "val_acc")
 YES = {"yes", "y", "true", "1", "finished", "completed", "complete", "done"}
+KINDS = {
+    "equal",
+    "close",
+    "set",
+    "f1",
+    "contains",
+    "cause",
+    "file",
+    "table_ids",
+    "table_values",
+    "table_finished",
+}
 
 
 @dataclass(kw_only=True)
@@ -34,8 +46,11 @@ class Task:
         """Read a task from ``tasks/<id>.yaml``; the prompt ends with the answer line.
 
         :param file: The task file; its stem is the task id.
-        :return: The task."""
+        :return: The task.
+        :raises ValueError: When a check has an unknown kind; grading would score it 0 silently."""
         data = yaml.safe_load(file.read_text())
+        if unknown := {c["kind"] for c in data["checks"].values()} - KINDS:
+            raise ValueError(f"{file.name}: unknown check kinds {sorted(unknown)}")
         answer = data["answer"].strip()
         data["prompt"] = (
             f"{data['prompt'].strip()}\n\nEnd your reply with a fenced json block: {answer}"
@@ -65,11 +80,11 @@ def answer_json(text: str) -> dict[str, Any] | None:
 
     :param text: The agent's reply.
     :return: The block as a dict, or ``None`` when there is none or the last one is malformed."""
-    fences = re.findall(r"```([a-z]*)[ \t]*\n(.*?)```", text, re.DOTALL | re.IGNORECASE)
+    fences = re.findall(r"```([^`\n]*)\n(.*?)```", text, re.DOTALL)
     blocks = [
         body
-        for lang, body in fences
-        if lang.lower() in ("", "json") and body.lstrip().startswith("{")
+        for info, body in fences
+        if (info.split() or [""])[0].lower() in ("", "json") and body.lstrip().startswith("{")
     ]
     if not blocks:
         return None
