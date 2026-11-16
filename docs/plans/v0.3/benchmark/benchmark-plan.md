@@ -309,7 +309,7 @@ One function per task id (names in J71), each pure Python over `runs/*/*/metrics
 - **Risks:** a PDF or SVG instead of a PNG → convert nothing, score `file` 0 (`test_not_png`); the judge
   seeing the project → run it in a copy holding only the image (`test_judge_sees_only_image`).
 
-### J73. Setups: projects, instructions, tools, environments (sonnet + review) — code
+### J73. Setups: projects, instructions, tools, environments (sonnet + review) — code — **done**
 
 - **Touches:** new `bench/agents/compare/setups.py`, new `tests/bench/test_compare_setups.py`.
 - **Read:** `bench/agents/run.py` `project` 106–139 (after N71); Decisions 1, 2, 5, 10.

@@ -156,3 +156,19 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   (`Grade.notes` keeps the judge's reasons). A file that is not a PNG (PDF, SVG) scores 0 on `file` and
   all items without a judge call; a usage-limit answer raises `score.JudgeStalled`, so the session
   stays ungraded.
+- `compare/setups.py`: `SETUPS` (`mcp`, `cli`, `files`, `tensorboard`) and `prepare(setup, session_dir,
+  data_dir, envs)`, which builds a session's project in `session_dir/proj` and returns a `Project`: the
+  data (a copy of the log dir plus `beamtime.yaml` for `mcp` and `cli`, `runs/` for `files`, `tb/` for
+  `tensorboard`, exported by the `beamtime` environment since it has tensorboard), a CLAUDE.md that is
+  the same preamble byte for byte plus a `## Data` section (Beamtime's rules block as shipped, with
+  default agent settings, or four lines on the files), the tool list (`Bash,Read,Write,Edit,Glob,Grep`
+  everywhere, plus `mcp__beamtime__*` allowed for `mcp`), the MCP config (`mcp` only), and the session's
+  environment: a PATH that starts with the setup's venv and drops every host folder holding a `beamtime`,
+  its own `BEAMTIME_CACHE` and `XDG_CONFIG_HOME` inside the session folder. `Project.flags` are the
+  `claude` flags (`--tools`, `--allowedTools`, `--strict-mcp-config`, `--mcp-config` for `mcp`,
+  `--setting-sources project`, `--disable-slash-commands`, `--no-session-persistence`); the session
+  adds the prompt, model and output format. Only `cli` has `beamtime` on the PATH; `mcp` reaches the
+  server through the absolute command in its MCP config. A Beamtime project's index is warmed with
+  `beamtime runs` before the session. `make_envs(root)` builds the two venvs with `uv venv` and
+  `uv pip install` (`base`: numpy, pandas, scipy, matplotlib, tensorboard; `beamtime`: the same plus this
+  checkout's `beamtime[serve]`) and keeps venvs that exist.
