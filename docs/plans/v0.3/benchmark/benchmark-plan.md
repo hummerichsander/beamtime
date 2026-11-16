@@ -123,7 +123,9 @@ What's left runs in this order: N71 M71 M72 M73 M74 J71 J72 J73 J74 L71 L72 U71 
    metric (step, wall time), the hparams plugin summary, `hparams.yaml`, and `output.log`.
 6. **Truth from data, not literals** (assumed): computed per seed from the plain-files export, with
    status from `_run.json`; "completed" means status `finished`. A test checks it against Beamtime's
-   own query path for seed 7.
+   own query path for seed 7. Truth and tasks tell only finished from not finished: no truth value
+   and no graded check distinguishes running, lost and killed (Beamtime calls a run lost after 300 s,
+   so setups would disagree on the synthetic "lost" and "running" runs).
 7. **Answers as JSON** (assumed): every prompt ends with the same kind of answer line; grading parses
    the last fenced `json` block. A missing or malformed block scores 0 on its checks. Rejected: regexes
    over prose, which fail across seeds (Finding 5) and across setups' wording.
@@ -240,7 +242,7 @@ What's left runs in this order: N71 M71 M72 M73 M74 J71 J72 J73 J74 L71 L72 U71 
    `tensorboard.compat.proto`, `hparams_pb` from `tensorboard.plugins.hparams.summary_v2`.
 2. One event per (row, metric) with `step=_step`, `wall_time=_t`; one hparams event at the first time.
 
-### M74. Truth from the exported numbers (sonnet + review) — reproduced
+### M74. Truth from the exported numbers (sonnet + review) — reproduced — **done**
 
 - **Touches:** new `bench/agents/compare/truth.py`, new `tests/bench/test_compare_truth.py`.
 - **Read:** J71's task table (below) for what each task needs; `src/beamtime/record/stats.py`

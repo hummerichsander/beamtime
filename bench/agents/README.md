@@ -127,3 +127,9 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   value is float32, within 1e-6 relative) and an hparams event with the config flattened by `.` (lists
   and `None` as JSON text), while `hparams.yaml` keeps it nested. It needs `tensorboard` only, no
   TensorFlow or PyTorch, so tests run under `uv run --with tensorboard` and skip without it.
+- `compare/truth.py`: `compute(files_root, logdir)` gives every task's expected values (`best-config`,
+  `failures`, `sweep-summary`, `check-prediction`, `chart`, `find-runs`, `fastest`, `table`) in pure
+  Python from the plain-files export, so it is computed per seed at grading time and never written into
+  a session's reach. Only finished runs enter a mean (`_run.json` status `finished`); the final value is
+  the last logged value of a metric; the intervals are Beamtime's own `welch_interval` at 95 %. Truth
+  and graded checks tell finished from not finished only: running, lost and killed runs are alike.
