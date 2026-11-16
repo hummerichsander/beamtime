@@ -1691,3 +1691,23 @@ def test_setup_without_a_terminal_rewrites_the_edited_rules_only_on_request(
     assert operation(context, SetupParams())["lines"] == ["already set up"]
     operation(context, SetupParams(yes=True, update=["rules"]))
     assert read_block(edited.root / "CLAUDE.md") != block
+
+
+def test_saved_remote_without_a_host(current: Scan, home: Path) -> None:
+    """A remote whose settings name no host (ssh then uses its name) is left as it is."""
+    file = home / ".config" / "beamtime" / "settings.yaml"
+    mine = yaml.safe_load(file.read_text())
+    del mine["remotes"]["juwels"]["host"]
+    mine["remotes"]["juwels"]["command"] = "beamtime"
+    file.write_text(yaml.safe_dump(mine))
+    assert plan(current, Answers.saved(current), which=fake_which) == []
+
+
+@posix
+def test_reconfigure_command_plans_the_review(current: Scan) -> None:
+    """The command shown after a pick plans what the review listed, with the remote and agents."""
+    script = [(LIST, b"9" + ENTER), (GIT, b"2" + ENTER), (REVIEW, DOWN + DOWN + ENTER)]
+    done, answers = reconfigure_run(current, script)
+    assert done.stuck is None
+    again = Answers.from_params(parse(printed_command(done.output)), current)
+    assert labels(current, again) == labels(current, answers) == [".gitignore"]

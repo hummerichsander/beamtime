@@ -619,7 +619,9 @@ class Planner:
         for r in a.remotes:
             old = remotes.get(r.name) or {}
             conf = {k: v for k, v in old.items() if k != "enabled" or v is not False}
-            conf["host"] = r.host or old.get("host") or r.name
+            # an entry without a host already means its name; don't rewrite it to say so.
+            if r.host or not conf:
+                conf["host"] = r.host or r.name
             if r.name in a.install_remotes:
                 conf.setdefault("command", REMOTE_COMMAND)
             if conf != old:
