@@ -1,15 +1,15 @@
 # Hosts: several sources on one remote host
 
 Base commit `84c96a4`, branch `setup`. Proposed 2026-11-16, based on the dataset request
-(`docs/plans/datasets/beamtime-dataset-request.md`), the user's setup of the data root (one cluster host carrying
+(`docs/plans/v0.3/datasets/beamtime-dataset-request.md`), the user's setup of the data root (one cluster host carrying
 the log dirs of several projects plus a shared data directory) and the interview of 2026-11-16. It runs **after the
 setup plan** (`docs/plans/setup/setup-plan.md`; W15, W16 and D11 open at the base commit) and **before the datasets
-plan** (`docs/plans/datasets/datasets-plan.md`), which builds on it. Behaviour changes are allowed; they are listed
+plan** (`docs/plans/v0.3/datasets/datasets-plan.md`), which builds on it. Behaviour changes are allowed; they are listed
 in [Breaking changes](#breaking-changes).
 
-Run a ticket with `/run-ticket docs/plans/hosts/hosts-plan.md <ID>` in a fresh session; review tickets marked
-`+ review` with `/review-ticket docs/plans/hosts/hosts-plan.md <ID>` on a stronger model.
-`ticket.py status docs/plans/hosts/hosts-plan.md` shows what's done and what's next.
+Run a ticket with `/run-ticket docs/plans/v0.3/hosts/hosts-plan.md <ID>` in a fresh session; review tickets marked
+`+ review` with `/review-ticket docs/plans/v0.3/hosts/hosts-plan.md <ID>` on a stronger model.
+`ticket.py status docs/plans/v0.3/hosts/hosts-plan.md` shows what's done and what's next.
 
 ## Goal
 
@@ -35,36 +35,36 @@ Run a ticket with `/run-ticket docs/plans/hosts/hosts-plan.md <ID>` in a fresh s
 
 | # | Finding | Root cause | Evidence | Ticket |
 |---|---|---|---|---|
-| 1 | Two log dirs on gpu04 need two remotes, two ssh connections, two `serve --stdio` processes | `remote/sources.py` `spec_of` (12–32) makes one `Spec` per remote entry; `Sources.__init__` (60–68) one `RemoteClient` per spec; `Spec.argv` (`remote/client.py` 54–80) passes one `--logdir` | code | C31 P31 L31 |
-| 2 | A source name can't say "this log dir on that host" | `Place.parse` (`format/place.py` 18–29) reads `@name/path`; the name is opaque, which is what makes `host:source` work without a grammar change | code | S31 C31 |
-| 3 | `serve cluster:scaling` uses `:` to narrow a remote to a group | `parse_arg` (`remote/sources.py` 35–54) | code | R31 |
-| 4 | Settings know only flat remotes | `settings.REMOTE_KEYS` (27), the check in `check_file` (276–287), `write_remote`/`remove_remote` (457–485), `Settings.remotes` (178–187) | code | C31 A31 |
-| 5 | Callers build specs themselves in five places | `serve/server.py` 210–231, `views/render.py` 234–249, `remote/sources.py` `client_for` 91–111, `ops/admin.py` `remote_checks` 311 and `source_list` 391, `ops/reading.py` `sources` 1088 | code | R31 |
-| 6 | The sidebar has one root per source | `web/src/shell/tree.ts` `buildTree` (21–50); `web/src/router.ts` `sourcedRun` 80, source root 85–91 | code | U31 |
+| 1 | Two log dirs on gpu04 need two remotes, two ssh connections, two `serve --stdio` processes | `remote/sources.py` `spec_of` (12–32) makes one `Spec` per remote entry; `Sources.__init__` (60–68) one `RemoteClient` per spec; `Spec.argv` (`remote/client.py` 54–80) passes one `--logdir` | code | C81 P81 L81 |
+| 2 | A source name can't say "this log dir on that host" | `Place.parse` (`format/place.py` 18–29) reads `@name/path`; the name is opaque, which is what makes `host:source` work without a grammar change | code | S81 C81 |
+| 3 | `serve cluster:scaling` uses `:` to narrow a remote to a group | `parse_arg` (`remote/sources.py` 35–54) | code | R81 |
+| 4 | Settings know only flat remotes | `settings.REMOTE_KEYS` (27), the check in `check_file` (276–287), `write_remote`/`remove_remote` (457–485), `Settings.remotes` (178–187) | code | C81 A81 |
+| 5 | Callers build specs themselves in five places | `serve/server.py` 210–231, `views/render.py` 234–249, `remote/sources.py` `client_for` 91–111, `ops/admin.py` `remote_checks` 311 and `source_list` 391, `ops/reading.py` `sources` 1088 | code | R81 |
+| 6 | The sidebar has one root per source | `web/src/shell/tree.ts` `buildTree` (21–50); `web/src/router.ts` `sourcedRun` 80, source root 85–91 | code | U81 |
 
 ## Brief
 
-- **Names** (S31, C31): a host entry under `remotes:` has either `path:` (one unnamed source, the remote's own name, as
+- **Names** (S81, C81): a host entry under `remotes:` has either `path:` (one unnamed source, the remote's own name, as
   today) or `sources:` (named sources), never both. The routed source name of a named source is
   `<host>:<source>`, e.g. `gpu04:flows`. `Place.parse` is unchanged and returns `source="gpu04:flows"`; `Place` gains
   read-only `host` and `name` properties that split at the first `:`. `@local` alone still normalizes to `None`.
-- **Source specs** (C31): `remote/sources.py` `configured(settings) -> dict[str, Spec]` is the one place that turns
+- **Source specs** (C81): `remote/sources.py` `configured(settings) -> dict[str, Spec]` is the one place that turns
   settings into specs, keyed by routed name. `Spec` gains `host_key: str` (the entry's name), `source: str | None`
   (`None` for a `path:` remote), `kind: Literal["logdir", "datasets"]` and `depth: int` (datasets only, default 2).
   `spec_of` goes.
-- **One connection per host** (P31, L31): `serve --stdio` takes `--source NAME=PATH` and `--datasets NAME=PATH`
+- **One connection per host** (P81, L81): `serve --stdio` takes `--source NAME=PATH` and `--datasets NAME=PATH`
   (repeatable) besides `--logdir`. Every request line may carry `"source": NAME`; without it the `--logdir` source
   answers. `RemoteClient` is the host's connection; `SourceClient(conn, source)` is what `Sources.clients` holds per
   routed name, with the old surface (`name`, `spec`, `state`, `request`, `describe`, `subscribe`). Code that iterates
   `ctx.sources.clients` keeps working.
-- **Protocol** (P31): minor version up; `hello` answers `sources: [{name, kind}]`. A host whose remote answers
+- **Protocol** (P81): minor version up; `hello` answers `sources: [{name, kind}]`. A host whose remote answers
   `hello` without `sources` while the settings name sources is unreachable with the upgrade command, as for the
   bundle methods.
-- **Data roots** (C31, P31, R31): a `datasets` source has a `Context` whose `logdir` is the data root and
+- **Data roots** (C81, P81, R81): a `datasets` source has a `Context` whose `logdir` is the data root and
   `kind="datasets"`; every operation on it raises
   `OpError("@<name> is a data root; read it with beamtime dataset list", code=2)` until the datasets plan.
   Federated listings skip data roots.
-- **Writing settings** (A31, W31): `source add gpu04:md gpu04:/path` writes `remotes.gpu04.sources.md`, and
+- **Writing settings** (A81, W81): `source add gpu04:md gpu04:/path` writes `remotes.gpu04.sources.md`, and
   `--datasets` writes `{datasets: <path>}`. `host` and `command` go to the user settings and source paths to the
   project, as for remotes today.
 
@@ -78,13 +78,13 @@ is marked done in the ticket's own commit.
    the Docker test is opt-in (`BEAMTIME_DOCKER=1 uv run pytest -q tests/remote/test_docker.py`). After a ticket
    touching `cli/`, `settings.py` or `ops/registry.py`: `uv run pytest -q -n0 tests/test_budgets.py`.
 2. Generated files: `docs/reference/cli.md` (`uv run python docs/site/reference.py`, checked by `tests/test_docs.py`)
-   after CLI flag changes (P31, A31, W31); these run one after another. After any change in `web/`:
-   `cd web && npm ci && npm test && npm run build` and commit `src/beamtime/serve/static/` (U31 only).
+   after CLI flag changes (P81, A81, W81); these run one after another. After any change in `web/`:
+   `cd web && npm ci && npm test && npm run build` and commit `src/beamtime/serve/static/` (U81 only).
 3. Rules: CLAUDE.md's Python style; `format/` stays standard library plus PyYAML (`tests/test_boundaries.py`); no
    module-level PyYAML in modules `beamtime runs` loads (`tests/test_budgets.py`); every `@` is parsed by `Place`
    (`tests/test_boundaries.py` fences hand-written parses). Never touch `tests/golden/schema1/`.
 4. Spec: `docs/design/04-remotes.md`, `docs/design/10-setup.md` § Remotes, `docs/design/08-cli-mcp.md` § User-only
-   commands, `docs/design/01-storage.md` § Settings. S31 writes the design first; later deviations go back into it in
+   commands, `docs/design/01-storage.md` § Settings. S81 writes the design first; later deviations go back into it in
    the same commit.
 5. Ticket budget: 140k tokens per ticket session; split a ticket that would exceed it.
 6. Line numbers are at `84c96a4`; the setup plan's remaining tickets move `src/beamtime/setup/` and `ops/admin.py`.
@@ -95,12 +95,12 @@ is marked done in the ticket's own commit.
 ## Order
 
 ```
-S31 ─ C31 ─ P31 ─ L31 ─ R31 ─┬─ A31 ─ W31      (cli.md: P31, A31, W31 serialize)
-                        └─ U31           (bundle)
-                                  Z31    close
+S81 ─ C81 ─ P81 ─ L81 ─ R81 ─┬─ A81 ─ W81      (cli.md: P81, A81, W81 serialize)
+                        └─ U81           (bundle)
+                                  Z81    close
 ```
 
-What's left runs in this order: S31 C31 P31 L31 R31 A31 W31 U31 Z31
+What's left runs in this order: S81 C81 P81 L81 R81 A81 W81 U81 Z81
 
 ## Decisions taken; say if you want otherwise
 
@@ -132,7 +132,7 @@ What's left runs in this order: S31 C31 P31 L31 R31 A31 W31 U31 Z31
 
 ## S. Spec
 
-### S31. The design of named sources (sonnet + review) — code
+### S81. The design of named sources (sonnet + review) — code
 
 - **Touches:** `docs/design/04-remotes.md` (§ Three modes 30–37, § Federation 71–86, § Routing and merging 120–156,
   § Naming remote groups 158–184, § Configuration 186–223, § Protocol 225–257, § Decisions 297), `docs/design/10-setup.md`
@@ -162,13 +162,13 @@ The spec comes before the code (CLAUDE.md: a deviation is written into the desig
 
 ## C. Configuration
 
-### C31. Settings and specs for named sources (sonnet + review) — code
+### C81. Settings and specs for named sources (sonnet + review) — code
 
 - **Touches:** `src/beamtime/settings.py` (`REMOTE_KEYS` 27, `check_file` remote loop 276–287, `Settings.remotes`
   178–187), `src/beamtime/remote/client.py` (`Spec` 41–80), `src/beamtime/remote/sources.py` (`spec_of` 12–32
   removed, new `configured`), `src/beamtime/format/place.py` (new `host`, `name` properties),
   `tests/test_settings.py`, `tests/format/test_place.py`, new `tests/remote/test_sources.py`.
-- **Read:** `docs/design/04-remotes.md` § Configuration, § Naming remote groups (as S31 left them).
+- **Read:** `docs/design/04-remotes.md` § Configuration, § Naming remote groups (as S81 left them).
 - **Check:** `uv run pytest -q tests/test_settings.py tests/format/test_place.py tests/remote/test_sources.py`.
 - **Done:** `configured()` on the Goal's settings returns `gpu04:flows`, `gpu04:md` (`kind="logdir"`), `gpu04:data`
   (`kind="datasets"`, `depth=2`) with the host's `host`/`command`/`cache`; a `path:` remote returns one spec named as
@@ -177,24 +177,24 @@ The spec comes before the code (CLAUDE.md: a deviation is written into the desig
   56); `depth: 0` or a string → problem, default 2 (`test_depth_checked`); `enabled: false` on the host drops all
   its sources (`test_disabled_host`); `Place.parse("@local:data/x").source == "local:data"`, while `@local/x` still
   normalizes (`test_local_named`).
-- **Stop if:** something besides the five callers of R31 reads `conf["path"]` from a remote entry.
+- **Stop if:** something besides the five callers of R81 reads `conf["path"]` from a remote entry.
 
 1. `REMOTE_KEYS += ("sources",)`. In `check_file`, for a remote: both `path` and `sources` → problem
    `remote {name!r} has both path and sources; keep one`, delete `sources`. `sources` must be a mapping of
    name → str (log dir) or mapping `{datasets: str, depth: int >= 1}`; other shapes are problems and dropped.
 2. `Spec` gains `host_key: str = ""` (defaults to `name` in `__post_init__`), `source: str | None = None`,
-   `kind: Literal["logdir", "datasets"] = "logdir"`, `depth: int = 2`. `argv` is unchanged here (P31 extends it).
+   `kind: Literal["logdir", "datasets"] = "logdir"`, `depth: int = 2`. `argv` is unchanged here (P81 extends it).
 3. `remote/sources.py`: `configured(settings: Settings) -> dict[str, Spec]`: for each entry of `settings.remotes`,
    `path` → one spec as `spec_of` did, `sources` → one spec per source, named `f"{host}:{source}"`. A remote with
    neither → `OpError` with the message `spec_of` gives today, raised only when that name is used (keep a lazy
    error: return it in a second dict `broken: dict[str, str]`, or raise in `client_for`; pick one and test it).
-   Delete `spec_of`; R31 moves its callers, and until then keep a two-line shim `spec_of(name, conf)` that calls
-   `configured` and is removed in R31.
+   Delete `spec_of`; R81 moves its callers, and until then keep a two-line shim `spec_of(name, conf)` that calls
+   `configured` and is removed in R81.
 4. `Place.host` → the part of `source` before `:` (or the whole source), `Place.name` → the part after, else `None`.
 
 ## P. Protocol
 
-### P31. `serve --stdio` answers for several sources (sonnet + review) — code
+### P81. `serve --stdio` answers for several sources (sonnet + review) — code
 
 - **Touches:** `src/beamtime/serve/stdio.py` (`Remote` 32–118, `run` 121–155), `src/beamtime/cli/__init__.py` (the
   `serve` parser: `--stdio`, `--logdir`), `src/beamtime/serve/api.py` (`hello` 72–94), `src/beamtime/ops/context.py`
@@ -228,7 +228,7 @@ The spec comes before the code (CLAUDE.md: a deviation is written into the desig
 
 ## L. Client
 
-### L31. One connection per host (sonnet + review) — code
+### L81. One connection per host (sonnet + review) — code
 
 - **Touches:** `src/beamtime/remote/client.py` (`RemoteClient` 89–339: `name`, `describe` 119–131, `request`
   133–153, `send` 155–196, `connect` 198–235, `subscribe` 237–246, `read`), `src/beamtime/remote/sources.py`
@@ -245,13 +245,13 @@ The spec comes before the code (CLAUDE.md: a deviation is written into the desig
   connection are both re-sent after a reconnect (`test_resubscribe_both`).
 - **Stop if:** federation (`route.federate`) needs to know hosts, beyond skipping data roots.
 
-1. `RemoteClient(*, specs: list[Spec], on_event)` is the host's connection; its argv comes from P31's builder, and
+1. `RemoteClient(*, specs: list[Spec], on_event)` is the host's connection; its argv comes from P81's builder, and
    `connect` checks `hello.sources` against its specs. `send` takes `source: str | None` and puts it on the request
    line when not `None`. `read` hands events to `on_event(source, event)`.
 2. `SourceClient(*, conn: RemoteClient, spec: Spec)`: `name` (routed name), `spec`, `state`/`since`/`error`/`info`
    delegated to `conn`, `request(method, params, *, caller, timeout, whole)` → `conn.connect(); conn.send(..., source=spec.source)`,
    `describe()` → the conn's fields with `name=f"@{self.name}"`, `path=spec.path`, plus `kind` and `host_key`,
-   `subscribe(paths)` → kept per source on the conn and sent as P31's `{"paths", "source"}`.
+   `subscribe(paths)` → kept per source on the conn and sent as P81's `{"paths", "source"}`.
 3. `Sources(specs, on_event)`: group specs by `host_key`, one `RemoteClient` each, `clients: dict[str, SourceClient]`
    by routed name; `close()` closes connections once. `client_for` builds its one-shot connection from `configured()`
    the same way, caching connections by `host_key` in `opened`.
@@ -259,7 +259,7 @@ The spec comes before the code (CLAUDE.md: a deviation is written into the desig
 
 ## R. Routing and callers
 
-### R31. Every caller takes its sources from `configured()` (sonnet) — code
+### R81. Every caller takes its sources from `configured()` (sonnet) — code
 
 - **Touches:** `src/beamtime/serve/server.py` (sources 210–231), `src/beamtime/views/render.py` (234–249),
   `src/beamtime/ops/admin.py` (`doctor` remote loop 280, `remote_checks` 311–362), `src/beamtime/ops/reading.py`
@@ -292,7 +292,7 @@ The spec comes before the code (CLAUDE.md: a deviation is written into the desig
 
 ## A. Admin commands
 
-### A31. `source add`, `rm` and `list` for named sources (sonnet) — code
+### A81. `source add`, `rm` and `list` for named sources (sonnet) — code
 
 - **Touches:** `src/beamtime/ops/admin.py` (`source_add` 364–389, `source_list` 391–414, `source_rm` 416–433),
   `src/beamtime/ops/registry.py` (`SourceAddParams`, `SourceRmParams`), `src/beamtime/settings.py` (`write_remote`
@@ -316,13 +316,13 @@ The spec comes before the code (CLAUDE.md: a deviation is written into the desig
 
 ## W. Wizard
 
-### W31. The wizard adds log dirs and a data root per host (sonnet + review) — code
+### W81. The wizard adds log dirs and a data root per host (sonnet + review) — code
 
 - **Touches:** `src/beamtime/setup/flow.py` (the remote steps), `src/beamtime/setup/plan.py` (the settings changes for
   remotes), `src/beamtime/setup/remotes.py` (`probe` 106–122, `probe_host` 124–164: several paths per host),
   `src/beamtime/setup/__init__.py` (answers model: the remotes answer), `tests/setup/test_flow.py`,
   `tests/setup/test_plan.py`, `tests/setup/test_remotes.py`, `docs/reference/cli.md` (if `--remote` changes).
-- **Read:** `docs/design/10-setup.md` § Remotes, § Answers, flags and settings, § Reconfiguring (as S31 left them);
+- **Read:** `docs/design/10-setup.md` § Remotes, § Answers, flags and settings, § Reconfiguring (as S81 left them);
   the setup plan's Decisions (`docs/plans/setup/setup-plan.md` § Decisions taken).
 - **Check:** `uv run pytest -q tests/setup`.
 - **Done:** in the cluster flow, a host can take several log dirs (each named; the first defaults to the project's
@@ -343,7 +343,7 @@ The spec comes before the code (CLAUDE.md: a deviation is written into the desig
 
 ## U. Web UI
 
-### U31. Hosts and their sources in the sidebar (sonnet + review) — code
+### U81. Hosts and their sources in the sidebar (sonnet + review) — code
 
 - **Touches:** `web/src/shell/tree.ts` (`buildTree` 21–50), `web/src/shell/sidebar.ts`, `web/src/router.ts`
   (source parsing 33–37, 58–66, `sourcedRun` 80–83, root 85–91), `web/src/ui/` icons (a data-root symbol from
@@ -363,7 +363,7 @@ The spec comes before the code (CLAUDE.md: a deviation is written into the desig
 
 ## Z. Close
 
-### Z31. Close (sonnet) — code
+### Z81. Close (sonnet) — code
 
 - **Touches:** `CHANGELOG.md`, `docs/guides/remotes.md`, `docs/guides/cluster.md`, `docs/guides/settings.md`,
   `CLAUDE.md` (Layout: `remote/` line).
@@ -382,9 +382,9 @@ The spec comes before the code (CLAUDE.md: a deviation is written into the desig
 
 ## Not verified
 
-- That the index and cache modules hold no per-process state that breaks with two log dirs in one process (P31
+- That the index and cache modules hold no per-process state that breaks with two log dirs in one process (P81
   checks it first, `test_watch_two_sources`).
 - That the setup plan's answers model, finished after the base commit, can take several sources per host without a
-  saved-answers schema change (W31 Stop if).
+  saved-answers schema change (W81 Stop if).
 - That one `serve --stdio` per host is fast enough when it indexes two log dirs lazily (no measurement; the Docker
   test is the place to time it).
