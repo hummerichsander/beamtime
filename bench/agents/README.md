@@ -200,3 +200,15 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   characters) and `stderr`; `grade.json` holds `score`, `correct`, `checks` and the judge's `notes`.
   The sessions' environment (setups.py) drops every `BEAMTIME_*` variable but `BEAMTIME_CACHE` and sets
   `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`.
+- `compare/tables.py` and `compare/figures.py`: `uv run python bench/agents/compare/tables.py
+  bench/agents/runs/compare-<stamp> [--out docs/guides/benchmark]` writes `results.md` there (model id,
+  Claude Code version, date, seeds; per task and setup, then per setup over all tasks: n, mean score,
+  correct k/n, and median with min-max of total tokens, uncached tokens (input, cache-write and output),
+  cost, seconds, turns and tool calls) and the figures `tokens-vs-score` (single column: geometric mean
+  of tokens per session over tasks against mean score, one point per setup, bars over the seeds) and
+  `time-per-task` (double column: median seconds per task, bars over the seeds) as `.pdf` and `.svg`.
+  Ungraded sessions (`crashed`, `not started`, `usage limit`, not graded yet) are left out of every mean and
+  counted; a session with `leak` is listed and left out of the figures only; one with `other_model` is
+  listed. When a setup has no graded session without a leak for a task, nothing is written and the
+  command names the missing `setup/task`. The figures use scienceplots as it is, with `no-latex` added
+  when `latex` is not on the PATH. Tests: `tests/bench/test_compare_report.py`.

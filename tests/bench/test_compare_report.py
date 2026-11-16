@@ -1,0 +1,237 @@
+"""Tests of the benchmark's report (``compare/tables.py``, ``figures.py``); fixture records only."""
+
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+BENCH = Path(__file__).resolve().parents[2] / "bench" / "agents"
+sys.path.insert(0, str(BENCH / "compare"))
+sys.path.insert(0, str(BENCH))
+
+import figures  # noqa: E402
+import tables  # noqa: E402
+
+SETUPS = ["mcp", "cli", "files", "tensorboard"]
+TASKS = ["best-config", "failures"]
+SEEDS = [7, 8, 9]
+MODEL = "claude-sonnet-5-5"
+
+
+def record(task: str, setup: str, seed: int, **extra: Any) -> dict[str, Any]:
+    """Make the record of a session; tokens and seconds depend on the setup and seed.
+
+    :param task: The task id.
+    :param setup: The setup.
+    :param seed: The data seed.
+    :param extra: Fields that replace the defaults.
+    :return: The record."""
+    n = SETUPS.index(setup) + 1
+    tokens = {"input": 10, "cache_write": 100 * n, "cache_read": 1000 * n, "output": 50 * seed}
+    return {
+        "task": task,
+        "setup": setup,
+        "seed": seed,
+        "rep": 0,
+        "status": "ok",
+        "seconds": 30.0 * n + seed,
+        "turns": 3 + n,
+        "tokens": tokens | {"total": sum(tokens.values())},
+        "cost_usd": 0.1 * n,
+        "tools": {"Bash": n, "Read": 1},
+        "leak": False,
+        "other_model": False,
+    } | extra
+
+
+def make_batch(folder: Path, *, skip: set[tuple[str, str]] = frozenset(), edit: Any = None) -> Path:
+    """Write a batch of graded sessions: every task, setup and seed once.
+
+    :param folder: The batch's folder.
+    :param skip: (task, setup) pairs that get no session.
+    :param edit: Called as ``edit(name, record, grade)`` to change a session before it is written.
+    :return: The folder."""
+    folder.mkdir(parents=True)
+    (folder / "batch.json").write_text(
+        json.dumps(
+            {
+                "model": MODEL,
+                "claude_version": "2.9.9",
+                "started": "2026-05-04T10:00:00+00:00",
+                "setups": SETUPS,
+                "tasks": TASKS,
+                "seeds": SEEDS,
+                "reps": 1,
+            }
+        )
+    )
+    for task in TASKS:
+        for setup in SETUPS:
+            if (task, setup) in skip:
+                continue
+            for seed in SEEDS:
+                name = f"{task}-{setup}-{seed}-0"
+                rec = record(task, setup, seed)
+                grade: dict[str, Any] | None = {
+                    "score": 1.0 if seed != 9 else 0.5,
+                    "correct": seed != 9,
+                    "checks": {},
+                    "notes": "",
+                }
+                if edit:
+                    rec, grade = edit(name, rec, grade)
+                (folder / name).mkdir()
+                (folder / name / "record.json").write_text(json.dumps(rec))
+                if grade is not None:
+                    (folder / name / "grade.json").write_text(json.dumps(grade))
+    return folder
+
+
+@pytest.fixture(autouse=True)
+def no_latex(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Render figures without LaTeX, which keeps the tests fast and independent of the machine.
+
+    :param monkeypatch: The pytest monkeypatch."""
+    monkeypatch.setattr(figures.shutil, "which", lambda name: None)
+
+
+def test_report_files(tmp_path: Path) -> None:
+    """The report writes the table and the four figure files, with the facts and every measure."""
+    batch = tables.Batch(folder=make_batch(tmp_path / "compare-1"))
+    files = tables.write_report(batch, tmp_path / "out")
+    assert sorted(p.name for p in files) == [
+        "results.md",
+        "time-per-task.pdf",
+        "time-per-task.svg",
+        "tokens-vs-score.pdf",
+        "tokens-vs-score.svg",
+    ]
+    assert all(p.stat().st_size > 0 for p in files)
+    text = (tmp_path / "out" / "results.md").read_text()
+    assert MODEL in text and "2.9.9" in text and "2026-05-04" in text and "7, 8, 9" in text
+    head = "| task | setup | n | score | correct | tokens | uncached | cost | seconds | turns |"
+    head += " tool calls |"
+    assert head in text
+    assert "| best-config | mcp | 3 | 0.83 | 2/3 |" in text
+    assert "| mcp | 6 | 0.83 | 4/6 |" in text
+
+
+def test_ungraded_left_out(tmp_path: Path) -> None:
+    """Ungraded sessions and sessions not yet graded are counted, not averaged."""
+
+    def edit(name, rec, grade):
+        if name == "best-config-mcp-7-0":
+            return rec | {"ungraded": "crashed"}, None
+        if name == "best-config-mcp-8-0":
+            return rec | {"ungraded": "usage limit"}, None
+        if name == "best-config-mcp-9-0":
+            return rec, None
+        return rec, grade
+
+    batch = tables.Batch(folder=make_batch(tmp_path / "compare-1", edit=edit))
+    text = tables.results(batch)
+    assert "| best-config | mcp |" not in text
+    assert "21 graded sessions of 24" in text
+    assert "1 crashed, 1 not graded yet, 1 usage limit" in text
+
+
+def test_timeout_scores_zero(tmp_path: Path) -> None:
+    """A graded timeout is a session like any other and enters the mean with its 0."""
+
+    def edit(name, rec, grade):
+        if name == "failures-cli-7-0":
+            return rec | {"status": "timeout"}, grade | {"score": 0.0, "correct": False}
+        return rec, grade
+
+    batch = tables.Batch(folder=make_batch(tmp_path / "compare-1", edit=edit))
+    assert "| failures | cli | 3 | 0.50 | 1/3 |" in tables.results(batch)
+
+
+def test_leak_listed_and_left_out_of_figures(tmp_path: Path) -> None:
+    """A leaked session is named and stays in the table, but not in the figures' rows."""
+
+    def edit(name, rec, grade):
+        return (rec | {"leak": True}, grade) if name == "failures-files-8-0" else (rec, grade)
+
+    batch = tables.Batch(folder=make_batch(tmp_path / "compare-1", edit=edit))
+    assert "Leaked (in the tables, left out of the figures): failures-files-8-0." in tables.results(
+        batch
+    )
+    assert "| failures | files | 3 |" in tables.results(batch)
+    assert len(batch.plotted) == len(batch.graded) - 1
+    assert not any(
+        r["task"] == "failures" and r["setup"] == "files" and r["seed"] == 8 for r in batch.plotted
+    )
+
+
+def test_other_model_listed(tmp_path: Path) -> None:
+    """A session flagged ``other_model`` is named in the report."""
+
+    def edit(name, rec, grade):
+        return (
+            (rec | {"other_model": True}, grade) if name == "best-config-cli-7-0" else (rec, grade)
+        )
+
+    batch = tables.Batch(folder=make_batch(tmp_path / "compare-1", edit=edit))
+    assert "took part in: best-config-cli-7-0." in tables.results(batch)
+
+
+def test_incomplete_batch(tmp_path: Path) -> None:
+    """Figures are refused naming the setup and task when one has no session; nothing is written."""
+    folder = make_batch(tmp_path / "compare-1", skip={("failures", "files")})
+    with pytest.raises(ValueError, match="files/failures"):
+        tables.write_report(tables.Batch(folder=folder), tmp_path / "out")
+    assert not (tmp_path / "out").exists()
+
+
+def test_incomplete_when_all_leaked(tmp_path: Path) -> None:
+    """A setup whose sessions of a task all leaked has no point for it: the figures are refused."""
+
+    def edit(name, rec, grade):
+        return (rec | {"leak": True}, grade) if name.startswith("failures-cli-") else (rec, grade)
+
+    folder = make_batch(tmp_path / "compare-1", edit=edit)
+    with pytest.raises(ValueError, match="cli/failures"):
+        tables.write_report(tables.Batch(folder=folder), tmp_path / "out")
+
+
+def test_main_refuses(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The command exits with the refusal's message."""
+    folder = make_batch(tmp_path / "compare-1", skip={("best-config", "mcp")})
+    monkeypatch.setattr(sys, "argv", ["tables.py", str(folder), "--out", str(tmp_path / "out")])
+    with pytest.raises(SystemExit, match="mcp/best-config"):
+        tables.main()
+
+
+def test_main_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The command prints the files it wrote."""
+    folder = make_batch(tmp_path / "compare-1")
+    monkeypatch.setattr(sys, "argv", ["tables.py", str(folder), "--out", str(tmp_path / "out")])
+    tables.main()
+    assert "results.md" in capsys.readouterr().out
+
+
+def test_no_latex_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without LaTeX the style list gains ``no-latex``; with it, it is the plain theme."""
+    assert figures.style() == ["science", "nature", "no-latex"]
+    monkeypatch.setattr(figures.shutil, "which", lambda name: "/usr/bin/latex")
+    assert figures.style() == ["science", "nature"]
+
+
+def test_no_rc_overrides() -> None:
+    """The report modules never touch rc params or pass keywords that shadow them."""
+    for module in (figures, tables):
+        source = Path(module.__file__).read_text()
+        for word in ("rcParams", "rc_context", "fontsize", "linewidth", "color=", "cmap", "plt.rc"):
+            assert word not in source, f"{module.__name__} uses {word}"
+
+
+def test_geometric_mean() -> None:
+    """The geometric mean skips non-positive values and gives 0 for none."""
+    assert figures.geometric_mean([1, 100]) == pytest.approx(10)
+    assert figures.geometric_mean([0, 4, 9]) == pytest.approx(6)
+    assert figures.geometric_mean([]) == 0.0

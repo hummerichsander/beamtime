@@ -362,7 +362,7 @@ Record fields: `task`, `setup`, `seed`, `rep`, `model` (init event), `models` (`
 
 ## L. Results
 
-### L71. Report table and figures (sonnet) — code
+### L71. Report table and figures (sonnet) — code — **done**
 
 - **Touches:** new `bench/agents/compare/tables.py`, new `bench/agents/compare/figures.py`, new
   `tests/bench/test_compare_report.py` (fixture records, no agents).
