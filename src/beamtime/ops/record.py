@@ -28,6 +28,7 @@ from beamtime.record.proposals import (
     current,
     load,
     parse,
+    words,
 )
 from beamtime.record.status import research_status
 
@@ -269,6 +270,13 @@ def proposal_set(ctx: Context, p: r.ProposalSetParams) -> dict[str, Any]:
             dump({"schema": 1, **fields, "author": author, "user": user}),
         )
         lines += metric_warnings(target, proposal)
+        limit = ctx.settings.agent.proposal_words
+        if (n := words(proposal)) > limit:
+            lines.append(
+                f"warning: {n} words, beyond this project's limit of {limit} "
+                "(agent.proposal_words); a proposal is frozen once a run records it, "
+                "so shorten it now"
+            )
         lines.append("runs started from now on record this version")
     return written(ctx, "proposal set", path, lines)
 

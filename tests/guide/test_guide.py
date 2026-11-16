@@ -223,3 +223,17 @@ def test_memory_update_warns_at_the_configured_budget(project: Path) -> None:
     out = call("memory update", {"group": "tokenizer", "body": body}, ctx)
     assert "beyond the budget of about 400 (100 tokens)" in out["lines"][-1]
     assert call("memory show", {"group": "tokenizer"}, ctx)["budget"] == 400
+
+
+def test_proposal_words_reach_the_guide(project: Path) -> None:
+    """The Defaults and the proposals part name the limit; ``analysis`` leaves the line out."""
+    line = "- Keep a proposal near 150 words: statement, rationale and prediction descriptions."
+    assert f"{line} (default)" in defaults_of(Context.make(caller="cli"))
+    ctx = with_agent(project, "{style: careful}")
+    assert f"{line} (careful)" in defaults_of(ctx)
+    assert "near 150 words" in call("guide", {"part": "proposals"}, ctx)["text"]
+    ctx = with_agent(project, "{proposal_words: 80}")
+    assert "near 80 words" in call("guide", {"part": "proposals"}, ctx)["text"]
+    assert any("near 80 words" in x and x.endswith("(beamtime.yaml)") for x in defaults_of(ctx))
+    ctx = with_agent(project, "{style: analysis}")
+    assert not [x for x in defaults_of(ctx) if "Keep a proposal" in x]

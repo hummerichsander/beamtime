@@ -124,6 +124,60 @@ def test_metric_warning(ctx: Context) -> None:
     assert any("'val/accc'" in line for line in out["lines"])
 
 
+def with_words(project: Path, group: str, statement: str, limit: int) -> list[str]:
+    """Save a proposal of a statement under a word limit.
+
+    :param project: The project root.
+    :param group: The group.
+    :param statement: The statement.
+    :param limit: The project's ``agent.proposal_words``.
+    :return: The answer's lines."""
+    (project / "beamtime.yaml").write_text(f"agent: {{proposal_words: {limit}}}\n")
+    ctx = Context.make(caller="cli")
+    return call("proposal set", {"group": group, "proposal": {"statement": statement}}, ctx)["lines"]
+
+
+def test_proposal_set_warns_beyond_the_word_limit(project: Path, ctx: Context) -> None:
+    """A long proposal is written with a warning line; one within the limit has none."""
+    lines = with_words(project, "warmup/long", " ".join(["word"] * 200), 150)
+    assert any(
+        line.startswith("warning: 200 words, beyond this project's limit of 150 (agent.proposal_words)")
+        for line in lines
+    )
+    assert versions(ctx.logdir / "warmup" / "long" / "proposal")
+    assert not [x for x in with_words(project, "warmup/fit", " ".join(["word"] * 150), 150) if "words" in x]
+
+
+def test_proposal_words_prose_only() -> None:
+    """Names, filters and numbers don't count; statement, rationale and descriptions do."""
+    from beamtime.record.proposals import parse, words
+
+    p = parse(
+        {
+            "statement": "one two",
+            "rationale": "three four five",
+            "predictions": [
+                {
+                    "name": "many-long-name",
+                    "kind": "manual",
+                    "where": {"config.lr": 0.1},
+                    "description": "six seven",
+                },
+                {"name": "other", "reduce": {"metric": "train/loss"}, "op": "<", "value": 2.5},
+            ],
+        },
+        source="t",
+    )
+    assert words(p) == 7
+
+
+def test_proposal_words_statement_only() -> None:
+    """Without a rationale or descriptions the statement alone counts."""
+    from beamtime.record.proposals import parse, words
+
+    assert words(parse({"statement": "one two three"}, source="t")) == 3
+
+
 def test_verdict_notes(ctx: Context) -> None:
     """A verdict judges every prediction of an existing version and carries the check."""
     sweep = "tokenizer/bpe-vs-unigram"

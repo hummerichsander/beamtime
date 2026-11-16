@@ -120,6 +120,15 @@ def parse(data: Any, *, source: str) -> Proposal:
     return proposal
 
 
+def words(p: Proposal) -> int:
+    """Count the words of a proposal's prose: statement, rationale and prediction descriptions.
+
+    :param p: The proposal.
+    :return: The number of whitespace-separated words."""
+    texts = [p.statement, p.rationale, *(pr.description for pr in p.predictions)]
+    return len(" ".join(t for t in texts if t).split())
+
+
 def explain(message: str) -> str:
     """Turn a msgspec message into advice with the allowed fields.
 

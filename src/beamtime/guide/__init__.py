@@ -130,6 +130,14 @@ def defaults(agent: AgentSettings) -> str:
             ["research_record", "seeds", "significance"],
         ),
     ]
+    if agent.research_record != "off":
+        lines.append(
+            (
+                f"Keep a proposal near {agent.proposal_words} words: statement, rationale and "
+                "prediction descriptions.",
+                ["proposal_words"],
+            )
+        )
     convention = []
     if agent.main_metric:
         better = {"min": ", lower is better", "max": ", higher is better"}.get(agent.direction, "")

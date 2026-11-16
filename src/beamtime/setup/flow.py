@@ -53,6 +53,10 @@ TUNE: dict[str, tuple[str, list[tuple[str, str]]]] = {
     ),
     "seeds": ("seeds per point", [("2", "2"), ("3", "3"), ("5", "5")]),
     "significance": ("significance", [("0.90", "0.9"), ("0.95", "0.95"), ("0.99", "0.99")]),
+    "proposal_words": (
+        "proposal length",
+        [("100 words", "100"), ("150 words", "150"), ("300 words", "300")],
+    ),
     "memory_tokens": ("memory budget", [("1k", "1000"), ("1.5k", "1500"), ("3k", "3000")]),
     "render_rounds": ("render rounds", [("1", "1"), ("2", "2"), ("3", "3")]),
     "custom_blocks": ("custom blocks", [("built-in first", "builtin_first"), ("free", "free")]),

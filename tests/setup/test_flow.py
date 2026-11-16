@@ -581,6 +581,19 @@ def test_each_setting_starts_from_the_projects_values(hands_on: Scan) -> None:
     assert written_agent(hands_on, answers) == agent
 
 
+def test_tune_form_has_a_proposal_length_row(hands_on: Scan) -> None:
+    """``Choose each setting`` asks for the proposal length, and ``--agent-set`` plans it."""
+    answers = Answers.defaults(hands_on)
+    picks = Picks("custom")
+    FirstSetup().ask_tune(picks, answers, hands_on)
+    assert picks.start["proposal_words"] == "150 words"
+    assert "proposal_words" not in answers.agent_set
+    params = SetupParams(agent_set=["proposal_words=300"], yes=True)
+    answers = Answers.from_params(params, hands_on)
+    assert answers.agent_set["proposal_words"] == "300"
+    assert written_agent(hands_on, answers)["proposal_words"] == 300
+
+
 def test_a_dropped_override_returns_to_the_preset(hands_on: Scan) -> None:
     """A single key set back to the preset leaves the file and the command alike."""
     answers = Answers.defaults(hands_on)

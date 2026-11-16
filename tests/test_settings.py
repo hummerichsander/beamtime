@@ -39,6 +39,20 @@ def test_presets_table() -> None:
     }
 
 
+def test_proposal_words(home: Path) -> None:
+    """Every preset allows 150 words; a project can set another count, and 0 is a problem."""
+    assert {name: preset["proposal_words"] for name, preset in PRESETS.items()} == {
+        name: 150 for name in PRESETS
+    }
+    (home / "beamtime.yaml").write_text("agent: {proposal_words: 80}\n")
+    agent = load(home).agent
+    assert agent.proposal_words == 80 and agent.source["proposal_words"] == "project"
+    (home / "beamtime.yaml").write_text("agent: {proposal_words: 0}\n")
+    s = load(home)
+    assert s.agent.proposal_words == 150
+    assert any("proposal_words" in problem for problem in s.problems)
+
+
 def test_preset_with_override(home: Path) -> None:
     """A style resolves to its preset, single keys override it, each with its provenance."""
     (home / "beamtime.yaml").write_text(

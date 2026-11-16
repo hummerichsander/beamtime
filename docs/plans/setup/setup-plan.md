@@ -440,7 +440,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
   `guide notes`, `guide memory`, `note_add`, `memory_update`, the diff-before-edit rule and "never delete or change
   the source files"; nine prompts in total.
 
-### G14. A proposal word limit (sonnet) — code
+### G14. A proposal word limit (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/settings.py` (`PRESETS` 31–66, `AGENT_KEYS` 94–108, `AgentSettings` 137–155),
   `src/beamtime/record/proposals.py` (new `words`), `src/beamtime/ops/record.py` (`proposal_set` 246–273),

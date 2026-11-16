@@ -37,6 +37,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         "seeds": 3,
         "significance": 0.95,
         "memory_tokens": 1500,
+        "proposal_words": 150,
         "render_rounds": 2,
         "custom_blocks": "builtin_first",
     },
@@ -48,6 +49,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         "seeds": 3,
         "significance": 0.95,
         "memory_tokens": 1500,
+        "proposal_words": 150,
         "render_rounds": 2,
         "custom_blocks": "builtin_first",
     },
@@ -59,6 +61,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         "seeds": 3,
         "significance": 0.95,
         "memory_tokens": 1500,
+        "proposal_words": 150,
         "render_rounds": 2,
         "custom_blocks": "builtin_first",
     },
@@ -99,6 +102,7 @@ AGENT_KEYS: dict[str, tuple[str, ...] | Callable[[Any], bool]] = {
     "seeds": positive_int,
     "significance": probability,
     "memory_tokens": positive_int,
+    "proposal_words": positive_int,
     "render_rounds": positive_int,
     "custom_blocks": ("builtin_first", "free"),
     "main_metric": nonempty_str,
@@ -145,6 +149,7 @@ class AgentSettings:
     seeds: int
     significance: float
     memory_tokens: int
+    proposal_words: int
     render_rounds: int
     custom_blocks: str
     main_metric: str | None = None

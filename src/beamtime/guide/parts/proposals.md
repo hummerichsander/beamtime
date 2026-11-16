@@ -23,6 +23,8 @@ predictions:
 `statement`, `rationale`, `confidence` (belief before any data), `plan`, `predictions`,
 `significance` (default 0.95, or `none`), `supersedes`. See `guide predictions` for the predictions.
 In proposals you draft, plan {{agent.seeds}} seeds per point and set `significance: {{agent.significance}}`.
+Keep a proposal near {{agent.proposal_words}} words (statement, rationale and prediction descriptions);
+`proposal set` warns beyond that and still writes.
 
 ## Plans
 
