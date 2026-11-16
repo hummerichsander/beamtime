@@ -265,7 +265,7 @@ One function per task id (names in J71), each pure Python over `runs/*/*/metrics
 
 ## J. Tasks, setups and sessions
 
-### J71. Eight tasks and the grader (sonnet + review) — code
+### J71. Eight tasks and the grader (sonnet + review) — code — **done**
 
 - **Touches:** new `bench/agents/compare/tasks/*.yaml` (8), new `bench/agents/compare/grade.py`
   (`Task`, `load_tasks`, `answer_json`, `grade`), new `tests/bench/test_compare_grade.py`.

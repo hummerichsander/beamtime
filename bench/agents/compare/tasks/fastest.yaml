@@ -1,0 +1,10 @@
+prompt: >
+  Which learning rate in scaling/lr-sweep first reaches a val/acc of 0.85 in the fewest steps? For
+  each run that finished, take the first step at which its logged val/acc is at least 0.85, average
+  that step over the runs of a learning rate, and name the learning rate with the lowest average.
+  Give that average step too.
+answer: '{"lr": <number>, "step": <number>}'
+time_limit_s: 400
+checks:
+  lr: {kind: equal, truth: lr}
+  step: {kind: close, truth: step, rel: 0.1}

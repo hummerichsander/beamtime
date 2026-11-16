@@ -1,0 +1,8 @@
+prompt: >
+  Make a figure of the final val/acc against the learning rate for scaling/lr-sweep, with one point
+  per run that finished (final means the last logged value of a run) and a logarithmic x axis. Label
+  the axes. Save it as a PNG file in the current directory and give its path.
+answer: '{"file": <path of the PNG>}'
+time_limit_s: 600
+checks:
+  file: {kind: file, format: png}

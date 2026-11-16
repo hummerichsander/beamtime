@@ -1,0 +1,13 @@
+prompt: >
+  Make a table of every run of scaling/lr-sweep (all of them, whatever their status) as a
+  comma-separated text file in the current directory, with a header row and the columns run_id, lr,
+  seed, finished, val_acc. Give finished as yes for a run that ran to its end and no for any other,
+  and val_acc as the last logged val/acc of the run (empty if it never logged one). Give the path
+  of the file.
+answer: '{"file": <path of the table file>}'
+time_limit_s: 300
+checks:
+  file: {kind: file, format: table}
+  rows: {kind: table_ids, key: file, truth: rows}
+  values: {kind: table_values, key: file, truth: rows, rel: 1.0e-6, abs: 1.0e-6}
+  finished: {kind: table_finished, key: file, truth: rows}

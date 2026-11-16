@@ -133,3 +133,19 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   a session's reach. Only finished runs enter a mean (`_run.json` status `finished`); the final value is
   the last logged value of a metric; the intervals are Beamtime's own `welch_interval` at 95 %. Truth
   and graded checks tell finished from not finished only: running, lost and killed runs are alike.
+- `compare/tasks/<id>.yaml` and `compare/grade.py`: the eight tasks (`best-config`, `failures`,
+  `sweep-summary`, `check-prediction`, `chart`, `find-runs`, `fastest`, `table`). A file holds the
+  question (`prompt`), the answer shape shown to the agent (`answer`), the `checks` and `time_limit_s`;
+  `setups` (default all four) and `judge` (J72) are optional. `load_tasks()` appends "End your reply
+  with a fenced json block: {answer}" to every prompt, and no prompt names a product or a file layout.
+  `grade(task, text, truth[task.id], project)` takes the last fenced json block (none or a malformed
+  last one scores 0), runs each check and returns `Grade(score, correct, checks)`: the score is the
+  mean of the checks, `correct` means all passed. Check kinds: `equal` (numbers as floats, 1e-9
+  relative, so `0.0003` is `3e-4`), `close` (`rel`, `abs`; a dict key by key), `set` and `f1` (run ids,
+  also `{id: ...}`, matched on the trailing path part, so `group/id` is `id`), `contains` (the interval
+  holds the true effect), `cause` (each stopped run's cause matches the wording of its true cause:
+  diverged is `diverg`, `nan`, `inf`, `FloatingPoint`; killed is `kill`, `SIGTERM`, `cancel`; `failed`
+  alone is no cause), `file` (a PNG or a table, inside `project`), and for the table task
+  `table_ids` (17 rows), `table_values` (lr, seed, val/acc within 1e-6) and `table_finished`
+  (yes/no for finished or not; running, lost and killed are not told apart). `find-runs` compares at
+  exactly 0.922 without tolerance.

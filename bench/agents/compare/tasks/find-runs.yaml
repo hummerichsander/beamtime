@@ -1,0 +1,7 @@
+prompt: >
+  Which runs in the project have a last logged val/acc of at least 0.922? Compare the exact values,
+  whatever their status. Identify runs by their run id.
+answer: '{"runs": [<run id>]}'
+time_limit_s: 400
+checks:
+  runs: {kind: f1, truth: ids}

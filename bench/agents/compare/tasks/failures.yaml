@@ -1,0 +1,14 @@
+prompt: >
+  Which runs in scaling/lr-sweep did not complete, and why did each of them stop? Identify runs by
+  their run id and give the cause as a short phrase.
+answer: '{"runs": [{"id": <run id>, "cause": <short phrase>}]}'
+time_limit_s: 300
+checks:
+  ids: {kind: set, key: runs, truth: ids}
+  causes:
+    kind: cause
+    key: runs
+    truth: causes
+    patterns:
+      diverged: 'diverg|\bnans?\b|\binf\b|infinit|non-?finite|floatingpoint'
+      killed: 'kill|sigterm|cancel'
