@@ -177,7 +177,7 @@ What's left runs in this order: N71 M71 M72 M73 M74 J71 J72 J73 J74 L71 L72 U71 
 
 ## M. Data and exporters
 
-### M71. Bench log dirs without answers (sonnet + review) — code
+### M71. Bench log dirs without answers (sonnet + review) — code — **done**
 
 - **Touches:** new `bench/agents/compare/data.py`, new `tests/bench/test_compare_data.py`.
 - **Read:** `src/beamtime/synth/generate.py` (`generate` 839–877, `record` 194–272, `write_run`

@@ -106,3 +106,14 @@ than three reps is marked; compare on Haiku and Sonnet.
 The held-out tasks (`heldout: true`, a third of them) are not read during refinement and run only
 with `--heldout`; that keeps the guide from fitting the tasks. `mine.py` seeds new tasks from real
 sessions: the most common errors and raw reads there become tasks before they become rules.
+
+## The comparison benchmark
+
+`compare/` runs the same researcher tasks over the same synthetic numbers in several setups (Beamtime
+over MCP and the CLI, plain files, TensorBoard event files); see the plan in
+`docs/plans/v0.3/benchmark/benchmark-plan.md`. Built so far:
+
+- `compare/data.py`: `make_logdir(dest, seed=, now=)` writes a scale `s` log dir (47 runs, five groups)
+  at `dest/beamtime` and strips what states the answers: `_synth.json`, every `proposal/`, `notes/` and
+  `memory/` folder outside runs, and `proposals`/`proposal_hashes` in each `_run.json` (its mtime, the
+  heartbeat, is kept). The manifest's roles are returned, never written. Seeds 7, 8 and 9.
