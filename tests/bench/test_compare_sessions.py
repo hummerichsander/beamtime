@@ -191,9 +191,31 @@ def test_timeout_tokens() -> None:
 
 
 def test_flags_other_model() -> None:
-    """A second model in ``modelUsage``, or another one in the init event, flags the session."""
-    other = result(modelUsage={MODEL: {}, "claude-haiku-4-5": {}})
-    assert sessions.summarize([init(), other], model=MODEL)["other_model"]
+    """Another model in the init event, or above 5 % of the output tokens, flags the session."""
+
+    def used(haiku_output: int) -> dict[str, Any]:
+        """Make a result with a helper model beside the pinned one.
+
+        :param haiku_output: The helper's output tokens, against 100 of the pinned model.
+        :return: The event."""
+        return result(
+            modelUsage={
+                f"{MODEL}[1m]": {"outputTokens": 100, "costUSD": 0.1},
+                "claude-haiku-5-5": {"inputTokens": 30, "outputTokens": haiku_output},
+            }
+        )
+
+    helper = sessions.summarize([init(), used(5)], model=MODEL)
+    assert not helper["other_model"]
+    assert helper["model_usage"]["claude-haiku-5-5"] == {
+        "input": 30,
+        "cache_write": 0,
+        "cache_read": 0,
+        "output": 5,
+        "cost_usd": None,
+    }
+    assert helper["model_usage"][f"{MODEL}[1m]"]["cost_usd"] == 0.1
+    assert sessions.summarize([init(), used(10)], model=MODEL)["other_model"]
     assert sessions.summarize([init("claude-opus-4-1"), result()], model=MODEL)["other_model"]
     assert sessions.summarize([init(), result()], model=MODEL)["models"] == [MODEL]
 
@@ -361,6 +383,23 @@ def test_unstarted_session_is_not_scored(batch: "Batch") -> None:
     sessions.grade_batch(batch.dir)
 
     assert not (folder / "grade.json").exists()
+
+
+def test_crash_is_not_scored_but_max_turns_is(batch: "Batch") -> None:
+    """An error without a result event stays ungraded and is counted; one with a result scores 0."""
+    crashed = batch.add(
+        "best-config", [init(), assistant("m1", {"type": "text", "text": "x"})], status="error"
+    )
+    turns = batch.add(
+        "chart", [init(), result("", is_error=True, subtype="error_max_turns")], status="error"
+    )
+    sessions.grade_batch(batch.dir)
+
+    assert not (crashed / "grade.json").exists()
+    assert json.loads((crashed / "record.json").read_text())["ungraded"] == "crashed"
+    assert json.loads((turns / "grade.json").read_text())["score"] == 0
+    assert json.loads((batch.dir / "batch.json").read_text())["ungraded"] == {"crashed": 1}
+    assert not batch.root.exists()
 
 
 def test_resolve_model(monkeypatch: pytest.MonkeyPatch) -> None:

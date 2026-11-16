@@ -135,7 +135,7 @@ What's left runs in this order: N71 M71 M72 M73 M74 J71 J72 J73 J74 L71 L72 U71 
 9. **96 sessions per run** (assumed): 8 tasks × 4 setups × 3 seeds, one session each; `--reps` exists
    but defaults to 1; parallel 3 with the job order shuffled by a fixed seed, so contention hits all
    setups alike.
-10. **No leaks** (assumed): projects live under `$BT_COMPARE_ROOT` (default
+10. **No leaks** (assumed): projects live under `$BT_COMPARE_ROOT/<stamp>/` (default
     `$TMPDIR/bt-compare/<stamp>/`), outside the repo; truth is computed after the sessions; a session
     whose tool inputs name the repo path, `synth/` or `generate.py` is flagged `leak` and left out of
     the figures (kept in the table).
@@ -155,6 +155,15 @@ What's left runs in this order: N71 M71 M72 M73 M74 J71 J72 J73 J74 L71 L72 U71 
 15. **`table` values at full precision** (review of J71): the prompt asks for every number at full
     precision, as logged, and the check keeps 1e-6; printed tables round to three digits, and the
     same stated requirement then holds for every setup.
+16. **Crashes stay ungraded; helper models are no flag** (review of J74): only the agent's own
+    failures score 0: a timeout, and an error with a `result` event (e.g. `error_max_turns`). An
+    error without one (a `claude` crash, an API or network error) and a session that never started
+    stay ungraded, marked `ungraded` in `record.json` and counted in `batch.json`, so the report can
+    show them; a usage limit stays ungraded for `--grade-only`. `record.json` keeps `modelUsage` per
+    model (`model_usage`: tokens and cost); `other_model` is set when the init event names another
+    model or another model wrote more than 5 % of the output tokens, so Claude Code's own helper
+    calls don't flag every session. L72's pilot confirms this on its first sessions: their
+    `model_usage` shows whether a helper model appears and that its share stays below 5 %.
 
 ## N. Harness repair
 
@@ -374,6 +383,8 @@ Record fields: `task`, `setup`, `seed`, `rep`, `model` (init event), `models` (`
 - **Check:** `uv run python bench/agents/compare/sessions.py --seeds 7` (pilot, 32 sessions), then the
   full command; `uv run python bench/agents/compare/tables.py bench/agents/runs/compare-<stamp>`.
 - **Done:** 96 graded sessions on one model; no leaked session; the figures and table are committed.
+- **Pilot:** check `model_usage` in the first records (Decision 16): a helper model below 5 % of the
+  output tokens is expected; `other_model` set on most sessions means the threshold is wrong.
 - **Stop if:** the user hasn't said to start it (it costs about $30 at list price, notes.md), or the
   pilot shows a task that a careful human would answer differently from the truth; fix the task first.
 

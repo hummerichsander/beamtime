@@ -185,12 +185,15 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   repo; a batch's records go to `bench/agents/runs/compare-<stamp>/<task>-<setup>-<seed>-<rep>/` with
   `record.json`, `grade.json`, `transcript.jsonl` and the file the answer names (`answer.png`,
   `answer.csv`), and `batch.json` (model, version, root, seeds). Grading runs after all sessions: truth
-  per seed from the plain-files export, `grade.grade(...)` with the pinned model; a timeout scores 0
-  (its tokens come from the assistant messages, each message once); a session that ended on a usage
-  limit, never started (its preparation failed), or whose judge stalls, stays ungraded with its project kept, and `--grade-only <batch>` grades
+  per seed from the plain-files export, `grade.grade(...)` with the pinned model; a timeout, or an error with a result event (max turns),
+  scores 0 (a timeout's tokens come from the assistant messages, each message once); a session that
+  never started or crashed (an error without a result event) stays ungraded for good, marked
+  `ungraded` in its record and counted in `batch.json`; one that ended on a usage limit, or whose
+  judge stalls, stays ungraded with its project kept, and `--grade-only <batch>` grades
   it later. Sessions and the root are deleted after grading unless `--keep`.
   `record.json` holds `task`, `setup`, `seed`, `rep`, `model` (init event), `models` (`modelUsage` keys),
-  `other_model` (a second model in either), `claude_version`, `status` (`ok`, `timeout`, `error`),
+  `model_usage` (per model: tokens and cost), `other_model` (the init event names another model,
+  or another model wrote more than 5 % of the output tokens), `claude_version`, `status` (`ok`, `timeout`, `error`),
   `seconds`, `api_ms`, `turns`, `tokens` (`input`, `cache_write`, `cache_read`, `output`, `total`),
   `cost_usd`, `tools` (counts by name), `tool_errors`, `beamtime_calls` (MCP tools or `beamtime` in
   Bash), `leak` (a tool input names the repo path, `synth/` or `generate.py`), `answer` (last 4000

@@ -33,6 +33,8 @@ RUNS = AGENTS / "runs"
 SEEDS = [7, 8, 9]
 SHUFFLE_SEED = 0
 LEAKS = ("synth/", "generate.py")
+# a helper model (Claude Code's own small calls) below this share of output tokens is not a flag.
+OTHER_MODEL_SHARE = 0.05
 BEAMTIME_CALL = re.compile(r"(?:^|[;&|(]\s*)(?:uv run\s+)?beamtime\s+\S", re.MULTILINE)
 # the host's claude, found before a session's PATH drops the folders that hold a beamtime.
 CLAUDE = shutil.which("claude") or "claude"
@@ -176,13 +178,13 @@ def summarize(events: list[dict[str, Any]], *, model: str) -> dict[str, Any]:
             elif part.get("type") == "tool_result" and part.get("tool_use_id") in calls:
                 calls[part["tool_use_id"]]["failed"] = bool(part.get("is_error"))
     names = [c["name"] for c in calls.values()]
-    models = sorted((result.get("modelUsage") or {}).keys())
-    used = {m.split("[")[0] for m in models} | ({init["model"]} if init.get("model") else set())
+    usage = model_usage(result.get("modelUsage") or {})
     assistant = {(e.get("message") or {}).get("id") for e in events if e.get("type") == "assistant"}
     return {
         "model": init.get("model"),
-        "models": models,
-        "other_model": bool(used - {model}),
+        "models": sorted(usage),
+        "model_usage": usage,
+        "other_model": other_model(init.get("model"), usage, model=model),
         "api_ms": result.get("duration_api_ms"),
         "turns": result.get("num_turns") or len(assistant - {None}),
         "tokens": token_counts(result["usage"]) if "usage" in result else message_tokens(events),
@@ -193,6 +195,39 @@ def summarize(events: list[dict[str, Any]], *, model: str) -> dict[str, Any]:
         "leak": any(leaks(c.get("input")) for c in calls.values()),
         "answer": final_text(events)[-4000:],
     }
+
+
+def model_usage(by_model: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Name each model's tokens and cost from a result's ``modelUsage``.
+
+    :param by_model: ``modelUsage`` as the result event gives it.
+    :return: Per model: ``input``, ``cache_write``, ``cache_read``, ``output`` and ``cost_usd``."""
+    return {
+        name: {
+            "input": u.get("inputTokens") or 0,
+            "cache_write": u.get("cacheCreationInputTokens") or 0,
+            "cache_read": u.get("cacheReadInputTokens") or 0,
+            "output": u.get("outputTokens") or 0,
+            "cost_usd": u.get("costUSD"),
+        }
+        for name, u in by_model.items()
+        if isinstance(u, dict)
+    }
+
+
+def other_model(init_model: str | None, usage: dict[str, dict[str, Any]], *, model: str) -> bool:
+    """Say whether a session ran on another model than the pinned one.
+
+    :param init_model: The model of the init event.
+    :param usage: The per-model usage from ``model_usage``.
+    :param model: The pinned model.
+    :return: Whether the init event names another model, or another model wrote more than
+        ``OTHER_MODEL_SHARE`` of the output tokens."""
+    if init_model and init_model != model:
+        return True
+    total = sum(u["output"] for u in usage.values())
+    other = sum(u["output"] for name, u in usage.items() if name.split("[")[0] != model)
+    return total > 0 and other / total > OTHER_MODEL_SHARE
 
 
 def final_text(events: list[dict[str, Any]]) -> str:
@@ -387,8 +422,10 @@ def truth_for(root: Path, seed: int) -> dict[str, dict[str, Any]]:
 def grade_batch(batch: Path, *, keep: bool = False) -> None:
     """Grade every session of a batch that has no grade yet, then delete what is no longer needed.
 
-    A session whose judge hits the usage limit stays ungraded with its project kept; run
-    ``--grade-only`` again later. A timeout scores 0.
+    A session that ended on the usage limit, or whose judge hits it, stays ungraded with its
+    project kept; run ``--grade-only`` again later. One that never started or crashed stays
+    ungraded for good, marked ``ungraded`` in its record and counted in ``batch.json``. A timeout
+    and an error with a result event (max turns) score 0.
 
     :param batch: The batch's folder.
     :param keep: Keep the projects and data."""
@@ -405,14 +442,15 @@ def grade_batch(batch: Path, *, keep: bool = False) -> None:
         task = tasks[record["task"]]
         project = root / "sessions" / folder.name / "proj"
         transcript = folder / "transcript.jsonl"
-        if not transcript.exists():
-            print(f"{folder.name}: never started, left ungraded", flush=True)
-            pending += 1
-            continue
-        text = final_text(read_events(transcript.read_text()))
-        if record["status"] == "error" and USAGE_LIMIT.search(text):
-            print(f"{folder.name}: usage limit, left ungraded", flush=True)
-            pending += 1
+        events = read_events(transcript.read_text()) if transcript.exists() else []
+        text = final_text(events)
+        if (reason := unscored(record, events, started=transcript.exists())) is not None:
+            write_record(folder, record | {"ungraded": reason})
+            print(f"{folder.name}: {reason}, left ungraded", flush=True)
+            if reason == "usage limit":
+                pending += 1
+            elif not keep:
+                shutil.rmtree(root / "sessions" / folder.name, ignore_errors=True)
             continue
         if not project.is_dir() or (stalled and task.judge):
             print(f"{folder.name}: ungraded, run --grade-only again later", flush=True)
@@ -443,8 +481,33 @@ def grade_batch(batch: Path, *, keep: bool = False) -> None:
         print(f"{folder.name}: {result.score:.2f}", flush=True)
         if not keep:
             shutil.rmtree(root / "sessions" / folder.name, ignore_errors=True)
+    ungraded = Counter(
+        r["ungraded"]
+        for r in (json.loads(f.read_text()) for f in batch.glob("*/record.json"))
+        if "ungraded" in r
+    )
+    (batch / "batch.json").write_text(json.dumps(meta | {"ungraded": dict(ungraded)}, indent=2))
     if not pending and not keep and root.name == batch.name.removeprefix("compare-"):
         shutil.rmtree(root, ignore_errors=True)
+
+
+def unscored(record: dict[str, Any], events: list[dict[str, Any]], *, started: bool) -> str | None:
+    """Say why a session is left ungraded, if it is: only the agent's own failures score 0.
+
+    :param record: The session's record.
+    :param events: Its transcript's events.
+    :param started: Whether it has a transcript.
+    :return: ``not started`` (preparation failed), ``usage limit``, ``crashed`` (an error without
+        a result event: a ``claude`` crash, an API or network error), or ``None`` to grade it."""
+    if not started:
+        return "not started"
+    if record["status"] != "error":
+        return None
+    if USAGE_LIMIT.search(final_text(events)):
+        return "usage limit"
+    if not any(e.get("type") == "result" for e in events):
+        return "crashed"
+    return None
 
 
 def keep_answer_file(project: Path, text: str, folder: Path) -> None:
