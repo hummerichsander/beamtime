@@ -19,7 +19,9 @@ SEEDS = (7, 8, 9)
 
 
 @pytest.fixture(scope="module", params=SEEDS)
-def made(request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, int]:
+def made(
+    request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory
+) -> tuple[Path, int]:
     """A stripped log dir per seed.
 
     :param request: The pytest request holding the seed.
@@ -31,7 +33,7 @@ def made(request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactor
 
 
 def test_shape(made: tuple[Path, int]) -> None:
-    """Every seed has 47 runs in five groups, no manifest and no record folders, and no proposals."""
+    """Every seed has 47 runs in five groups, no manifest, no record folders, no proposals."""
     logdir, _ = made
     runs = list(iter_runs(logdir))
 

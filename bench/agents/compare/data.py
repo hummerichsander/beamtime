@@ -1,4 +1,4 @@
-"""The benchmark's log dirs: synthetic runs with the research record and the planted answers removed."""
+"""The benchmark's log dirs: synthetic runs without the research record and the planted answers."""
 
 import json
 import os
@@ -19,7 +19,7 @@ def make_logdir(dest: Path, *, seed: int, now: datetime) -> Manifest:
     :param dest: The folder that will hold ``beamtime/``.
     :param seed: The data seed.
     :param now: The time heartbeats are judged against; equal inputs give equal metrics.
-    :return: The manifest; its roles stay in memory for grading and are never written into ``dest``."""
+    :return: The manifest; its roles stay in memory for grading, never written into ``dest``."""
     manifest = generate(dest / "beamtime", seed=seed, scale="s", now=now)
     strip_record(dest / "beamtime")
     return manifest
