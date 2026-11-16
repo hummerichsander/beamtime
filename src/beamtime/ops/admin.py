@@ -27,6 +27,8 @@ from beamtime.settings import user_settings_path
 
 if TYPE_CHECKING:
     from beamtime.setup.apply import ApplyError
+    from beamtime.setup.plan import Answers
+    from beamtime.setup.scan import Scan
 
 
 def answer(kind: str, lines: list[str], **fields: Any) -> dict[str, Any]:
@@ -73,6 +75,8 @@ def setup(ctx: Context, p: r.SetupParams) -> dict[str, Any]:
         answers = Answers.from_params(p, found)
     except ValueError as e:
         raise OpError(str(e), code=2) from e
+    if p.migrate_with and found.flow == "current":
+        return migrate_only(found, answers, fields)
     if (
         not p.yes
         and found.flow in ("first", "teammate", "cluster", "update")
@@ -108,7 +112,29 @@ def setup(ctx: Context, p: r.SetupParams) -> dict[str, Any]:
     except ApplyError as e:
         raise apply_failed(e) from e
     lines.append("next: log runs with beamtime.init() in your training script")
+    if p.migrate_with:
+        from beamtime.setup.flow import migrate_lines
+
+        lines += migrate_lines(found, answers)
     return answer("setup", lines, written=[c.label for c in done], **fields)
+
+
+def migrate_only(found: "Scan", answers: "Answers", fields: dict[str, str]) -> dict[str, Any]:
+    """Hand the notes and memory to the agent of ``--migrate-with`` in a set-up project.
+
+    On a terminal this starts the agent; without one it names the command.
+
+    :param found: The facts of the project and the machine.
+    :param answers: The answers; ``migrate_with`` names the agent.
+    :param fields: The root and the log dir for the answer.
+    :return: The answer."""
+    from beamtime.setup.flow import hand_off, migrate_lines
+    from beamtime.setup.term import Term
+
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        hand_off(Term.detect(), found, answers, ask=False)
+        return answer("setup", [], written=[], **fields)
+    return answer("setup", migrate_lines(found, answers), written=[], **fields)
 
 
 def apply_failed(e: "ApplyError") -> OpError:

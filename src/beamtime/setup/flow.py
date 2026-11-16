@@ -1,9 +1,11 @@
 """The wizard: the steps of the first setup, the review, the apply and the next steps."""
 
+import os
 import re
 import shlex
 import shutil
 import socket
+import subprocess
 import textwrap
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -13,7 +15,7 @@ from typing import Any
 import msgspec
 
 from beamtime.settings import PRESETS, expand_path, user_settings_path
-from beamtime.setup.agents import CLIENTS, client_named
+from beamtime.setup.agents import CLIENTS, client_named, migrate_text, start_command
 from beamtime.setup.apply import apply
 from beamtime.setup.changes import since
 from beamtime.setup.importers import detect, files
@@ -78,6 +80,7 @@ UPDATE_LABELS = {
     "sdk": "SDK in the project environment",
 }
 AGENT_SINCE = "0.3.0"
+CLIPBOARDS = (["pbcopy"], ["wl-copy"], ["xclip", "-selection", "clipboard"], ["clip"])
 Frame = Callable[[Term, Scan, Answers], tuple[list[str], list[str]]]
 
 
@@ -119,6 +122,7 @@ def run(
     :param probe: Asks the remote hosts what they have.
     :param which: Looks up a program on ``PATH``.
     :return: The answers to write, or ``None`` when the person quit or wanted only the command."""
+    flag = answers.migrate_with
     update = Update(probe=probe, which=which) if scan.flow == "update" else None
     steps = steps or (update.steps() if update else flow_steps(scan, probe, which))
     fill(scan, answers)
@@ -129,6 +133,11 @@ def run(
             for step in steps[start:]:
                 if step.when(answers, scan):
                     step.ask(term, answers, scan)
+            answers.migrate_with = flag or (
+                answers.agents[0]
+                if answers.agents and (answers.import_notes or answers.import_memory)
+                else None
+            )
             match confirm(term, scan, answers, which, update.frame if update else None):
                 case "write":
                     return answers
@@ -162,6 +171,7 @@ def setup(
     :param which: Looks up a program on ``PATH``.
     :return: The labels of the changes written; empty when nothing was.
     :raises ApplyError: A change failed; the ones before it stay done."""
+    flag = answers.migrate_with
     if (final := run(term, scan, answers, probe=probe, which=which)) is None:
         return []
     changes = plan(scan, final, which=which)
@@ -178,6 +188,7 @@ def setup(
         term.say([f"Interrupted. Done so far: {', '.join(said) or 'nothing'}"])
         return []
     next_steps(term, scan, final)
+    hand_off(term, scan, final, ask=flag is None, which=which)
     return [c.label for c in done]
 
 
@@ -495,6 +506,137 @@ def pick_answer(term: Term, steps: list[Step], answers: Answers, scan: Scan) -> 
     options = [Option(s.id, s.title, s.summary(answers, scan)) for _, s in rows]
     chosen = term.select("Which answer?", options, options[0].value)
     return next(i for i, s in rows if s.id == chosen)
+
+
+def migrate_args(scan: Scan, answers: Answers) -> tuple[list[str], str | None]:
+    """Name what the migrate prompt gets: the notes and memory files, and the instruction conflict.
+
+    :param scan: The facts of the project and the machine.
+    :param answers: The answers.
+    :return: The paths as the agent finds them from the root, and ``file:line`` or ``None``."""
+    found = [*answers.import_notes, *answers.import_memory]
+    if not found and answers.migrate_with and scan.flow == "current":
+        found = [shown(n.path, scan) for n in scan.notes]
+    writes_rules = (
+        answers.rules
+        if scan.flow == "first"
+        else "rules" in answers.update
+        if scan.flow == "update"
+        else scan.flow == "current"
+    )
+    conflict = scan.conflicts[0] if scan.conflicts and writes_rules else None
+    return found, f"{conflict.file}:{conflict.line}" if conflict else None
+
+
+def hand_off(
+    term: Term,
+    scan: Scan,
+    answers: Answers,
+    *,
+    ask: bool = True,
+    which: Callable[[str], str | None] = shutil.which,
+) -> None:
+    """Offer the notes, memory and an instruction conflict to the person's agent, once written.
+
+    Starting replaces this process with the agent's session.
+
+    :param term: The terminal.
+    :param scan: The facts of the project and the machine.
+    :param answers: The answers; ``migrate_with`` names the agent when ``ask`` is false.
+    :param ask: Whether to ask what to do; ``--migrate-with`` goes straight to the agent.
+    :param which: Looks up a program on ``PATH``."""
+    paths, conflict = migrate_args(scan, answers)
+    if ask:
+        agents = [client_named(a) for a in answers.agents]
+        if not agents or not (paths or conflict):
+            return
+        starters = [c for c in agents if c.start and which(c.start[0])]
+        choice = term.select(
+            "Hand the notes and memory to your agent now?",
+            [
+                *[Option(c.name, f"Start {c.label} now", shlex.join(c.start)) for c in starters],
+                Option("copy", "Copy the prompt", "for an editor-based agent"),
+                Option(
+                    "later",
+                    "Later",
+                    f"beamtime setup --migrate-with {agents[0].name} brings this back",
+                ),
+            ],
+            starters[0].name if starters else "copy",
+            body=hand_off_body(term, scan, answers, paths, conflict),
+        )
+    else:
+        choice = answers.migrate_with or "copy"
+    client = client_named(choice) if choice not in ("copy", "later") else None
+    argv = start_command(client, paths, conflict) if client else None
+    match choice:
+        case "later":
+            term.say([f"Run it later:  beamtime setup --migrate-with {answers.agents[0]}"])
+        case _ if argv and which(argv[0]):
+            term.say([f"Starting {client.label} with the migrate prompt."])
+            os.chdir(scan.root)
+            os.execvp(argv[0], argv)
+        case _:
+            copy(term, migrate_text(paths, conflict), which)
+
+
+def migrate_lines(scan: Scan, answers: Answers) -> list[str]:
+    """Say how to start the agent with the migrate prompt, for a run without a terminal.
+
+    :param scan: The facts of the project and the machine.
+    :param answers: The answers; ``migrate_with`` names the agent.
+    :return: The lines."""
+    client = client_named(answers.migrate_with or "other")
+    paths, conflict = migrate_args(scan, answers)
+    if argv := start_command(client, paths, conflict):
+        return [f"to hand the notes and memory to {client.label}, run: {shlex.join(argv)}"]
+    return [
+        f"to hand the notes and memory to {client.label}, give it: {migrate_text(paths, conflict)}"
+    ]
+
+
+def hand_off_body(
+    term: Term, scan: Scan, answers: Answers, paths: list[str], conflict: str | None
+) -> list[str]:
+    """Say what the agent will do, for the hand-off question.
+
+    :param term: The terminal.
+    :param scan: The facts of the project and the machine.
+    :param answers: The answers.
+    :param paths: The notes and memory files.
+    :param conflict: ``file:line`` of an instruction that keeps results elsewhere, if any.
+    :return: The lines under the question."""
+    label = client_named(answers.agents[0]).label
+    n = sum(x.n for x in scan.notes if shown(x.path, scan) in paths) or len(paths)
+    files = f"{n} {'file' if n == 1 else 'files'}"
+    lines = []
+    if paths:
+        lines += [
+            f"{label} reads the {files} of notes and memory, writes them as typed notes",
+            "linked to the imported runs, and drafts a first memory for the project. Its",
+            "writes are new files; nothing you have is changed.",
+        ]
+    if conflict:
+        file, _, line = conflict.rpartition(":")
+        lines += [""] if paths else []
+        lines += [
+            f"It also moves the experiment section of {file} (line {line}) into Beamtime",
+            f"and shows you the diff before it touches {file}.",
+        ]
+    return lines
+
+
+def copy(term: Term, text: str, which: Callable[[str], str | None]) -> None:
+    """Put the migrate prompt on the clipboard with the first tool found, else print it.
+
+    :param term: The terminal.
+    :param text: The prompt.
+    :param which: Looks up a program on ``PATH``."""
+    for tool in CLIPBOARDS:
+        if path := which(tool[0]):
+            subprocess.run([path, *tool[1:]], input=text.encode(), check=False)
+            return term.say(["The migrate prompt is on your clipboard."])
+    term.say(["No clipboard tool found. Give this to your agent:", "", f"  {text}"])
 
 
 def show_command(term: Term, scan: Scan, answers: Answers) -> None:

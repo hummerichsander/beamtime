@@ -682,7 +682,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
   remote the probe finds older is listed as `remote:<name>`, and the screens' answers give the same `plan()` as the
   printed `beamtime setup --yes` command.
 
-### W15. The agent hand-off (sonnet) — code
+### W15. The agent hand-off (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/setup/flow.py`, `src/beamtime/setup/agents.py` (`start_command`), `tests/setup/test_flow.py`.
 - **Read:** `docs/design/10-setup.md` § The `migrate` prompt (hand-off paragraph); decision 8.

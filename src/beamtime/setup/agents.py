@@ -6,7 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -132,6 +132,37 @@ def client_named(name: str) -> Client:
     :param name: The client's name, e.g. ``claude-code``.
     :return: The client."""
     return next(c for c in CLIENTS if c.name == name)
+
+
+def migrate_text(paths: Sequence[str], conflict: str | None) -> str:
+    """Word the migrate prompt for an agent that has no slash command.
+
+    :param paths: The notes and memory files, as the agent finds them from the project root.
+    :param conflict: ``file:line`` of an instruction that keeps results elsewhere, if any.
+    :return: The sentence to give the agent."""
+    text = "Run the beamtime migrate prompt"
+    if paths:
+        text += f" with paths {' '.join(paths)}"
+    return text + (f" and conflict {conflict}" if conflict else "")
+
+
+def start_command(
+    client: Client, paths: Sequence[str], conflict: str | None = None
+) -> list[str] | None:
+    """Build the command that starts a client's session with the migrate prompt.
+
+    :param client: The client.
+    :param paths: The notes and memory files, as the agent finds them from the project root.
+    :param conflict: ``file:line`` of an instruction that keeps results elsewhere, if any.
+    :return: The program and its arguments, or ``None`` when the client can't take a prompt."""
+    if client.start is None:
+        return None
+    if client.name == "claude-code":
+        return [
+            *client.start,
+            " ".join(["/beamtime:migrate", *paths, *([conflict] if conflict else [])]),
+        ]
+    return [*client.start, migrate_text(paths, conflict)]
 
 
 def mcp_command(

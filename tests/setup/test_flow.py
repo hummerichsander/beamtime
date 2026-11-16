@@ -44,6 +44,7 @@ AGENTS, STYLE = (
 RULES, IMPORT = "Tell agents that Beamtime is the record?", "Bring in past work?"
 GIT, SDK = "Keep the research record in git?", "Add the Beamtime SDK to this project's environment?"
 REVIEW = "Ready. Nothing has been written yet."
+HANDOFF = "Hand the notes and memory to your agent now?"
 posix = pytest.mark.skipif(sys.platform == "win32", reason="needs a pseudo-terminal")
 
 
@@ -453,9 +454,10 @@ def test_write_it_gives_the_files_of_the_command(
     answers = Answers.defaults(egnn)
     wrote = drive(
         lambda t: setup(t, egnn, answers, probe=fake_probe, which=fake_which),
-        [*keys, (REVIEW, ENTER)],
+        [*keys, (REVIEW, ENTER), (HANDOFF, DOWN + ENTER)],
     )
     assert wrote.stuck is None and "Beamtime is set up." in wrote.output
+    assert "Run it later:  beamtime setup --migrate-with claude-code" in wrote.output
     assert (egnn.root / "beamtime.yaml").is_file() and (home / ".codex" / "config.toml").is_file()
 
     twin_home = tmp_path / "twin-home"
@@ -1269,3 +1271,200 @@ def test_setup_asks_on_a_terminal_for_an_update(
     monkeypatch.setattr(sys, "stdout", Tty())
     operation(context, SetupParams())
     assert seen == ["update"]
+
+
+class Said(Picks):
+    """A terminal that records what ``select`` offered and what was said."""
+
+    def __init__(self, choice: str = "later") -> None:
+        """Keep the choice.
+
+        :param choice: What ``select`` answers."""
+        super().__init__(choice)
+        self.options: list[tuple[str, str]] = []
+        self.lines: list[str] = []
+
+    def select(self, title: str, options: list, default: str, *args: object, **kwargs: object) -> str:
+        """Record the rows and the default, and answer with the choice.
+
+        :param title: The question.
+        :param options: The rows.
+        :param default: The row the cursor starts on.
+        :return: The choice."""
+        self.options = [(o.value, o.label) for o in options]
+        self.default = default
+        return self.choice
+
+    def say(self, lines: list[str]) -> None:
+        """Record lines.
+
+        :param lines: The lines."""
+        self.lines += lines
+
+
+@pytest.fixture
+def handover(tmp_path: Path, home: Path, monkeypatch: pytest.MonkeyPatch) -> Scan:
+    """A set-up project with a notes file and an instruction that keeps results in it.
+
+    :param tmp_path: The test's temporary directory.
+    :param home: The fake home.
+    :param monkeypatch: Puts the project's folder in as the working directory.
+    :return: The scan."""
+    root = tmp_path / "p"
+    root.mkdir()
+    (root / "beamtime.yaml").write_text("logdir: beamtime\n")
+    (root / "NOTES.md").write_text("# Notes\nresults so far\n")
+    (root / "CLAUDE.md").write_text("Keep results in NOTES.md.\n")
+    monkeypatch.chdir(root)
+    return scan(root, home=home, mounts=Path("/nonexistent"), env={"PATH": ""})
+
+
+def on_path(*names: str) -> Callable[[str], str | None]:
+    """Find only the named programs.
+
+    :param names: The programs that exist.
+    :return: A ``which``."""
+    return lambda name: f"/bin/{name}" if name in names else None
+
+
+def test_start_command_per_client() -> None:
+    """Claude Code gets the slash command, Codex and Gemini a sentence, editors nothing."""
+    from beamtime.setup.agents import client_named, start_command
+
+    paths = ["NOTES.md", "notebook/"]
+    claude = start_command(client_named("claude-code"), paths, "CLAUDE.md:1")
+    assert claude == ["claude", "/beamtime:migrate NOTES.md notebook/ CLAUDE.md:1"]
+    codex = start_command(client_named("codex"), paths)
+    assert codex == ["codex", "Run the beamtime migrate prompt with paths NOTES.md notebook/"]
+    gemini = start_command(client_named("gemini"), [], "CLAUDE.md:1")
+    assert gemini == ["gemini", "-i", "Run the beamtime migrate prompt and conflict CLAUDE.md:1"]
+    assert start_command(client_named("cursor"), paths) is None
+
+
+def test_hand_off_start_replaces_the_process(
+    handover: Scan, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Start calls ``os.execvp`` with the client's command, the paths and the conflict."""
+    from beamtime.setup.flow import hand_off
+
+    called: list[tuple[str, list[str]]] = []
+    monkeypatch.setattr(os, "execvp", lambda file, args: called.append((file, args)))
+    term = Said("claude-code")
+    answers = Answers(logdir="beamtime", agents=["claude-code", "cursor"], import_notes=["NOTES.md"])
+    hand_off(term, handover, answers, which=on_path("claude"))
+    assert called == [("claude", ["claude", "/beamtime:migrate NOTES.md CLAUDE.md:1"])]
+    assert term.options == [
+        ("claude-code", "Start Claude Code now"),
+        ("copy", "Copy the prompt"),
+        ("later", "Later"),
+    ]
+    assert term.default == "claude-code"
+
+
+def test_hand_off_offers_start_only_for_an_installed_agent(handover: Scan) -> None:
+    """Without the agent's program on ``PATH`` the rows are copy and later, copy first."""
+    from beamtime.setup.flow import hand_off
+
+    term = Said("later")
+    answers = Answers(logdir="beamtime", agents=["claude-code"], import_notes=["NOTES.md"])
+    hand_off(term, handover, answers, which=on_path())
+    assert [v for v, _ in term.options] == ["copy", "later"] and term.default == "copy"
+    assert term.lines == ["Run it later:  beamtime setup --migrate-with claude-code"]
+
+
+def test_hand_off_copy_uses_the_first_clipboard_tool(
+    handover: Scan, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Copy runs the first of pbcopy, wl-copy, xclip and clip that exists, else prints the prompt."""
+    from beamtime.setup import flow
+
+    sent: list[tuple[list[str], bytes]] = []
+    monkeypatch.setattr(
+        flow.subprocess, "run", lambda cmd, input, check: sent.append((cmd, input))
+    )
+    answers = Answers(logdir="beamtime", agents=["cursor"], import_notes=["NOTES.md"])
+    term = Said("copy")
+    flow.hand_off(term, handover, answers, which=on_path("xclip", "clip"))
+    text = "Run the beamtime migrate prompt with paths NOTES.md and conflict CLAUDE.md:1"
+    assert sent == [(["/bin/xclip", "-selection", "clipboard"], text.encode())]
+    assert term.lines == ["The migrate prompt is on your clipboard."]
+    term = Said("copy")
+    flow.hand_off(term, handover, answers, which=on_path())
+    assert len(sent) == 1 and f"  {text}" in term.lines
+
+
+def test_hand_off_asks_nothing_without_an_agent_or_without_work(handover: Scan) -> None:
+    """No agent, or neither notes nor a conflict to hand over, means no question."""
+    from beamtime.setup.flow import hand_off
+
+    class Never(Said):
+        def select(self, *args: object, **kwargs: object) -> str:
+            raise AssertionError("asked")
+
+    hand_off(Never(), handover, Answers(logdir="beamtime", import_notes=["NOTES.md"]))
+    clean = dataclasses.replace(handover, conflicts=())
+    hand_off(Never(), clean, Answers(logdir="beamtime", agents=["claude-code"]))
+    first = dataclasses.replace(handover, flow="first")
+    hand_off(Never(), first, Answers(logdir="beamtime", agents=["claude-code"], rules=False))
+
+
+def test_wizard_leaves_notes_to_the_agent_and_asks_after_the_write(
+    handover: Scan, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With an agent the review does not write the notes as they are; the command says why."""
+    from beamtime.setup import flow
+    from beamtime.setup.flow import Step
+
+    (handover.root / "beamtime.yaml").unlink()
+    found = scan(handover.root, home=handover.home, mounts=Path("/nonexistent"), env={"PATH": ""})
+    answers = Answers.defaults(found)
+    answers.agents, answers.import_notes = ["claude-code"], ["NOTES.md"]
+    monkeypatch.setattr(flow, "intro", lambda *a: None)
+    idle = Step(id="idle", title="idle", ask=lambda *a: None, when=lambda *a: False)
+    final = flow.run(Said("write"), found, answers, steps=[idle], which=fake_which)
+    assert final is not None and final.migrate_with == "claude-code"
+    assert "notes" not in [c.label for c in plan(found, final, which=fake_which)]
+    assert "--migrate-with claude-code" in command(final, found)
+
+
+def test_migrate_with_goes_straight_to_the_agent(
+    handover: Scan, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``ask=False`` starts the named agent without a question."""
+    from beamtime.setup.flow import hand_off
+
+    called: list[list[str]] = []
+    monkeypatch.setattr(os, "execvp", lambda file, args: called.append(args))
+    answers = Answers(logdir="beamtime", migrate_with="codex")
+    hand_off(Never := Said("nothing"), handover, answers, ask=False, which=on_path("codex"))
+    assert called == [["codex", "Run the beamtime migrate prompt with paths NOTES.md and conflict CLAUDE.md:1"]]
+    assert Never.options == []
+
+
+def test_migrate_with_alone_skips_the_wizard(
+    handover: Scan, monkeypatch: pytest.MonkeyPatch, tools
+) -> None:
+    """In a set-up project, ``--migrate-with`` hands over at once on a terminal and names the command without."""
+    from beamtime.ops.admin import setup as operation
+    from beamtime.ops.context import Context
+
+    monkeypatch.setenv("PATH", tools())
+    seen: list[tuple[str, bool]] = []
+    monkeypatch.setattr(
+        "beamtime.setup.flow.hand_off",
+        lambda term, found, answers, ask, which=None: seen.append((answers.migrate_with, ask)),
+    )
+    monkeypatch.setattr(
+        "beamtime.setup.flow.setup", lambda *a, **kw: seen.append(("wizard", True)) or []
+    )
+    context = Context.make(root=handover.root)
+    params = SetupParams(migrate_with="claude-code")
+    out = operation(context, params)
+    assert seen == [] and out["lines"] == [
+        "to hand the notes and memory to Claude Code, run: claude "
+        "'/beamtime:migrate NOTES.md CLAUDE.md:1'"
+    ]
+    monkeypatch.setattr(sys, "stdin", Tty())
+    monkeypatch.setattr(sys, "stdout", Tty())
+    operation(context, params)
+    assert seen == [("claude-code", False)]

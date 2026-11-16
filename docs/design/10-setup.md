@@ -622,10 +622,24 @@ a typed note (`observation`, `decision`, `idea`, `question`, `verdict`) on the g
 linking the imported runs it cites as evidence; to draft the project's memory from those notes; for a
 conflict, to show the diff that replaces the experiment section of the instruction file with a pointer
 to Beamtime, and edit only after the user agrees; never to delete or change the source files; to name
-itself as author. The hand-off step offers each chosen client that can start with a prompt, "Copy the
+itself as author. The hand-off step comes after the write, when an agent was chosen and there are
+notes or memory files, or an instruction conflict whose rules block was written. It offers each chosen
+client that can start with a prompt (it has a start command and its program is on `PATH`), "Copy the
 prompt" (for editor agents), or "Later" (`beamtime setup --migrate-with <agent>` brings it back).
 Starting one replaces the wizard's process with the agent's interactive session in the same terminal
-(`os.execvp`), so the user watches it and can steer.
+(`os.execvp`, in the project root), so the user watches it and can steer. `start_command(client, paths,
+conflict)` builds the command: `claude "/beamtime:migrate <paths> <file:line>"`, or the client's start
+command with "Run the beamtime migrate prompt with paths ... and conflict ..." for Codex and Gemini CLI.
+"Copy" puts that sentence on the clipboard with the first of `pbcopy`, `wl-copy`,
+`xclip -selection clipboard` and `clip` that is on `PATH`, and prints it when there is none. With an
+agent chosen, the review leaves notes and memory files to the hand-off (`migrate_with` is the first
+chosen agent), so the command the wizard prints carries `--migrate-with`; "Later" leaves them unwritten.
+
+`beamtime setup --migrate-with <agent>` alone, in a set-up project, skips the questions and the list of
+answers: on a terminal it starts the agent at once (an agent without a start command gets "Copy"), and
+without one it prints the command to run. It hands over the notes and memory files the scan found, or
+those named by `--import-notes` and `--import-memory`, and the first instruction conflict. With `--yes`
+in any flow it writes first and then prints the command; it never starts a session without a terminal.
 
 ## Past work
 
