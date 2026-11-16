@@ -22,6 +22,8 @@ from beamtime.setup.plan import Answers, Change, Remote, command, flags, plan, r
 from beamtime.setup.scan import Scan, scan
 from beamtime.setup.stale import Stale
 
+from .test_flow import current  # noqa: F401
+
 DESK = {"DISPLAY": ":0", "PATH": ""}
 STALE = (
     Stale(item="rules", before="CLAUDE.md has the 0.1.1 rules", after="the 0.3.0 rules"),
@@ -563,3 +565,18 @@ def test_review_groups_by_where(project: Path, home: Path) -> None:
         "the project (shared through git)", "this machine", "imports"
     ]  # fmt: skip
     assert "    was: the log dir ignored as a whole" in text
+
+
+def test_flags_apply_on_top_of_the_saved_answers(current: Scan) -> None:
+    """A flag replaces its own answer; the saved ones stay where no flag speaks."""
+    saved = Answers.saved(current)
+    same = Answers.from_params(parse(["setup"]), current, base=saved)
+    assert same == saved
+    mixed = Answers.from_params(
+        parse(["setup", "--git", "none", "--skip-remote", "juwels"]), current, base=saved
+    )
+    assert mixed.git == "none" and mixed.agents == ["claude-code"] and mixed.runs == "both"
+    assert mixed.remotes == [] and mixed.skip_remotes == ["juwels"]
+    none = Answers.from_params(parse(["setup", "--no-agents"]), current, base=saved)
+    assert none.agents == []
+    assert Answers.from_params(parse(["setup"]), current).agents == []

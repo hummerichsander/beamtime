@@ -693,7 +693,7 @@ I13, I14 and I16 are independent of each other and of the G/A tickets.
   `beamtime setup --migrate-with <agent>` alone, in a set-up project, goes straight to the hand-off (before W16's
   list of answers, which it skips).
 
-### W16. Reconfiguring a current setup (sonnet + review) — code
+### W16. Reconfiguring a current setup (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/setup/plan.py` (new `Answers.saved`; `Answers.from_params` 134–192 gains `base`),
   `src/beamtime/setup/flow.py` (`run` 86–127, `pick_answer` 404–415, `intro` 221; new `reconfigure`),

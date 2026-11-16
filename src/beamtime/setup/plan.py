@@ -131,17 +131,53 @@ class Answers(msgspec.Struct, kw_only=True):
         )
 
     @classmethod
-    def from_params(cls, p: "SetupParams", scan: "Scan") -> "Answers":
+    def saved(cls, scan: "Scan") -> "Answers":
+        """The answers a set-up project and machine stand for: what the files already say.
+
+        Planning them changes nothing, except a rules block that no longer matches the project's
+        ``agent`` settings.
+
+        :param scan: The facts of the project and the machine.
+        :return: The answers."""
+        from beamtime.settings import user_settings_path
+
+        base = cls.defaults(scan)
+        named = Planner.read(scan.root / "beamtime.yaml").get("remotes") or {}
+        mine = Planner.read(user_settings_path()).get("remotes") or {}
+        enabled = [n for n in named if (mine.get(n) or {}).get("enabled") is not False]
+        registered = [a for a in scan.agents if a.registered]
+        ignore = scan.root / ".gitignore"
+        return msgspec.structs.replace(
+            base,
+            runs="both" if named else "here",
+            remotes=[
+                Remote(n, (mine.get(n) or {}).get("host"), (named[n] or {}).get("path"))
+                for n in enabled
+            ],
+            skip_remotes=[n for n in named if n not in enabled],
+            agents=[a.client for a in registered],
+            rules=any(a.has_block for a in registered) if registered else True,
+            git="none"
+            if ignore.is_file() and BLOCK_HEADS["none"] in ignore.read_text()
+            else "record",
+        )
+
+    @classmethod
+    def from_params(
+        cls, p: "SetupParams", scan: "Scan", base: "Answers | None" = None
+    ) -> "Answers":
         """Fill the answers from the flags, and what a flag leaves open from the scan.
 
         :param p: The parameters of ``setup``.
         :param scan: The facts of the project and the machine.
+        :param base: The answers a flag leaves open; default the scan's ``defaults``.
         :return: The answers.
         :raises ValueError: A flag value is malformed, or two flags contradict each other."""
         from beamtime.settings import AGENT_KEYS
         from beamtime.setup.agents import CLIENTS
 
-        base = cls.defaults(scan)
+        if base is None:
+            base = cls.defaults(scan)
         names = [c.name for c in CLIENTS]
         if p.agents and p.no_agents:
             raise ValueError("--agents and --no-agents contradict each other")
@@ -168,16 +204,21 @@ class Answers(msgspec.Struct, kw_only=True):
                 raise ValueError(
                     f"--update {item!r}: choose from {', '.join(UPDATE_ITEMS)} or remote:NAME"
                 )
+        added = [Remote.parse(t) for t in p.remote]
+        taken = {r.name for r in added} | set(p.skip_remote)
         return cls(
             runs=p.runs or base.runs,
             logdir=p.logdir or base.logdir,
             link_logdir=p.link_logdir,
-            remotes=[Remote.parse(t) for t in p.remote],
-            skip_remotes=list(p.skip_remote),
+            remotes=[*(r for r in base.remotes if r.name not in taken), *added],
+            skip_remotes=[
+                *(n for n in base.skip_remotes if n not in taken),
+                *p.skip_remote,
+            ],
             install_remotes=list(p.install_remote),
             ssh_share=list(p.ssh_share),
             cache=p.cache,
-            agents=[a for a in p.agents if a],
+            agents=[a for a in p.agents if a] if p.agents or p.no_agents else base.agents,
             agent_style=style,
             agent_set=preset_overrides(style, agent_set),
             rules=base.rules and not p.no_rules or p.instructions,

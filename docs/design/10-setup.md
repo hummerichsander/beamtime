@@ -162,6 +162,8 @@ answer` screen, starting from what is set up rather than from the defaults:
   none asks the style and the rules; `both` where runs were `here` asks the machines), then shows the
   usual review. `Change an answer` at the review comes back to the list. The cursor starts on the first
   step, or on `Review the changes` when the saved answers already plan a change.
+  The intro says "Set up with <version>. Pick what to change."; a review of answers that plan nothing
+  says "Nothing to change." and ends.
 - **A rules block that no longer matches the settings.** When a registered client's rules file holds a
   block of this release that differs from what `beamtime.yaml: agent` generates now (the settings were
   edited after the setup), the saved answers plan that block's rewrite; the list says so in one line

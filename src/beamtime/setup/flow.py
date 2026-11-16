@@ -80,6 +80,7 @@ UPDATE_LABELS = {
     "sdk": "SDK in the project environment",
 }
 AGENT_SINCE = "0.3.0"
+RULES_LABEL = "Agent rules in "
 CLIPBOARDS = (["pbcopy"], ["wl-copy"], ["xclip", "-selection", "clipboard"], ["clip"])
 Frame = Callable[[Term, Scan, Answers], tuple[list[str], list[str]]]
 
@@ -125,19 +126,18 @@ def run(
     flag = answers.migrate_with
     update = Update(probe=probe, which=which) if scan.flow == "update" else None
     steps = steps or (update.steps() if update else flow_steps(scan, probe, which))
-    fill(scan, answers)
+    if scan.flow != "current":
+        fill(scan, answers)
     try:
         intro(term, scan)
+        if scan.flow == "current":
+            return reconfigure(term, scan, answers, steps, flag=flag, which=which)
         start = 0
         while True:
             for step in steps[start:]:
                 if step.when(answers, scan):
                     step.ask(term, answers, scan)
-            answers.migrate_with = flag or (
-                answers.agents[0]
-                if answers.agents and (answers.import_notes or answers.import_memory)
-                else None
-            )
+            hand_off_to(answers, flag)
             match confirm(term, scan, answers, which, update.frame if update else None):
                 case "write":
                     return answers
@@ -152,6 +152,57 @@ def run(
     except Aborted:
         term.emit(["Nothing was written."])
         return None
+
+
+def hand_off_to(answers: Answers, flag: str | None) -> None:
+    """Name the agent that gets the imported notes and memory: the flag's, else the first chosen.
+
+    :param answers: The answers; ``migrate_with`` is set in place.
+    :param flag: The agent of ``--migrate-with``, if given."""
+    answers.migrate_with = flag or (
+        answers.agents[0]
+        if answers.agents and (answers.import_notes or answers.import_memory)
+        else None
+    )
+
+
+def reconfigure(
+    term: Term,
+    scan: Scan,
+    answers: Answers,
+    steps: list[Step],
+    *,
+    flag: str | None = None,
+    which: Callable[[str], str | None] = shutil.which,
+) -> Answers | None:
+    """List the saved answers, ask only the picked step and what it newly enables, and review.
+
+    :param term: The terminal.
+    :param scan: The facts of the project and the machine.
+    :param answers: The saved answers, with the flags on top; changed in place.
+    :param steps: The questions of the first setup.
+    :param flag: The agent of ``--migrate-with``, if given.
+    :param which: Looks up a program on ``PATH``.
+    :return: The answers to write, or ``None`` when the person wanted no more than the command."""
+    while True:
+        if (i := pick_answer(term, steps, answers, scan, which=which, review=True)) is not None:
+            before = [step.when(answers, scan) for step in steps]
+            steps[i].ask(term, answers, scan)
+            for step, was in zip(steps[i + 1 :], before[i + 1 :], strict=True):
+                if not was and step.when(answers, scan):
+                    step.ask(term, answers, scan)
+        hand_off_to(answers, flag)
+        match confirm(term, scan, answers, which):
+            case "write":
+                return answers
+            case "change":
+                continue
+            case "command":
+                show_command(term, scan, answers)
+                return None
+            case _:
+                term.say(["Nothing to change."])
+                return None
 
 
 def setup(
@@ -262,6 +313,7 @@ def intro(term: Term, scan: Scan) -> None:
     root = display_path(scan.root, scan.home)
     old = setup_release(scan)
     lead = {
+        "current": f"Set up with {old or __version__}. Pick what to change.",
         "teammate": "This project uses Beamtime already. Only this machine's part is left.",
         "cluster": "This looks like a cluster login node. Setup here is short.",
         "update": "This project uses Beamtime already; its setup is "
@@ -494,18 +546,47 @@ def confirm(
     )
 
 
-def pick_answer(term: Term, steps: list[Step], answers: Answers, scan: Scan) -> int:
+def pick_answer(
+    term: Term,
+    steps: list[Step],
+    answers: Answers,
+    scan: Scan,
+    *,
+    which: Callable[[str], str | None] = shutil.which,
+    review: bool = False,
+) -> int | None:
     """Ask which answer to change; the later answers stay as they are, as the defaults.
+
+    With ``review`` the list ends on ``Review the changes``, starts there when the answers plan a
+    change, and says first when a rules block no longer matches the project's settings.
 
     :param term: The terminal.
     :param steps: The questions.
     :param answers: The answers.
     :param scan: The facts of the project and the machine.
-    :return: The index of the step to go back to."""
+    :param which: Looks up a program on ``PATH``.
+    :param review: Whether the list is the start of a reconfiguration.
+    :return: The index of the step to go back to, or ``None`` for the review."""
     rows = [(i, s) for i, s in enumerate(steps) if s.summary and s.when(answers, scan)]
     options = [Option(s.id, s.title, s.summary(answers, scan)) for _, s in rows]
-    chosen = term.select("Which answer?", options, options[0].value)
-    return next(i for i, s in rows if s.id == chosen)
+    body: list[str] = []
+    default = options[0].value
+    if review:
+        options.append(Option("review", "Review the changes"))
+        try:
+            pending = plan(scan, answers, which=which)
+        except ValueError:
+            pending = []
+        files = [
+            c.label.removeprefix(RULES_LABEL) for c in pending if c.label.startswith(RULES_LABEL)
+        ]
+        if files:
+            names = ", ".join(files)
+            text = f"The rules in {names} don't match beamtime.yaml; the review rewrites them."
+            body = [term.paint("m", text), ""]
+        default = "review" if pending else default
+    chosen = term.select("Which answer?", options, default, body=body)
+    return next((i for i, s in rows if s.id == chosen), None)
 
 
 def migrate_args(scan: Scan, answers: Answers) -> tuple[list[str], str | None]:

@@ -1066,7 +1066,7 @@ def test_cluster_writes_the_link_and_the_cache(cluster: Scan, home: Path, tmp_pa
     assert "beamtime source add " in done.output and "Jobs need no change" in done.output
 
 
-def test_setup_asks_on_a_terminal_in_every_flow_but_the_current_one(
+def test_setup_asks_on_a_terminal_for_a_teammate_and_a_cluster(
     tmp_path: Path, home: Path, monkeypatch: pytest.MonkeyPatch, tools
 ) -> None:
     """``setup`` runs the wizard for a teammate and a cluster too, on a terminal and without --yes."""
@@ -1468,3 +1468,226 @@ def test_migrate_with_alone_skips_the_wizard(
     monkeypatch.setattr(sys, "stdout", Tty())
     operation(context, params)
     assert seen == [("claude-code", False)]
+
+
+def set_up(root: Path, home: Path, path: str, *words: str) -> Scan:
+    """Set a project up with ``beamtime setup --yes`` and the words, and scan it again.
+
+    :param root: The project root.
+    :param home: The fake home.
+    :param path: The ``PATH`` of the machine.
+    :param words: The flags.
+    :return: The scan of the set-up project."""
+    env = {"DISPLAY": ":0", "PATH": path}
+    (home / ".ssh").mkdir(parents=True, exist_ok=True)
+    (home / ".ssh" / "config").write_text("Host juwels\n  User jdoe\n")
+    first = scan(root, home=home, mounts=Path("/nonexistent"), env=env)
+    answers = Answers.from_params(parse(["setup", "--yes", *words]), first)
+    apply(plan(first, answers, which=fake_which), lambda text: None)
+    return scan(root, home=home, mounts=Path("/nonexistent"), env=env)
+
+
+@pytest.fixture
+def current(project_tree: Path, home: Path, tools) -> Scan:
+    """A project set up with Claude Code and a remote juwels, as the scan's ``current`` flow.
+
+    :param project_tree: The project root.
+    :param home: The fake home.
+    :param tools: Makes a ``PATH`` of fake programs.
+    :return: The scan."""
+    words = ("--agents", "claude-code", "--remote", "juwels=juwels:${SCRATCH}/x/beamtime")
+    return set_up(project_tree, home, tools(), *words)
+
+
+def edit_agent(scan_: Scan, style: str) -> Scan:
+    """Change the project's agent style by hand, as a person editing ``beamtime.yaml`` would.
+
+    :param scan_: The scan of the set-up project.
+    :param style: The new style.
+    :return: The scan after the edit."""
+    file = scan_.root / "beamtime.yaml"
+    given = yaml.safe_load(file.read_text())
+    file.write_text(yaml.safe_dump({**given, "agent": {"style": style}}))
+    return dataclasses.replace(scan_, project=scan(scan_.root, home=scan_.home).project)
+
+
+def reconfigure_run(scan_: Scan, script: list[tuple[str, bytes]]) -> tuple[Session, Answers]:
+    """Run the wizard in a current setup on a terminal, from the saved answers.
+
+    :param scan_: The scan.
+    :param script: The keys.
+    :return: The session and the answers it changed."""
+    answers = Answers.saved(scan_)
+    done = drive(lambda t: run(t, scan_, answers, probe=fake_probe, which=fake_which), script)
+    return done, answers
+
+
+def labels(scan_: Scan, answers: Answers) -> list[str]:
+    """List the labels a plan changes.
+
+    :param scan_: The scan.
+    :param answers: The answers.
+    :return: One label per change."""
+    return [c.label for c in plan(scan_, answers, which=fake_which)]
+
+
+LIST = "Which answer?"
+
+
+def test_saved_plans_nothing(current: Scan) -> None:
+    """The saved answers of a set-up project change nothing, and say what is set up."""
+    assert current.flow == "current"
+    saved = Answers.saved(current)
+    assert plan(current, saved, which=fake_which) == []
+    assert saved.runs == "both" and saved.agents == ["claude-code"] and saved.rules
+    assert saved.remotes == [Remote("juwels", "juwels", "${SCRATCH}/x/beamtime")]
+    assert saved.git == "record" and not saved.sdk and not saved.imports
+
+
+def test_saved_after_the_agent_settings_changed(current: Scan) -> None:
+    """Editing ``agent`` in ``beamtime.yaml`` plans exactly the rewrite of the rules block."""
+    edited = edit_agent(current, "hands-on")
+    assert labels(edited, Answers.saved(edited)) == ["Agent rules in CLAUDE.md"]
+
+
+def test_saved_skip_remote(current: Scan, home: Path) -> None:
+    """A remote this machine switched off stays off."""
+    file = home / ".config" / "beamtime" / "settings.yaml"
+    mine = yaml.safe_load(file.read_text())
+    mine["remotes"]["juwels"]["enabled"] = False
+    file.write_text(yaml.safe_dump(mine))
+    saved = Answers.saved(current)
+    assert saved.remotes == [] and saved.skip_remotes == ["juwels"]
+    assert plan(current, saved, which=fake_which) == []
+
+
+def test_saved_without_the_rules_and_with_git_none(project_tree: Path, home: Path, tools) -> None:
+    """Setting up with no rules and git none is what the saved answers say too."""
+    words = ("--agents", "claude-code", "--no-rules", "--git", "none")
+    found = set_up(project_tree, home, tools(), *words)
+    saved = Answers.saved(found)
+    assert not saved.rules and saved.git == "none"
+    assert plan(found, saved, which=fake_which) == []
+
+
+@posix
+def test_reconfigure_lists_the_steps_and_asks_only_the_pick(current: Scan) -> None:
+    """The list has every applying step with its summary; one pick asks that step and no other."""
+    script = [(LIST, b"9" + ENTER), (GIT, b"2" + ENTER), (REVIEW, ENTER)]
+    done, answers = reconfigure_run(current, script)
+    assert done.stuck is None and done.value is answers and answers.git == "none"
+    assert titles(done.output) == [LIST, GIT, REVIEW]
+    for text in (WHERE, "both", "juwels", "Claude Code", "careful", "Review the changes"):
+        assert text in done.output
+    assert "Set up with " in done.output and "Pick what to change." in done.output
+    review_part = done.output.split(f"◇  {GIT}")[-1]
+    assert ".gitignore" in review_part and "CLAUDE.md" not in review_part
+    assert labels(current, answers) == [".gitignore"]
+
+
+@posix
+def test_reconfigure_after_the_agent_settings_changed(current: Scan) -> None:
+    """The list names the mismatch, starts on the review, and Enter reviews the rules change."""
+    edited = edit_agent(current, "hands-on")
+    done, answers = reconfigure_run(edited, [(LIST, ENTER), (REVIEW, DOWN + DOWN + ENTER)])
+    assert done.stuck is None
+    line = "The rules in CLAUDE.md don't match beamtime.yaml; the review rewrites them."
+    assert line in done.output
+    assert titles(done.output) == [LIST, REVIEW]
+    assert "Agent rules in CLAUDE.md" in done.output
+    again = Answers.from_params(parse(printed_command(done.output)), edited)
+    assert labels(edited, again) == labels(edited, answers) == ["Agent rules in CLAUDE.md"]
+
+
+@posix
+def test_reconfigure_new_steps(project_tree: Path, home: Path, tools) -> None:
+    """Choosing agents where there were none also asks the style and the rules."""
+    bare = set_up(project_tree, home, tools(), "--no-agents")
+    assert bare.flow == "current" and Answers.saved(bare).agents == []
+    script = [
+        (LIST, b"3" + ENTER),
+        (AGENTS, UP * 8 + SPACE + ENTER),
+        (STYLE, ENTER),
+        (RULES, ENTER),
+        (REVIEW, ENTER),
+    ]
+    done, answers = reconfigure_run(bare, script)
+    assert done.stuck is None
+    assert titles(done.output) == [LIST, AGENTS, STYLE, RULES, REVIEW]
+    assert answers.agents == ["claude-code"] and answers.rules
+    assert "Agent rules in CLAUDE.md" in done.output
+
+
+@posix
+def test_reconfigure_change_again(current: Scan) -> None:
+    """``Change an answer`` at the review returns to the list, not to the order of the steps."""
+    script = [
+        (LIST, b"9" + ENTER),
+        (GIT, b"2" + ENTER),
+        (REVIEW, DOWN + ENTER),
+        (LIST, b"9" + ENTER),
+        (GIT, ENTER),
+        (REVIEW, CTRL_C),
+    ]
+    done, answers = reconfigure_run(current, script)
+    assert done.stuck is None
+    assert titles(done.output) == [LIST, GIT, REVIEW, LIST, GIT]
+    assert answers.git == "none"
+
+
+@posix
+def test_reconfigure_abort(current: Scan) -> None:
+    """Ctrl-c on the list writes nothing."""
+    before = snapshot(current.root, current.home)
+    done, _ = reconfigure_run(current, [(LIST, CTRL_C)])
+    assert done.stuck is None and done.value is None
+    assert "Nothing was written." in done.output
+    assert snapshot(current.root, current.home) == before
+
+
+@posix
+def test_reconfigure_review_without_changes(current: Scan) -> None:
+    """Reviewing answers that plan nothing says so and writes nothing."""
+    done, _ = reconfigure_run(current, [(LIST, DOWN * 9 + ENTER)])
+    assert done.stuck is None and done.value is None
+    assert "Nothing to change." in done.output
+
+
+def test_setup_reconfigures_a_current_project_on_a_terminal(
+    current: Scan, monkeypatch: pytest.MonkeyPatch, tools
+) -> None:
+    """On a terminal ``setup`` hands the saved answers to the wizard; without one it asks nothing."""
+    from beamtime.ops.admin import setup as operation
+    from beamtime.ops.context import Context
+
+    monkeypatch.setenv("PATH", tools())
+    seen: list[Answers] = []
+    monkeypatch.setattr(
+        "beamtime.setup.flow.setup", lambda term, found, answers, **kw: seen.append(answers) or []
+    )
+    context = Context.make(root=current.root)
+    assert operation(context, SetupParams())["lines"] == ["already set up"]
+    assert seen == []
+    monkeypatch.setattr(sys, "stdin", Tty())
+    monkeypatch.setattr(sys, "stdout", Tty())
+    operation(context, SetupParams())
+    assert [a.agents for a in seen] == [["claude-code"]] and seen[0].runs == "both"
+    operation(context, SetupParams(git="none"))
+    assert seen[1].git == "none" and seen[1].agents == ["claude-code"]
+
+
+def test_setup_without_a_terminal_rewrites_the_edited_rules_only_on_request(
+    current: Scan, monkeypatch: pytest.MonkeyPatch, tools
+) -> None:
+    """``setup`` alone says ``already set up`` after an edit of ``agent``; ``--update rules`` rewrites."""
+    from beamtime.guide.rules import read_block
+    from beamtime.ops.admin import setup as operation
+    from beamtime.ops.context import Context
+
+    monkeypatch.setenv("PATH", tools())
+    edited = edit_agent(current, "hands-on")
+    context = Context.make(root=edited.root)
+    block = read_block(edited.root / "CLAUDE.md")
+    assert operation(context, SetupParams())["lines"] == ["already set up"]
+    operation(context, SetupParams(yes=True, update=["rules"]))
+    assert read_block(edited.root / "CLAUDE.md") != block

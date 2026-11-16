@@ -79,13 +79,15 @@ def setup(ctx: Context, p: r.SetupParams) -> dict[str, Any]:
         return migrate_only(found, answers, fields)
     if (
         not p.yes
-        and found.flow in ("first", "teammate", "cluster", "update")
+        and found.flow in ("first", "teammate", "cluster", "update", "current")
         and sys.stdin.isatty()
         and sys.stdout.isatty()
     ):
         from beamtime.setup.flow import setup as wizard
         from beamtime.setup.term import Term
 
+        if found.flow == "current":
+            answers = Answers.from_params(p, found, base=Answers.saved(found))
         try:
             written = wizard(Term.detect(), found, answers)
         except ApplyError as e:
