@@ -159,6 +159,7 @@ def test_prompts(tasks: dict[str, grade.Task]) -> None:
     for task in tasks.values():
         assert task.prompt.endswith(f"End your reply with a fenced json block: {task.answer}")
         assert not banned.search(task.prompt), task.id
+    assert "full precision" in tasks["table"].prompt
 
 
 @pytest.mark.parametrize("task_id", sorted(CORRECT))

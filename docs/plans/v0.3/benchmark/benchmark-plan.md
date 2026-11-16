@@ -152,6 +152,9 @@ What's left runs in this order: N71 M71 M72 M73 M74 J71 J72 J73 J74 L71 L72 U71 
 14. **`find-runs` threshold 0.922** (review of M74): at 0.925 seed 8 has a run at 0.92489, which
     `beamtime runs` prints as `0.925` (three digits), so the CLI setup would be graded wrong for
     reading its own table. At 0.922 every seed's nearest run is at least 9.7e-4 away (0.926: 6.3e-4).
+15. **`table` values at full precision** (review of J71): the prompt asks for every number at full
+    precision, as logged, and the check keeps 1e-6; printed tables round to three digits, and the
+    same stated requirement then holds for every setup.
 
 ## N. Harness repair
 

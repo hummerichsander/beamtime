@@ -146,6 +146,6 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   holds the true effect), `cause` (each stopped run's cause matches the wording of its true cause:
   diverged is `diverg`, `nan`, `inf`, `FloatingPoint`; killed is `kill`, `SIGTERM`, `cancel`; `failed`
   alone is no cause), `file` (a PNG or a table, inside `project`), and for the table task
-  `table_ids` (17 rows), `table_values` (lr, seed, val/acc within 1e-6) and `table_finished`
+  `table_ids` (17 rows), `table_values` (lr, seed, val/acc within 1e-6; the prompt asks for full precision) and `table_finished`
   (yes/no for finished or not; running, lost and killed are not told apart). `find-runs` compares at
   exactly 0.922 without tolerance.
