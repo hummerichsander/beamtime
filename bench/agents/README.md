@@ -172,3 +172,27 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   `beamtime runs` before the session. `make_envs(root)` builds the two venvs with `uv venv` and
   `uv pip install` (`base`: numpy, pandas, scipy, matplotlib, tensorboard; `beamtime`: the same plus this
   checkout's `beamtime[serve]`) and keeps venvs whose install finished (marked by `.installed`).
+- `compare/sessions.py`: `uv run python bench/agents/compare/sessions.py [--setups ...] [--tasks ...]
+  [--seeds 7 8 9] [--reps 1] [--parallel 3] [--model sonnet] [--keep] [--dry-run] [--grade-only BATCH]`.
+  `--dry-run` lists the 96 sessions (8 tasks x 4 setups x 3 seeds, in a fixed shuffled order) with their
+  commands and builds nothing. A real run resolves the model alias to its full id with one probe
+  session (the init event's `model`) and pins that id for every session and the chart judge, reads
+  `claude --version`, builds the venvs (`make_envs`, per batch) and one log dir per seed, then runs the
+  sessions (`claude -p ... --output-format stream-json --verbose`, cwd the project, its time limit, the
+  `claude` found on the host PATH before a session's PATH drops folders). Projects, data, venvs and the
+  truth export live in `$BT_COMPARE_ROOT/<stamp>/` (default `$TMPDIR/bt-compare/<stamp>/`), outside the
+  repo; a batch's records go to `bench/agents/runs/compare-<stamp>/<task>-<setup>-<seed>-<rep>/` with
+  `record.json`, `grade.json`, `transcript.jsonl` and the file the answer names (`answer.png`,
+  `answer.csv`), and `batch.json` (model, version, root, seeds). Grading runs after all sessions: truth
+  per seed from the plain-files export, `grade.grade(...)` with the pinned model; a timeout scores 0
+  (its tokens come from the assistant messages, each message once); a session that ended on a usage
+  limit, or whose judge stalls, stays ungraded with its project kept, and `--grade-only <batch>` grades
+  it later. Sessions and the root are deleted after grading unless `--keep`.
+  `record.json` holds `task`, `setup`, `seed`, `rep`, `model` (init event), `models` (`modelUsage` keys),
+  `other_model` (a second model in either), `claude_version`, `status` (`ok`, `timeout`, `error`),
+  `seconds`, `api_ms`, `turns`, `tokens` (`input`, `cache_write`, `cache_read`, `output`, `total`),
+  `cost_usd`, `tools` (counts by name), `tool_errors`, `beamtime_calls` (MCP tools or `beamtime` in
+  Bash), `leak` (a tool input names the repo path, `synth/` or `generate.py`), `answer` (last 4000
+  characters) and `stderr`; `grade.json` holds `score`, `correct`, `checks` and the judge's `notes`.
+  The sessions' environment (setups.py) drops every `BEAMTIME_*` variable but `BEAMTIME_CACHE` and sets
+  `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`.

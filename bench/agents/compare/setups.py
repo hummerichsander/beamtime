@@ -4,7 +4,7 @@ import json
 import os
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
@@ -149,7 +149,8 @@ def prepare(setup: str, session_dir: Path, data_dir: Path, envs: Envs) -> Projec
     :param envs: The environments from ``make_envs``.
     :return: The project."""
     spec = SETUPS[setup]
-    root = session_dir / "proj"
+    project = planned(setup, session_dir)
+    root = project.root
     root.mkdir(parents=True)
     logdir = data_dir / "beamtime"
     cache = session_dir / "cache"
@@ -164,38 +165,46 @@ def prepare(setup: str, session_dir: Path, data_dir: Path, envs: Envs) -> Projec
             export(envs, "export_tensorboard", logdir, root)
         case _:
             raise ValueError(f"unknown data {spec.data!r}")
-    claude_md = root / "CLAUDE.md"
-    claude_md.write_text(f"{PREAMBLE}\n## Data\n\n{spec.section}")
+    project.claude_md.write_text(f"{PREAMBLE}\n## Data\n\n{spec.section}")
 
-    env = dict(os.environ)
+    # a host BEAMTIME_LOGDIR and the like would redirect the CLI and MCP setups.
+    env = {k: v for k, v in os.environ.items() if not k.startswith("BEAMTIME_")}
     env.pop("PYTHONPATH", None)
     env.update(
         PATH=path_of(envs.bin(spec.env)),
         VIRTUAL_ENV=str(envs.base if spec.env == "base" else envs.beamtime),
         BEAMTIME_CACHE=str(cache),
         XDG_CONFIG_HOME=str(session_dir / "config"),
+        CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
     )
 
-    allowed, mcp_config = TOOLS, None
     if spec.mcp:
         server = {
             "command": str(envs.bin("beamtime") / "beamtime"),
             "args": ["--root", str(root), "mcp"],
             "env": {"BEAMTIME_CACHE": str(cache), "XDG_CONFIG_HOME": env["XDG_CONFIG_HOME"]},
         }
-        mcp_config = session_dir / "mcp.json"
-        mcp_config.write_text(json.dumps({"mcpServers": {"beamtime": server}}))
-        allowed = f"mcp__beamtime__*,{TOOLS}"
+        project.mcp_config.write_text(json.dumps({"mcpServers": {"beamtime": server}}))
     if spec.data == "beamtime":
         warm(envs, root, env)
+    return replace(project, env=env)
+
+
+def planned(setup: str, session_dir: Path) -> Project:
+    """Name a session's project and flags without touching the disk or the environment.
+
+    :param setup: A key of ``SETUPS``.
+    :param session_dir: The session's own folder.
+    :return: The project with an empty ``env``."""
+    spec = SETUPS[setup]
     return Project(
         setup=setup,
-        root=root,
-        claude_md=claude_md,
+        root=session_dir / "proj",
+        claude_md=session_dir / "proj" / "CLAUDE.md",
         tools=TOOLS,
-        allowed=allowed,
-        mcp_config=mcp_config,
-        env=env,
+        allowed=f"mcp__beamtime__*,{TOOLS}" if spec.mcp else TOOLS,
+        mcp_config=session_dir / "mcp.json" if spec.mcp else None,
+        env={},
     )
 
 

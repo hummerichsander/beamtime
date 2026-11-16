@@ -330,7 +330,7 @@ One function per task id (names in J71), each pure Python over `runs/*/*/metrics
 3. Sections: `mcp`/`cli` the rendered rules block (N71's way); `files`/`tensorboard` the layout of
    Decision 5 in four lines each.
 
-### J74. The session runner and its records (sonnet + review) — code
+### J74. The session runner and its records (sonnet + review) — code — **done**
 
 - **Touches:** new `bench/agents/compare/sessions.py`, `bench/agents/README.md` (a "Comparison"
   section), new `tests/bench/test_compare_sessions.py`.

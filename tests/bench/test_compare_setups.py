@@ -150,6 +150,29 @@ def test_files_path_has_no_beamtime(
     )
 
 
+def test_session_env(
+    tmp_path: Path, data_dir: Path, envs: setups.Envs, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A host's BEAMTIME_* variables stay out, the cache is the session's, memory is off."""
+    monkeypatch.setenv("BEAMTIME_LOGDIR", "/host/logs")
+    monkeypatch.setenv("BEAMTIME_CACHE", "/host/cache")
+    for name in ("cli", "files"):
+        env = prepare(name, tmp_path, data_dir, envs).env
+        assert [k for k in env if k.startswith("BEAMTIME_")] == ["BEAMTIME_CACHE"]
+        assert env["BEAMTIME_CACHE"] != "/host/cache"
+        assert env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
+
+
+def test_planned_matches_prepared(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
+    """The dry run's project has the flags of the prepared one."""
+    for name in setups.SETUPS:
+        session = tmp_path / f"{name}-plan"
+        assert (
+            setups.planned(name, session).flags
+            == setups.prepare(name, session, data_dir, envs).flags
+        )
+
+
 def test_cache_per_session(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
     """Each session has its own cache and config inside its folder; the cache is warmed."""
     a = prepare("cli", tmp_path, data_dir, envs, 0)
