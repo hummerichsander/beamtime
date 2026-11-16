@@ -198,3 +198,27 @@ def test_make_envs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert any(a.endswith("[serve]") for a in installs[1])
     assert setups.make_envs(tmp_path) == envs
     assert len(calls) == 4
+
+
+def test_make_envs_after_failed_install(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A venv whose install failed is built again, not reused without its packages."""
+    calls: list[list[str]] = []
+    fail = [True]
+
+    def fake(command: list[str], **kwargs: Any) -> CompletedProcess:
+        calls.append(command)
+        if command[:2] == ["uv", "venv"]:
+            (Path(command[-1]) / "bin").mkdir(parents=True, exist_ok=True)
+            (Path(command[-1]) / "bin" / "python").write_text("")
+        if command[:3] == ["uv", "pip", "install"] and fail[0]:
+            raise setups.subprocess.CalledProcessError(1, command)
+        return CompletedProcess(command, 0)
+
+    monkeypatch.setattr(setups.subprocess, "run", fake)
+    with pytest.raises(setups.subprocess.CalledProcessError):
+        setups.make_envs(tmp_path)
+    fail[0] = False
+    calls.clear()
+    setups.make_envs(tmp_path)
+
+    assert len([c for c in calls if c[:3] == ["uv", "pip", "install"]]) == 2

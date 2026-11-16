@@ -171,4 +171,4 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   server through the absolute command in its MCP config. A Beamtime project's index is warmed with
   `beamtime runs` before the session. `make_envs(root)` builds the two venvs with `uv venv` and
   `uv pip install` (`base`: numpy, pandas, scipy, matplotlib, tensorboard; `beamtime`: the same plus this
-  checkout's `beamtime[serve]`) and keeps venvs that exist.
+  checkout's `beamtime[serve]`) and keeps venvs whose install finished (marked by `.installed`).

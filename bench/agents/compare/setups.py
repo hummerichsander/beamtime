@@ -122,7 +122,7 @@ SETUPS = {
 
 
 def make_envs(root: Path) -> Envs:
-    """Build the two environments with uv, reusing those that exist.
+    """Build the two environments with uv, reusing those whose install finished.
 
     ``base`` has the analysis libraries; ``beamtime`` adds this checkout's ``beamtime[serve]``.
 
@@ -130,11 +130,13 @@ def make_envs(root: Path) -> Envs:
     :return: The environments."""
     envs = Envs(base=root / "base", beamtime=root / "beamtime")
     for path, extra in ((envs.base, []), (envs.beamtime, [f"{REPO}[serve]"])):
-        if (path / "bin" / "python").exists():
+        # written last, so a venv whose install failed is built again instead of reused.
+        if (done := path / ".installed").exists():
             continue
-        subprocess.run(["uv", "venv", "--python", "3.11", str(path)], check=True)
+        subprocess.run(["uv", "venv", "--clear", "--python", "3.11", str(path)], check=True)
         python = str(path / "bin" / "python")
         subprocess.run(["uv", "pip", "install", "--python", python, *LIBRARIES, *extra], check=True)
+        done.touch()
     return envs
 
 
