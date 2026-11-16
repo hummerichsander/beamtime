@@ -179,14 +179,15 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   session (the init event's `model`) and pins that id for every session and the chart judge, reads
   `claude --version`, builds the venvs (`make_envs`, per batch) and one log dir per seed, then runs the
   sessions (`claude -p ... --output-format stream-json --verbose`, cwd the project, its time limit, the
-  `claude` found on the host PATH before a session's PATH drops folders). Projects, data, venvs and the
+  `claude` found on the host PATH before a session's PATH drops folders; `claude` starts its own process
+  group, killed when it exits or times out, so nothing it started outlives the session). Projects, data, venvs and the
   truth export live in `$BT_COMPARE_ROOT/<stamp>/` (default `$TMPDIR/bt-compare/<stamp>/`), outside the
   repo; a batch's records go to `bench/agents/runs/compare-<stamp>/<task>-<setup>-<seed>-<rep>/` with
   `record.json`, `grade.json`, `transcript.jsonl` and the file the answer names (`answer.png`,
   `answer.csv`), and `batch.json` (model, version, root, seeds). Grading runs after all sessions: truth
   per seed from the plain-files export, `grade.grade(...)` with the pinned model; a timeout scores 0
   (its tokens come from the assistant messages, each message once); a session that ended on a usage
-  limit, or whose judge stalls, stays ungraded with its project kept, and `--grade-only <batch>` grades
+  limit, never started (its preparation failed), or whose judge stalls, stays ungraded with its project kept, and `--grade-only <batch>` grades
   it later. Sessions and the root are deleted after grading unless `--keep`.
   `record.json` holds `task`, `setup`, `seed`, `rep`, `model` (init event), `models` (`modelUsage` keys),
   `other_model` (a second model in either), `claude_version`, `status` (`ok`, `timeout`, `error`),

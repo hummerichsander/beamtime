@@ -163,14 +163,17 @@ def test_session_env(
         assert env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
 
 
-def test_planned_matches_prepared(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
+@pytest.mark.parametrize("name", list(setups.SETUPS))
+def test_planned_matches_prepared(
+    tmp_path: Path, data_dir: Path, envs: setups.Envs, name: str
+) -> None:
     """The dry run's project has the flags of the prepared one."""
-    for name in setups.SETUPS:
-        session = tmp_path / f"{name}-plan"
-        assert (
-            setups.planned(name, session).flags
-            == setups.prepare(name, session, data_dir, envs).flags
-        )
+    if name == "tensorboard":
+        pytest.importorskip("tensorboard")
+    session = tmp_path / "plan"
+    assert (
+        setups.planned(name, session).flags == setups.prepare(name, session, data_dir, envs).flags
+    )
 
 
 def test_cache_per_session(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:

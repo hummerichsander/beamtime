@@ -3,6 +3,7 @@
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 from subprocess import CompletedProcess
 from typing import Any
@@ -19,6 +20,7 @@ import setups  # noqa: E402
 from score import JudgeStalled  # noqa: E402
 
 MODEL = "claude-sonnet-5-5"
+POPEN = subprocess.Popen
 PNG = b"\x89PNG\r\n\x1a\n" + b"\0" * 16
 BEST = {"best_lr": 0.0003, "runner_up_lr": 0.001, "difference": 0.01, "significant": True}
 RIGHT = f"Done.\n```json\n{json.dumps(BEST)}\n```"
@@ -240,14 +242,44 @@ class Claude:
         self.calls.append({"command": command} | kwargs)
         if command[1] == "--version":
             return CompletedProcess(command, 0, "9.9.9 (Claude Code)\n", "")
-        text = transcript(self.events)
-        if "stdout" in kwargs and hasattr(kwargs["stdout"], "write"):
-            kwargs["stdout"].write(text)
-            kwargs["stdout"].flush()
-            if self.timeout:
-                raise subprocess.TimeoutExpired(command, kwargs["timeout"])
-            return CompletedProcess(command, self.code, None, "stderr text")
-        return CompletedProcess(command, self.code, text, "")
+        return CompletedProcess(command, self.code, transcript(self.events), "")
+
+    def popen(self, command: list[str], **kwargs: Any) -> "Session | subprocess.Popen":
+        """Start a session: write its transcript and stand in for it; start any other command.
+
+        :param command: The ``claude`` command.
+        :param kwargs: ``subprocess.Popen`` arguments.
+        :return: The process."""
+        if command[0] != sessions.CLAUDE:
+            return POPEN(command, **kwargs)
+        self.calls.append({"command": command} | kwargs)
+        kwargs["stdout"].write(transcript(self.events))
+        kwargs["stderr"].write("stderr text")
+        return Session(code=self.code, timeout=self.timeout)
+
+
+class Session:
+    """A stand-in ``claude`` process: a real process group of its own that exits or hangs."""
+
+    def __init__(self, *, code: int, timeout: bool):
+        """Start the process.
+
+        :param code: The exit code.
+        :param timeout: Whether it runs past the time limit.
+        :return: None."""
+        self.timeout = timeout
+        script = "sleep 30" if timeout else f"exit {code}"
+        self.real = POPEN(["sh", "-c", script], start_new_session=True)
+        self.pid = self.real.pid
+
+    def wait(self, timeout: float | None = None) -> int:
+        """Wait for the process, or run past the time limit.
+
+        :param timeout: The time limit.
+        :return: The exit code."""
+        if timeout is not None and self.timeout:
+            raise subprocess.TimeoutExpired("claude", timeout)
+        return self.real.wait()
 
 
 def test_run_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -259,13 +291,13 @@ def test_run_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     folder = tmp_path / "out"
     folder.mkdir()
     fake = Claude([init(), assistant("m1", use("a", "Read", file_path="x")), result()])
-    monkeypatch.setattr(subprocess, "run", fake)
+    monkeypatch.setattr(subprocess, "Popen", fake.popen)
     job = sessions.Job(task="best-config", setup="cli", seed=7, rep=0)
 
     record = sessions.run_session(job, task, project, folder, model=MODEL, version="9.9.9")
     call = fake.calls[0]
 
-    assert call["timeout"] == task.time_limit_s
+    assert call["start_new_session"]
     assert call["cwd"] == project.root and call["env"] == {"X": "1"}
     assert call["command"][call["command"].index("--model") + 1] == MODEL
     assert record["status"] == "ok" and record["claude_version"] == "9.9.9"
@@ -288,10 +320,47 @@ def test_run_session_timeout_and_error(tmp_path: Path, monkeypatch: pytest.Monke
     ):
         folder = tmp_path / name
         folder.mkdir()
-        monkeypatch.setattr(subprocess, "run", fake)
+        monkeypatch.setattr(subprocess, "Popen", fake.popen)
         record = sessions.run_session(job, task, project, folder, model=MODEL, version="v")
         assert record["status"] == status
     assert json.loads((tmp_path / "a" / "record.json").read_text())["tokens"]["total"] == 10
+
+
+@pytest.mark.parametrize(
+    ("script", "status"), [("sleep 30", "timeout"), ("echo '{}'; exit 0", "error")]
+)
+def test_session_children_are_stopped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script: str, status: str
+) -> None:
+    """A child the session left running neither holds it to its time limit nor outlives it.
+
+    :param script: What the stand-in ``claude`` does after starting the child.
+    :param status: The session's status."""
+    claude = tmp_path / "claude"
+    claude.write_text(f'#!/bin/sh\n(sleep 3; touch "$PWD/stray") &\n{script}\n')
+    claude.chmod(0o755)
+    monkeypatch.setattr(sessions, "CLAUDE", str(claude))
+    task = grade.Task(id="x", prompt="p", answer="a", checks={}, time_limit_s=1, setups=["files"])
+    project = setups.planned("files", tmp_path / "s")
+    project.root.mkdir(parents=True)
+    folder = tmp_path / "out"
+    folder.mkdir()
+    job = sessions.Job(task="x", setup="files", seed=7, rep=0)
+
+    record = sessions.run_session(job, task, project, folder, model=MODEL, version="v")
+    time.sleep(3.5 - record["seconds"])
+
+    assert record["status"] == status and record["seconds"] < 2.5
+    assert not (project.root / "stray").exists()
+
+
+def test_unstarted_session_is_not_scored(batch: "Batch") -> None:
+    """A session whose project could not be prepared has no transcript and stays ungraded."""
+    folder = batch.add("best-config", [], status="error")
+    (folder / "transcript.jsonl").unlink()
+    sessions.grade_batch(batch.dir)
+
+    assert not (folder / "grade.json").exists()
 
 
 def test_resolve_model(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -412,6 +481,7 @@ def test_run_batch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         [init(), assistant("m1", use("a", "Bash", command="cat runs/x"), usage=USAGE), result()]
     )
     monkeypatch.setattr(subprocess, "run", fake)
+    monkeypatch.setattr(subprocess, "Popen", fake.popen)
     monkeypatch.setattr(sessions, "RUNS", tmp_path / "runs")
     monkeypatch.setenv("BT_COMPARE_ROOT", str(tmp_path / "bt"))
     (tmp_path / "base" / "bin").mkdir(parents=True)

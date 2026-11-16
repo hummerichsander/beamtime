@@ -15,6 +15,7 @@ import random
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -238,22 +239,25 @@ def run_session(
     :return: The record, also written to ``record.json``."""
     started = time.monotonic()
     code: int | None = None
-    stderr = ""
-    with (folder / "transcript.jsonl").open("w") as out:
+    # stderr goes to a file: a child left running would hold a pipe open until the time limit.
+    with (folder / "transcript.jsonl").open("w") as out, tempfile.TemporaryFile("w+") as err:
+        process = subprocess.Popen(
+            command(task.prompt, project, model),
+            cwd=project.root,
+            env=project.env,
+            stdout=out,
+            stderr=err,
+            text=True,
+            start_new_session=True,
+        )
         try:
-            done = subprocess.run(
-                command(task.prompt, project, model),
-                cwd=project.root,
-                env=project.env,
-                stdout=out,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=task.time_limit_s,
-            )
-            code, stderr = done.returncode, done.stderr[-2000:]
+            code = process.wait(timeout=task.time_limit_s)
         except subprocess.TimeoutExpired:
             pass
-    seconds = round(time.monotonic() - started, 1)
+        seconds = round(time.monotonic() - started, 1)
+        stop_group(process)
+        err.seek(0)
+        stderr = err.read()[-2000:]
     events = read_events((folder / "transcript.jsonl").read_text())
     result = next((e for e in reversed(events) if e.get("type") == "result"), None)
     if code is None:
@@ -274,6 +278,17 @@ def run_session(
         | summarize(events, model=model)
         | {"stderr": stderr},
     )
+
+
+def stop_group(process: subprocess.Popen) -> None:
+    """Kill a session's process group, so nothing it started keeps running into later sessions.
+
+    :param process: The ``claude`` process, started in a new session."""
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.wait()
 
 
 def write_record(folder: Path, record: dict[str, Any]) -> dict[str, Any]:
@@ -390,7 +405,11 @@ def grade_batch(batch: Path, *, keep: bool = False) -> None:
         task = tasks[record["task"]]
         project = root / "sessions" / folder.name / "proj"
         transcript = folder / "transcript.jsonl"
-        text = final_text(read_events(transcript.read_text() if transcript.exists() else ""))
+        if not transcript.exists():
+            print(f"{folder.name}: never started, left ungraded", flush=True)
+            pending += 1
+            continue
+        text = final_text(read_events(transcript.read_text()))
         if record["status"] == "error" and USAGE_LIMIT.search(text):
             print(f"{folder.name}: usage limit, left ungraded", flush=True)
             pending += 1
