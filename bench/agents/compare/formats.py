@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from beamtime.format.run import read_config, read_effective_metrics, read_output, read_run_info
 from beamtime.format.tree import iter_runs
 
@@ -69,3 +71,61 @@ def write_metrics_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         writer.writerow(["step", "time", *keys])
         for row in rows:
             writer.writerow([row["_step"], row["_t"], *(row.get(k, "") for k in keys)])
+
+
+def export_tensorboard(logdir: Path, dest: Path) -> int:
+    """Write ``dest/tb/<group>/<run id>/{events, hparams.yaml, output.log}`` per run.
+
+    The event file holds one scalar event per logged value (step and wall time as logged) and one
+    hparams event with the flattened config; ``hparams.yaml`` keeps the config nested.
+
+    :param logdir: The log dir.
+    :param dest: The folder that will hold ``tb/``.
+    :return: The number of runs written."""
+    from tensorboard.compat.proto.event_pb2 import Event
+    from tensorboard.compat.proto.summary_pb2 import Summary
+    from tensorboard.plugins.hparams.summary_v2 import hparams_pb
+    from tensorboard.summary.writer.event_file_writer import EventFileWriter
+
+    n = 0
+    for run in export_runs(logdir):
+        folder = dest / "tb" / run.group / run.id
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "hparams.yaml").write_text(yaml.safe_dump(run.config, sort_keys=False))
+        (folder / "output.log").write_text(run.output)
+
+        start = run.rows[0]["_t"] if run.rows else 0.0
+        writer = EventFileWriter(str(folder))
+        writer.add_event(
+            Event(
+                wall_time=start,
+                summary=hparams_pb(hparam_values(run.config), start_time_secs=start),
+            )
+        )
+        for row in run.rows:
+            for key, value in row.items():
+                if key.startswith("_"):
+                    continue
+                summary = Summary(value=[Summary.Value(tag=key, simple_value=value)])
+                writer.add_event(Event(wall_time=row["_t"], step=row["_step"], summary=summary))
+        writer.close()
+        n += 1
+    return n
+
+
+def hparam_values(config: dict[str, Any]) -> dict[str, bool | int | float | str]:
+    """Flatten a nested config for the hparams plugin, which takes only scalars.
+
+    Keys of nested dicts are joined with ``.``; lists and ``None`` become their JSON text.
+
+    :param config: The config as logged.
+    :return: Flat keys with ``bool``, ``int``, ``float`` or ``str`` values."""
+    flat: dict[str, bool | int | float | str] = {}
+    for key, value in config.items():
+        if isinstance(value, dict):
+            flat.update({f"{key}.{k}": v for k, v in hparam_values(value).items()})
+        elif isinstance(value, bool | int | float | str):
+            flat[key] = value
+        else:
+            flat[key] = json.dumps(value)
+    return flat

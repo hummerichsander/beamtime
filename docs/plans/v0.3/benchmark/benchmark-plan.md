@@ -220,7 +220,7 @@ What's left runs in this order: N71 M71 M72 M73 M74 J71 J72 J73 J74 L71 L72 U71 
 3. `export_files(logdir: Path, dest: Path) -> int` writes `dest/runs/...`; header `step,time,<sorted
    keys>`; returns the number of runs.
 
-### M73. The TensorBoard export (sonnet + review) — code
+### M73. The TensorBoard export (sonnet + review) — code — **done**
 
 - **Touches:** `bench/agents/compare/formats.py` (new `export_tensorboard`),
   `tests/bench/test_compare_formats.py` (TensorBoard tests, `importorskip`).

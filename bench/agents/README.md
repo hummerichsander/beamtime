@@ -122,3 +122,8 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   the plain-files baseline `dest/runs/<group>/<run id>/{config.json, metrics.csv, output.log}`. The CSV
   has `step`, `time` and the sorted metric keys; a metric not logged at a step is an empty cell, `nan`
   and `inf` are written as Python writes them, and there is no status file.
+  `export_tensorboard(logdir, dest)` writes the TensorBoard baseline `dest/tb/<group>/<run id>/{events,
+  hparams.yaml, output.log}`: one scalar event per logged value (step and wall time as logged; the
+  value is float32, within 1e-6 relative) and an hparams event with the config flattened by `.` (lists
+  and `None` as JSON text), while `hparams.yaml` keeps it nested. It needs `tensorboard` only, no
+  TensorFlow or PyTorch, so tests run under `uv run --with tensorboard` and skip without it.

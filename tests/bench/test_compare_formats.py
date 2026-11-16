@@ -6,6 +6,7 @@ import math
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -157,3 +158,132 @@ def test_files_export_runs_status(made: tuple[Path, Path, dict[str, str]]) -> No
     assert len(runs) == 47
     assert len({(r.group, r.id) for r in runs}) == 47
     assert {r.status for r in runs} >= {"finished"}
+
+
+@pytest.fixture(scope="module")
+def tb_made(
+    made: tuple[Path, Path, dict[str, str]], tmp_path_factory: pytest.TempPathFactory
+) -> Path:
+    """The seed 7 log dir exported as TensorBoard event files.
+
+    :param made: The seed 7 log dir.
+    :param tmp_path_factory: Makes the folder.
+    :return: The export folder."""
+    pytest.importorskip("tensorboard")
+    logdir, _, _ = made
+    out = tmp_path_factory.mktemp("tb")
+    assert formats.export_tensorboard(logdir, out) == 47
+    return out
+
+
+def read_events(folder: Path) -> Any:
+    """Load a run's event files.
+
+    :param folder: The run's export folder.
+    :return: The loaded ``EventAccumulator``."""
+    from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+
+    acc = EventAccumulator(str(folder), size_guidance={"scalars": 0})
+    acc.Reload()
+    return acc
+
+
+def test_tensorboard_layout(made: tuple[Path, Path, dict[str, str]], tb_made: Path) -> None:
+    """Every run has an event file, ``hparams.yaml`` and ``output.log`` in its group folder."""
+    logdir, _, _ = made
+    for run in iter_runs(logdir):
+        folder = tb_made / "tb" / run.parent.relative_to(logdir) / run.name
+        names = sorted(p.name for p in folder.iterdir())
+        assert len(names) == 3 and names[0].startswith("events.out.tfevents.")
+        assert names[1:] == ["hparams.yaml", "output.log"]
+
+
+def test_tensorboard_scalars_roundtrip(
+    made: tuple[Path, Path, dict[str, str]], tb_made: Path
+) -> None:
+    """``EventAccumulator`` reads back every logged scalar with its step and wall time."""
+    logdir, _, _ = made
+    for run in iter_runs(logdir):
+        rows = read_effective_metrics(run)
+        acc = read_events(tb_made / "tb" / run.parent.relative_to(logdir) / run.name)
+        keys = {k for row in rows for k in row if not k.startswith("_")}
+        assert set(acc.Tags()["scalars"]) == keys
+        for key in keys:
+            want = [(r["_step"], r["_t"], r[key]) for r in rows if key in r]
+            got = [(e.step, e.wall_time, e.value) for e in acc.Scalars(key)]
+            assert len(got) == len(want)
+            for (s, t, v), (gs, gt, gv) in zip(want, got, strict=True):
+                assert gs == s and gt == t
+                assert (math.isnan(v) and math.isnan(gv)) or gv == pytest.approx(
+                    v, rel=1e-6, abs=1e-30
+                )
+
+
+def test_tensorboard_nonfinite(made: tuple[Path, Path, dict[str, str]], tb_made: Path) -> None:
+    """The diverging run's ``nan`` stays ``nan`` and ``inf`` stays ``inf``."""
+    logdir, _, roles = made
+    run = next(r for r in iter_runs(logdir) if r.name == roles["diverging"].split("/")[-1])
+    acc = read_events(tb_made / "tb" / run.parent.relative_to(logdir) / run.name)
+    values = [e.value for e in acc.Scalars("train/loss")]
+
+    assert any(math.isnan(v) for v in values) and any(math.isinf(v) for v in values)
+
+
+def test_tensorboard_float32_close(made: tuple[Path, Path, dict[str, str]], tb_made: Path) -> None:
+    """``simple_value`` is float32: values differ from the record by less than 1e-6 relative."""
+    logdir, _, _ = made
+    worst = 0.0
+    for run in iter_runs(logdir):
+        rows = read_effective_metrics(run)
+        acc = read_events(tb_made / "tb" / run.parent.relative_to(logdir) / run.name)
+        for key in acc.Tags()["scalars"]:
+            want = [r[key] for r in rows if key in r]
+            for v, e in zip(want, acc.Scalars(key), strict=True):
+                if math.isfinite(v) and v != 0:
+                    worst = max(worst, abs(e.value - v) / abs(v))
+
+    assert worst < 1e-6
+
+
+def test_tensorboard_hparams_without_tf(
+    made: tuple[Path, Path, dict[str, str]], tb_made: Path
+) -> None:
+    """The hparams plugin entry is written and read without TensorFlow or PyTorch."""
+    from tensorboard.plugins.hparams import plugin_data_pb2
+
+    logdir, _, _ = made
+    run = next(iter(iter_runs(logdir)))
+    acc = read_events(tb_made / "tb" / run.parent.relative_to(logdir) / run.name)
+    content = acc.PluginTagToContent("hparams")["_hparams_/session_start_info"]
+    info = plugin_data_pb2.HParamsPluginData.FromString(content).session_start_info
+
+    assert len(info.hparams) > 0
+    assert "tensorflow" not in sys.modules and "torch" not in sys.modules
+
+
+def test_tensorboard_nested_hparams(made: tuple[Path, Path, dict[str, str]], tb_made: Path) -> None:
+    """Nested config keys are listed flattened with ``.``; ``hparams.yaml`` keeps them nested."""
+    import yaml
+    from tensorboard.plugins.hparams import plugin_data_pb2
+
+    logdir, _, _ = made
+    checked = 0
+    for run in iter_runs(logdir):
+        config = json.loads((run / "_config.json").read_text())
+        config.pop("schema")
+        folder = tb_made / "tb" / run.parent.relative_to(logdir) / run.name
+        assert yaml.safe_load((folder / "hparams.yaml").read_text()) == config
+
+        content = read_events(folder).PluginTagToContent("hparams")["_hparams_/session_start_info"]
+        info = plugin_data_pb2.HParamsPluginData.FromString(content).session_start_info
+        assert set(info.hparams) == set(formats.hparam_values(config))
+        checked += any(isinstance(v, dict) for v in config.values())
+
+    assert checked > 0
+
+
+def test_tensorboard_hparam_values() -> None:
+    """Nested dicts are joined with ``.``; lists and ``None`` become JSON text."""
+    flat = formats.hparam_values({"a": 1, "b": {"c": 0.5, "d": {"e": "x"}}, "f": [1, 2], "g": None})
+
+    assert flat == {"a": 1, "b.c": 0.5, "b.d.e": "x", "f": "[1, 2]", "g": "null"}
