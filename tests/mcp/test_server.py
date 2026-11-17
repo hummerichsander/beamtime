@@ -17,7 +17,16 @@ pytest.importorskip("mcp")
 from mcp.client.session import ClientSession  # noqa: E402
 from mcp.client.stdio import StdioServerParameters, stdio_client  # noqa: E402
 
-from beamtime.mcp.server import CORE, FAMILIES, PROMPTS, build, content, slim  # noqa: E402
+from beamtime.mcp.server import (  # noqa: E402
+    CORE,
+    FAMILIES,
+    PROMPTS,
+    build,
+    content,
+    instructions,
+    prompt_text,
+    slim,
+)
 
 BEAMTIME = Path(sys.executable).parent / ("beamtime.exe" if sys.platform == "win32" else "beamtime")
 
@@ -110,9 +119,21 @@ def test_tools_match_the_registry(project: Path) -> None:
 def test_prompts_reach_family_tools_through_tools_more() -> None:
     """A prompt that names a family tool says it is called through ``tools_more``."""
     members = {name for names in FAMILIES.values() for name in names}
-    for name, (_, _, body) in PROMPTS.items():
+    for name, (_, arguments, _) in PROMPTS.items():
+        body = prompt_text(name, {a: "x" for a, _, _ in arguments})
         if members & set(re.findall(r"`(\w+)`", body)):
             assert "tools_more" in body, name
+    assert "`tools_more`" in instructions()
+
+
+def test_all_names_no_tools_more_in_instructions_or_prompts() -> None:
+    """Under ``mcp_tools: all`` no instruction or prompt text mentions ``tools_more``."""
+    assert "tools_more" not in instructions("all")
+    for name, (_, arguments, _) in PROMPTS.items():
+        body = prompt_text(name, {a: "x" for a, _, _ in arguments}, "all")
+        assert "tools_more" not in body and "{more_" not in body, name
+    view = prompt_text("view", {"group": "g"}, "all")
+    assert "call the `view_*` and `block_*` tools directly" in view
 
 
 def test_tool_definitions_under_3500_tokens(project: Path) -> None:
@@ -246,6 +267,22 @@ def test_mcp_tools_setting_per_project(project: Path, tmp_path: Path) -> None:
     listed = session(other, work)
     assert listed == list(BY_TOOL) and "tools_more" not in listed
     assert session(project, work) == [*CORE, "tools_more"]
+
+
+def test_mcp_tools_setting_reaches_instructions_and_prompts(project: Path, tmp_path: Path) -> None:
+    """The server's own root decides the instructions at start and the prompts per call."""
+    other = tmp_path / "all"
+    other.mkdir()
+    (other / ".git").mkdir()
+    (other / "beamtime.yaml").write_text("agent: {mcp_tools: all}\n")
+
+    async def work(s):
+        return (await s.get_prompt("view", {"group": "scaling"})).messages[0].content.text
+
+    assert build(other).instructions == instructions("all")
+    assert build(project).instructions == instructions("core")
+    assert "tools_more" not in session(other, work)
+    assert "tools_more" in session(project, work)
 
 
 def test_calls_answer_and_errors_return_to_the_agent(project: Path) -> None:

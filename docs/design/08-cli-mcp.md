@@ -188,7 +188,10 @@ drift from the commands.
   project's settings): `all` lists every non-user tool from the start and omits `tools_more`. The guide's
   line "Over MCP with the default tool set, call these through `tools_more`." (the `{{agent.tools_more}}`
   placeholder) appears in the topics that send the agent to a family tool and is empty under `all`; the
-  Defaults section does not list the knob.
+  Defaults section does not list the knob. The server instructions and the prompts follow the same
+  setting: under `all` they name the family tools for direct calls and never mention `tools_more`. The
+  prompts read the setting per call; the instructions are fixed at server start, so they use the
+  setting of the server's own root.
 - **Small definitions.** Each tool has a short description and a precise schema; how to use them well
   lives in `guide`, loaded on demand. The definitions of a fresh server, `tools_more` included, stay under
   3.5k tokens (characters of the JSON / 4; `tests/mcp` checks it).

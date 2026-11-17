@@ -15,20 +15,50 @@ from beamtime import remote
 from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import BY_TOOL, OPS, Op
 
-INSTRUCTIONS = (
-    "Beamtime records ML experiments as runs in groups below a log dir. Start in an "
-    "unfamiliar group with `keys`; check `status` before working with live runs. "
-    "Before designing an experiment read `memory_show`; before a launch write the "
-    "proposal with `proposal_set`; judge results with `check` and a verdict note "
-    "(`note_add`), never claiming more than the check says. Writes are additive and pass "
-    "`author` (your model id). Answers are cut at about 8k tokens; pass `cursor` from "
-    "`meta.next` for more. Tools for views, blocks, run control and export are not listed: "
-    "`tools_more` with `family` describes a family, with `tool` and `args` calls one. To build "
-    "a group's page read `guide views`, then `tools_more views`, then call the `view_*` tools "
-    "through `tools_more`. User-only commands "
-    f"({', '.join(sorted(op.name for op in OPS if op.user_only))}) "
-    "are not tools: give the user the command."
-)
+MORE_CORE = {
+    "more_views": (
+        " and `tools_more views`; the `view_*` and `block_*` tools are called through `tools_more`"
+    ),
+    "more_timeline": "; `timeline` and `output` are called through `tools_more`",
+    "more_output": " through `tools_more`",
+    "more_output_paren": " (through `tools_more`)",
+}
+MORE_ALL = {
+    "more_views": "; call the `view_*` and `block_*` tools directly",
+    "more_timeline": "",
+    "more_output": "",
+    "more_output_paren": "",
+}
+
+
+def instructions(mcp_tools: str = "core") -> str:
+    """Write the server instructions for the tool set an agent sees.
+
+    :param mcp_tools: The agent setting: ``core`` (family tools through ``tools_more``) or ``all``.
+    :return: The instructions."""
+    if mcp_tools == "all":
+        more = "To build a group's page read `guide views`, then call the `view_*` tools. "
+    else:
+        more = (
+            "Tools for views, blocks, run control and export are not listed: "
+            "`tools_more` with `family` describes a family, with `tool` and `args` calls one. To "
+            "build a group's page read `guide views`, then `tools_more views`, then call the "
+            "`view_*` tools through `tools_more`. "
+        )
+    return (
+        "Beamtime records ML experiments as runs in groups below a log dir. Start in an "
+        "unfamiliar group with `keys`; check `status` before working with live runs. "
+        "Before designing an experiment read `memory_show`; before a launch write the "
+        "proposal with `proposal_set`; judge results with `check` and a verdict note "
+        "(`note_add`), never claiming more than the check says. Writes are additive and pass "
+        "`author` (your model id). Answers are cut at about 8k tokens; pass `cursor` from "
+        f"`meta.next` for more. {more}User-only commands "
+        f"({', '.join(sorted(op.name for op in OPS if op.user_only))}) "
+        "are not tools: give the user the command."
+    )
+
+
+INSTRUCTIONS = instructions()
 
 
 def schema(op: Op) -> dict[str, Any]:
@@ -200,8 +230,7 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
         ],
         text(
             """Build the Beamtime view of group {group}. Aim: {idea}. Read `guide views` first
-            (and `guide examples`, `guide charts`, `guide kit`) and `tools_more views`; the
-            `view_*` and `block_*` tools are called through `tools_more`. Then look at the group:
+            (and `guide examples`, `guide charts`, `guide kit`){more_views}. Then look at the group:
             `keys`, `memory_show`,
             `proposal_show`, `check`, `notes`, `view_show` and `block_list`. Decide the one question
             the view answers and the finding the data supports, no stronger than the
@@ -225,8 +254,7 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
             """Review what happened in Beamtime group {group} since {since}. Use
             `timeline` (from, since) for events and notes, `runs` sorted by
             -run.created_at for new runs with their key metrics, and `card` plus
-            `output` (tail) for every failed, killed or lost run; `timeline` and `output`
-            are called through `tools_more`. Report what ran,
+            `output` (tail) for every failed, killed or lost run{more_timeline}. Report what ran,
             what finished, what failed and why, which curves look off, and what to do
             next. Be concise; cite run ids."""
         ),
@@ -237,7 +265,7 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
         text(
             """Find out why Beamtime run {run} failed or misbehaved. Read `guide analysis`
             first, then its `card`
-            (status, error, warnings, recent events), its `output` through `tools_more`
+            (status, error, warnings, recent events), its `output`{more_output}
             (tail 80, then grep for Error|Traceback|nan if needed) and the `series` of
             its loss near the end. Name the cause, the evidence and a fix. If the run is
             still running, say so and check `status` for freshness."""
@@ -288,7 +316,7 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
             and `check` {group}: each prediction's result, effect, interval and points, and
             whether the result is provisional (plan not complete). Look at the evidence:
             `runs` with the predicted metrics, `series` of the key curves, and `card` plus
-            `output` (through `tools_more`) of failed runs. Judge every prediction as
+            `output`{more_output_paren} of failed runs. Judge every prediction as
             confirmed, refuted or inconclusive. Follow the check unless you have a reason
             not to, and if you disagree, say why in the body. Never claim more than the
             check supports: `insufficient`, `inconclusive` and provisional results stay
@@ -336,6 +364,24 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
 }
 
 
+def prompt_text(name: str, given: dict[str, str], mcp_tools: str = "core") -> str:
+    """Fill a prompt's template.
+
+    :param name: The prompt.
+    :param given: The arguments the client passed.
+    :param mcp_tools: The agent setting: ``core`` or ``all``: how family tools are named.
+    :return: The prompt text."""
+    values = {
+        "group": given.get("group") or ".",
+        "since": given.get("since") or "the last day",
+        "conflict": given.get("conflict") or "none",
+        "idea": given.get("idea") or "ask the user if it is unclear",
+        **{k: v for k, v in given.items() if v},
+        **(MORE_ALL if mcp_tools == "all" else MORE_CORE),
+    }
+    return PROMPTS[name][2].format_map(values)
+
+
 def prompts() -> list[types.Prompt]:
     """List the prompts.
 
@@ -358,6 +404,9 @@ def build(root: str | Path | None = None) -> Server:
     :param root: The project root, or ``None`` to find it from the working directory.
     :return: The server."""
     from importlib.metadata import version
+
+    # fixed at server start: instructions cannot follow a per-call setting.
+    mcp_tools = Context.make(root=root, caller="mcp").settings.agent.mcp_tools
 
     async def list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
         agent = Context.make(root=root, caller="mcp").settings.agent
@@ -402,23 +451,15 @@ def build(root: str | Path | None = None) -> Server:
     async def get_prompt(ctx: Any, params: types.GetPromptRequestParams) -> types.GetPromptResult:
         if params.name not in PROMPTS:
             raise ValueError(f"unknown prompt {params.name!r}")
-        description, arguments, template = PROMPTS[params.name]
-        given = params.arguments or {}
-        values = {
-            "group": given.get("group") or ".",
-            "since": given.get("since") or "the last day",
-            "conflict": given.get("conflict") or "none",
-            "idea": given.get("idea") or "ask the user if it is unclear",
-            **{k: v for k, v in given.items() if v},
-        }
-        text = template.format_map(values)
+        agent = Context.make(root=root, caller="mcp").settings.agent
+        text = prompt_text(params.name, params.arguments or {}, agent.mcp_tools)
         message = types.PromptMessage(role="user", content=types.TextContent(text=text))
-        return types.GetPromptResult(description=description, messages=[message])
+        return types.GetPromptResult(description=PROMPTS[params.name][0], messages=[message])
 
     return Server(
         "beamtime",
         version=version("beamtime"),
-        instructions=INSTRUCTIONS,
+        instructions=instructions(mcp_tools),
         on_list_tools=list_tools,
         on_call_tool=call_tool,
         on_list_prompts=list_prompts,
