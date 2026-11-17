@@ -39,6 +39,87 @@ Token figures are sonnet means on the six new tasks; a session costs about its A
 | 6 | mcp agents spent 2–3 calls probing the export's JSON layout; the CSV is long (`run,name,metric,monotone,source,raw,x,y`) | the export answer names only path, format, rows and bytes (`src/beamtime/ops/reading.py` `export` 745) | real data | E96 |
 | 7 | mcp's first call has 14.1k context against 8.3k for cli | 20 tool definitions, 12.3k characters; the `where` text repeats in several schemas | real data | E99 |
 
+### Rerun (X91)
+
+Evidence: **real data**. cli and mcp on all 14 tasks, seeds 7 8 9, one batch per model, 84 graded records each, none
+leaked or not graded, no "not yet indexed" in any transcript, indexed fully before each session (E92). Batches:
+`compare-20261117-225415` (sonnet), `compare-20261117-230306` (haiku), against the wide batches
+`compare-20261117-162537` and `compare-20261117-171307` (42 sessions per setup; files shown for the target). Pilots
+(seed 7, six new tasks): `compare-20261117-224934`, `compare-20261117-225059` (sonnet 12/12 at 1.00; haiku 11/12 at
+1.00, `drivers` mcp 0.67). Tokens are `tokens.total`, calls are distinct assistant message ids in the transcript,
+first call is the input plus cache tokens of the first call, cost is at list price. `other_model` is false in 167 of
+168 records; the exception is sonnet `check-prediction-mcp-9-0` (a 34-token haiku helper call, 5.5% of the output
+tokens against the 5% limit), kept as recorded.
+
+| Model | Setup | Batch | Score, all 14 | Tokens, all | Calls, all | Cost, all | Score, new 6 | Tokens, new 6 | Calls, new 6 | Cost, new 6 | First call |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| sonnet | cli | rerun | 0.986 | 68.8k | 6.0 | $0.049 | 1.000 | **60.5k** | 5.3 | $0.042 | 8.7k |
+| | | wide | 0.997 | 95.4k | 7.5 | $0.066 | 1.000 | 101.4k | 7.9 | $0.065 | 8.3k |
+| | mcp | rerun | 1.000 | 55.1k | 3.6 | $0.040 | 1.000 | **38.7k** | 2.7 | $0.031 | 13.4k |
+| | | wide | 0.997 | 84.1k | 4.9 | $0.053 | 1.000 | 84.3k | 5.1 | $0.047 | 14.1k |
+| | files | wide | 0.992 | 51.4k | 4.9 | $0.042 | 1.000 | 35.1k | 3.7 | $0.031 | 8.0k |
+| haiku | cli | rerun | 0.971 | 184.2k | 11.0 | $0.008 | 0.944 | **163.0k** | 10.2 | $0.007 | 9.6k |
+| | | wide | 0.976 | 207.8k | 11.5 | $0.009 | 0.944 | 221.7k | 12.2 | $0.009 | 9.2k |
+| | mcp | rerun | 0.965 | 115.7k | 6.0 | $0.005 | 0.944 | **97.8k** | 5.4 | $0.005 | 14.2k |
+| | | wide | 0.976 | 161.9k | 7.4 | $0.007 | 0.944 | 181.0k | 8.3 | $0.007 | 14.9k |
+| | files | wide | 0.976 | 84.7k | 5.6 | $0.005 | 0.944 | 81.8k | 5.9 | $0.005 | 8.8k |
+
+The six new tasks, mean tokens (score) per task, rerun against wide (sonnet, then haiku); files from the wide batch:
+
+| Task | sonnet cli | sonnet mcp | sonnet files | haiku cli | haiku mcp | haiku files |
+|---|---|---|---|---|---|---|
+| drivers | 88k (1.00) / 87k | 59k (1.00) / 84k | 30k | 179k (0.67) / 188k | 96k (0.67) / 162k | 68k |
+| leaderboard | 32k (1.00) / 61k | 28k (1.00) / 51k | 26k | 125k (1.00) / 160k | 82k (1.00) / 116k | 90k |
+| divergence | 47k (1.00) / 102k | 28k (1.00) / 105k | 23k | 158k (1.00) / 225k | 121k (1.00) / 208k | 71k |
+| best-checkpoint | 32k (1.00) / 137k | 38k (1.00) / 155k | 23k | 119k (1.00) / 204k | 83k (1.00) / 223k | 45k |
+| check-all | 30k (1.00) / 111k | 30k (1.00) / 38k | 52k | 177k (1.00) / 252k | 109k (1.00) / 163k | 89k |
+| stale-verdicts | 136k (1.00) / 111k | 50k (1.00) / 73k | 56k | 219k (1.00) / 302k | 97k (1.00) / 214k | 128k |
+
+Goal (decision 1), per model; target is 1.5 times the wide batch's files setup on the six new tasks:
+
+| Model | Target | cli | mcp | Mean score per setup, all 14 | Largest per-task score drop | Verdict |
+|---|---|---|---|---|---|---|
+| sonnet | 52k | 60.5k (1.72x), **not met** | 38.7k (1.10x), met | cli 0.986 against 0.997, mcp 1.000 against 0.997 | `find-runs` cli 1.00 to 0.81 | **not met** (cli tokens, cli score) |
+| haiku | 123k | 163.0k (1.99x), **not met** | 97.8k (1.20x), met | cli 0.971 against 0.976, mcp 0.965 against 0.976 | `failures` mcp 1.00 to 0.89 | **not met** (cli tokens, both means) |
+
+- **mcp meets the token target for both models; cli meets it for neither.** Every new-task mean fell from the wide
+  batch (sonnet cli -40%, mcp -54%; haiku cli -26%, mcp -46%), calls fell (sonnet cli 7.9 to 5.3, mcp 5.1 to 2.7;
+  haiku cli 12.2 to 10.2, mcp 8.3 to 5.4). No task lost more than 0.34 (largest drops: sonnet `find-runs` cli 0.19,
+  haiku `failures` mcp 0.11, `table` cli 0.07, `chart` mcp 0.04). On the six new tasks the scores equal the wide
+  batch's in every cell (sonnet 1.00; haiku 0.944, from `drivers` 0.67 in cli and mcp, the key answered as
+  `config.weight_decay` as in the wide batch). The mean scores per setup over all 14 tasks are below the wide batch's
+  for sonnet cli and haiku cli and mcp, by 0.005 to 0.011, from old tasks: sonnet `find-runs` cli (0.80, 0.77, 0.86;
+  the answers hold 4 to 6 of the expected ids while mcp finds 8, cause not diagnosed), haiku `failures` mcp seed 7
+  (0.67), `table` cli seed 9 (0.80), `chart` mcp seed 9 (0.88).
+- **Costliest cli sessions on the new tasks.** Sonnet: `stale-verdicts` seed 8 (178k, 12 calls: `status`, `notes`,
+  `guide` twice, `proposal show`, `check`, then `runs` calls probing group and depth syntax, a `--to` export,
+  `keys`, a scipy script), `stale-verdicts` seed 7 (137k, 10 calls: `status`, `notes`, `guide`, `proposal`, `check`,
+  `runs --json`, two `runs --to` exports, a pandas script), `drivers` seed 8 (95k, 8 calls: `status`, `runs`, `runs
+  --help`, `runs --to`, `guide`, `guide queries`, `compare`, `keys`, an export and pandas). Haiku: `drivers` seed 7
+  (276k, 15 calls: `status`, `guide`, `guide analysis`, `guide queries`, `keys`, six `runs` calls that probe the
+  `--where` glob syntax, two pandas scripts, a note), `check-all` seed 7 (274k, 15 calls: `status`, `guide` three
+  times, `check`, two `runs --to` exports, `keys`, two notes), `stale-verdicts` seed 7 (271k, 13 calls: `guide`
+  topics, `notes --full` and `proposal` variants tried in turn). Seen in these call lists: `guide` and `--help`
+  reads, probing the `where` and group syntax of `runs`, and a `note add` after the answer on haiku.
+- **First-call context.** cli 8.7k (sonnet) and 9.6k (haiku) against 8.3k and 9.2k in the wide batch (+0.4k); mcp 13.4k and 14.2k against 14.1k and 14.9k (-0.7k). The tool list still costs mcp about 4.7k
+  tokens more per call than cli.
+- **New fields in use** (sessions whose tool calls name them; the export is a `series ... --to` call):
+
+| Model | Setup | Sessions with `nonfinite_step` | with `rise_step` | with a step-reference window | with a wide series export | on `divergence` and `best-checkpoint` (6 each): field / export |
+|---|---|---|---|---|---|---|
+| sonnet | cli | 5 of 42 | 3 | 6 | 5 | 6 / 2 |
+| | mcp | 5 of 42 | 3 | 10 | 3 | 6 / 0 |
+| haiku | cli | 7 of 42 | 1 | 5 | 11 | 5 / 5 |
+| | mcp | 3 of 42 | 2 | 12 | 10 | 5 / 5 |
+
+  In the wide batches 23 of the 24 cli and mcp sessions on the two long-series tasks exported (sonnet 12 of 12, haiku
+  11 of 12) and one used a field. Now sonnet exports in 2 of 12 (both cli) and answers with fields in 12 of 12;
+  haiku exports in 10 of 12 and uses fields in 10 of 12 (both in some), `best-checkpoint` 2 of 3 per setup with an
+  export. The step-reference window is used mainly for `train/loss[val/loss.min_step]` on `best-checkpoint` (all
+  sonnet sessions); on old tasks it appears in 3 to 6 sessions per model and setup. `rise_step` appears only on `divergence`
+  (3 sessions per setup on sonnet, 0 cli and 2 mcp on haiku), plus once on an old haiku cli task.
+
+
 ## Brief
 
 What the tickets build together, so a session doesn't rediscover the design:
@@ -326,7 +407,7 @@ The tickets run in this order: E91 E92 E93 E95 E96 E97 E98 E99 E94 X91.
 
 ## X. Close
 
-### X91. Rerun and compare (sonnet) — real data
+### X91. Rerun and compare (sonnet) — real data — **done**
 
 - **Touches:** `docs/plans/v0.3/agent-efficiency/agent-efficiency-plan.md` (Findings: a "Rerun (X91)" table).
 - **Read:** `docs/plans/v0.3/benchmark-wide/benchmark-wide-plan.md` § Run summary (Y86).
