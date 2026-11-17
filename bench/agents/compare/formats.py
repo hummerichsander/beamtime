@@ -2,15 +2,17 @@
 
 import csv
 import json
+import shutil
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
+from data import RECORD
 
 from beamtime.format.run import read_config, read_effective_metrics, read_output, read_run_info
-from beamtime.format.tree import iter_runs
+from beamtime.format.tree import is_run, iter_runs
 
 
 @dataclass(kw_only=True)
@@ -55,6 +57,7 @@ def export_files(logdir: Path, dest: Path) -> int:
         (folder / "output.log").write_text(run.output)
         write_metrics_csv(folder / "metrics.csv", run.rows)
         n += 1
+    export_record(logdir, dest)
     return n
 
 
@@ -110,6 +113,28 @@ def export_tensorboard(logdir: Path, dest: Path) -> int:
                 writer.add_event(Event(wall_time=row["_t"], step=row["_step"], summary=summary))
         writer.close()
         n += 1
+    export_record(logdir, dest)
+    return n
+
+
+def export_record(logdir: Path, dest: Path, folder: Path | None = None) -> int:
+    """Copy the research record to ``dest/record/<group>/{proposal,notes,memory}``, byte for byte.
+
+    The project memory goes to ``dest/record/memory``; a run's own folders are not record.
+
+    :param logdir: The log dir.
+    :param dest: The folder that will hold ``record/``.
+    :param folder: The folder to walk; defaults to the log dir.
+    :return: The number of folders copied."""
+    n = 0
+    for child in sorted((folder or logdir).iterdir()):
+        if not child.is_dir() or is_run(child):
+            continue
+        if child.name in RECORD:
+            shutil.copytree(child, dest / "record" / child.relative_to(logdir))
+            n += 1
+        else:
+            n += export_record(logdir, dest, child)
     return n
 
 

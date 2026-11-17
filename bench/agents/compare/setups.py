@@ -32,6 +32,8 @@ FILES = """The runs are plain files in `runs/<group>/<run id>/`; groups nest as 
   metric was not logged at that step.
 - `output.log`: the run's captured output; its last line tells how the run ended. There is no
   status file.
+- `record/<group>/`: the researchers' proposals (with predictions), notes and memory, where there
+  are any.
 """
 
 TENSORBOARD = """The runs are TensorBoard logs in `tb/<group>/<run id>/`; groups nest as folders.
@@ -41,6 +43,8 @@ TENSORBOARD = """The runs are TensorBoard logs in `tb/<group>/<run id>/`; groups
 - `hparams.yaml`: the run's config as logged, nested.
 - `output.log`: the run's captured output; its last line tells how the run ended. There is no
   status file.
+- `record/<group>/`: the researchers' proposals (with predictions), notes and memory, where there
+  are any.
 """
 
 

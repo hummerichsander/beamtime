@@ -212,6 +212,16 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   times its running minimum for 200 steps (role `spike`), four are clean. `long/schedules` has four
   schedules x two seeds whose `val/loss` falls and then rises, with its minimum at a distinct evaluation
   step per run. Long runs log `train/loss` every step and `val/loss` every 500 steps and at the last step.
+  `study/optimizer` has a proposal with four predictions on the last `val/loss` per optimizer (`sgd`, `adamw`,
+  `lion`; `config.seed` 0 to 5; `adamw-converges`, `adamw-beats-sgd`, `lion-beats-adamw`, `sgd-under`), all
+  18 runs recording it. The final losses are planted exactly (a mean per optimizer and half, plus offsets of
+  -0.02, 0 and 0.02 over three seeds), so the check does not depend on the data seed. A verdict note
+  (`overall: inconclusive`; its `check` field holds the check's numbers) and the project memory (one line per
+  verdict) are written after the runs of seeds 0 to 2 and before those of seeds 3 to 5. With seeds 3 to 5
+  counted, `lion-beats-adamw` goes from inconclusive to confirmed and `sgd-under` from confirmed to
+  inconclusive; the other two stay confirmed. `formats.export_record` copies every `proposal/`, `notes/` and
+  `memory/` folder outside runs to `record/<group>/…` (the project memory to `record/memory/`) in the files and
+  TensorBoard exports; the `s` data set has no record, so its exports have none.
 - `compare/sessions.py`: `uv run python bench/agents/compare/sessions.py [--setups ...] [--tasks ...]
   [--seeds 7 8 9] [--reps 1] [--parallel 3] [--model sonnet] [--keep] [--dry-run] [--grade-only BATCH]`.
   `--dry-run` lists the 96 sessions (8 tasks x 4 setups x 3 seeds, in a fixed shuffled order) with their

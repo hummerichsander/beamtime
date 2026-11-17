@@ -1,9 +1,10 @@
-"""The benchmark's second log dir, ``wide``: many runs and long series.
+"""The benchmark's second log dir, ``wide``: many runs, long series and a research record.
 
 Twenty groups of fifteen sweep runs under ``sweeps/``, whose final validation loss follows a known
-recipe with a few failed and killed runs that look better than the leaders, and two groups of
+recipe with a few failed and killed runs that look better than the leaders, two groups of
 100k-step runs under ``long/``: one with divergences and a spike, one that overfits at a distinct
-step per run."""
+step per run, and ``study/optimizer``: a proposal with four predictions, a verdict written after
+the first half of its runs and a project memory that repeats it."""
 
 import math
 from collections.abc import Callable
@@ -13,7 +14,8 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-from beamtime.synth.generate import Generator, Manifest, Scale
+from beamtime.format import constants as c
+from beamtime.synth.generate import Generator, Manifest, Scale, iso
 
 SCALE = Scale(name="wide", seeds=2, steps=1000, val_every=50)
 
@@ -59,6 +61,46 @@ SPIKE_HEIGHT = 6.0
 MINIMA_RANGE = (30_000, 70_000)
 OVERFIT_RISE = 0.4
 
+STUDY_GROUP = "study/optimizer"
+OPTIMIZERS = ("sgd", "adamw", "lion")
+STUDY_SEEDS = 6
+SEED_OFFSETS = (-0.02, 0.0, 0.02)
+# the mean final val/loss per optimizer for seeds 0 to 2 and for seeds 3 to 5.
+STUDY_MEANS: dict[str, tuple[float, float]] = {
+    "sgd": (0.48, 0.55),
+    "adamw": (0.33, 0.33),
+    "lion": (0.30, 0.26),
+}
+# the verdicts the check gives with seeds 0 to 2 only: what the verdict note and the memory state.
+EARLY_VERDICTS = {
+    "adamw-converges": "confirmed",
+    "adamw-beats-sgd": "confirmed",
+    "lion-beats-adamw": "inconclusive",
+    "sgd-under": "confirmed",
+}
+# the same, as `check` of the note records them: result, effect, interval, points.
+EARLY_CHECK: dict[str, dict[str, Any]] = {
+    "adamw-converges": {
+        "result": "pass",
+        "effect": -0.07,
+        "ci": [-0.119683, -0.0203172],
+        "points": 1,
+    },
+    "adamw-beats-sgd": {
+        "result": "pass",
+        "effect": -0.15,
+        "ci": [-0.195339, -0.104661],
+        "points": 6,
+    },
+    "lion-beats-adamw": {
+        "result": "inconclusive",
+        "effect": -0.03,
+        "ci": [-0.0753392, 0.0153392],
+        "points": 6,
+    },
+    "sgd-under": {"result": "pass", "effect": -0.07, "ci": [-0.119683, -0.0203172], "points": 1},
+}
+
 
 def expected_loss(config: dict[str, Any]) -> float:
     """Give the final validation loss a sweep config is planted to reach, without noise.
@@ -95,6 +137,7 @@ class WideGenerator(Generator):
         """Write the sweeps and the long series."""
         self.sweeps()
         self.long_series()
+        self.study()
 
     def sweeps(self) -> None:
         """Write ``sweeps/s01`` to ``s20``: fifteen runs each, a few failed or killed, three of
@@ -231,6 +274,111 @@ class WideGenerator(Generator):
                 floor=floor, tau=20_000, val=partial(self.overfit, vmin=vmin, m=m)
             )
             self.write_run(self.spec(folder, config, rows))
+
+    def study(self) -> None:
+        """Write ``study/optimizer``: a proposal with four predictions, nine runs, a verdict note
+        and the project memory, then nine more runs that change two of the verdicts."""
+        folder = self.logdir / STUDY_GROUP
+        proposal = self.write_yaml(folder / c.PROPOSAL, self.study_proposal())
+        member = {STUDY_GROUP: proposal}
+        for seed in range(STUDY_SEEDS):
+            if seed == STUDY_SEEDS // 2:
+                self.study_record(folder, proposal)
+            for optimizer in OPTIMIZERS:
+                run = SweepRun(
+                    group=0,
+                    config={"optimizer": optimizer, "seed": seed},
+                    target=self.study_target(optimizer, seed),
+                    stop=self.scale.steps,
+                )
+                spec = self.spec(folder, run.config, self.sweep_rows(run))
+                spec.proposals = member
+                self.write_run(spec)
+
+    @staticmethod
+    def study_target(optimizer: str, seed: int) -> float:
+        """Give the final validation loss of a study run.
+
+        :param optimizer: The optimizer.
+        :param seed: The run's seed, 0 to 5.
+        :return: The mean of its half plus the offset of its place in the half."""
+        half = seed // 3
+        return round(STUDY_MEANS[optimizer][half] + SEED_OFFSETS[seed % 3], 6)
+
+    @staticmethod
+    def study_proposal() -> dict[str, Any]:
+        """Give the study's proposal: four predictions on the last validation loss per optimizer.
+
+        :return: The fields after ``schema``."""
+        reduce = {"metric": "val/loss", "stat": "last"}
+        return {
+            "statement": "AdamW converges, beats SGD and is beaten by Lion.",
+            "predictions": [
+                {
+                    "name": "adamw-converges",
+                    "where": {"config.optimizer": "adamw"},
+                    "reduce": reduce,
+                    "seeds": "config.seed",
+                    "op": "<",
+                    "value": 0.40,
+                },
+                {
+                    "name": "adamw-beats-sgd",
+                    "reduce": reduce,
+                    "seeds": "config.seed",
+                    "test": "compare",
+                    "a": {"config.optimizer": "adamw"},
+                    "b": {"config.optimizer": "sgd"},
+                    "op": "<",
+                },
+                {
+                    "name": "lion-beats-adamw",
+                    "reduce": reduce,
+                    "seeds": "config.seed",
+                    "test": "compare",
+                    "a": {"config.optimizer": "lion"},
+                    "b": {"config.optimizer": "adamw"},
+                    "op": "<",
+                    "margin": 0,
+                },
+                {
+                    "name": "sgd-under",
+                    "where": {"config.optimizer": "sgd"},
+                    "reduce": reduce,
+                    "seeds": "config.seed",
+                    "op": "<",
+                    "value": 0.55,
+                },
+            ],
+            "author": "synth",
+            "user": "synth",
+        }
+
+    def study_record(self, folder: Path, proposal: str) -> None:
+        """Write the verdict note and the project memory, after the runs of seeds 0 to 2.
+
+        :param folder: The study group.
+        :param proposal: The proposal version the note judges."""
+        self.manifest.notes["study_verdict"] = self.write_md(
+            folder / c.NOTES,
+            {
+                "description": "With three seeds, AdamW converges and beats SGD; Lion is open.",
+                "type": "verdict",
+                "proposal": proposal,
+                "verdicts": EARLY_VERDICTS,
+                "overall": "inconclusive",
+                "check": EARLY_CHECK,
+                "author": "synth",
+                "user": "synth",
+            },
+            "Three seeds per optimizer. Lion's lead over AdamW is within the interval.\n",
+        )
+        lines = "".join(f"- {name}: {verdict}\n" for name, verdict in EARLY_VERDICTS.items())
+        self.write_md(
+            self.logdir / c.MEMORY,
+            {"covers_until": iso(self.clock), "author": "synth", "user": "synth"},
+            f"# Project memory\n\nVerdicts of {STUDY_GROUP} with seeds 0 to 2:\n\n{lines}",
+        )
 
     def long_rows(
         self,

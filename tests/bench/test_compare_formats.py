@@ -3,6 +3,7 @@
 import csv
 import json
 import math
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +19,7 @@ sys.path.insert(0, str(COMPARE))
 
 import data  # noqa: E402
 import formats  # noqa: E402
+import wide  # noqa: E402
 
 NOW = datetime(2026, 10, 26, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -287,3 +289,67 @@ def test_tensorboard_hparam_values() -> None:
     flat = formats.hparam_values({"a": 1, "b": {"c": 0.5, "d": {"e": "x"}}, "f": [1, 2], "g": None})
 
     assert flat == {"a": 1, "b.c": 0.5, "b.d.e": "x", "f": "[1, 2]", "g": "null"}
+
+
+@pytest.fixture(scope="module")
+def study(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path]:
+    """A log dir holding only the study group and the project memory, and its plain-files export.
+
+    :param tmp_path_factory: Makes the folders.
+    :return: The log dir and the export folder."""
+    logdir = tmp_path_factory.mktemp("study") / "beamtime"
+    logdir.mkdir()
+    wide.WideGenerator(logdir=logdir, seed=7, now=NOW).study()
+    files = tmp_path_factory.mktemp("study-files")
+    formats.export_files(logdir, files)
+    return logdir, files
+
+
+def record_files(folder: Path) -> dict[str, bytes]:
+    """Read every file in a proposal, notes or memory folder of a tree.
+
+    :param folder: A log dir or the ``record`` folder of an export.
+    :return: Path relative to ``folder`` to bytes."""
+    return {
+        p.relative_to(folder).as_posix(): p.read_bytes()
+        for p in sorted(folder.rglob("*"))
+        if p.is_file() and p.parent.name in formats.RECORD
+    }
+
+
+def test_record_export_equals_logdir(study: tuple[Path, Path]) -> None:
+    """The plain-files export holds the log dir's proposal, notes and memory byte for byte."""
+    logdir, files = study
+    original = record_files(logdir)
+
+    assert len(original) == 3
+    assert record_files(files / "record") == original
+
+
+def test_record_export_tensorboard(study: tuple[Path, Path], tmp_path: Path) -> None:
+    """The TensorBoard export holds the same record files."""
+    pytest.importorskip("tensorboard")
+    logdir, _ = study
+    formats.export_tensorboard(logdir, tmp_path)
+
+    assert record_files(tmp_path / "record") == record_files(logdir)
+
+
+def test_record_export_skips_runs(study: tuple[Path, Path], tmp_path: Path) -> None:
+    """A folder named like record inside a run is not exported."""
+    logdir = tmp_path / "beamtime"
+    shutil.copytree(study[0], logdir)
+    run = next(iter_runs(logdir))
+    (run / "notes").mkdir()
+    (run / "notes" / "stray.md").write_text("not record\n")
+    formats.export_record(logdir, tmp_path / "out")
+
+    assert not list((tmp_path / "out").rglob("stray.md"))
+    assert not (tmp_path / "out" / "record" / "study" / "optimizer" / run.name).exists()
+
+
+def test_s_has_no_record(made: tuple[Path, Path, dict[str, str]]) -> None:
+    """The ``s`` log dir has no record, so its export has no ``record`` folder."""
+    _, out, _ = made
+
+    assert not (out / "record").exists()

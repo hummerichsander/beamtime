@@ -168,7 +168,7 @@ Y81 ─ Y82 ─ Y83 ─ Y84 ─ Y85 ─ Y86      in this order (shared modules)
    `seed` 0/1; `val/loss` falls, then rises (overfit), its minimum at a distinct evaluation step per run.
 4. `data.DATASETS["wide"] = wide.make_wide_logdir`.
 
-### Y83. The study group and the record as files (sonnet + review) — code
+### Y83. The study group and the record as files (sonnet + review) — code — **done**
 
 - **Touches:** `bench/agents/compare/wide.py` (new `study`), `bench/agents/compare/formats.py` (new `export_record`,
   called from `export_files` 44 and `export_tensorboard` 76), `bench/agents/compare/setups.py` (`FILES` 29,

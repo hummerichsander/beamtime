@@ -2,6 +2,7 @@
 
 import json
 import math
+import shutil
 import statistics
 import sys
 from datetime import datetime, timezone
@@ -11,7 +12,10 @@ from typing import Any
 
 import pytest
 
+from beamtime.format.authored import read_markdown_doc
 from beamtime.format.tree import iter_runs
+from beamtime.ops import call
+from beamtime.ops.context import Context
 from beamtime.synth.generate import Manifest
 
 COMPARE = Path(__file__).resolve().parents[2] / "bench" / "agents" / "compare"
@@ -124,7 +128,7 @@ def finished_finals(runs: list[Path]) -> list[tuple[float, Path]]:
 
 
 def test_shape(made: tuple[Path, Manifest, int], sweep_runs: list[Path]) -> None:
-    """300 runs in 20 groups of 15, 8 in each long group, nothing else, no manifest file."""
+    """300 runs in 20 groups of 15, 8 in each long group, 18 in the study, nothing else, no manifest file."""
     logdir, manifest, _ = made
 
     assert len(sweep_runs) == 300
@@ -132,7 +136,8 @@ def test_shape(made: tuple[Path, Manifest, int], sweep_runs: list[Path]) -> None
         assert len(group_runs(logdir, f"sweeps/s{g:02d}")) == 15
     assert len(group_runs(logdir, "long/stability")) == 8
     assert len(group_runs(logdir, "long/schedules")) == 8
-    assert len(list(iter_runs(logdir))) == 316 == manifest.runs
+    assert len(group_runs(logdir, "study/optimizer")) == 18
+    assert len(list(iter_runs(logdir))) == 334 == manifest.runs
     assert not (logdir / "_synth.json").exists()
 
 
@@ -273,3 +278,147 @@ def test_deterministic(made: tuple[Path, Manifest, int], tmp_path: Path) -> None
         p.relative_to(tmp_path / "beamtime") for p in second
     ]
     assert all(a.read_bytes() == b.read_bytes() for a, b in zip(first, second, strict=True))
+
+
+VERDICT = {"pass": "confirmed", "fail": "refuted", "inconclusive": "inconclusive"}
+
+
+def stamp_of(version: str) -> datetime:
+    """Read the time a version id stands for.
+
+    :param version: An id such as ``20261025-091200-x8k2``.
+    :return: Its time in UTC."""
+    return datetime.strptime(version[:15], "%Y%m%d-%H%M%S").replace(tzinfo=timezone.utc)
+
+
+def started(run: Path) -> datetime:
+    """Read when a run was created.
+
+    :param run: The run folder.
+    :return: The time of its card."""
+    text = json.loads((run / "_run.json").read_text())["created_at"]
+    return datetime.fromisoformat(text)
+
+
+def ended(run: Path) -> datetime:
+    """Read when a run ended.
+
+    :param run: The run folder.
+    :return: The time of its card."""
+    return datetime.fromisoformat(json.loads((run / "_run.json").read_text())["ended_at"])
+
+
+def seed_of(run: Path) -> int:
+    """Read a study run's seed.
+
+    :param run: The run folder.
+    :return: Its ``config.seed``."""
+    return json.loads((run / "_config.json").read_text())["seed"]
+
+
+@pytest.fixture
+def study(made: tuple[Path, Manifest, int]) -> Path:
+    """The study group of a wide log dir.
+
+    :param made: The log dir.
+    :return: The group folder."""
+    logdir, _, _ = made
+    return logdir / "study" / "optimizer"
+
+
+def checked(tmp_path: Path, study: Path, *, seeds: range) -> dict[str, Any]:
+    """Run ``beamtime check`` on a copy of the study group that keeps only some seeds.
+
+    :param tmp_path: A folder for the copy and its index.
+    :param study: The study group.
+    :param seeds: The seeds whose runs stay.
+    :return: The check as the operation answers it."""
+    group = tmp_path / "beamtime" / "study" / "optimizer"
+    shutil.copytree(study, group)
+    for run in list(iter_runs(group)):
+        if seed_of(run) not in seeds:
+            shutil.rmtree(run)
+    return call("check", {"group": "study/optimizer"}, Context.make(root=tmp_path, caller="mcp"))
+
+
+def test_study_runs(study: Path) -> None:
+    """Eighteen runs, three optimizers by seeds 0 to 5, all record the one proposal version."""
+    (proposal,) = (study / "proposal").iterdir()
+    runs = sorted(iter_runs(study))
+    cards = [json.loads((r / "_run.json").read_text()) for r in runs]
+
+    assert len(runs) == 18
+    assert {
+        (c["optimizer"], c["seed"])
+        for c in (json.loads((r / "_config.json").read_text()) for r in runs)
+    } == {(o, s) for o in wide.OPTIMIZERS for s in range(6)}
+    assert all(card["proposals"] == {"study/optimizer": proposal.stem} for card in cards)
+    assert {status(r) for r in runs} == {"finished"}
+    assert len(yaml_predictions(proposal)) == 4
+
+
+def yaml_predictions(proposal: Path) -> list[dict[str, Any]]:
+    """Read a proposal's predictions.
+
+    :param proposal: The proposal file.
+    :return: One dict per prediction."""
+    import yaml
+
+    return yaml.safe_load(proposal.read_text())["predictions"]
+
+
+def test_note_before_second_batch(study: Path) -> None:
+    """The verdict note is dated after the last run of seeds 0 to 2 ended and before the first of
+    seeds 3 to 5 started."""
+    (note,) = (study / "notes").iterdir()
+    runs = sorted(iter_runs(study))
+    first, second = (r for r in runs if seed_of(r) < 3), [r for r in runs if seed_of(r) >= 3]
+    when = stamp_of(note.stem)
+
+    assert max(ended(r) for r in (r for r in runs if seed_of(r) < 3)) < when
+    assert when < min(started(r) for r in second)
+    assert first
+
+
+def test_note_and_memory_state_the_verdicts(study: Path, made: tuple[Path, Manifest, int]) -> None:
+    """The note judges the proposal's four predictions; the project memory repeats each verdict."""
+    logdir, _, _ = made
+    (note,) = (study / "notes").iterdir()
+    (proposal,) = (study / "proposal").iterdir()
+    (memory,) = (logdir / "memory").iterdir()
+    meta = read_markdown_doc(note, kind="note").meta
+    body = read_markdown_doc(memory, kind="memory").body
+
+    assert meta["type"] == "verdict" and meta["proposal"] == proposal.stem
+    assert meta["verdicts"] == wide.EARLY_VERDICTS
+    assert set(meta["verdicts"]) == {p["name"] for p in yaml_predictions(proposal)}
+    for name, verdict in meta["verdicts"].items():
+        assert f"- {name}: {verdict}" in body.splitlines()
+
+
+def test_verdicts_match_the_check(study: Path, tmp_path: Path) -> None:
+    """With seeds 0 to 2, the check gives the verdicts and numbers the note records."""
+    (note,) = (study / "notes").iterdir()
+    meta = read_markdown_doc(note, kind="note").meta
+    early = checked(tmp_path, study, seeds=range(3))
+
+    assert {p["name"]: VERDICT[p["result"]] for p in early["predictions"]} == meta["verdicts"]
+    for p in early["predictions"]:
+        recorded = meta["check"][p["name"]]
+        assert recorded["result"] == p["result"] and recorded["points"] == p["points"]
+        assert recorded["effect"] == pytest.approx(p["effect"], abs=1e-6)
+        assert recorded["ci"] == pytest.approx(p["ci"], abs=1e-6)
+
+
+def test_two_verdicts_change(study: Path, tmp_path: Path) -> None:
+    """With seeds 3 to 5 counted, exactly lion-beats-adamw and sgd-under change their verdict."""
+    (note,) = (study / "notes").iterdir()
+    before = read_markdown_doc(note, kind="note").meta["verdicts"]
+    full = checked(tmp_path, study, seeds=range(6))
+    after = {p["name"]: VERDICT[p["result"]] for p in full["predictions"]}
+
+    assert {name for name in before if before[name] != after[name]} == {
+        "lion-beats-adamw",
+        "sgd-under",
+    }
+    assert after["lion-beats-adamw"] == "confirmed" and after["sgd-under"] == "inconclusive"
