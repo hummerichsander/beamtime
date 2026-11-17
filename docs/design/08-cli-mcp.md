@@ -197,8 +197,13 @@ drift from the commands.
   prompts read the setting per call; the instructions are fixed at server start, so they use the
   setting of the server's own root.
 - **Small definitions.** Each tool has a short description and a precise schema; how to use them well
-  lives in `guide`, loaded on demand. The definitions of a fresh server, `tools_more` included, stay under
-  3.5k tokens (characters of the JSON / 4; `tests/mcp` checks it).
+  lives in `guide`, loaded on demand. Texts every query tool repeats appear once, in the server
+  instructions: what `from`/`group` and `depth` mean, the `where` operators and field examples, and `to`.
+  A schema keeps a pointer (`see instructions: where`, `see instructions: to`) or nothing (`from`, `group`,
+  `author`, `depth` as a plain integer); defaults an absent key reads anyway (`from`, `x`, `band`) are left
+  out, and `tools_more` names its families without a description. The definitions of a fresh server,
+  `tools_more` and the instructions included, stay under 11.5k characters of JSON (`json.dumps` defaults;
+  `tests/mcp` checks it).
 - **Writes take `author`**, the model id.
 - **`view_render` returns images** scaled to about 1280 px wide, one for the page and one per block
   on request. A page taller than `SHOT_HEIGHT` is clipped there, not shrunk: height, not width, is

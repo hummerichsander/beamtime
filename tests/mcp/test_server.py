@@ -20,11 +20,13 @@ from mcp.client.stdio import StdioServerParameters, stdio_client  # noqa: E402
 from beamtime.mcp.server import (  # noqa: E402
     CORE,
     FAMILIES,
+    INSTRUCTIONS,
     PROMPTS,
     build,
     content,
     instructions,
     prompt_text,
+    schema,
     slim,
 )
 
@@ -136,8 +138,9 @@ def test_all_names_no_tools_more_in_instructions_or_prompts() -> None:
     assert "call the `view_*` and `block_*` tools directly" in view
 
 
-def test_tool_definitions_under_3500_tokens(project: Path) -> None:
-    """The definitions of a fresh server, ``tools_more`` included, stay under 3.5k tokens."""
+def test_tool_definitions_under_11500_characters(project: Path) -> None:
+    """The definitions of a fresh server, ``tools_more`` and the instructions included, stay under
+    11.5k characters of JSON."""
 
     async def work(s):
         return (await s.list_tools()).tools
@@ -146,7 +149,14 @@ def test_tool_definitions_under_3500_tokens(project: Path) -> None:
         len(json.dumps(t.model_dump(exclude_none=True, by_alias=True)))
         for t in session(project, work)
     )
-    assert size / 4 < 3500
+    assert size + len(INSTRUCTIONS) < 11_500
+
+
+def test_instructions_name_the_where_ops() -> None:
+    """The instructions carry the ``where`` operators once; a schema only points to them."""
+    assert "ops eq ne lt le gt ge in nin has exists glob" in INSTRUCTIONS
+    where = schema(BY_TOOL["runs"])["properties"]["where"]
+    assert where["description"] == "see instructions: where"
 
 
 def test_no_list_changed_is_announced() -> None:
@@ -406,6 +416,7 @@ def test_arguments_sent_as_json_text_are_decoded_once() -> None:
         "from": "scaling",
     }
     assert decoded(series, {"points": "500"}) == {"points": 500}
+    assert decoded(BY_NAME["runs"], {"depth": "2", "from": "2"}) == {"depth": 2, "from": "2"}
     note = BY_NAME["note add"]
     assert decoded(note, {"body": '"quoted"', "group": "[1]"}) == {
         "body": '"quoted"',

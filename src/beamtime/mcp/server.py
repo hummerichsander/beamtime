@@ -3,7 +3,7 @@
 import json
 import mimetypes
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 import anyio
 import mcp_types as types
@@ -13,7 +13,8 @@ from mcp.server.stdio import stdio_server
 
 from beamtime import remote
 from beamtime.ops.context import Context, OpError
-from beamtime.ops.registry import BY_TOOL, OPS, Op
+from beamtime.ops.registry import BY_TOOL, OPS, Author, Op
+from beamtime.query.models import ExportTo, Group, Where
 
 MORE_CORE = {
     "more_views": (
@@ -29,6 +30,15 @@ MORE_ALL = {
     "more_output": "",
     "more_output_paren": "",
 }
+
+
+POINTERS = {
+    get_args(Where)[1].description: "see instructions: where",
+    get_args(ExportTo)[1].description: "see instructions: to",
+    get_args(Group)[1].description: None,
+    get_args(Author)[1].description: None,
+}
+DEFAULTS = {"from": ".", "x": "_step", "band": "minmax"}
 
 
 def instructions(mcp_tools: str = "core") -> str:
@@ -54,7 +64,13 @@ def instructions(mcp_tools: str = "core") -> str:
         "`author` (your model id). Answers are cut at about 8k tokens; pass `cursor` from "
         f"`meta.next` for more. {more}User-only commands "
         f"({', '.join(sorted(op.name for op in OPS if op.user_only))}) "
-        "are not tools: give the user the command."
+        "are not tools: give the user the command. "
+        "from and group: a group below the log dir or a run id; depth: levels below it, "
+        "default all. where: field -> value or {op: value}; ops eq ne lt le gt ge in nin has "
+        "exists glob; also any: [...], not: {...}. fields: run.status, config.lr, "
+        "metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc. to: write all of the "
+        "answer to a "
+        ".csv or .json file below .beamtime/exports/ and answer the path, outside the token budget."
     )
 
 
@@ -63,6 +79,9 @@ INSTRUCTIONS = instructions()
 
 def schema(op: Op) -> dict[str, Any]:
     """Build a tool's input schema from its parameter struct.
+
+    Shared texts become pointers to the instructions, and defaults an absent key reads anyway are
+    dropped, so the listing stays small.
 
     :param op: The operation.
     :return: A JSON schema with ``type: object`` at the root."""
@@ -73,7 +92,17 @@ def schema(op: Op) -> dict[str, Any]:
     root.pop("description", None)
     if defs:
         root["$defs"] = defs
-    return slim(root)
+    root = slim(root)
+    for key, node in root.get("properties", {}).items():
+        if (text := node.get("description")) in POINTERS:
+            node.pop("description")
+            if POINTERS[text] is not None:
+                node["description"] = POINTERS[text]
+        if key == "depth":
+            root["properties"][key] = {"type": "integer"}
+        if key in DEFAULTS and DEFAULTS[key] == node.get("default"):
+            del node["default"]
+    return root
 
 
 def decoded(op: Op, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -125,12 +154,6 @@ FAMILIES: dict[str, tuple[str, ...]] = {
     "runs": ("wait", "resume", "output", "file", "timeline", "digest", "plan_missing", "name"),
     "export": ("export", "cp"),
 }
-FAMILY_HELP = {
-    "views": "build, validate, render and save a group's view",
-    "blocks": "custom and library blocks",
-    "runs": "wait for, resume and inspect runs, plan what is missing",
-    "export": "export a group or copy runs",
-}
 CORE = tuple(name for name in BY_TOOL if not any(name in names for names in FAMILIES.values()))
 
 assert all(name in BY_TOOL for names in FAMILIES.values() for name in names)
@@ -151,10 +174,7 @@ def tools(mcp_tools: str = "core") -> list[types.Tool]:
     more = {
         "type": "object",
         "properties": {
-            "family": {
-                "enum": list(FAMILIES),
-                "description": "; ".join(f"{name}: {help}" for name, help in FAMILY_HELP.items()),
-            },
+            "family": {"enum": list(FAMILIES)},
             "tool": {"type": "string", "description": "a tool of a family, to call"},
             "args": {"type": "object", "description": "the tool's arguments"},
         },

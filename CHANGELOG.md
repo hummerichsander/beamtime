@@ -24,6 +24,10 @@
   versions and the chain.
 - **Changed** a command line usage error (unknown flag, missing required flag, bad value) prints the command's whole
   help to stderr before the error line, so `--help` is not needed upfront; exit code 2 and `--help` are unchanged.
+- **Changed** the MCP tool list is smaller: the `where` operators, field examples, `from`/`group`/`depth` and `to`
+  are written once in the server instructions instead of in every schema, and the tool definitions with the
+  instructions come to 11.4k characters instead of 14.2k. Every tool keeps every parameter (`depth` is now typed
+  as an integer; leave it out for all levels).
 - **Breaking:** a series CSV export (`series --to out.csv`) is wide: the header is `run, name, step, <y1>, <y2>, ...`
   (the `by` labels instead of `run, name` for grouped curves; a metric as `x` adds its own column after `step`), with
   one row per run and step where any metric was logged and empty cells where one has no point; downsampled curves add
