@@ -16,7 +16,7 @@ The outcome this plan commits to, checked against at the end and in every review
 - **Done means:** an agent working with Beamtime starts with less context and fewer failed calls, without losing any
   content. A bare `guide` is a short index of topics (the view guide is `guide views`); the rules tell agents to read
   the topic they need; the CLI accepts MCP tool names (`beamtime memory_show`) and its no-log-dir errors say how to fix
-  them; the MCP server lists a core set of 19 tools and adds the other families on request through `tools_more`.
+  them; the MCP server lists a core set of 19 tools and reaches the other families through the `tools_more` dispatcher.
 - **Confirmed by:** the tests named per ticket; `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`
   green; the MCP tool definitions of a fresh server measure under 3.5k tokens (chars / 4, `tests/mcp`); the benchmark's
   CLI and MCP sessions on seed 7 (3 reps) use at least 15 % fewer tokens than at `9faa1fc`, scores not lower (L72 of the
@@ -48,12 +48,13 @@ with a failing test).
 - **CLI** (C81): `cli.tool_names(argv)` rewrites the first command word when it is an MCP tool name
   (`BY_TOOL[name].name.split()`); every no-log-dir `OpError` names `--root <project>`.
 - **MCP families** (M81): `mcp/server.py` holds `FAMILIES: dict[str, tuple[str, ...]]` (views, blocks, runs, export) and
-  `CORE` = every other non-user tool; a server session starts with `CORE` plus `tools_more`; `tools_more(family)` adds
-  a family and sends `notifications/tools/list_changed`. A known tool outside the listed set still runs when called.
+  `CORE` = every other non-user tool; the listing is `CORE` plus `tools_more`, and never changes. `tools_more(family)`
+  describes a family's tools as compact text; `tools_more(tool, args)` calls any known non-core tool. A known tool
+  outside the listed set still runs when called directly.
 - **Setting** (M82): agent knob `mcp_tools: core | all`, default `core` in every style; `all` lists everything from the
   start.
-- **Probe** (S81): whether Claude Code reloads the tool list after `list_changed`, recorded as a Decision; M81's
-  `tools_more` answer depends on it.
+- **Probe** (S81, done): Claude Code does not reload the tool list after `list_changed` (Decision 8); hence the
+  dispatcher.
 
 Done, for every ticket: its Done line holds; its Check passes; the spec documents say what the code does; its heading
 is marked done in the ticket's own commit.
@@ -94,24 +95,27 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
    no longer read by default.
 3. **MCP tool names work on the CLI** (your decision): an alias at parse time, not new subcommands, so `--help` and
    `cli.md` do not grow.
-4. **Core set plus `tools_more` by family** (your decision): families views (8 `view_*`), blocks (7 `block_*`), runs
+4. **Core set plus `tools_more` by family** (your decision; reached through the dispatcher, Decision 6): families views (8 `view_*`), blocks (7 `block_*`), runs
    (`wait`, `resume`, `output`, `file`, `timeline`, `digest`, `plan_missing`, `name`), export (`export`, `cp`).
    Rejected: one switch for all (a view task would also pay for blocks and run tools); a static core only (views would
    become unreachable over MCP).
 5. **No tool search** (your decision after the pilot): it saved on the first turn but cost a search turn, more turns
    overall and twice the time. Rejected for the benchmark and for the docs' advice.
-6. **Fallback: setting `mcp_tools`, default core** (your decision): if S81 shows Claude Code does not reload the list,
-   `tools_more` answers with the command the user runs (`beamtime set` is user-only; the answer names the
-   `beamtime.yaml` line `agent: {mcp_tools: all}`), and `guide views` says so.
+6. **`tools_more` is a dispatcher** (your decision, after S81): `tools_more(family)` returns that family's tool
+   definitions as compact text (name, summary, params with type and required flag); `tools_more(tool=<name>,
+   args={...})` calls any known non-core tool, validating `args` against that tool's msgspec params exactly as a
+   direct call and returning errors the same way. An unknown family errors listing the valid families; an unknown
+   tool errors listing the family's tools. Under `mcp_tools: core` (default) no `tools/list_changed` is sent and the
+   core listing never changes, so `NotificationOptions` is not needed; `mcp_tools: all` lists every tool directly and
+   omits `tools_more`. User-only operations stay refused through it. Rejected: a user-set fallback (the agent is left
+   at a dead end and the user must edit `beamtime.yaml`); defaulting to `all` (loses the MCP saving).
 7. **Calling an unlisted known tool still works** (proposed): listing is only what the client sees; dispatch keeps
    `BY_TOOL`. Rejected: refusing, which would break clients that cache an older list.
 8. **Claude Code does not reload the list** (measured by S81, `bench/agents/probes/list_changed.py`, claude 2.1.322, two
    runs): a stub server declared `tools: {listChanged: true}`, its tool `more` added `b` and sent
    `notifications/tools/list_changed`; the session called `more` successfully, but `b` was never offered (ToolSearch
-   found only `a` and `more`) and could not be called. So Decision 6 applies: `tools_more` does not add tools for
-   Claude Code; it answers with the `beamtime.yaml` line `agent: {mcp_tools: all}` for the user. The server still
-   declares `tools_changed=True` and sends the notification, for clients that do reload (without
-   `NotificationOptions(tools_changed=True)` in `create_initialization_options` the capability is `listChanged: false`).
+   found only `a` and `more`) and could not be called. So a family cannot be added to the listing mid-session, and
+   `tools_more` is a dispatcher (Decision 6, your decision) instead of a switch.
 
 ## G. Guide
 
@@ -189,30 +193,40 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
 
 ## M. MCP tools
 
-### M81. Core tools and `tools_more` (sonnet + review) — reproduced
+### M81. Core tools and the `tools_more` dispatcher (sonnet + review) — reproduced
 
-- **Touches:** `src/beamtime/mcp/server.py` (`INSTRUCTIONS` 19–30, `tools` 90–97, `build` 266–318, `run` 345); new
-  `FAMILIES`, `CORE`; `tests/mcp/test_server.py`; `docs/design/08-cli-mcp.md` § Tools (165–180); `CHANGELOG.md`.
-- **Read:** Decisions 4, 6–8; `docs/design/08-cli-mcp.md` § Token budgets (l. 206); the experiment's `edca1d7`.
+- **Touches:** `src/beamtime/mcp/server.py` (`INSTRUCTIONS` 19–30, `tools` 90–97, `build` 266–318); new `FAMILIES`,
+  `CORE`; `tests/mcp/test_server.py`; `docs/design/08-cli-mcp.md` § Tools (165–180); `CHANGELOG.md`.
+- **Read:** Decisions 4, 6, 7; `docs/design/08-cli-mcp.md` § Token budgets (l. 206); the experiment's `edca1d7`.
 - **Check:** `uv run pytest -q -n 2 tests/mcp tests/ops/test_registry.py`; the size test below.
-- **Done:** a fresh server lists the 19 core tools plus `tools_more`, under 3.5k tokens (chars of the JSON / 4);
-  `tools_more(family="views")` answers which tools it added, the next `list_tools` includes them, and a
-  `tools/list_changed` notification went out; an unknown family is an error naming the four; calling `view_show`
-  before `tools_more` still works.
+- **Done:** a fresh server lists the 19 core tools plus `tools_more`, under 3.5k tokens (chars of the JSON / 4); the
+  listing is the same after any `tools_more` call and no `tools/list_changed` is sent;
+  `tools_more(family="views")` answers the eight `view_*` tools as compact text (name, summary, params with type and
+  required flag); `tools_more(tool="view_show", args={...})` returns what `view_show` returns; an unknown family is an
+  error naming the four families, an unknown tool an error listing the family's tools; a user-only tool through
+  `tools_more` is refused as it is directly; calling `view_show` directly still works.
 - **Risks:** a new operation added later belongs to no family and silently joins the core →
-  `test_every_tool_is_core_or_in_one_family`; two sessions share state → `test_families_are_per_session`; the
-  notification sent before the answer is written → `test_tools_more_notifies`.
-- **Stop if:** S81 says the client does not reload and Decision 8 doesn't settle what `tools_more` answers then.
+  `test_every_tool_is_core_or_in_one_family`; a bad `args` shape (not an object, a missing required parameter, an
+  unknown key) answers the same error as the direct call → `test_tools_more_args_errors_match_direct`; a nested
+  `@source/path` target routes through the dispatcher like a direct call → `test_tools_more_remote_target`; a
+  user-only tool (`set`, `setup`, `serve`) called through the dispatcher stays refused →
+  `test_tools_more_refuses_user_only`; the definitions outgrow the budget with `tools_more` included →
+  `test_tool_definitions_under_3500_tokens`.
+- **Stop if:** the dispatcher cannot share the direct call's validation and error path without duplicating it.
 
 1. `FAMILIES` as in Decision 4; `CORE = frozenset(BY_TOOL) - union of FAMILIES`; assert at import that the families are
    disjoint and inside `BY_TOOL`.
-2. Per server session a `listed: set[str]` starting with `CORE`; `list_tools` returns those plus `tools_more` (schema:
-   `family`, one of the four, with a one-line description each).
-3. `tools_more`: add the family and send the notification through the request context's session
-   (`ctx.session.send_tool_list_changed()`), answer `{"kind": "tools", "added": [...]}`; Decision 8 says Claude Code
-   does not reload, so the answer also carries the Decision 6 hint (the `agent: {mcp_tools: all}` line for the user).
-4. `INSTRUCTIONS`: one sentence on `tools_more`; the `view_*` sentence says to call `tools_more views` first.
-5. `08-cli-mcp.md` § Tools: core, families, `tools_more`, the 3.5k-token budget (replacing "about 35 small tools …
+2. `list_tools` returns `CORE` plus `tools_more` (schema: `family` one of the four with a one-line description each,
+   `tool` a string, `args` an object); the listing is fixed per server, no notification, `NotificationOptions` stays
+   at its default.
+3. `tools_more(family)`: one line per tool, `name(param: type, other?: type): summary`, built from the op's msgspec
+   params (the `schema` helper); an unknown family is an error naming the four.
+4. `tools_more(tool, args)`: look the tool up in `BY_TOOL` (a family tool, not user-only), then run the same path as
+   `call_tool` (`decoded`, `remote.answer`, the same error results), so factor that path into one method both call.
+   An unknown tool is an error listing the family's tools when the name shares a prefix, else the families.
+5. `INSTRUCTIONS`: one sentence on `tools_more`; the `view_*` sentence says to read `tools_more views` first and call
+   `tools_more` with `tool` and `args`.
+6. `08-cli-mcp.md` § Tools: core, families, the dispatcher, the 3.5k-token budget (replacing "about 35 small tools …
    under about 6k tokens").
 
 ### M82. The `mcp_tools` setting (sonnet) — code
@@ -221,14 +235,15 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
   (`list_tools`); `tests/test_settings.py`; `tests/mcp/test_server.py`; `docs/guides/settings.md` (table l. 61);
   `docs/design/08-cli-mcp.md` § Tools.
 - **Check:** `uv run pytest -q -n 2 tests/test_settings.py tests/mcp tests/guide`.
-- **Done:** `agent: {mcp_tools: all}` in `beamtime.yaml` lists every tool from the start; the default is `core` in every
+- **Done:** `agent: {mcp_tools: all}` in `beamtime.yaml` lists every tool from the start and omits `tools_more`; the default is `core` in every
   style; an invalid value is a settings error naming `core` and `all`; the guide's Defaults section does not list it
   (it is for the user, not the agent).
 - **Risks:** the setting read once at import instead of per session → `test_mcp_tools_setting_per_project`; the guide's
   defaults test breaks on the new knob → `tests/guide`.
 
 1. Knob `mcp_tools: str` with choices `("core", "all")`, `"core"` in each preset.
-2. `list_tools` reads it from `Context.make(root=root, caller="mcp").settings.agent` once per session.
+2. `list_tools` reads it from `Context.make(root=root, caller="mcp").settings.agent` once per session: `all` lists
+   every non-user tool without `tools_more`.
 
 ## Z. Close
 
@@ -245,11 +260,11 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
 | What | Before | After | Migration |
 |---|---|---|---|
 | `guide` (no part) | the view guide | an index of topics plus defaults | `guide views` for the old text |
-| MCP tool list | all 43 tools | 19 core + `tools_more` | call `tools_more`, or set `agent: {mcp_tools: all}` |
+| MCP tool list | all 43 tools | 19 core + `tools_more` | call `tools_more` (family, or tool and args), or set `agent: {mcp_tools: all}` |
 | rules block | "Read `guide` before …" | "`guide` lists its topics; read the one you need …" | `beamtime setup --instructions` rewrites it |
 
 ## Not verified
 
-- Whether Claude Code reloads the tool list mid-session after `tools/list_changed` (S81).
-- That the `mcp` 2.x low-level server can send the notification from inside a tool handler (S81, then M81).
+- Whether other MCP clients reload the tool list after `tools/list_changed` (S81 measured Claude Code only, 2.1.322).
+- That agents find and use `tools_more` without extra failed calls (benchmark L72).
 - That the 15 % saving holds on seeds 8 and 9 and on Haiku (benchmark L72).
