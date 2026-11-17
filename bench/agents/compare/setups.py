@@ -16,7 +16,7 @@ from beamtime.settings import resolve_agent
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
-LIBRARIES = ["numpy", "pandas", "scipy", "matplotlib", "tensorboard"]
+LIBRARIES = ["numpy", "pandas", "scipy", "matplotlib", "tensorboard", "pyyaml"]
 TOOLS = "Bash,Read,Write,Edit,Glob,Grep"
 
 PREAMBLE = """# Project

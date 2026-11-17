@@ -9,6 +9,6 @@ checks:
 judge:
   - A scatter plot with the final validation accuracy (val/acc) on the y axis and the learning rate on the x axis.
   - The x axis is logarithmic.
-  - About 15 points are drawn, one per run, with no obvious extra points for runs that failed or were killed (for example accuracies near zero or runs that diverged).
+  - No points are drawn for runs that failed or were killed (no accuracies near zero, no diverged runs).
   - The highest accuracies are at a learning rate of about 3e-4, and this peak can be read off the plot.
   - Both axes are labelled.

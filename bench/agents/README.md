@@ -149,8 +149,8 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   `table_ids` (17 rows), `table_values` (lr, seed, val/acc within 1e-6; the prompt asks for full precision) and `table_finished`
   (yes/no for finished or not; running, lost and killed are not told apart). `find-runs` compares at
   exactly 0.922 without tolerance.
-  The `chart` task's `judge` list holds five statements (scatter of val/acc against lr, log x, about 15
-  points with the failed and killed runs left out, the peak at 3e-4 readable, labelled axes); each
+  The `chart` task's `judge` list holds five statements (scatter of val/acc against lr, log x, no points
+  for the failed and killed runs (no count, since overlapping points can't be counted), the peak at 3e-4 readable, labelled axes); each
   becomes a check `judge1`..`judge5` next to `file`, answered by `score.ask` with the pinned model
   (`grade(..., model=)`) from the PNG alone, run in a fresh folder holding only a copy of the image
   (`Grade.notes` keeps the judge's reasons). A file that is not a PNG (PDF, SVG) scores 0 on `file` and
@@ -170,7 +170,7 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   adds the prompt, model and output format. Only `cli` has `beamtime` on the PATH; `mcp` reaches the
   server through the absolute command in its MCP config. A Beamtime project's index is warmed with
   `beamtime runs` before the session. `make_envs(root)` builds the two venvs with `uv venv` and
-  `uv pip install` (`base`: numpy, pandas, scipy, matplotlib, tensorboard; `beamtime`: the same plus this
+  `uv pip install` (`base`: numpy, pandas, scipy, matplotlib, tensorboard, pyyaml; `beamtime`: the same plus this
   checkout's `beamtime[serve]`) and keeps venvs whose install finished (marked by `.installed`).
 - `compare/sessions.py`: `uv run python bench/agents/compare/sessions.py [--setups ...] [--tasks ...]
   [--seeds 7 8 9] [--reps 1] [--parallel 3] [--model sonnet] [--keep] [--dry-run] [--grade-only BATCH]`.
