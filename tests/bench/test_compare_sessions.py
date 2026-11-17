@@ -619,3 +619,15 @@ def test_run_batch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert {p.name for p in folder.iterdir()} == {"record.json", "grade.json", "transcript.jsonl"}
     assert 0 <= json.loads((folder / "grade.json").read_text())["score"] <= 1
     assert not Path(meta["root"]).exists()
+
+
+def test_stop_group_tolerates_eperm(monkeypatch):
+    """macOS refuses ``killpg`` for a group with only the exited leader; that is not an error."""
+
+    def refuse(pid, sig):
+        raise PermissionError(1, "Operation not permitted")
+
+    process = subprocess.Popen(["true"], start_new_session=True)
+    process.wait()
+    monkeypatch.setattr(sessions.os, "killpg", refuse)
+    sessions.stop_group(process)

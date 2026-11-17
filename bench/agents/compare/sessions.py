@@ -359,7 +359,8 @@ def stop_group(process: subprocess.Popen) -> None:
     :param process: The ``claude`` process, started in a new session."""
     try:
         os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
+    # macOS answers EPERM when only the exited, unreaped leader is left in the group.
+    except (ProcessLookupError, PermissionError):
         pass
     process.wait()
 
