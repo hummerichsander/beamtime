@@ -16,6 +16,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import wide
+
 from beamtime.format.io import write_replaced
 from beamtime.format.tree import is_run, iter_runs
 from beamtime.synth.generate import BEST_LR, LRS, SCALES, Generator, Manifest, RunSpec
@@ -217,4 +219,7 @@ def remove_record(folder: Path) -> None:
             remove_record(child)
 
 
-DATASETS: dict[str, Callable[..., Manifest]] = {"s": make_logdir}
+DATASETS: dict[str, Callable[..., Manifest]] = {
+    "s": make_logdir,
+    "wide": wide.make_wide_logdir,
+}

@@ -202,6 +202,16 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   `truth.TRUTHS` to its truth function. `sessions.py` builds only the data sets the chosen tasks use, once
   per seed, in `root/data/<seed>` for `s` and `root/data-<name>/<seed>` otherwise, and computes the truth
   per (data set, seed) from an export in `root/truth[-<name>]/<seed>`.
+- The `wide` data set (`compare/wide.py`, `make_wide_logdir`; about 4 s and 100 MB per seed): `sweeps/s01` to
+  `s20` hold 300 runs (15 each) whose config is drawn from a grid and whose final `val/loss` is 0.5 plus
+  an effect per key (weight decay and lr large, batch size, dropout and model at most 0.02) plus noise of
+  sd 0.02; 24 runs fail and 6 are killed at 30 to 90 % of the steps, and three of them last logged a
+  `val/loss` below the fifth best finished run (role `traps`). The five best finished runs are at least
+  0.002 apart (role `leaders`). `long/stability` has eight 100k-step runs: three diverge at distinct steps
+  (loss grows by e every 500 steps, then NaN, then inf, `failed`; role `diverged`), one spikes to about 6
+  times its running minimum for 200 steps (role `spike`), four are clean. `long/schedules` has four
+  schedules x two seeds whose `val/loss` falls and then rises, with its minimum at a distinct evaluation
+  step per run. Long runs log `train/loss` every step and `val/loss` every 500 steps and at the last step.
 - `compare/sessions.py`: `uv run python bench/agents/compare/sessions.py [--setups ...] [--tasks ...]
   [--seeds 7 8 9] [--reps 1] [--parallel 3] [--model sonnet] [--keep] [--dry-run] [--grade-only BATCH]`.
   `--dry-run` lists the 96 sessions (8 tasks x 4 setups x 3 seeds, in a fixed shuffled order) with their

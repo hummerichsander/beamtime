@@ -137,7 +137,7 @@ Y81 ─ Y82 ─ Y83 ─ Y84 ─ Y85 ─ Y86      in this order (shared modules)
    are empty. The task YAML: `{kind: keyed, truth: <name>, key: id, field: step, abs: 0}`. Run ids go through
    `trail` like `ids` does.
 
-### Y82. The wide log dir: sweeps and long series (sonnet + review) — code
+### Y82. The wide log dir: sweeps and long series (sonnet + review) — code — **done**
 
 - **Touches:** new `bench/agents/compare/wide.py`, `bench/agents/compare/data.py` (`DATASETS`); new
   `tests/bench/test_compare_wide.py`.
