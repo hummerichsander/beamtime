@@ -33,8 +33,8 @@ class Freshness:
     behind: int = 0
     behind_s: float | None = None
     damaged: list[str] = field(default_factory=list)
-    # runs whose streams catch-up skipped; not dumped.
-    deferred: set[str] = field(default_factory=set)
+    # runs whose streams catch-up skipped, to their lag (None: never read); not dumped.
+    deferred: dict[str, float | None] = field(default_factory=dict)
     # run or group path to the kinds that changed: "metrics", "status" or "authored".
     changed: dict[str, set[str]] = field(default_factory=dict)
 
@@ -59,6 +59,16 @@ class Freshness:
         if self.damaged:
             out += f"; {len(self.damaged)} unreadable run(s) skipped"
         return out
+
+    def drop(self, read: set[str]) -> None:
+        """Forget deferred runs that were read after all, and count the rest as behind.
+
+        :param read: Ids of the runs whose streams were ingested since."""
+        for run_id in read:
+            self.deferred.pop(run_id, None)
+        lags = list(self.deferred.values())
+        self.behind = len(lags)
+        self.behind_s = max(lags) if lags and None not in lags else None
 
     def dump(self) -> dict:
         """Serialize for answers' meta.
@@ -266,12 +276,10 @@ class Index:
                 if streams:
                     todo.append(self.logdir / rel)
             now = time.time()
-            lags: list[float | None] = []
             for run_dir in todo:
                 if time.monotonic() > deadline:
-                    freshness.deferred.add(run_dir.name)
                     indexed = self.store.run(run_dir.name)["indexed_at"]
-                    lags.append(None if indexed is None else now - indexed)
+                    freshness.deferred[run_dir.name] = None if indexed is None else now - indexed
                     continue
                 try:
                     keys = open_columns(self.series / run_dir.name)[1].keys()
@@ -283,9 +291,7 @@ class Index:
                         touch(freshness.changed, rel, "status")
                 except (OSError, ValueError) as e:
                     freshness.damaged.append(f"{run_dir.name}: {e}")
-            freshness.behind = len(freshness.deferred)
-            if lags and None not in lags:
-                freshness.behind_s = max(lags)
+            freshness.drop(set())
             return freshness
         finally:
             self.lock.release()

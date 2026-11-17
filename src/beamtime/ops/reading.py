@@ -874,9 +874,12 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
         proposals = run_proposals(index, run_dir, info.proposals)
         cited = cited_by(Target(index=index, rel=".", run_id=None), info.id)
         if run_card is not None and "epoch" in run_card.metrics:
-            cols = Columns(index=index, run_id=info.id)
+            ingested: set[str] = set()
+            cols = Columns(index=index, run_id=info.id, ingested=ingested)
             epochs = progress(cols, config)
             cols.close()
+            freshness.drop(ingested)
+            freshness.damaged += index.damaged
     heartbeat = (run_dir / c.RUN).stat().st_mtime
     status = run_status(info, heartbeat=heartbeat, now=ctx.now or time.time())
     events = read_events(run_dir)

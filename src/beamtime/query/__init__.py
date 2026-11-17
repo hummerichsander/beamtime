@@ -51,10 +51,7 @@ def run(
         now = now or time.time()
         ctx = Context(index=index, caller=caller, scope=scope, run_id=run_id, now=now)
         answer = KIND_FUNCTIONS[kind](ctx, q)
-        freshness.deferred -= ctx.ingested
-        freshness.behind = len(freshness.deferred)
-        if not freshness.behind:
-            freshness.behind_s = None
+        freshness.drop(ctx.ingested)
         freshness.damaged += index.damaged
         index.damaged.clear()
         answer["meta"]["freshness"] = freshness.dump()

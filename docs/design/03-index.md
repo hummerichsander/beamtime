@@ -182,7 +182,8 @@ process for that, `beamtime serve`:
   streams if they are stale, whatever the budget; the budget only bounds catch-up of the runs the
   query does not read. The runs catch-up skipped are `Freshness.deferred`; `query.run` drops those it
   ingested itself, so "N runs not yet indexed" counts only runs the answer didn't read, and a second
-  query ingests nothing. `ensure_streams` takes the index lock and waits for it up to 30 s (a daemon
+  query ingests nothing; `behind_s` is the largest lag among the runs left. The card ingests its run
+  the same way. `ensure_streams` takes the index lock and waits for it up to 30 s (a daemon
   indexing holds it), then raises "the index is busy; try again"; a run it cannot read is skipped
   and named in `freshness.damaged`.
 - **Run tables and overviews stay fresh either way**: card and preview are rewritten by the run every
@@ -497,8 +498,8 @@ Decided while building the index and the queries (milestone M2):
   stored as a column `_t` per run, so `x: _t` and `_elapsed` need no extra pass.
 - **Ingest** always indexes the small files (`_run.json`, config, card, notes), so run tables are
   complete even when the time budget runs out; metric, event and data streams are indexed while the
-  budget lasts (a query ingests the streams of the runs it reads itself). Finished runs are re-checked only when `_run.json` or their `notes/` change. Lines
-  are parsed with msgspec, falling back to Python's parser for lines with `NaN` or `Infinity`.
+  budget lasts (a query ingests the streams of the runs it reads itself). Finished runs are
+  re-checked only when `_run.json` or their `notes/` change. Lines are parsed with msgspec, falling back to Python's parser for lines with `NaN` or `Infinity`.
 - **A decreasing step without an `attempt_started` event** waits for the event while the run is
   running (the SDK may have written the metrics before the event); in a run that has ended, it is
   treated as a resume at that step.

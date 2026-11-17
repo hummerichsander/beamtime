@@ -622,3 +622,18 @@ def test_last_logged_shows_as_its_age_in_text_only(ctx: Context, roles: dict[str
     text = render(answer)
     assert " ago" in text and "e9" not in text
     assert table(["run.last_logged"], [[None]])[1] == "-"
+
+
+def test_card_reads_a_deferred_run(ctx: Context, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A card whose run catch-up skipped ingests it and doesn't count it as behind."""
+    from beamtime.index.index import Index
+
+    catch_up = Index.catch_up
+    monkeypatch.setattr(Index, "catch_up", lambda self, scope, budget_s: catch_up(self, scope, 0.0))
+    run = next((ctx.logdir / "realistic" / "lr-scan").glob("*/_run.json")).parent
+    with Index(logdir=ctx.logdir) as index:
+        index.store.db.execute("UPDATE runs SET indexed_at = NULL WHERE id = ?", (run.name,))
+        index.store.db.commit()
+    c = call("card", {"run": run.name}, ctx)
+    assert c["progress"] is not None
+    assert c["meta"]["freshness"]["behind"] == 0

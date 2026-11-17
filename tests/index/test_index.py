@@ -348,6 +348,15 @@ def test_ensure_damaged_run(index: Index, logdir: Path) -> None:
     assert len(index.damaged) == 1 and run.name in index.damaged[0]
 
 
+def test_drop_keeps_the_lag_of_the_runs_left() -> None:
+    """Dropping read runs counts the others, with their own lag."""
+    f = Freshness(deferred={"a": None, "b": 30.0, "c": 5.0})
+    f.drop({"a"})
+    assert (f.behind, f.behind_s) == (2, 30.0)
+    f.drop({"b", "c"})
+    assert (f.behind, f.behind_s) == (0, None)
+
+
 def test_damaged_run_is_skipped(index: Index, logdir: Path) -> None:
     """A run with a broken _run.json is reported, the others are indexed."""
     run = next(iter_runs(logdir / "tokenizer"))
