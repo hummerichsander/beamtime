@@ -65,6 +65,33 @@ def window_stat(
             raise ValueError(f"unknown window statistic {stat!r}")
 
 
+def nonfinite_step(steps: Sequence[int], values: Sequence[float]) -> int | None:
+    """Find the first step whose value is NaN or infinite.
+
+    :param steps: The steps in file order.
+    :param values: The values.
+    :return: The step, or ``None`` when every value is finite."""
+    return next((s for s, v in zip(steps, values, strict=True) if not math.isfinite(v)), None)
+
+
+def rise_step(steps: Sequence[int], values: Sequence[float], k: float) -> int | None:
+    """Find the first step that is non-finite or above ``k`` times the lowest value before it.
+
+    The bar is literal: with a negative lowest value ``k`` times it lies below the lowest value, so
+    every later value at or above the lowest one exceeds it.
+
+    :param steps: The steps in file order.
+    :param values: The values.
+    :param k: The factor.
+    :return: The step, or ``None`` when neither happens."""
+    lowest = math.inf
+    for step, value in zip(steps, values, strict=True):
+        if not math.isfinite(value) or value > k * lowest:
+            return step
+        lowest = min(lowest, value)
+    return None
+
+
 def width_for(lo: int, hi: int, points: int) -> int:
     """Find the bucket width for a step range: the smallest power of two giving at
     most ``points`` buckets, with edges at multiples of it so live curves don't jitter.

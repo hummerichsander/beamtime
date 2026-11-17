@@ -9,6 +9,10 @@
 - **Added** `run.started` as an alias of `run.created_at` in `select`, `sort` and `where` (the column keeps the name
   as typed), and a bare `metric.<key>` means `metric.<key>.last`; a key whose last segment is a statistic's name
   still needs the explicit `.last` (`metric.loss.min.last`).
+- **Added** the run-table fields `metric.<key>.nonfinite_step` (the first step with a NaN or infinity) and
+  `metric.<key>.rise_step:<k>` (the first step above k times the lowest finite value before it, or non-finite;
+  `rise_step` alone is k = 10), usable in `select`, `where`, `sort` and `to`; they are empty for a run where it
+  never happens, and `rise_step:0` or `rise_step:x` is an error naming the form.
 - **Changed** the error for a group given as `note add` evidence shows an example of each form, built from the
   group, and lists the group's prediction names.
 - **Changed** `status` answers the root memory's text with its version (`memory: {version, notes_since, text}`), and

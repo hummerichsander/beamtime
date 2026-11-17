@@ -196,6 +196,77 @@ def test_windowed_statistics(ask, roles) -> None:
     assert n == 1000 and 0 < m < 3
 
 
+def brute_series(logdir: Path, run_id: str, key: str) -> list[tuple[int, float]]:
+    """Read a run's metric from its metrics file.
+
+    :param logdir: The log dir.
+    :param run_id: The run id.
+    :param key: The metric key.
+    :return: ``(step, value)`` in file order."""
+    (path,) = logdir.glob(f"**/{run_id}/_metrics.jsonl")
+    rows = (json.loads(line) for line in path.read_text().splitlines())
+    return [(r["_step"], r[key]) for r in rows if key in r]
+
+
+def test_step_fields_match_a_brute_force_scan(ask, logdir, roles) -> None:
+    """nonfinite_step and rise_step give each run's planted steps; None where nothing happens."""
+    fields = [
+        "metric.train/loss.nonfinite_step",
+        "metric.train/loss.rise_step:10",
+        "metric.train/loss.rise_step",
+        "metric.train/loss.rise_step:1.5",
+    ]
+    rows = table(ask({"runs": {"from": "scaling/lr-sweep", "select": ["run.id", *fields]}}))
+    assert rows
+    for row in rows:
+        series = brute_series(logdir, row["run.id"], "train/loss")
+        nonfinite = next((s for s, v in series if not math.isfinite(v)), None)
+        assert row[fields[0]] == nonfinite
+        for field, k in zip(fields[1:], (10, 10, 1.5), strict=True):
+            lowest, want = math.inf, None
+            for s, v in series:
+                if not math.isfinite(v) or v > k * lowest:
+                    want = s
+                    break
+                lowest = min(lowest, v)
+            assert row[field] == want, field
+    by_id = {r["run.id"]: r for r in rows}
+    assert by_id[roles["diverging"]][fields[0]] is not None
+    assert by_id[roles["diverging"]][fields[1]] <= by_id[roles["diverging"]][fields[0]]
+    assert by_id[roles["killed"]][fields[0]] is None
+
+
+def test_step_fields_work_in_where_and_sort(ask, roles) -> None:
+    """The fields filter and sort like any other; a missing step never matches a comparison."""
+    f = "metric.train/loss.nonfinite_step"
+    hit = table(ask({"runs": {"from": "scaling/lr-sweep", "where": {f: {"exists": True}}}}))
+    assert roles["diverging"] in {r["run.id"] for r in hit}
+    assert roles["killed"] not in {r["run.id"] for r in hit}
+    late = table(ask({"runs": {"from": "scaling/lr-sweep", "where": {f: {"gt": 0}}}}))
+    assert {r["run.id"] for r in late} == {r["run.id"] for r in hit}
+    first = ask({"runs": {"from": "scaling/lr-sweep", "select": ["run.id", f], "sort": [f]}})
+    assert first["rows"][0][0] == roles["diverging"]
+
+
+@pytest.mark.parametrize(
+    "bad", ["rise_step:0", "rise_step:x", "rise_step:-3", "rise_step:", "rise_step:inf"]
+)
+def test_rise_step_needs_a_positive_number(bad: str) -> None:
+    """A bad factor is an error that names the form."""
+    with pytest.raises(QueryError, match=r"rise_step:<k> takes a positive number"):
+        parse_field(f"metric.train/loss.{bad}")
+
+
+def test_rise_step_parses_decimals_and_refuses_windows() -> None:
+    """A decimal factor is not read as a dotted key; a window is refused."""
+    f = parse_field("metric.a.b.rise_step:2.5")
+    assert (f.key, f.stat, f.arg) == ("a.b", "rise_step", 2.5)
+    assert parse_field("metric.loss.rise_step").arg == 10
+    assert parse_field("metric.loss.nonfinite_step").stat == "nonfinite_step"
+    with pytest.raises(QueryError, match="windowed statistics"):
+        parse_field("metric.loss.rise_step:3[0:10]")
+
+
 def test_keys(ask) -> None:
     """keys lists metrics, config keys, data keys, tags and statuses."""
     a = ask({"keys": {"from": "."}})
@@ -658,7 +729,9 @@ def test_run_started_is_run_created_at(ask) -> None:
     assert a["columns"][1:] == ["run.started", "run.created_at"]
     rows = table(a)
     assert rows and all(r["run.started"] == r["run.created_at"] is not None for r in rows)
-    assert [r["run.started"] for r in rows] == sorted((r["run.started"] for r in rows), reverse=True)
+    assert [r["run.started"] for r in rows] == sorted(
+        (r["run.started"] for r in rows), reverse=True
+    )
     newest = rows[0]["run.started"]
     where = ask({"runs": {"from": "scaling/lr-sweep", "where": {"run.started": {"ge": newest}}}})
     assert len(where["rows"]) >= 1

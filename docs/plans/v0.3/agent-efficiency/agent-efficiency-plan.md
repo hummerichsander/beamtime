@@ -221,7 +221,7 @@ The tickets run in this order: E91 E92 E93 E95 E96 E97 E98 E99 E94 X91.
    the top-level keys of one curve or row.
 4. Spec, guide row and CHANGELOG say the layout changed (Breaking changes).
 
-### E97. Fields for the first non-finite step and the first rise (sonnet + review) — real data
+### E97. Fields for the first non-finite step and the first rise (sonnet + review) — real data — **done**
 
 - **Touches:** `src/beamtime/query/fields.py` (`STATS` 10–22, `parse_field` 123–190), `src/beamtime/query/read.py`
   (new `nonfinite_step`, `rise_step`), `src/beamtime/query/select.py` (`select_runs` windowed branch 215–240),

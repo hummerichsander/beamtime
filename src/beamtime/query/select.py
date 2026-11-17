@@ -11,9 +11,9 @@ from beamtime.index.columns import Column, open_columns
 from beamtime.index.index import Index
 from beamtime.index.store import in_scope
 from beamtime.query import models as m
-from beamtime.query.fields import Field, decode_cell, parse_field, sql
+from beamtime.query.fields import SERIES_STATS, Field, decode_cell, parse_field, sql
 from beamtime.query.models import QueryError, closest
-from beamtime.query.read import window_stat
+from beamtime.query.read import nonfinite_step, rise_step, window_stat
 from beamtime.query.resolve import resolve
 from beamtime.query.where import fields_of, matches, number
 
@@ -216,7 +216,7 @@ def select_runs(
     rows = ctx.index.store.db.execute(
         f"SELECT {cols} FROM runs WHERE {cond}{pre}", [*params, *pre_params]
     ).fetchall()
-    windowed = [f for f in fields if f.window is not None]
+    windowed = [f for f in fields if f.window is not None or f.stat in SERIES_STATS]
     proposal = [f for f in fields if f.ns == "proposal"]
     out = []
     for row in rows:
@@ -232,18 +232,28 @@ def select_runs(
         if windowed:
             cols_ = Columns(index=ctx.index, run_id=row[0], ingested=ctx.ingested)
             for f in windowed:
-                col = cols_.get(f.key)
-                values[f.text] = (
-                    None
-                    if col is None
-                    else window_stat(
-                        col.steps, col.values, f.window, f.stat, nonfinite=col.nonfinite
-                    )
-                )
+                values[f.text] = series_field(f, cols_.get(f.key))
             cols_.close()
         if matches(sel.where, values):
             out.append(values)
     return out, fields
+
+
+def series_field(f: Field, col: Column | None) -> Any:
+    """Compute a field that reads a metric's column: a windowed statistic or a step.
+
+    :param f: The field.
+    :param col: The metric's column, or ``None`` if the run has none.
+    :return: The value, or ``None`` without a column."""
+    if col is None:
+        return None
+    match f.stat:
+        case "nonfinite_step":
+            return nonfinite_step(col.steps, col.values) if col.nonfinite else None
+        case "rise_step":
+            return rise_step(col.steps, col.values, f.arg)
+        case _:
+            return window_stat(col.steps, col.values, f.window, f.stat, nonfinite=col.nonfinite)
 
 
 def research(ctx: Context, rel: str, run_id: str | None) -> dict[str, Any]:

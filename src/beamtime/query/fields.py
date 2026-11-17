@@ -1,6 +1,7 @@
 """Fields: the dotted paths a query filters, sorts and shows, and how to fetch them."""
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -20,7 +21,12 @@ STATS = (
     "last_step",
     "nonfinite",
     "slope_last10pct",
+    "nonfinite_step",
+    "rise_step",
 )
+# statistics the run card doesn't hold: they are computed from the columns, like windows.
+SERIES_STATS = ("nonfinite_step", "rise_step")
+RISE_DEFAULT = 10.0
 WINDOW_STATS = ("first", "last", "min", "max", "mean", "count")
 
 RUN_COLUMNS = {
@@ -89,6 +95,7 @@ RUN_ALIASES = {
 }
 
 _WINDOW = re.compile(r"\[(-?\d*):(-?\d*)\]$")
+_RISE = re.compile(r"(.+)\.rise_step(?::(.*))?")
 _CONFIG_PART = re.compile(r'\.([^.\[\]"]+)|\["([^"]+)"\]')
 _CONFIG = re.compile(r'(?:\.[^.\[\]"]+|\["[^"]+"\])+')
 
@@ -102,6 +109,7 @@ class Field:
     path: tuple[str, ...]
     stat: str | None = None
     window: tuple[int | None, int | None] | None = None
+    arg: float | None = None
 
     @property
     def key(self) -> str:
@@ -159,8 +167,12 @@ def parse_field(text: str) -> Field:
             if m := _WINDOW.search(body):
                 window = (int(m[1]) if m[1] else None, int(m[2]) if m[2] else None)
                 body = body[: m.start()]
-            key, _, stat = body.rpartition(".")
-            if not key or stat not in STATS:
+            arg = None
+            if rise := _RISE.fullmatch(body):
+                key, stat, arg = rise[1], "rise_step", rise_factor(text, rise[2])
+            else:
+                key, _, stat = body.rpartition(".")
+            if arg is None and (not key or stat not in STATS):
                 # a bare key is its last value; a key ending in a stat name needs ``.last``.
                 key, stat = body, "last"
             if not key:
@@ -170,7 +182,7 @@ def parse_field(text: str) -> Field:
                 )
             if window is not None and stat not in WINDOW_STATS:
                 raise QueryError(f"{text!r}: windowed statistics are {', '.join(WINDOW_STATS)}")
-            return Field(text=text, ns="metric", path=(key,), stat=stat, window=window)
+            return Field(text=text, ns="metric", path=(key,), stat=stat, window=window, arg=arg)
         case "value":
             if not rest[1:]:
                 raise QueryError(f"{text!r} names no value key, e.g. value.test/acc")
@@ -187,6 +199,27 @@ def parse_field(text: str) -> Field:
                 f"unknown field {text!r}: fields start with run., config., metric., "
                 "value. or proposal."
             )
+
+
+def rise_factor(text: str, arg: str | None) -> float:
+    """Parse the factor of ``rise_step:<k>``.
+
+    :param text: The field text, for the error.
+    :param arg: The text after the colon, or ``None`` for ``rise_step`` alone.
+    :return: The factor; 10 without one."""
+    if arg is None:
+        return RISE_DEFAULT
+    try:
+        k = float(arg)
+    except ValueError:
+        k = 0.0
+    if not 0 < k < math.inf:
+        raise QueryError(
+            f"{text!r}: rise_step:<k> takes a positive number k, "
+            "e.g. metric.train/loss.rise_step:10 (the first step above k times the lowest value "
+            "before it; rise_step alone is k = 10)"
+        )
+    return k
 
 
 def metric_key(text: str) -> str | None:
@@ -225,7 +258,7 @@ def sql(field: Field) -> str | None:
         case "config":
             return f"json_extract(config, '{json_path(field.path)}')"
         case "metric":
-            if field.window is not None:
+            if field.window is not None or field.stat in SERIES_STATS:
                 return None
             return f"json_extract(card, '{json_path(('metrics', field.key, field.stat))}')"
         case "value":

@@ -11,6 +11,8 @@ from beamtime.query.read import (
     elapsed_values,
     ema,
     from_preview,
+    nonfinite_step,
+    rise_step,
     value_at,
     width_for,
     x_values,
@@ -225,3 +227,47 @@ def test_x_values_take_the_raw_value_of_a_non_monotone_metric() -> None:
 def test_x_values_without_the_column_are_unknown() -> None:
     """A run that never logged the metric has no x."""
     assert x_values(FakeColumns(), "epoch", [0, 1]) == [None, None]
+
+
+NAN = math.nan
+
+
+def test_nonfinite_step_is_the_first_nan_or_infinity() -> None:
+    """The first non-finite value names its step; finite series have none."""
+    assert nonfinite_step([0, 5, 9, 12], [1.0, 2.0, math.inf, NAN]) == 9
+    assert nonfinite_step([0, 1], [1.0, 2.0]) is None
+    assert nonfinite_step([], []) is None
+
+
+def test_rise_step_needs_k_times_the_lowest_value_before_it() -> None:
+    """The first value above k times the lowest earlier one counts; the bar is strict."""
+    steps = [0, 10, 20, 30, 40]
+    values = [4.0, 2.0, 3.0, 21.0, 99.0]
+    assert rise_step(steps, values, 10) == 30
+    assert rise_step(steps, values, 1.4) == 20
+    assert rise_step(steps[:3], [4.0, 2.0, 20.0], 10) is None
+    assert rise_step(steps, [4.0, 2.0, 3.0, 4.0, 2.5], 10) is None
+
+
+def test_rise_step_stops_at_a_non_finite_value() -> None:
+    """A NaN or infinity is a rise by itself, and never lowers the minimum."""
+    assert rise_step([0, 1, 2], [1.0, NAN, 1.0], 10) == 1
+    assert rise_step([0, 1, 2], [1.0, 1.0, -math.inf], 10) == 2
+
+
+def test_rise_first_value_nan() -> None:
+    """A run whose first value is NaN has its first step for both fields."""
+    steps, values = [3, 4, 5], [NAN, 1.0, 1.0]
+    assert nonfinite_step(steps, values) == 3
+    assert rise_step(steps, values, 10) == 3
+
+
+def test_rise_flat() -> None:
+    """A series that never moves has no rise."""
+    assert rise_step(range(5), [2.0] * 5, 10) is None
+    assert rise_step(range(5), [0.0] * 5, 10) is None
+
+
+def test_rise_negative_min() -> None:
+    """With a negative lowest value k times it is below it, so any later value above that rises."""
+    assert rise_step([0, 1, 2], [-2.0, -2.0, -1.0], 10) == 1

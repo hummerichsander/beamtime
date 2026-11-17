@@ -238,6 +238,18 @@ the minimum of `loss`, so the last value of a key literally named `loss.min` is 
 `last_step`, `nonfinite`, `slope_last10pct`. A config key that itself contains a dot is quoted:
 `config["a.b"]`.
 
+Two more statistics are series steps, computed from the column files like windowed fields (so a query
+that reads them ingests the run's streams first, see [Freshness](#freshness-the-daemon)); neither has a card
+entry or an SQL expression, and neither takes a window. **`nonfinite_step`** is the first step whose
+value is NaN or infinite (`null` when every value is finite). **`rise_step:<k>`** is the first step whose
+finite value is greater than `k` times the lowest finite value before it, or whose value is non-finite
+(`null` when neither happens); `k` is a positive finite number (`rise_step:2.5`), and `rise_step` alone
+means `k = 10`. The bar is literal: with a negative lowest value `k` times it lies below the lowest
+value, so any later value at or above that minimum counts as a rise. A first value that is NaN makes both
+fields its own step. A `k` that is not a positive number is an error naming the form. Both are fields like
+any other, in `select`, `where`, `sort` and `to`: `metric.train/loss.rise_step:10` finds where a run
+diverges without exporting its curve.
+
 `run.created_at` is when the run first started (`init` writes it together with the first attempt's
 `started_at`; a resumed run keeps it), so `run.started` is accepted as the same field. It resolves
 to `run.created_at`, and a column shows the name as typed.
