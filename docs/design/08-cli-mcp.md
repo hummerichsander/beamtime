@@ -200,7 +200,7 @@ drift from the commands.
   lives in `guide`, loaded on demand. Texts every query tool repeats appear once, in the server
   instructions: what `from`/`group` and `depth` mean, the `where` operators and field examples, and `to`.
   A schema keeps a pointer (`see instructions: where`, `see instructions: to`) or nothing (`from`, `group`,
-  `author`, `depth` as a plain integer); defaults an absent key reads anyway (`from`, `x`, `band`) are left
+  `author`, `depth` as a plain integer); defaults an absent key reads anyway (`from`, `group`, `x`, `band`) are left
   out, and `tools_more` names its families without a description. The definitions of a fresh server,
   `tools_more` and the instructions included, stay under 11.5k characters of JSON (`json.dumps` defaults;
   `tests/mcp` checks it).

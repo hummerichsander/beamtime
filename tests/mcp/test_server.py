@@ -159,6 +159,15 @@ def test_instructions_name_the_where_ops() -> None:
     assert where["description"] == "see instructions: where"
 
 
+def test_defaults_an_absent_key_reads_are_dropped() -> None:
+    """No schema lists the ``"."`` default of ``from`` or ``group``; the operation reads it anyway."""
+    for op in BY_TOOL.values():
+        if op.params is None:
+            continue
+        properties = schema(op).get("properties", {})
+        assert all(properties.get(key, {}).get("default") != "." for key in ("from", "group"))
+
+
 def test_no_list_changed_is_announced() -> None:
     """The listing never changes, so the server does not declare ``listChanged``."""
     options = build().create_initialization_options()

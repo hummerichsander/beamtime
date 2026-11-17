@@ -38,7 +38,7 @@ POINTERS = {
     get_args(Group)[1].description: None,
     get_args(Author)[1].description: None,
 }
-DEFAULTS = {"from": ".", "x": "_step", "band": "minmax"}
+DEFAULTS = {"from": ".", "group": ".", "x": "_step", "band": "minmax"}
 
 
 def instructions(mcp_tools: str = "core") -> str:
