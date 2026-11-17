@@ -140,7 +140,7 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
 
 ## C. CLI
 
-### C81. MCP tool names on the CLI and a no-log-dir hint (sonnet) — reproduced
+### C81. MCP tool names on the CLI and a no-log-dir hint (sonnet) — reproduced — **done**
 
 - **Touches:** `src/beamtime/cli/__init__.py` (new `tool_names` before `main` 328; `main` 339); `src/beamtime/ops/reading.py`
   (l. 73–75, 215); `src/beamtime/ops/authored.py` (l. 34); `src/beamtime/ops/admin.py` (l. 470); `tests/test_cli.py`;

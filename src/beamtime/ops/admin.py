@@ -467,7 +467,10 @@ def reindex(ctx: Context, p: r.NoParams) -> dict[str, Any]:
     :param p: The parameters.
     :return: How long it took and how many runs it found."""
     if not ctx.logdir.is_dir():
-        raise OpError(f"no log dir at {ctx.logdir}", code=4)
+        raise OpError(
+            f"no log dir at {ctx.logdir}; run from the project folder or pass `--root <project>`",
+            code=4,
+        )
     with Index(logdir=ctx.logdir, settings=ctx.settings) as index:
         t = time.perf_counter()
         freshness = index.reindex()

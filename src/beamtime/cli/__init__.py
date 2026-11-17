@@ -325,6 +325,26 @@ def join_sort(argv: list[str]) -> list[str]:
     return out
 
 
+def tool_names(argv: list[str]) -> list[str]:
+    """Accept a command by its MCP tool name, as agents write it (``memory_show``).
+
+    :param argv: The arguments.
+    :return: The arguments with a tool name split into its command path."""
+    from beamtime.ops.registry import BY_TOOL
+
+    skip = False
+    for i, arg in enumerate(argv):
+        if skip:
+            skip = False
+        elif arg == "--root":
+            skip = True
+        elif not arg.startswith("-"):
+            if "_" in arg and (op := BY_TOOL.get(arg)) is not None:
+                return argv[:i] + op.name.split() + argv[i + 1 :]
+            return argv
+    return argv
+
+
 def main(argv: list[str] | None = None) -> None:
     """Run the beamtime command line interface.
 
@@ -336,7 +356,7 @@ def main(argv: list[str] | None = None) -> None:
             "The SDK (import beamtime) works on 3.10."
         )
     parser = build_parser()
-    args = parser.parse_args(join_sort(sys.argv[1:] if argv is None else argv))
+    args = parser.parse_args(tool_names(join_sort(sys.argv[1:] if argv is None else argv)))
     if args.command is None:
         parser.print_help()
         sys.exit(0)

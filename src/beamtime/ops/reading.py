@@ -70,8 +70,9 @@ def evaluate(ctx: Context, query: dict[str, Any]) -> dict[str, Any]:
     :return: The answer."""
     if not ctx.logdir.is_dir():
         raise OpError(
-            f"no log dir at {ctx.logdir}; runs appear there once a script calls "
-            "beamtime.init() (or set BEAMTIME_LOGDIR, or `beamtime setup` to set up)",
+            f"no log dir at {ctx.logdir}; run from the project folder or pass `--root <project>`. "
+            "Runs appear there once a script calls beamtime.init() (or set BEAMTIME_LOGDIR, or "
+            "`beamtime setup` to set up)",
             code=4,
         )
     try:
@@ -212,7 +213,11 @@ def run_members(
     :param metrics: Whether to include each run's card statistics by metric.
     :return: One ``RunFacts`` per run."""
     if not ctx.logdir.is_dir():
-        raise OpError(f"no log dir at {ctx.logdir}; `beamtime setup` sets one up", code=4)
+        raise OpError(
+            f"no log dir at {ctx.logdir}; run from the project folder or pass `--root <project>` "
+            "(`beamtime setup` sets one up)",
+            code=4,
+        )
     try:
         with Index(logdir=ctx.logdir, settings=ctx.settings) as index:
             found = resolve(index, target, sources=ctx.remotes)
