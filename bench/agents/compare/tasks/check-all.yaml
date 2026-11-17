@@ -6,9 +6,10 @@ prompt: >
   and the point's mean over the seeds has a t-interval for the mean. A prediction with a and b (test
   compare) uses all runs matching a and all runs matching b, and a Welch t-interval for the
   difference of the two means, mean of a minus mean of b. The level is 95 %. A claim op T (op is <
-  or >; T is the value for each, and 0 for compare plus or minus the margin, which is 0 if not
-  given) is confirmed when the whole interval satisfies it, refuted when the whole interval
-  violates it, otherwise inconclusive. The effect of a compare prediction is the difference of the
+  or >; T is the value for each and 0 for compare, minus the margin for < and plus it for >, the
+  margin being 0 if not given) is confirmed when the whole interval satisfies it, refuted when the
+  whole interval violates it, otherwise inconclusive. An each prediction is refuted when any point
+  is refuted, confirmed when every point is confirmed, otherwise inconclusive. The effect of a compare prediction is the difference of the
   means. The effect of an each prediction is its worst point's mean minus the value, where the worst
   point is the one whose interval ends furthest on the wrong side of the claim (the highest upper
   end for <, the lowest lower end for >); ci is that point's interval minus the value. Give one

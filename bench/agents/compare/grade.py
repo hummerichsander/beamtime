@@ -249,8 +249,8 @@ def run_check(
             case "set":
                 return float(ids(given) == ids(expected))
             case "f1":
-                field = spec.get("field", "id")
-                return f1(ids(given, field), ids(expected, field))
+                by = spec.get("field", "id")
+                return f1(ids(given, by), ids(expected, by))
             case "contains":
                 low, high = sorted(number(v) for v in given)
                 return float(len(given) == 2 and low <= number(expected) <= high)
