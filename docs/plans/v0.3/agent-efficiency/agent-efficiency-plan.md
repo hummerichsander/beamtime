@@ -168,7 +168,7 @@ The tickets run in this order: E91 E92 E93 E95 E96 E97 E98 E99 E94 X91.
 2. `test_warm_indexes_everything`: prepare a cli session on a small synth log dir with a 100k-step run; status has
    `behind == 0`.
 
-### E93. `status` includes the memory (sonnet) — real data
+### E93. `status` includes the memory (sonnet) — real data — **done**
 
 - **Touches:** `src/beamtime/ops/reading.py` (`status` 1047–1079, `project_memory` 1131–1147),
   `src/beamtime/cli/format.py` (`render_status` 610–640), `docs/design/08-cli-mcp.md` (status row l. 33),

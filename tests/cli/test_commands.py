@@ -55,6 +55,22 @@ def test_json_equals_the_operation(project: Path, monkeypatch: pytest.MonkeyPatc
     assert json.loads(out.stdout)["rows"] == expected["rows"]
 
 
+def test_status_prints_the_memory_below_the_table(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``status`` ends with the memory's text after a blank line; without memory it prints none."""
+    monkeypatch.chdir(project)
+    memory = call("status", {}, Context.make(caller="cli"))["memory"]
+    out = beamtime(project, "status").stdout
+    assert out.rstrip().endswith(memory["text"].strip())
+    assert f"memory    {memory['version']}" in out.split("\n\n")[0]
+    empty = project.parent / "empty"
+    empty.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=empty, check=True)
+    (empty / "beamtime").mkdir()
+    assert "memory" not in beamtime(empty, "status").stdout
+
+
 def test_flags_map_onto_queries(project: Path) -> None:
     """--where, --sort with a leading minus, --select and --limit."""
     out = beamtime(
@@ -109,8 +125,7 @@ def test_root_flag(project: Path, tmp_path: Path) -> None:
 def test_mcp_without_extra_explains(project: Path, tmp_path: Path) -> None:
     """Without the MCP SDK, beamtime mcp says how to install it."""
     code = (
-        "import sys; sys.modules['anyio'] = None; "
-        "from beamtime.mcp import serve; sys.exit(serve())"
+        "import sys; sys.modules['anyio'] = None; from beamtime.mcp import serve; sys.exit(serve())"
     )
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert out.returncode == 1 and "beamtime[serve]" in out.stderr

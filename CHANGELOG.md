@@ -11,6 +11,9 @@
   still needs the explicit `.last` (`metric.loss.min.last`).
 - **Changed** the error for a group given as `note add` evidence shows an example of each form, built from the
   group, and lists the group's prediction names.
+- **Changed** `status` answers the root memory's text with its version (`memory: {version, notes_since, text}`), and
+  `beamtime status` prints it below the table: one call starts a work session. `memory_show` stays for older
+  versions and the chain.
 
 - **Changed** the MCP server lists 19 core tools and `tools_more`: about 3.3k tokens of definitions instead of
   about 5.8k for all 43 tools. The tools for views, blocks, run control and export are reached through

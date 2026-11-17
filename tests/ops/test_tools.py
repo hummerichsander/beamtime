@@ -98,7 +98,10 @@ def test_digest_best_skips_runs_without_the_metric(ctx: Context) -> None:
     d = call("digest", {"group": ".", "metric": "val/acc"}, ctx)
     finished = d["runs"]["finished"]
     assert 0 < d["best"]["runs"] < finished
-    assert d["best"]["runs"] == call("digest", {"group": "scaling", "metric": "val/acc"}, ctx)["best"]["runs"]
+    assert (
+        d["best"]["runs"]
+        == call("digest", {"group": "scaling", "metric": "val/acc"}, ctx)["best"]["runs"]
+    )
     assert call("digest", {"group": "tokenizer", "metric": "val/acc"}, ctx)["best"] is None
 
 
@@ -108,7 +111,9 @@ def test_logs_group_tracebacks_by_signature(ctx: Context, roles: dict[str, str])
     [crash] = a["tracebacks"]
     assert crash["signature"] == "FloatingPointError: train/loss is inf"
     assert crash["runs"] == [roles["diverging"]]
-    assert crash["traceback"][0].startswith("Traceback") and crash["traceback"][-1].startswith("Floating")
+    assert crash["traceback"][0].startswith("Traceback") and crash["traceback"][-1].startswith(
+        "Floating"
+    )
     assert all(len(e["lines"]) <= 2 for e in a["entries"])
     assert a["meta"]["matched"] == 17
 
@@ -144,7 +149,11 @@ def test_wait_condition_names_the_matching_runs(ctx: Context) -> None:
     assert a["met"] and a["matching"]
     b = call(
         "wait",
-        {"from": "scaling/lr-sweep", "where": {"config.lr": 0.001}, "until": "metric.val/acc.max>0.9"},
+        {
+            "from": "scaling/lr-sweep",
+            "where": {"config.lr": 0.001},
+            "until": "metric.val/acc.max>0.9",
+        },
         ctx,
     )
     assert len(b["matching"]) == 3
@@ -306,7 +315,10 @@ def test_to_writes_a_table_outside_the_budget(ctx: Context) -> None:
     a = call("runs", {"by": ["config.lr"], "select": ["metric.val/acc.last"], "to": "lr.csv"}, ctx)
     assert a["kind"] == "export" and a["path"] == str(exports / "lr.csv")
     header, *rows = (exports / "lr.csv").read_text().splitlines()
-    assert header == "runs,config.lr,metric.val/acc.last.mean,metric.val/acc.last.std,metric.val/acc.last.n"
+    assert (
+        header
+        == "runs,config.lr,metric.val/acc.last.mean,metric.val/acc.last.std,metric.val/acc.last.n"
+    )
     assert len(rows) == a["rows"] and a["rows"] > 6
     everything = call("runs", {"to": "all.csv"}, ctx)
     assert everything["rows"] == 47 > 40
@@ -372,3 +384,32 @@ def test_unknown_group_lists_the_top_level_groups(ctx: Context) -> None:
     assert e.value.code == 4
     with pytest.raises(OpError, match=r"Did you mean 'lr-sweep'\?.*Top-level groups"):
         call("runs", {"from": "scaling/lr-swep"}, ctx)
+
+
+def test_status_memory_has_the_text(ctx: Context) -> None:
+    """``status`` carries the newest memory's version, staleness and body."""
+    memory = call("status", {}, ctx)["memory"]
+    chain = call("memory show", {"group": "."}, ctx)["chain"]
+    assert memory["version"] == chain[0]["version"] and memory["text"] == chain[0]["body"]
+    assert memory["text"].strip() and memory["notes_since"] == 0
+
+
+def test_status_memory_unreadable(ctx: Context) -> None:
+    """A memory file that does not parse leaves the text out and keeps the version."""
+    newest_file = max((ctx.logdir / "memory").iterdir())
+    newest_file.write_text("no frontmatter here\n")
+    memory = call("status", {}, ctx)["memory"]
+    assert memory["version"] == newest_file.stem and memory["text"] is None
+
+
+def test_status_without_memory(ctx: Context) -> None:
+    """Without a memory file, ``memory`` is ``None``."""
+    shutil.rmtree(ctx.logdir / "memory")
+    assert call("status", {}, ctx)["memory"] is None
+
+
+def test_status_without_logdir(ctx: Context) -> None:
+    """Without a log dir, ``status`` still answers and has no memory."""
+    shutil.rmtree(ctx.logdir)
+    answer = call("status", {}, ctx)
+    assert answer["logdir_exists"] is False and answer["memory"] is None

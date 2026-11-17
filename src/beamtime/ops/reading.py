@@ -1135,7 +1135,8 @@ def project_memory(index: Index) -> dict[str, Any] | None:
     """Tell how current the project's memory is.
 
     :param index: The open index.
-    :return: Its version and the notes added since, or ``None`` without memory."""
+    :return: Its version, the notes added since and its text (``None`` when the file does not
+        parse), or ``None`` without memory."""
     from beamtime.format.authored import newest, read_markdown_doc
     from beamtime.record.memory import notes_since, to_time
     from beamtime.record.proposals import Target
@@ -1143,8 +1144,9 @@ def project_memory(index: Index) -> dict[str, Any] | None:
     if (path := newest(index.logdir / c.MEMORY)) is None:
         return None
     try:
-        covers = to_time(read_markdown_doc(path, kind="memory").meta.get("covers_until"))
+        doc = read_markdown_doc(path, kind="memory")
+        covers, text = to_time(doc.meta.get("covers_until")), doc.body
     except (ValueError, OSError):
-        covers = None
+        covers, text = None, None
     target = Target(index=index, rel=".", run_id=None)
-    return {"version": path.stem, "notes_since": notes_since(target, ".", covers)}
+    return {"version": path.stem, "notes_since": notes_since(target, ".", covers), "text": text}

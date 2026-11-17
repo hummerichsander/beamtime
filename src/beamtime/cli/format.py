@@ -644,6 +644,8 @@ def render_status(answer: dict[str, Any]) -> str:
         lines.append(f"snapshot  {snap['name']}: {', '.join(snap['groups'])} (pulled {when})")
     if fresh := answer["meta"].get("freshness"):
         lines.append(fresh["text"])
+    if text := (answer.get("memory") or {}).get("text"):
+        lines += ["", text.strip()]
     return "\n".join(lines)
 
 

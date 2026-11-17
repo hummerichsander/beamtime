@@ -30,7 +30,7 @@ wherever a group does.
 
 | CLI | MCP | Does |
 |---|---|---|
-| `beamtime status` | `status` | daemon, indexer, sources and remotes, freshness, the web UI's URL |
+| `beamtime status` | `status` | daemon, indexer, sources and remotes, freshness, the web UI's URL, and the root memory (`memory: {version, notes_since, text}`; `text` is `null` when the file does not parse, `memory` is `null` without one); the CLI prints the text below the table, so one call starts a work session |
 | `beamtime guide [part] [group]` | `guide` | the agent guide ([layer 5](05-views.md#the-agent-guide)) |
 | `beamtime memory show <group>` | `memory_show` | the memory of the group and every group above it, with a staleness hint |
 | `beamtime keys <group>` | `keys` | metrics, config keys, data keys and tags |
