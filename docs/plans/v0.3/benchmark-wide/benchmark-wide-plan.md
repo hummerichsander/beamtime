@@ -34,6 +34,45 @@ Evidence: **real data** (L72 records), **code** (read, not run).
 | 3 | The record can't be tested today | `data.strip_record` deletes proposals, notes and memory, since they could state answers | code | Y83 |
 | 4 | One data set per batch, hard-wired | `sessions.py` makes `root/data/<seed>` (610), `prepare` reads it (401), `truth_for` (448) | code | Y81 |
 
+### Run summary (Y86)
+
+Evidence: **real data**. Per session means over 42 sessions per setup (14 tasks x 3 seeds); tokens are all tokens
+including cache reads; cost is at list price; no session leaked and none has `other_model` (`other_model` is false
+in all 336 records). Pilots (seed 7, 24 sessions each, all 1.00 on sonnet, 0.944 to 1.00 on haiku):
+`compare-20261117-160637` (sonnet), `compare-20261117-161717` (haiku).
+
+| Batch | Model | Setup | Score | Tokens | Cost | Turns | Tool errors | drivers | leaderboard | divergence | best-checkpoint | check-all | stale-verdicts |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `compare-20261117-162537` | sonnet | cli | 0.997 | 95k | $0.066 | 7.6 | 0.55 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| | | files | 0.992 | 51k | $0.042 | 5.1 | 0.55 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| | | mcp | 0.997 | 84k | $0.053 | 7.8 | 0.31 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| | | tensorboard | 0.988 | 45k | $0.042 | 4.2 | 0.19 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| `compare-20261117-171307` | haiku | cli | 0.976 | 208k | $0.009 | 12.1 | 0.31 | 0.67 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| | | files | 0.976 | 85k | $0.005 | 5.8 | 0.07 | 1.00 | 0.67 | 1.00 | 1.00 | 1.00 | 1.00 |
+| | | mcp | 0.976 | 162k | $0.007 | 12.2 | 1.05 | 0.67 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| | | tensorboard | 0.952 | 119k | $0.007 | 6.7 | 0.31 | 1.00 | 1.00 | 0.67 | 1.00 | 1.00 | 1.00 |
+
+Both batches have 168 graded records. The sonnet batch was interrupted at 81 records and finished by running only
+the 87 missing sessions into the same folder (same data, environments and pinned model). Notes for the discussion:
+
+- **Sonnet scores 1.00 on all six new tasks in all four setups**; the batch's only misses are two old tasks
+  (`chart` 0.88 on four sessions, `table` 0.80 on three). The new tasks do not separate setups by accuracy on
+  sonnet; they separate them by cost: files and TensorBoard use 17k to 24k tokens on `divergence` and
+  `best-checkpoint`, the CLI and MCP 100k to 155k.
+- **Haiku's six misses on the new tasks** are three format effects and one timeout. `drivers` on cli and mcp (all
+  three seeds each, score 0.67): the key is answered as `config.weight_decay`, the truth is `weight_decay`; value
+  and mean are right. `leaderboard` files seed 8 (0.00): the right five runs and values, but the ids are the
+  8-character suffix (`znsqh92c`), the truth the full id (`20261020-183700-yfh0pweh`). `divergence` TensorBoard
+  seed 9 (0.00): timeout at 600 s after 6 turns; no cost is recorded for it, so haiku's TensorBoard cost is a
+  little low. One old-task miss on haiku: `find-runs` TensorBoard seed 9 (0.00).
+- **Long series** (`divergence`, `best-checkpoint`; sonnet 12/12 each): the TensorBoard CLAUDE.md section tells the
+  agent to read with `size_guidance={"scalars": 0}` (all points), so TensorBoard agents saw all 100k steps and the
+  sampling concern did not arise there; haiku TensorBoard 3/3 on `best-checkpoint`, 2/3 on `divergence` (the
+  timeout). Beamtime setups (cli, mcp) scored 1.00 in both models on both tasks, three seeds each; how each
+  session read the series (`points: all` or the export) was not checked.
+- **Time limit:** the slowest new-task sessions took 154 s (sonnet, `stale-verdicts`) and 600 s (the haiku timeout);
+  no other session of either batch ran past 175 s, so the files export of the long series is not slow to read.
+
 ## Brief
 
 - **Data sets** (Y81): a task names its data set, `data: s` (default, the existing log dir) or `data: wide`.
@@ -252,7 +291,7 @@ Y81 ─ Y82 ─ Y83 ─ Y84 ─ Y85 ─ Y86      in this order (shared modules)
    no longer hold, and what are they now?" Answer `{"changed": [{"name", "old", "new"}]}`; checks: `f1` on names,
    `keyed` on `new`.
 
-### Y86. Pilot and full runs (sonnet) — real data
+### Y86. Pilot and full runs (sonnet) — real data — **done**
 
 - **Touches:** this plan's [Findings](#findings) (the run summary); `bench/agents/compare/tasks/*.yaml` and the wide
   data only if the pilot shows a broken task.
