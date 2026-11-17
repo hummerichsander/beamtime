@@ -33,6 +33,7 @@ KINDS = {
     "table_ids",
     "table_values",
     "table_flag",
+    "keyed",
 }
 # a judge's ``yes`` given as text; a bool is used as it is, anything else is no usable mark.
 MARKS = {"yes": True, "true": True, "no": False, "false": False}
@@ -51,6 +52,7 @@ class Task:
     answer: str
     checks: dict[str, dict[str, Any]]
     time_limit_s: int
+    data: str = "s"
     setups: list[str] = field(default_factory=lambda: list(SETUPS))
     judge: list[str] = field(default_factory=list)
 
@@ -222,7 +224,7 @@ def run_check(
     :param truth: The expected values of the task.
     :param project: The agent's folder.
     :return: 1 for a pass, 0 for a fail, the F1 for ``f1``."""
-    given = answer.get(spec.get("key", name))
+    given = answer.get(name if spec["kind"] == "keyed" else spec.get("key", name))
     expected = truth[spec["truth"]] if "truth" in spec else None
     try:
         match spec["kind"]:
@@ -262,6 +264,15 @@ def run_check(
                 )
             case "table_values":
                 return float(table_values(read_table(project_file(project, given)), expected, spec))
+            case "keyed":
+                return keyed(
+                    given,
+                    expected,
+                    key=spec["key"],
+                    field=spec["field"],
+                    abs=spec.get("abs"),
+                    rel=spec.get("rel"),
+                )
             case "table_flag":
                 rows = read_table(project_file(project, given))
                 column = spec["column"]
@@ -271,6 +282,67 @@ def run_check(
                 raise ValueError(f"unknown check kind {spec['kind']!r}")
     except (TypeError, ValueError, KeyError, AttributeError, OSError):
         return 0.0
+
+
+def keyed(
+    given: Any,
+    expected: Any,
+    *,
+    key: str,
+    field: str,
+    abs: float | None = None,
+    rel: float | None = None,
+) -> float:
+    """Score a list of objects by key: per expected key, one field is compared.
+
+    A field is compared with ``close`` when a tolerance is given, else with ``same``. A key given
+    twice counts once (the first object); a key without the field is wrong.
+
+    :param given: The answer's objects, or a dict of key to object.
+    :param expected: The truth in the same shapes.
+    :param key: The field that names an object, e.g. ``id``.
+    :param field: The field to compare.
+    :param abs: Absolute tolerance, if any.
+    :param rel: Relative tolerance, if any.
+    :return: The keys answered right over the larger of the given and the expected keys; 1 when both
+        are empty.
+    :raises TypeError: When given is neither a list nor a dict."""
+    answered, wanted = keyed_rows(given, key), keyed_rows(expected, key)
+    if not (answered or wanted):
+        return 1.0
+    right = 0
+    for name, row in wanted.items():
+        if name not in answered:
+            continue
+        try:
+            if abs is None and rel is None:
+                right += same(answered[name][field], row[field])
+            else:
+                right += close(answered[name][field], row[field], rel=rel or 0.0, tol=abs or 0.0)
+        except (TypeError, ValueError, KeyError):
+            continue
+    return right / max(len(answered), len(wanted))
+
+
+def keyed_rows(value: Any, key: str) -> dict[str, dict[str, Any]]:
+    """Index objects by their key, run ids reduced to their last part; the first of a key wins.
+
+    :param value: A list of objects, or a dict of key to object.
+    :param key: The field that names an object.
+    :return: The objects by key; entries without a key are left out.
+    :raises TypeError: When it is neither a list nor a dict."""
+    match value:
+        case dict():
+            pairs = [(k, v | {key: k} if isinstance(v, dict) else v) for k, v in value.items()]
+        case list():
+            pairs = [(v.get(key), v) for v in value if isinstance(v, dict)]
+        case _:
+            raise TypeError(f"not a list of objects: {value!r}")
+    rows: dict[str, dict[str, Any]] = {}
+    for name, row in pairs:
+        if name is not None and isinstance(row, dict):
+            rows.setdefault(trail(name), row)
+    return rows
 
 
 def number(value: Any) -> float:

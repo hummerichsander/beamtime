@@ -4,6 +4,7 @@ import csv
 import json
 import math
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -332,3 +333,6 @@ def table(runs: list[TruthRun]) -> dict[str, Any]:
         for r in sweep_runs(runs)
     ]
     return {"rows": sorted(rows, key=lambda row: row["id"])}
+
+
+TRUTHS: dict[str, Callable[[Path, Path], dict[str, dict[str, Any]]]] = {"s": compute}

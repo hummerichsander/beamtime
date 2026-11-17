@@ -10,7 +10,7 @@ import math
 import os
 import random
 import shutil
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -215,3 +215,6 @@ def remove_record(folder: Path) -> None:
             shutil.rmtree(child)
         else:
             remove_record(child)
+
+
+DATASETS: dict[str, Callable[..., Manifest]] = {"s": make_logdir}

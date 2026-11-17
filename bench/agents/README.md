@@ -165,7 +165,10 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   diverged is `diverg`, `nan`, `inf`, `FloatingPoint`; oom is `memory`, `oom`; killed is `kill`,
   `SIGTERM`, `cancel`; `failed` alone is no cause), `rerun` (each stopped run names its completed rerun
   in any id form, or null, `""` or `none` when there is none), `file` (a PNG or a table, inside
-  `project`), and for the table task `table_ids` (29 rows), `table_values` (lr, seed, val_acc within
+  `project`), `keyed` (a list of objects, or a dict of key to object, scored per key: `key` names the
+  object, `field` the compared value, with `abs`/`rel` as `close` and without as `equal`; the score is
+  the keys right over the larger of the given and the expected keys, a key given twice counts once and
+  a key without the field is wrong), and for the table task `table_ids` (29 rows), `table_values` (lr, seed, val_acc within
   1e-6; the prompt asks for full precision) and `table_flag` (yes/no in the `finished` and the
   `superseded` column; running, lost and killed are not told apart). Tolerances (Decision 17):
   `difference` 5 %, `per_arm` 0.2 %, `effect` 0.002 and the interval's bounds 0.005 absolute, `fastest`'s
@@ -195,6 +198,10 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   `beamtime runs` before the session. `make_envs(root)` builds the two venvs with `uv venv` and
   `uv pip install` (`base`: numpy, pandas, scipy, matplotlib, tensorboard, pyyaml; `beamtime`: the same plus this
   checkout's `beamtime[serve]`) and keeps venvs whose install finished (marked by `.installed`).
+- Data sets: a task names its `data` (default `s`); `data.DATASETS` maps a name to its builder and
+  `truth.TRUTHS` to its truth function. `sessions.py` builds only the data sets the chosen tasks use, once
+  per seed, in `root/data/<seed>` for `s` and `root/data-<name>/<seed>` otherwise, and computes the truth
+  per (data set, seed) from an export in `root/truth[-<name>]/<seed>`.
 - `compare/sessions.py`: `uv run python bench/agents/compare/sessions.py [--setups ...] [--tasks ...]
   [--seeds 7 8 9] [--reps 1] [--parallel 3] [--model sonnet] [--keep] [--dry-run] [--grade-only BATCH]`.
   `--dry-run` lists the 96 sessions (8 tasks x 4 setups x 3 seeds, in a fixed shuffled order) with their

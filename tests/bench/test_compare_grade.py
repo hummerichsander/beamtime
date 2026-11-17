@@ -613,3 +613,71 @@ def test_shipped_truth_shapes(
     (project / "table.csv").write_text("\n".join(lines) + "\n")
     for task_id in ("table", "chart"):
         assert grade.grade(tasks[task_id], reply(CORRECT[task_id]), truth[task_id], project).correct
+
+
+def rows(*pairs: tuple[str, Any]) -> list[dict[str, Any]]:
+    """Objects with an id and a step.
+
+    :param pairs: The ids and steps.
+    :return: One object per pair."""
+    return [{"id": i, "step": v} for i, v in pairs]
+
+
+def test_keyed_scores_per_key() -> None:
+    """Right keys over the larger of the given and expected counts; ids reduce to their last part."""
+    expected = rows(("a", 10), ("b", 20), ("c", 30), ("d", 40))
+    assert (
+        grade.keyed(
+            rows(("g/a", 10), ("b", 20), ("c", 30), ("d", 40)), expected, key="id", field="step"
+        )
+        == 1
+    )
+    assert grade.keyed(rows(("a", 10), ("b", 21)), expected, key="id", field="step") == 0.25
+    extra = rows(("a", 10), ("b", 20), ("c", 30), ("d", 40), ("e", 1), ("f", 2))
+    assert grade.keyed(extra, expected, key="id", field="step") == pytest.approx(4 / 6)
+    assert (
+        grade.keyed({"a": {"step": 10}, "b": {"step": 20}}, expected, key="id", field="step") == 0.5
+    )
+    assert grade.keyed(expected, {x["id"]: x for x in expected}, key="id", field="step") == 1
+
+
+def test_keyed_tolerance() -> None:
+    """Without a tolerance the field is equal, with ``abs`` or ``rel`` it is close."""
+    expected = [{"id": "a", "v": 100.0}, {"id": "b", "v": 0.001}]
+    given = [{"id": "a", "v": 101.0}, {"id": "b", "v": 0.001}]
+    assert grade.keyed(given, expected, key="id", field="v") == 0.5
+    assert grade.keyed(given, expected, key="id", field="v", rel=0.02) == 1
+    assert grade.keyed(given, expected, key="id", field="v", abs=0.5) == 0.5
+    assert grade.keyed(given, expected, key="id", field="v", abs=0) == 0.5
+
+
+def test_keyed_empty() -> None:
+    """Both empty is right; one empty is wrong."""
+    assert grade.keyed([], [], key="id", field="step") == 1
+    assert grade.keyed([], rows(("a", 1)), key="id", field="step") == 0
+    assert grade.keyed(rows(("a", 1)), [], key="id", field="step") == 0
+
+
+def test_keyed_duplicates() -> None:
+    """A key given twice counts once; a key without the field is wrong, not an error."""
+    expected = rows(("a", 10), ("b", 20))
+    assert grade.keyed(rows(("a", 10), ("a", 10), ("b", 20)), expected, key="id", field="step") == 1
+    assert grade.keyed(rows(("a", 10), ("a", 10)), expected, key="id", field="step") == 0.5
+    assert grade.keyed([{"id": "a"}, *rows(("b", 20))], expected, key="id", field="step") == 0.5
+
+
+def test_keyed_check_in_a_task(tmp_path: Path) -> None:
+    """A task file with a keyed check scores through ``grade``; a malformed answer scores 0."""
+    (tmp_path / "x.yaml").write_text(
+        "prompt: p\nanswer: '{}'\ntime_limit_s: 1\ndata: wide\nchecks:\n"
+        "  runs: {kind: keyed, truth: runs, key: id, field: step, abs: 0}\n"
+    )
+    task = grade.load_tasks(tmp_path)["x"]
+    truth = {"runs": rows(("a", 10), ("b", 20))}
+
+    assert task.data == "wide"
+    assert (
+        grade.grade(task, reply({"runs": rows(("g/a", 10), ("b", 20))}), truth, tmp_path).score == 1
+    )
+    assert grade.grade(task, reply({"runs": "a, b"}), truth, tmp_path).score == 0
+    assert grade.grade(task, reply({"runs": [1, 2]}), truth, tmp_path).score == 0

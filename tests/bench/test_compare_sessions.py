@@ -15,9 +15,11 @@ BENCH = Path(__file__).resolve().parents[2] / "bench" / "agents"
 sys.path.insert(0, str(BENCH / "compare"))
 sys.path.insert(0, str(BENCH))
 
+import data  # noqa: E402
 import grade  # noqa: E402
 import sessions  # noqa: E402
 import setups  # noqa: E402
+import truth  # noqa: E402
 from score import JudgeStalled  # noqa: E402
 
 MODEL = "claude-sonnet-5-5"
@@ -493,7 +495,7 @@ def batch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Batch:
     :param monkeypatch: Replaces the truth and the judge.
     :return: The batch."""
     monkeypatch.setattr(
-        sessions, "truth_for", lambda root, seed: {"best-config": BEST, "chart": {}}
+        sessions, "truth_for", lambda root, dataset, seed: {"best-config": BEST, "chart": {}}
     )
     marks = {i: {"yes": True, "why": f"ok {i}"} for i in range(1, 8)}
     monkeypatch.setattr(grade, "judge_chart", lambda image, items, *, model: marks)
@@ -631,3 +633,117 @@ def test_stop_group_tolerates_eperm(monkeypatch):
     process.wait()
     monkeypatch.setattr(sessions.os, "killpg", refuse)
     sessions.stop_group(process)
+
+
+def other_task() -> grade.Task:
+    """A task on the data set ``other``.
+
+    :return: The task."""
+    return grade.Task(
+        id="other-task",
+        prompt="p",
+        answer="{}",
+        checks={"x": {"kind": "equal", "truth": "x"}},
+        time_limit_s=1,
+        data="other",
+    )
+
+
+def test_task_data_defaults_to_s() -> None:
+    """A shipped task without ``data`` runs on ``s``, and the dry run is unchanged."""
+    assert {t.data for t in grade.load_tasks().values()} == {"s"}
+    assert sessions.data_dir(Path("r"), "s", 7) == Path("r/data/7")
+    assert sessions.data_dir(Path("r"), "other", 7) == Path("r/data-other/7")
+
+
+def test_truth_per_dataset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Two data sets with the same seed keep their own export and their own truth."""
+    seen = []
+
+    def compute(name: str) -> Any:
+        def inner(files: Path, logdir: Path) -> dict[str, dict[str, Any]]:
+            seen.append((name, files, logdir))
+            return {"t": {"name": name}}
+
+        return inner
+
+    monkeypatch.setitem(truth.TRUTHS, "s", compute("s"))
+    monkeypatch.setitem(truth.TRUTHS, "other", compute("other"))
+    monkeypatch.setattr(sessions.formats, "export_files", lambda logdir, dest: None)
+
+    a = sessions.truth_for(tmp_path, "s", 7)
+    b = sessions.truth_for(tmp_path, "other", 7)
+
+    assert a["t"]["name"] == "s" and b["t"]["name"] == "other"
+    assert seen[0][1:] == (tmp_path / "truth" / "7", tmp_path / "data" / "7" / "beamtime")
+    assert seen[1][1:] == (
+        tmp_path / "truth-other" / "7",
+        tmp_path / "data-other" / "7" / "beamtime",
+    )
+
+
+def test_only_needed_datasets_built(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A batch of ``s`` tasks builds no other data set; one with an ``other`` task builds it too."""
+    built = []
+    real, other = grade.load_tasks()["best-config"], other_task()
+
+    def builder(name: str) -> Any:
+        return lambda dest, *, seed, now: built.append((name, dest.parent.name, dest.name))
+
+    monkeypatch.setitem(data.DATASETS, "s", builder("s"))
+    monkeypatch.setitem(data.DATASETS, "other", builder("other"))
+    monkeypatch.setattr(grade, "load_tasks", lambda: {"best-config": real, "other-task": other})
+    monkeypatch.setattr(sessions, "claude_version", lambda: "9")
+    monkeypatch.setattr(sessions, "resolve_model", lambda alias: MODEL)
+    monkeypatch.setattr(setups, "make_envs", lambda root: None)
+    monkeypatch.setattr(sessions, "run_job", lambda *a, **k: {})
+    monkeypatch.setattr(sessions, "grade_batch", lambda *a, **k: None)
+
+    def run(*tasks: str) -> list[tuple[str, str, str]]:
+        built.clear()
+        monkeypatch.setattr(sessions, "RUNS", tmp_path / "runs" / str(len(tasks)))
+        monkeypatch.setenv("BT_COMPARE_ROOT", str(tmp_path / "bt" / str(len(tasks))))
+        argv = ["sessions.py", "--setups", "files", "--seeds", "7", "8", "--tasks", *tasks]
+        monkeypatch.setattr(sys, "argv", argv + ["--model", "sonnet"])
+        sessions.main()
+        return sorted(built)
+
+    only_s = run("best-config")
+    assert only_s == [("s", "data", "7"), ("s", "data", "8")]
+
+    assert run("best-config", "other-task") == [
+        ("other", "data-other", "7"),
+        ("other", "data-other", "8"),
+        ("s", "data", "7"),
+        ("s", "data", "8"),
+    ]
+
+
+def test_other_dataset_session_and_grade(batch: Batch, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A session prepares its project from its task's data set; grading uses that set's truth."""
+    other = other_task()
+    monkeypatch.setattr(grade, "load_tasks", lambda: {"other-task": other})
+    asked = []
+    monkeypatch.setattr(
+        sessions,
+        "truth_for",
+        lambda root, dataset, seed: asked.append(dataset) or {"other-task": {"x": 1}},
+    )
+    prepared = []
+    monkeypatch.setattr(
+        setups, "prepare", lambda setup, session, data_dir, envs: prepared.append(data_dir)
+    )
+    monkeypatch.setattr(
+        sessions, "run_session", lambda *a, **k: (_ for _ in ()).throw(KeyError("stop"))
+    )
+
+    job = sessions.Job(task="other-task", setup="files", seed=7, rep=5)
+    sessions.run_job(
+        job, other, batch=batch.dir, root=batch.root, envs=None, model=MODEL, version="9"
+    )
+    folder = batch.add("other-task", [init(), result('```json\n{"x": 1}\n```')])
+    sessions.grade_batch(batch.dir, keep=True)
+
+    assert prepared == [batch.root / "data-other" / "7"]
+    assert asked == ["other"]
+    assert json.loads((folder / "grade.json").read_text())["score"] == 1.0

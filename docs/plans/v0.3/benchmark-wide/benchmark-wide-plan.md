@@ -107,7 +107,7 @@ Y81 ─ Y82 ─ Y83 ─ Y84 ─ Y85 ─ Y86      in this order (shared modules)
 
 ## Y. Wide benchmark
 
-### Y81. Data sets per task and the `keyed` check (sonnet + review) — code
+### Y81. Data sets per task and the `keyed` check (sonnet + review) — code — **done**
 
 - **Touches:** `bench/agents/compare/grade.py` (`KINDS` 23, `Task` 46–72 gets `data: str = "s"`, `run_check`
   214, new `keyed`), `bench/agents/compare/sessions.py` (`run_job` 401–402, `truth_for` 448–459,

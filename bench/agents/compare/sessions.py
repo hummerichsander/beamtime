@@ -399,7 +399,10 @@ def run_job(
     folder.mkdir(parents=True)
     try:
         project = setups.prepare(
-            job.setup, root / "sessions" / job.name, root / "data" / str(job.seed), envs
+            job.setup,
+            root / "sessions" / job.name,
+            data_dir(root, task.data, job.seed),
+            envs,
         )
         record = run_session(job, task, project, folder, model=model, version=version)
     except Exception as e:  # one broken session must not end a batch of 96
@@ -445,17 +448,28 @@ def claude_version() -> str:
     return done.stdout.strip()
 
 
-def truth_for(root: Path, seed: int) -> dict[str, dict[str, Any]]:
-    """Compute a seed's truth from a plain-files export made outside every session's reach.
+def data_dir(root: Path, dataset: str, seed: int) -> Path:
+    """Name the folder of a data set built for a seed.
 
     :param root: The batch's folder outside the repo.
+    :param dataset: A key of ``data.DATASETS``.
     :param seed: The data seed.
-    :return: The expected values of every task."""
-    logdir = root / "data" / str(seed) / "beamtime"
-    files = root / "truth" / str(seed)
+    :return: ``data/<seed>`` for ``s``, else ``data-<dataset>/<seed>``."""
+    return root / ("data" if dataset == "s" else f"data-{dataset}") / str(seed)
+
+
+def truth_for(root: Path, dataset: str, seed: int) -> dict[str, dict[str, Any]]:
+    """Compute a data set's truth for a seed from a plain-files export outside every session's reach.
+
+    :param root: The batch's folder outside the repo.
+    :param dataset: A key of ``truth.TRUTHS``.
+    :param seed: The data seed.
+    :return: The expected values of every task of the data set."""
+    logdir = data_dir(root, dataset, seed) / "beamtime"
+    files = root / ("truth" if dataset == "s" else f"truth-{dataset}") / str(seed)
     if not (files / "runs").is_dir():
         formats.export_files(logdir, files)
-    return truth.compute(files, logdir)
+    return truth.TRUTHS[dataset](files, logdir)
 
 
 def grade_batch(batch: Path, *, keep: bool = False) -> None:
@@ -472,7 +486,7 @@ def grade_batch(batch: Path, *, keep: bool = False) -> None:
     meta = json.loads((batch / "batch.json").read_text())
     root = Path(meta["root"])
     tasks = grade.load_tasks()
-    truths: dict[int, dict[str, dict[str, Any]]] = {}
+    truths: dict[tuple[str, int], dict[str, dict[str, Any]]] = {}
     stalled = False
     pending = 0
     for folder in sorted(p.parent for p in batch.glob("*/record.json")):
@@ -498,10 +512,12 @@ def grade_batch(batch: Path, *, keep: bool = False) -> None:
             pending += 1
             continue
         seed = record["seed"]
-        if seed not in truths:
-            truths[seed] = truth_for(root, seed)
+        if (task.data, seed) not in truths:
+            truths[task.data, seed] = truth_for(root, task.data, seed)
         try:
-            result = grade.grade(task, text, truths[seed][task.id], project, model=meta["model"])
+            result = grade.grade(
+                task, text, truths[task.data, seed][task.id], project, model=meta["model"]
+            )
         except JudgeStalled as e:
             print(f"{folder.name}: judge stalled, {e}", flush=True)
             stalled = True
@@ -606,8 +622,9 @@ def run_batch(args: argparse.Namespace) -> Path:
     )
     print(f"{len(jobs)} sessions with {model} into {batch}, projects in {root}", flush=True)
     envs = setups.make_envs(root / "envs")
-    for seed in args.seeds:
-        data.make_logdir(root / "data" / str(seed), seed=seed, now=now)
+    for dataset in sorted({tasks[j.task].data for j in jobs}):
+        for seed in args.seeds:
+            data.DATASETS[dataset](data_dir(root, dataset, seed), seed=seed, now=now)
     with ThreadPoolExecutor(args.parallel) as pool:
         list(
             pool.map(
