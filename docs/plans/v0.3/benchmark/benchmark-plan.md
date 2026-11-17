@@ -205,6 +205,30 @@ What's left runs in this order: N71 M71 M72 M73 M74 J71 J72 J73 J74 L71 L72 U71 
     full precision", like `table` (Decision 15), since Beamtime's text tables print three digits.
     Time limits: `best-config`, `failures`, `table` 400 s (were 300 s). J71's task table, J72's five
     judge items and M71's run count describe the first version; this Decision replaces them.
+18. **Cost first, two models** (user, after the second L72 pilot, seed 7: 29 of 32 sessions scored
+    1.0; of the other three, `find-runs-tensorboard` timed out, `table-tensorboard` scored 0.8 and
+    `chart-tensorboard` was a harness fault, see below). (a) The benchmark is presented as
+    "every setup answers correctly at near-ceiling; it measures what each setup costs (tokens, cost,
+    time, turns)". Correctness stays graded and reported, but the write-up leads with cost:
+    `results.md` puts n, tokens, uncached tokens, cost, seconds, turns and tool calls before score
+    and correct, and the guide opens with the cost question. (c) The full run is two batches, one
+    model each: `--model sonnet` and `--model haiku` (each alias pinned to its full id, the judge
+    too, as in Decision 8). `tables.py <sonnet batch> <haiku batch>` writes each batch into
+    `docs/guides/benchmark/<alias>/` (`results.md` and the four figure files) and both side by side
+    into `docs/guides/benchmark/models.md` (one row per setup and model); one model twice is
+    refused. This replaces Decision 8's one model, the Goal's "more than one model" out of scope
+    and the paths `docs/guides/benchmark/results.md` and figures in L71's Done line and the Brief.
+    Two harness faults of that pilot are fixed with it: (1) the chart judge's failed answer scored
+    its items 0 (`chart-tensorboard-7-0`, a correct chart at 0.125): the judge is asked a second
+    time when its answer lacks a usable mark for an item, and if the second lacks one too the
+    session stays ungraded (`ungraded: judge failed`, Decision 16's rules, `--grade-only` retries),
+    never 0; `score.ask` reads the first JSON object of the answer instead of a greedy regex from
+    the first `{` to the last `}`. (2) A finished session was recorded as a timeout
+    (`best-config-files-7-0`: result at 175 s, then `claude` waited until the 400 s limit on a Bash
+    command Claude Code had moved to the background, a `cat >` reading stdin; graded 1.0 anyway): the
+    result event ends a session, `status` comes from it and `seconds` is the harness's wall time up
+    to it; a timeout is a session without a result by its limit and scores 0 whatever its
+    transcript holds (Decision 11).
 
 ## N. Harness repair
 
@@ -419,11 +443,14 @@ Record fields: `task`, `setup`, `seed`, `rep`, `model` (init event), `models` (`
 
 ### L72. Pilot and full run (sonnet) — user starts
 
-- **Touches:** new `docs/guides/benchmark/results.md` and the four figure files (from L71), `bench/agents/compare/tasks/*.yaml` only
+- **Touches:** new `docs/guides/benchmark/{sonnet,haiku}/results.md` with the four figure files each
+  and `docs/guides/benchmark/models.md` (from L71, Decision 18), `bench/agents/compare/tasks/*.yaml` only
   if the pilot shows a broken task.
-- **Check:** `uv run python bench/agents/compare/sessions.py --seeds 7` (pilot, 32 sessions), then the
-  full command; `uv run python bench/agents/compare/tables.py bench/agents/runs/compare-<stamp>`.
-- **Done:** 96 graded sessions on one model; no leaked session; the figures and table are committed.
+- **Check:** `uv run python bench/agents/compare/sessions.py --seeds 7` (pilot, 32 sessions) and the
+  same with `--model haiku`, then the full command once per model; `uv run python
+  bench/agents/compare/tables.py bench/agents/runs/compare-<sonnet> bench/agents/runs/compare-<haiku>`.
+- **Done:** 96 graded sessions per model, on sonnet and on haiku (Decision 18); no leaked session; the
+  figures and tables are committed.
 - **Pilot:** check `model_usage` in the first records (Decision 16): a helper model below 5 % of the
   output tokens is expected; `other_model` set on most sessions means the threshold is wrong.
 - **Stop if:** the user hasn't said to start it (it costs about $30 at list price, notes.md), or the
@@ -438,10 +465,11 @@ Record fields: `task`, `setup`, `seed`, `rep`, `model` (init event), `models` (`
 - **Read:** `web/docs.mjs` `figure` 100–118 (images, light/dark variants, broken links);
   `docs/guides/agents.md` for tone; Decisions 1–13.
 - **Check:** `cd web && npm run docs`; `uv run pytest -q tests/test_docs.py`.
-- **Done:** the page states the question, the four setups, the data and its planted effects, the eight
-  tasks (linking `bench/agents/compare/tasks/` on GitHub), the fairness rules, the measures, the model
-  and date, the table and both figures, how to rerun, and the limits (one model, synthetic data, one
-  author's tasks); the site builds without broken links.
+- **Done:** the page states the question (cost first: every setup near the ceiling, what each costs;
+  Decision 18), the four setups, the data and its planted effects, the eight
+  tasks (linking `bench/agents/compare/tasks/` on GitHub), the fairness rules, the measures, the models
+  and date, both models' tables (and `models.md`) and figures, how to rerun, and the limits (two models,
+  synthetic data, one author's tasks); the site builds without broken links.
 - **Risks:** a link to the `.pdf` counted as broken by `docs.mjs` → link it by GitHub URL; the table
   pasted by hand drifting from `results.md` → include it verbatim from L71's output.
 
@@ -450,9 +478,10 @@ Record fields: `task`, `setup`, `seed`, `rep`, `model` (init event), `models` (`
 - **Touches:** `README.md` (a "Benchmark" section after the quickstart block, before Documentation).
 - **Read:** `README.md` 1–45; `docs/guides/benchmark.md`.
 - **Check:** `uv run pytest -q tests/test_docs.py`; the image URL answers in a browser after push.
-- **Done:** three to five lines: what was measured, the one-line result in numbers from `results.md`,
-  figure (a) as `<img>` from the raw.githubusercontent.com URL of the guide's `tokens-vs-score.svg`
-  (the README's existing pattern), and a link to the guide.
+- **Done:** three to five lines: what was measured, the one-line result in numbers led by cost (every
+  setup near the ceiling; tokens, cost and time per setup on sonnet and haiku, from `models.md`;
+  Decision 18), figure (a) of sonnet as `<img>` from the raw.githubusercontent.com URL of the guide's
+  `sonnet/tokens-vs-score.svg` (the README's existing pattern), and a link to the guide.
 
 ## Breaking changes
 

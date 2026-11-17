@@ -427,18 +427,54 @@ def test_chart_judge_items(
 def test_chart_judge_marks(
     tasks: dict[str, grade.Task], project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A no, a missing item and an unreadable answer each score 0 on their own item only."""
-    partial = {
-        "items": [{"item": 1, "yes": True}, {"item": 2, "yes": False}, {"item": 3, "yes": True}]
-    }
+    """A no scores 0 on its own item; marks as text and item numbers as text count."""
+    marks = [{"item": 1, "yes": True}, {"item": "2", "yes": "no"}, {"item": 3, "yes": "Yes"}]
+    marks += [{"item": i, "yes": i % 2 == 0, "why": f"w{i}"} for i in range(4, 8)]
     chart, text = tasks["chart"], reply({"file": "fig.png"})
-    monkeypatch.setattr(score, "ask", lambda *a, **k: partial)
+    monkeypatch.setattr(score, "ask", lambda *a, **k: {"items": marks})
     result = grade.grade(chart, text, TRUTH["chart"], project)
     judged = [result.checks[f"judge{i}"] for i in range(1, 8)]
-    assert result.checks["file"] == 1.0 and judged == [1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-    monkeypatch.setattr(score, "ask", lambda *a, **k: {"error": "no JSON"})
-    result = grade.grade(chart, text, TRUTH["chart"], project)
-    assert result.score == pytest.approx(1 / 8)
+    assert result.checks["file"] == 1.0 and judged == [1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0]
+    assert result.notes == {f"judge{i}": f"w{i}" for i in range(4, 8)}
+
+
+def test_chart_judge_retry(
+    tasks: dict[str, grade.Task], project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A judge answer lacking a usable mark is asked again; failing twice raises, never scores 0."""
+    full = {"items": [{"item": i, "yes": True} for i in range(1, 8)]}
+    partial = {"items": full["items"][:3] + [{"item": 4, "yes": "maybe"}]}
+    chart, text = tasks["chart"], reply({"file": "fig.png"})
+    for answers, ok in (
+        ([{"error": "no JSON object"}, full], True),
+        ([partial, full], True),
+        ([partial, {"error": "no JSON object"}], False),
+    ):
+        calls = iter(answers)
+
+        def ask(*args: Any, calls: Any = calls, **kwargs: Any) -> dict[str, Any]:
+            return next(calls)
+
+        monkeypatch.setattr(score, "ask", ask)
+        if ok:
+            assert grade.grade(chart, text, TRUTH["chart"], project).correct
+        else:
+            with pytest.raises(grade.JudgeFailed, match="marks for"):
+                grade.grade(chart, text, TRUTH["chart"], project)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"items": [{"item": 1, "yes": true}]}',
+        'Looking at {chart.png}:\n```json\n{"items": [{"item": 1, "yes": true}]}\n```\nDone {ok}.',
+    ],
+)
+def test_judge_json_after_prose(text: str) -> None:
+    """The judge's object is found also after prose with braces and before trailing text.
+
+    :param text: The judge's answer."""
+    assert score.first_object(text) == {"items": [{"item": 1, "yes": True}]}
 
 
 def test_not_png(tasks: dict[str, grade.Task], project: Path, judge: list[dict[str, Any]]) -> None:

@@ -33,8 +33,11 @@ RUNS = AGENTS / "runs"
 SEEDS = [7, 8, 9]
 SHUFFLE_SEED = 0
 LEAKS = ("synth/", "generate.py")
+JUDGE_FAILED = ("ungraded", "judge_error")
 # a helper model (Claude Code's own small calls) below this share of output tokens is not a flag.
 OTHER_MODEL_SHARE = 0.05
+# how often a running session's transcript is checked for its result event.
+POLL_S = 0.5
 BEAMTIME_CALL = re.compile(r"(?:^|[;&|(]\s*)(?:uv run\s+)?beamtime\s+\S", re.MULTILINE)
 # the host's claude, found before a session's PATH drops the folders that hold a beamtime.
 CLAUDE = shutil.which("claude") or "claude"
@@ -273,9 +276,9 @@ def run_session(
     :param version: ``claude --version``.
     :return: The record, also written to ``record.json``."""
     started = time.monotonic()
-    code: int | None = None
+    transcript = folder / "transcript.jsonl"
     # stderr goes to a file: a child left running would hold a pipe open until the time limit.
-    with (folder / "transcript.jsonl").open("w") as out, tempfile.TemporaryFile("w+") as err:
+    with transcript.open("w") as out, tempfile.TemporaryFile("w+") as err:
         process = subprocess.Popen(
             command(task.prompt, project, model),
             cwd=project.root,
@@ -285,20 +288,14 @@ def run_session(
             text=True,
             start_new_session=True,
         )
-        try:
-            code = process.wait(timeout=task.time_limit_s)
-        except subprocess.TimeoutExpired:
-            pass
-        seconds = round(time.monotonic() - started, 1)
+        seconds = wait_session(process, transcript, started=started, limit=task.time_limit_s)
         stop_group(process)
         err.seek(0)
         stderr = err.read()[-2000:]
-    events = read_events((folder / "transcript.jsonl").read_text())
-    result = next((e for e in reversed(events) if e.get("type") == "result"), None)
-    if code is None:
-        status = "timeout"
-    else:
-        status = "ok" if code == 0 and result and not result.get("is_error") else "error"
+    events = read_events(transcript.read_text())
+    status = session_status(events, ended=seconds is not None)
+    if seconds is None:
+        seconds = round(time.monotonic() - started, 1)
     return write_record(
         folder,
         {
@@ -313,6 +310,47 @@ def run_session(
         | summarize(events, model=model)
         | {"stderr": stderr},
     )
+
+
+def wait_session(
+    process: subprocess.Popen, transcript: Path, *, started: float, limit: float
+) -> float | None:
+    """Wait until the session's result event arrives, its process exits or its time runs out.
+
+    The result ends a session even while ``claude`` keeps running: it waits for the background
+    tasks a session left behind (a Bash command Claude Code moved there), which may never end.
+
+    :param process: The ``claude`` process.
+    :param transcript: The file its stream-json output goes to.
+    :param started: ``time.monotonic()`` at the start of the session.
+    :param limit: The time limit in seconds.
+    :return: The wall seconds up to the result or the exit, ``None`` when the time ran out."""
+    while (seconds := time.monotonic() - started) < limit:
+        if process.poll() is not None or has_result(read_events(transcript.read_text())):
+            return round(seconds, 1)
+        time.sleep(POLL_S)
+    return None
+
+
+def has_result(events: list[dict[str, Any]]) -> bool:
+    """Say whether a transcript has its result event.
+
+    :param events: The transcript's events.
+    :return: Whether one of them is the result."""
+    return any(e.get("type") == "result" for e in events)
+
+
+def session_status(events: list[dict[str, Any]], *, ended: bool) -> str:
+    """Tell a session's status from its transcript: the result event decides, if there is one.
+
+    :param events: The transcript's events.
+    :param ended: Whether the session ended (a result or an exit) before its time limit.
+    :return: ``ok`` or ``error`` from the result's ``is_error``; without a result ``timeout`` when
+        it ran out of time, else ``error`` (``claude`` exited without one)."""
+    result = next((e for e in reversed(events) if e.get("type") == "result"), None)
+    if result is not None:
+        return "error" if result.get("is_error") else "ok"
+    return "error" if ended else "timeout"
 
 
 def stop_group(process: subprocess.Popen) -> None:
@@ -423,9 +461,10 @@ def grade_batch(batch: Path, *, keep: bool = False) -> None:
     """Grade every session of a batch that has no grade yet, then delete what is no longer needed.
 
     A session that ended on the usage limit, or whose judge hits it, stays ungraded with its
-    project kept; run ``--grade-only`` again later. One that never started or crashed stays
-    ungraded for good, marked ``ungraded`` in its record and counted in ``batch.json``. A timeout
-    and an error with a result event (max turns) score 0.
+    project kept; run ``--grade-only`` again later. So does one whose judge gave no usable mark
+    twice, marked ``ungraded: judge failed``. One that never started or crashed stays ungraded for
+    good, marked ``ungraded`` in its record. Both are counted in ``batch.json``. A timeout and an
+    error with a result event (max turns) score 0.
 
     :param batch: The batch's folder.
     :param keep: Keep the projects and data."""
@@ -443,7 +482,8 @@ def grade_batch(batch: Path, *, keep: bool = False) -> None:
         project = root / "sessions" / folder.name / "proj"
         transcript = folder / "transcript.jsonl"
         events = read_events(transcript.read_text()) if transcript.exists() else []
-        text = final_text(events)
+        # a timeout scores 0 (Decision 11), whatever the transcript holds.
+        text = "" if record["status"] == "timeout" else final_text(events)
         if (reason := unscored(record, events, started=transcript.exists())) is not None:
             write_record(folder, record | {"ungraded": reason})
             print(f"{folder.name}: {reason}, left ungraded", flush=True)
@@ -466,6 +506,13 @@ def grade_batch(batch: Path, *, keep: bool = False) -> None:
             stalled = True
             pending += 1
             continue
+        except grade.JudgeFailed as e:
+            write_record(folder, record | {"ungraded": "judge failed", "judge_error": str(e)})
+            print(f"{folder.name}: judge failed, left ungraded: {e}", flush=True)
+            pending += 1
+            continue
+        if "ungraded" in record:
+            write_record(folder, {k: v for k, v in record.items() if k not in JUDGE_FAILED})
         keep_answer_file(project, text, folder)
         (folder / "grade.json").write_text(
             json.dumps(

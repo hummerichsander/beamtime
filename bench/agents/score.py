@@ -247,7 +247,7 @@ def filled(pattern: str, roles: dict[str, str]) -> str:
 
 
 def score_lifecycle(ctx: Any, task: Task, record: dict[str, Any]) -> dict[str, Any]:
-    """Check that an agent looked up a resume or copied the right run, and for a resume told the user.
+    """Check that an agent looked up a resume or copied the right run; for a resume, told the user.
 
     :param ctx: The operation context.
     :param task: The task.
@@ -515,12 +515,23 @@ def ask(prompt: str, folder: Path, *, tools: str, model: str = JUDGE) -> dict[st
         return {"error": str(e)}
     if USAGE_LIMIT.search(text):
         raise JudgeStalled(text[:200])
-    if (m := re.search(r"\{.*\}", text, re.S)) is None:
-        return {"error": f"no JSON in {text[:200]!r}"}
-    try:
-        return json.loads(m.group(0))
-    except ValueError as e:
-        return {"error": str(e)}
+    return first_object(text)
+
+
+def first_object(text: str) -> dict[str, Any]:
+    """Read the first JSON object in a text, also after prose or inside a fence.
+
+    :param text: The judge's answer.
+    :return: The object, or ``{error}`` with the text's start when there is none."""
+    decoder = json.JSONDecoder()
+    for start in (i for i, c in enumerate(text) if c == "{"):
+        try:
+            found, _ = decoder.raw_decode(text, start)
+        except ValueError:
+            continue
+        if isinstance(found, dict):
+            return found
+    return {"error": f"no JSON object in {text[:200]!r}"}
 
 
 def short(score: dict[str, Any]) -> str:

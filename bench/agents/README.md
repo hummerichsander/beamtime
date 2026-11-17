@@ -202,13 +202,21 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   `claude --version`, builds the venvs (`make_envs`, per batch) and one log dir per seed, then runs the
   sessions (`claude -p ... --output-format stream-json --verbose`, cwd the project, its time limit, the
   `claude` found on the host PATH before a session's PATH drops folders; `claude` starts its own process
-  group, killed when it exits or times out, so nothing it started outlives the session). Projects, data, venvs and the
+  group, killed when it exits or times out, so nothing it started outlives the session). The result
+  event ends a session: the runner checks the transcript every 0.5 s and kills the group once the
+  result is there, since `claude` otherwise waits on a Bash command the agent left in the background;
+  `status` comes from the result (`ok`, or `error` for `is_error`) and `seconds` is the harness's wall
+  time up to it. Only a session without a result by its limit is a `timeout`. Projects, data, venvs and the
   truth export live in `$BT_COMPARE_ROOT/<stamp>/` (default `$TMPDIR/bt-compare/<stamp>/`), outside the
   repo; a batch's records go to `bench/agents/runs/compare-<stamp>/<task>-<setup>-<seed>-<rep>/` with
   `record.json`, `grade.json`, `transcript.jsonl` and the file the answer names (`answer.png`,
   `answer.csv`), and `batch.json` (model, version, root, seeds). Grading runs after all sessions: truth
   per seed from the plain-files export, `grade.grade(...)` with the pinned model; a timeout, or an error with a result event (max turns),
-  scores 0 (a timeout's tokens come from the assistant messages, each message once); a session that
+  scores 0 (a timeout's tokens come from the assistant messages, each message once); the chart judge
+  is asked a second time when its answer lacks a usable mark (`yes` as a bool, or yes/no/true/false)
+  for an item, and when the second lacks one too the session stays ungraded with its project kept,
+  marked `ungraded: judge failed` with the `judge_error`, counted in `batch.json`, and `--grade-only`
+  tries again (never scored 0); a session that
   never started or crashed (an error without a result event) stays ungraded for good, marked
   `ungraded` in its record and counted in `batch.json`; one that ended on a usage limit, or whose
   judge stalls, stays ungraded with its project kept, and `--grade-only <batch>` grades
@@ -223,14 +231,17 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   The sessions' environment (setups.py) drops every `BEAMTIME_*` variable but `BEAMTIME_CACHE` and sets
   `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`.
 - `compare/tables.py` and `compare/figures.py`: `uv run python bench/agents/compare/tables.py
-  bench/agents/runs/compare-<stamp> [--out docs/guides/benchmark]` writes `results.md` there (model id,
-  Claude Code version, date, seeds; per task and setup, then per setup over all tasks: n, mean score,
-  correct k/n, and median with min-max of total tokens, uncached tokens (input, cache-write and output),
-  cost, seconds, turns and tool calls) and the figures `tokens-vs-score` (single column: geometric mean
+  bench/agents/runs/compare-<sonnet stamp> bench/agents/runs/compare-<haiku stamp>
+  [--out docs/guides/benchmark]` takes one batch per model (Decision 18) and writes each into
+  `<out>/<alias>/` (`sonnet/`, `haiku/`; the model id for a batch without an alias): `results.md`
+  (model id, Claude Code version, date, seeds; per task and setup, then per setup over all tasks: n,
+  then the cost (median with min-max of total tokens, uncached tokens (input, cache-write and output),
+  cost, seconds, turns and tool calls), then mean score and correct k/n) and the figures `tokens-vs-score` (single column: geometric mean
   of tokens per session over tasks against mean score, one point per setup, bars over the seeds) and
   `time-per-task` (double column: median seconds per task, bars over the seeds) as `.pdf` and `.svg`.
-  Ungraded sessions (`crashed`, `not started`, `usage limit`, not graded yet) are left out of every mean and
-  counted; a session with `leak` is listed and left out of the figures only; one with `other_model` is
+  With two or more batches it also writes `<out>/models.md`, the per-setup table with one row per
+  setup and model. Ungraded sessions (`crashed`, `not started`, `usage limit`, `judge failed`, not
+  graded yet) are left out of every mean and counted; a session with `leak` is listed and left out of the figures only; one with `other_model` is
   listed. When a setup has no graded session without a leak for a task, nothing is written and the
   command names the missing `setup/task`. The figures use scienceplots as it is, with `no-latex` added
   when `latex` is not on the PATH. Tests: `tests/bench/test_compare_report.py`.

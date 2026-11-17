@@ -46,18 +46,28 @@ def record(task: str, setup: str, seed: int, **extra: Any) -> dict[str, Any]:
     } | extra
 
 
-def make_batch(folder: Path, *, skip: set[tuple[str, str]] = frozenset(), edit: Any = None) -> Path:
+def make_batch(
+    folder: Path,
+    *,
+    skip: set[tuple[str, str]] = frozenset(),
+    edit: Any = None,
+    model: str = MODEL,
+    alias: str | None = None,
+) -> Path:
     """Write a batch of graded sessions: every task, setup and seed once.
 
     :param folder: The batch's folder.
     :param skip: (task, setup) pairs that get no session.
     :param edit: Called as ``edit(name, record, grade)`` to change a session before it is written.
+    :param model: The batch's model id.
+    :param alias: The model alias it was started with; none in batches before Decision 18.
     :return: The folder."""
     folder.mkdir(parents=True)
     (folder / "batch.json").write_text(
         json.dumps(
             {
-                "model": MODEL,
+                "model": model,
+                **({"alias": alias} if alias else {}),
                 "claude_version": "2.9.9",
                 "started": "2026-05-04T10:00:00+00:00",
                 "setups": SETUPS,
@@ -97,6 +107,16 @@ def no_latex(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(figures.shutil, "which", lambda name: None)
 
 
+def row(text: str, start: str) -> str:
+    """Find a table row of a report.
+
+    :param text: The report.
+    :param start: The row's first cells, e.g. ``| best-config | mcp |``.
+    :return: The row."""
+    (line,) = [line for line in text.splitlines() if line.startswith(start)]
+    return line
+
+
 def test_report_files(tmp_path: Path) -> None:
     """The report writes the table and the four figure files, with the facts and every measure."""
     batch = tables.Batch(folder=make_batch(tmp_path / "compare-1"))
@@ -111,11 +131,11 @@ def test_report_files(tmp_path: Path) -> None:
     assert all(p.stat().st_size > 0 for p in files)
     text = (tmp_path / "out" / "results.md").read_text()
     assert MODEL in text and "2.9.9" in text and "2026-05-04" in text and "7, 8, 9" in text
-    head = "| task | setup | n | score | correct | tokens | uncached | cost | seconds | turns |"
-    head += " tool calls |"
+    head = "| task | setup | n | tokens | uncached | cost | seconds | turns | tool calls | score |"
+    head += " correct |"
     assert head in text
-    assert "| best-config | mcp | 3 | 0.83 | 2/3 |" in text
-    assert "| mcp | 6 | 0.83 | 4/6 |" in text
+    assert row(text, "| best-config | mcp | 3 |").endswith("| 0.83 | 2/3 |")
+    assert row(text, "| mcp | 6 |").endswith("| 0.83 | 4/6 |")
 
 
 def test_ungraded_left_out(tmp_path: Path) -> None:
@@ -146,7 +166,7 @@ def test_timeout_scores_zero(tmp_path: Path) -> None:
         return rec, grade
 
     batch = tables.Batch(folder=make_batch(tmp_path / "compare-1", edit=edit))
-    assert "| failures | cli | 3 | 0.50 | 1/3 |" in tables.results(batch)
+    assert row(tables.results(batch), "| failures | cli | 3 |").endswith("| 0.50 | 1/3 |")
 
 
 def test_leak_listed_and_left_out_of_figures(tmp_path: Path) -> None:
@@ -213,6 +233,29 @@ def test_main_writes(
     monkeypatch.setattr(sys, "argv", ["tables.py", str(folder), "--out", str(tmp_path / "out")])
     tables.main()
     assert "results.md" in capsys.readouterr().out
+
+
+def test_two_models(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Two batches, one per model, get a report each and a table side by side; one model twice
+    is refused."""
+    sonnet = make_batch(tmp_path / "compare-1", alias="sonnet")
+    haiku = make_batch(tmp_path / "compare-2", model="claude-haiku-5-5", alias="haiku")
+    out = tmp_path / "out"
+    monkeypatch.setattr(sys, "argv", ["tables.py", str(sonnet), str(haiku), "--out", str(out)])
+    tables.main()
+    printed = capsys.readouterr().out
+    text = (out / "models.md").read_text()
+
+    assert (out / "sonnet" / "results.md").exists() and (out / "haiku" / "results.md").exists()
+    assert (out / "haiku" / "tokens-vs-score.svg").exists() and "models.md" in printed
+    assert "| setup | model | n | tokens |" in text
+    assert row(text, f"| mcp | {MODEL} | 6 |").endswith("| 0.83 | 4/6 |")
+    assert row(text, "| mcp | claude-haiku-5-5 | 6 |")
+    monkeypatch.setattr(sys, "argv", ["tables.py", str(sonnet), str(sonnet), "--out", str(out)])
+    with pytest.raises(SystemExit, match="one batch per model"):
+        tables.main()
 
 
 def test_no_latex_fallback(monkeypatch: pytest.MonkeyPatch) -> None:

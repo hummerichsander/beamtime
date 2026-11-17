@@ -34,6 +34,12 @@ KINDS = {
     "table_values",
     "table_flag",
 }
+# a judge's ``yes`` given as text; a bool is used as it is, anything else is no usable mark.
+MARKS = {"yes": True, "true": True, "no": False, "false": False}
+
+
+class JudgeFailed(Exception):
+    """The judge gave no usable mark for some checklist item, also when asked a second time."""
 
 
 @dataclass(kw_only=True)
@@ -122,7 +128,8 @@ def grade(
     :param project: The folder the agent worked in; files it names must lie inside.
     :param model: The pinned judge model id; the harness default when ``None``.
     :return: The grade.
-    :raises score.JudgeStalled: When the judge hits its usage limit; the session stays ungraded."""
+    :raises score.JudgeStalled: When the judge hits its usage limit; the session stays ungraded.
+    :raises JudgeFailed: When the judge gives no usable mark for an item; it stays ungraded."""
     answer = answer_json(answer_text)
     checks = {
         name: 0.0 if answer is None else run_check(name, spec, answer, truth, project)
@@ -132,10 +139,10 @@ def grade(
     if task.judge:
         image = project_png(project, answer) if checks.get("file") else None
         marks = judge_chart(image, task.judge, model=model) if image else {}
-        for i in range(len(task.judge)):
-            checks[f"judge{i + 1}"] = float(bool(marks.get(i + 1, {}).get("yes")))
-            if why := marks.get(i + 1, {}).get("why"):
-                notes[f"judge{i + 1}"] = str(why)
+        for i in range(1, len(task.judge) + 1):
+            checks[f"judge{i}"] = float(marks.get(i, {}).get("yes", False))
+            if why := marks.get(i, {}).get("why"):
+                notes[f"judge{i}"] = why
     score = sum(checks.values()) / len(checks)
     return Grade(score=score, correct=score == 1, checks=checks, notes=notes)
 
@@ -153,16 +160,16 @@ def project_png(project: Path, answer: dict[str, Any] | None) -> Path | None:
 
 
 def judge_chart(image: Path, items: list[str], *, model: str | None) -> dict[int, dict[str, Any]]:
-    """Ask the judge about each checklist item from the figure alone.
+    """Ask the judge about each checklist item from the figure alone, a second time if needed.
 
     The judge runs in a fresh folder that holds a copy of the image and nothing else.
 
     :param image: The agent's PNG.
     :param items: What the figure must show, one statement each.
     :param model: The judge model id; the harness default when ``None``.
-    :return: The judge's marks by item number (from 1) as ``{yes, why}``; empty when it gave no
-        usable answer.
-    :raises score.JudgeStalled: When the judge hits its usage limit."""
+    :return: The judge's marks by item number (from 1) as ``{yes, why}``, one for every item.
+    :raises score.JudgeStalled: When the judge hits its usage limit.
+    :raises JudgeFailed: When both answers lack a usable mark for some item."""
     sys.path.append(str(AGENTS))
     import score
 
@@ -173,13 +180,35 @@ def judge_chart(image: Path, items: list[str], *, model: str | None) -> dict[int
         f"only if the image clearly shows it.\n{listed}\n"
         'Answer with JSON only: {"items": [{"item": int, "yes": bool, "why": str}]}'
     )
-    with tempfile.TemporaryDirectory(prefix="bt-judge-") as folder:
-        shutil.copyfile(image, Path(folder) / "chart.png")
-        answer = score.ask(prompt, Path(folder), tools="Read", model=model or score.JUDGE)
-    listed_marks = answer.get("items", [])
-    return {
-        m["item"]: m for m in listed_marks if isinstance(m, dict) and isinstance(m.get("item"), int)
-    }
+    for _ in range(2):
+        with tempfile.TemporaryDirectory(prefix="bt-judge-") as folder:
+            shutil.copyfile(image, Path(folder) / "chart.png")
+            answer = score.ask(prompt, Path(folder), tools="Read", model=model or score.JUDGE)
+        if len(marks := judge_marks(answer, len(items))) == len(items):
+            return marks
+    raise JudgeFailed(f"marks for {sorted(marks)} of {len(items)} items: {str(answer)[:300]}")
+
+
+def judge_marks(answer: dict[str, Any], count: int) -> dict[int, dict[str, Any]]:
+    """Read the usable marks of a judge's answer.
+
+    :param answer: The answer as ``score.ask`` parsed it.
+    :param count: The number of checklist items.
+    :return: The marks by item number in ``1..count`` as ``{yes, why}``; an item numbered as
+        text counts, a mark that is neither a bool nor yes/no/true/false does not."""
+    marks = {}
+    for mark in answer.get("items") or []:
+        if not isinstance(mark, dict):
+            continue
+        try:
+            item = int(mark.get("item"))
+        except (TypeError, ValueError):
+            continue
+        if isinstance(yes := mark.get("yes"), str):
+            yes = MARKS.get(yes.strip().casefold())
+        if isinstance(yes, bool) and 1 <= item <= count:
+            marks[item] = {"yes": yes, "why": str(mark.get("why") or "")}
+    return marks
 
 
 def run_check(

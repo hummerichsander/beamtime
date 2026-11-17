@@ -1,16 +1,19 @@
 # Benchmark: Beamtime and plain files
 
-Does an agent answer questions about experiments faster and more correctly with Beamtime than
-with the files a researcher would otherwise have? This page describes a benchmark that measures it:
-what is compared, the data and the tasks, the rules that keep the comparison fair, and what it
-cannot tell you. The scripts live in
+What does it cost an agent to answer questions about experiments with Beamtime, compared with the
+files a researcher would otherwise have? In the pilots every setup answered nearly every question
+correctly, so the benchmark measures the price of a right answer: tokens, cost, time and turns.
+Correctness is still graded and reported next to it. This page describes the benchmark: what is
+compared, the data and the tasks, the rules that keep the comparison fair, and what it cannot tell
+you. The scripts live in
 [`bench/agents/compare/`](https://github.com/hummerichsander/beamtime/tree/main/bench/agents/compare).
 
 ## The question
 
-The same eight questions, asked of the same numbers, in four setups. A headless Claude Code session
-answers each question; a script grades the answer against values computed from the data. The report
-shows how many tokens and how much time a session needed and how many answers were right.
+The same eight questions, asked of the same numbers, in four setups, on two models (Sonnet and
+Haiku). A headless Claude Code session answers each question; a script grades the answer against
+values computed from the data. The report leads with what a session cost (tokens, dollars, seconds,
+turns) and then shows how many answers were right.
 
 ## The four setups
 
@@ -95,15 +98,19 @@ not finished.
 
 ## Fairness rules
 
-- One model for every session and for the chart judge, resolved at the start of a batch and pinned as
-  a full model id. A session that used another model for more than 5 % of its output is flagged.
+- One model per batch, for every session and for the chart judge, resolved at the start of the batch
+  and pinned as a full model id; the full run is one batch on Sonnet and one on Haiku. A session that
+  used another model for more than 5 % of its output is flagged.
 - The same tools, the same libraries, the same preamble and the same prompts in every setup.
-- Eight tasks times four setups times three seeds is 96 sessions, one session each, three at a time
+- Eight tasks times four setups times three seeds is 96 sessions per model, one session each, three at a time
   in an order shuffled with a fixed seed, so slow moments in the machine hit every setup alike.
 - A session whose tool calls name the repository, `synth/` or `generate.py` has looked for the
   answers where it should not; it is flagged, listed in the table and left out of the figures.
-- Only a failure of the agent scores 0: a timeout, or running out of turns. A crash of `claude`, an
-  API error or a hit usage limit leaves the session ungraded, and the report counts them.
+- Only a failure of the agent scores 0: a timeout (no final answer within the time limit), or running
+  out of turns. A session ends with its final answer, even if a command the agent left running in the
+  background would keep `claude` alive. A crash of `claude`, an API error, a hit usage limit or a
+  chart judge that gives no usable answer twice leaves the session ungraded, and the report counts
+  them.
 - Prompts and checks were fixed before the first batch. Where a check tests a printed value, the same
   rule holds in every setup: the `table` task and the tasks that compute a statistic ask for the values
   at full precision, and `find-runs`
@@ -112,31 +119,34 @@ not finished.
 ## Measures
 
 Per session: input, cache-write, cache-read and output tokens and their total, the cost in US dollars
-as `claude` reports it, wall seconds, API milliseconds, turns, tool calls by name and tool errors,
-and the score. A timed-out session keeps the tokens of its messages and scores 0. The tables give
+as `claude` reports it, wall seconds up to the final answer, API milliseconds, turns, tool calls by
+name and tool errors, and the score. A timed-out session keeps the tokens of its messages and scores
+0. The tables put the cost first and the score last. The tables give
 the median with the range over the three seeds for every measure, per task and setup and per setup
 over all tasks.
 
 ## Rerun it
 
 ```sh
-uv run python bench/agents/compare/sessions.py --dry-run     # lists the 96 sessions and their commands
-uv run python bench/agents/compare/sessions.py               # runs them: needs claude, and costs money
-uv run python bench/agents/compare/tables.py bench/agents/runs/compare-<stamp>
+uv run python bench/agents/compare/sessions.py --dry-run         # lists the 96 sessions and their commands
+uv run python bench/agents/compare/sessions.py                   # runs them on sonnet: needs claude, costs money
+uv run python bench/agents/compare/sessions.py --model haiku     # the same on haiku
+uv run python bench/agents/compare/tables.py bench/agents/runs/compare-<sonnet> bench/agents/runs/compare-<haiku>
 ```
 
 The first command builds nothing and calls nothing. The second starts real Claude Code sessions with
 your account; `--setups`, `--tasks`, `--seeds` and `--model` run a part of it, and
-`--grade-only <batch>` grades a batch whose sessions ended on a usage limit. Projects and venvs are
+`--grade-only <batch>` grades a batch whose sessions ended on a usage limit or whose judge failed. Projects and venvs are
 built under `$BT_COMPARE_ROOT` (default `$TMPDIR/bt-compare/`) and deleted after grading unless
-`--keep`. The third command writes the table and the figures into `docs/guides/benchmark/`.
+`--keep`. The last command writes each model's table and figures into `docs/guides/benchmark/sonnet/`
+and `docs/guides/benchmark/haiku/`, and both models side by side into `docs/guides/benchmark/models.md`.
 [`bench/agents/README.md`](https://github.com/hummerichsander/beamtime/blob/main/bench/agents/README.md)
 documents every file and flag.
 
 ## Limits
 
-- **One model.** The numbers hold for the model and the Claude Code version of the batch; another
-  model may rank the setups differently.
+- **Two models.** The numbers hold for Sonnet and Haiku and the Claude Code version of their batches;
+  another model may rank the setups differently.
 - **Synthetic data.** The runs are small, with planted effects and a few planted difficulties (a second
   batch, a renamed metric, superseded runs, a NaN, overfitting). Real projects are messier in other
   ways, and a different layout of files could suit an agent better than this one.
@@ -147,5 +157,6 @@ documents every file and flag.
 - **Setups as shipped.** `files` and `tensorboard` get a description of the files, not a tuned
   helper library; Beamtime gets its rules as shipped, not tuned to these tasks.
 
-<!-- Results (model, Claude Code version, date, the table from results.md and the figures
-tokens-vs-score and time-per-task) are added after the first full batch. -->
+<!-- Results per model (model, Claude Code version, date, the cost-first table from
+benchmark/<model>/results.md, models.md and the figures tokens-vs-score and time-per-task) are added
+after the two full batches, cost first. -->

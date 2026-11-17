@@ -1,5 +1,6 @@
 """Tests of the benchmark's session runner (``compare/sessions.py``); no agent runs."""
 
+import dataclasses
 import json
 import subprocess
 import sys
@@ -294,6 +295,12 @@ class Session:
         self.real = POPEN(["sh", "-c", script], start_new_session=True)
         self.pid = self.real.pid
 
+    def poll(self) -> int | None:
+        """Say whether the process has exited.
+
+        :return: The exit code, or ``None`` while it runs."""
+        return self.real.poll()
+
     def wait(self, timeout: float | None = None) -> int:
         """Wait for the process, or run past the time limit.
 
@@ -330,7 +337,7 @@ def test_run_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_run_session_timeout_and_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A timeout keeps the tokens of the messages; a failing exit is an error."""
-    task = grade.load_tasks()["best-config"]
+    task = dataclasses.replace(grade.load_tasks()["best-config"], time_limit_s=1)
     project = setups.planned("files", tmp_path / "s")
     project.root.mkdir(parents=True)
     job = sessions.Job(task="best-config", setup="files", seed=7, rep=0)
@@ -374,6 +381,38 @@ def test_session_children_are_stopped(
 
     assert record["status"] == status and record["seconds"] < 2.5
     assert not (project.root / "stray").exists()
+
+
+@pytest.mark.parametrize(
+    ("events", "status"),
+    [([init(), result()], "ok"), ([init(), result(is_error=True)], "error"), ([init()], "timeout")],
+)
+def test_result_ends_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, events: list[dict[str, Any]], status: str
+) -> None:
+    """A result ends a session although claude lingers on a child; without one it times out.
+
+    :param events: What the stand-in ``claude`` writes before it waits on its child.
+    :param status: The session's status."""
+    lines = transcript(events).replace("'", "'\\''")
+    claude = tmp_path / "claude"
+    claude.write_text(f"#!/bin/sh\n(sleep 30) &\nprintf '%s' '{lines}'\nwait\n")
+    claude.chmod(0o755)
+    monkeypatch.setattr(sessions, "CLAUDE", str(claude))
+    task = grade.Task(id="x", prompt="p", answer="a", checks={}, time_limit_s=4, setups=["files"])
+    project = setups.planned("files", tmp_path / "s")
+    project.root.mkdir(parents=True)
+    folder = tmp_path / "out"
+    folder.mkdir()
+    job = sessions.Job(task="x", setup="files", seed=7, rep=0)
+
+    record = sessions.run_session(job, task, project, folder, model=MODEL, version="v")
+
+    assert record["status"] == status
+    if status == "timeout":
+        assert record["seconds"] >= 4 and record["answer"] == ""
+    else:
+        assert record["seconds"] < 2 and record["answer"] == RIGHT
 
 
 def test_unstarted_session_is_not_scored(batch: "Batch") -> None:
@@ -503,6 +542,43 @@ def test_stalled_judge_leaves_session_ungraded(
     assert (best / "grade.json").exists()
     assert (batch.root / "sessions" / chart.name / "proj").is_dir()
     assert batch.root.exists()
+
+
+def test_failed_judge_leaves_session_ungraded(
+    batch: Batch, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A judge without usable marks leaves the chart ungraded and counted, never scored 0; a later
+    ``--grade-only`` with a working judge grades it and clears the mark."""
+
+    def failed(image: Path, items: list[str], *, model: str) -> dict[int, Any]:
+        raise grade.JudgeFailed("marks for [] of 7 items")
+
+    working = grade.judge_chart
+    monkeypatch.setattr(grade, "judge_chart", failed)
+    text = 'Saved.\n```json\n{"file": "fig.png"}\n```'
+    chart = batch.add("chart", [init(), result(text)])
+    sessions.grade_batch(batch.dir)
+    record = json.loads((chart / "record.json").read_text())
+
+    assert not (chart / "grade.json").exists()
+    assert record["ungraded"] == "judge failed" and "marks for" in record["judge_error"]
+    assert json.loads((batch.dir / "batch.json").read_text())["ungraded"] == {"judge failed": 1}
+    assert (batch.root / "sessions" / chart.name / "proj").is_dir()
+
+    monkeypatch.setattr(grade, "judge_chart", working)
+    sessions.grade_batch(batch.dir)
+
+    assert json.loads((chart / "grade.json").read_text())["score"] == 1
+    assert "ungraded" not in json.loads((chart / "record.json").read_text())
+    assert json.loads((batch.dir / "batch.json").read_text())["ungraded"] == {}
+
+
+def test_timeout_scores_zero_with_an_answer(batch: Batch) -> None:
+    """A session recorded as a timeout scores 0 even when its transcript holds a right answer."""
+    folder = batch.add("best-config", [init(), result()], status="timeout")
+    sessions.grade_batch(batch.dir)
+
+    assert json.loads((folder / "grade.json").read_text())["score"] == 0
 
 
 def test_usage_limit_error_is_not_scored(batch: Batch) -> None:

@@ -1,11 +1,13 @@
 """Write the comparison benchmark's report from a batch.
 
-``uv run python bench/agents/compare/tables.py bench/agents/runs/compare-<stamp>
-[--out docs/guides/benchmark]`` writes ``results.md`` (the facts, a table per task and setup, a
-table per setup) and the figures ``tokens-vs-score`` and ``time-per-task`` as ``.pdf`` and
-``.svg``. Ungraded sessions (``crashed``, ``not started``, ``usage limit``, not graded yet) are left
-out of every mean and counted; a session that leaked is listed and left out of the figures only.
-Figures are refused when a setup lacks a task.
+``uv run python bench/agents/compare/tables.py bench/agents/runs/compare-<stamp> [...]
+[--out docs/guides/benchmark]`` takes one batch per model and writes each into ``<out>/<alias>/``
+(``sonnet``, ``haiku``): ``results.md`` (the facts, a table per task and setup, a table per setup;
+cost first, then the score) and the figures ``tokens-vs-score`` and ``time-per-task`` as ``.pdf``
+and ``.svg``. Given several batches it also writes ``<out>/models.md``, the per-setup table of
+every model side by side. Ungraded sessions (``crashed``, ``not started``, ``usage limit``,
+``judge failed``, not graded yet) are left out of every mean and counted; a session that leaked is
+listed and left out of the figures only. Figures are refused when a setup lacks a task.
 """
 
 import argparse
@@ -18,7 +20,7 @@ from typing import Any
 import figures
 
 OUT = Path(__file__).resolve().parents[3] / "docs" / "guides" / "benchmark"
-COLUMNS = ["n", "score", "correct", "tokens", "uncached", "cost", "seconds", "turns", "tool calls"]
+COLUMNS = ["n", "tokens", "uncached", "cost", "seconds", "turns", "tool calls", "score", "correct"]
 
 
 class Batch:
@@ -41,6 +43,11 @@ class Batch:
                 self.ungraded["not graded yet"] += 1
             else:
                 self.graded.append(record | json.loads(grade.read_text()))
+
+    @property
+    def name(self) -> str:
+        """The folder of the batch's report: the model alias it ran with, else the model id."""
+        return self.meta.get("alias") or self.meta["model"]
 
     @property
     def setups(self) -> list[str]:
@@ -107,14 +114,14 @@ def cells(rows: list[dict[str, Any]]) -> list[str]:
     :return: One cell per entry of ``COLUMNS``."""
     return [
         str(len(rows)),
-        f"{statistics.fmean(r['score'] for r in rows):.2f}",
-        f"{sum(bool(r['correct']) for r in rows)}/{len(rows)}",
         spread([r["tokens"]["total"] for r in rows], ",.0f"),
         spread([uncached(r) for r in rows], ",.0f"),
         spread([r["cost_usd"] for r in rows], ".2f"),
         spread([r["seconds"] for r in rows], ".0f"),
         spread([r["turns"] for r in rows], ".0f"),
         spread([sum((r.get("tools") or {}).values()) for r in rows], ".0f"),
+        f"{statistics.fmean(r['score'] for r in rows):.2f}",
+        f"{sum(bool(r['correct']) for r in rows)}/{len(rows)}",
     ]
 
 
@@ -181,6 +188,27 @@ def results(batch: Batch) -> str:
     return "\n".join(lines)
 
 
+def models(batches: list[Batch]) -> str:
+    """Write the per-setup table of several batches, one row per setup and model.
+
+    :param batches: The batches, one per model.
+    :return: The Markdown of ``models.md``."""
+    body = [
+        [s, b.meta["model"], *cells(rows)]
+        for s in batches[0].setups
+        for b in batches
+        if (rows := [r for r in b.graded if r["setup"] == s])
+    ]
+    lines = [
+        "Per setup over all tasks, one row per model; the measures as in each model's "
+        "`results.md`.",
+        "",
+        *table(["setup", "model", *COLUMNS], body),
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def write_report(batch: Batch, out: Path) -> list[Path]:
     """Write ``results.md`` and the figures; refuse when a setup lacks a task in the figures.
 
@@ -204,14 +232,22 @@ def main() -> None:
     """Write the report of the batch named on the command line."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument(
-        "batch", type=Path, help="a batch folder, bench/agents/runs/compare-<stamp>"
+        "batch", type=Path, nargs="+", help="batch folders, bench/agents/runs/compare-<stamp>"
     )
-    parser.add_argument("--out", type=Path, default=OUT, help="where the report goes")
+    parser.add_argument("--out", type=Path, default=OUT, help="where the reports go")
     args = parser.parse_args()
-    try:
-        files = write_report(Batch(folder=args.batch), args.out)
-    except ValueError as e:
-        raise SystemExit(f"figures refused: {e}") from None
+    batches = [Batch(folder=f) for f in args.batch]
+    if len({b.name for b in batches}) < len(batches):
+        raise SystemExit("one batch per model: two batches have the same model")
+    files = []
+    for b in batches:
+        try:
+            files += write_report(b, args.out / b.name)
+        except ValueError as e:
+            raise SystemExit(f"figures of {b.name} refused: {e}") from None
+    if len(batches) > 1:
+        files.append(args.out / "models.md")
+        files[-1].write_text(models(batches))
     for path in files:
         print(path)
 
