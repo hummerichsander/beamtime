@@ -272,7 +272,7 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
 
 ## Z. Close
 
-### Z81. Changelog and the measurement hand-off (haiku) — code
+### Z81. Changelog and the measurement hand-off (haiku) — code — **done**
 
 - **Touches:** `CHANGELOG.md` (0.3.0); `docs/plans/v0.3/benchmark/benchmark-plan.md` (L72's text: run on this
   surface and report against `9faa1fc`); `bench/agents/README.md` (one line).

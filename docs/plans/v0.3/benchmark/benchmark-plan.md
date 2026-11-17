@@ -451,6 +451,9 @@ Record fields: `task`, `setup`, `seed`, `rep`, `model` (init event), `models` (`
   bench/agents/compare/tables.py bench/agents/runs/compare-<sonnet> bench/agents/runs/compare-<haiku>`.
 - **Done:** 96 graded sessions per model, on sonnet and on haiku (Decision 18); no leaked session; the
   figures and tables are committed.
+- **Lean-agent check:** run on the surface after Z81 (the lean-agent plan's Goal) and report against `9faa1fc`:
+  the CLI and the MCP sessions on seed 7 (3 reps) use at least 15 % fewer tokens each, with scores not lower.
+  The experiment `exp/lean-agent` gave −23 % CLI and −22 % MCP.
 - **Pilot:** check `model_usage` in the first records (Decision 16): a helper model below 5 % of the
   output tokens is expected; `other_model` set on most sessions means the threshold is wrong.
 - **Stop if:** the user hasn't said to start it (it costs about $30 at list price, notes.md), or the

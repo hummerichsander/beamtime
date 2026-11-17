@@ -2,10 +2,21 @@
 
 ## 0.3.0 (unreleased)
 
-- **Changed** the MCP server lists 19 core tools and `tools_more`, under 3.5k tokens of definitions instead of
-  about 5.8k. The tools for views, blocks, run control and export are reached through `tools_more`:
-  `tools_more(family="views")` describes a family, `tools_more(tool="view_show", args={...})` calls one tool
-  with the same validation and errors as a direct call. Calling an unlisted tool directly still works.
+- **Changed** the MCP server lists 19 core tools and `tools_more`: about 3.3k tokens of definitions instead of
+  about 5.8k for all 43 tools. The tools for views, blocks, run control and export are reached through
+  `tools_more`: `tools_more(family="views")` describes a family, `tools_more(tool="view_show", args={...})` calls
+  any tool, core tools included, with the same validation and errors as a direct call. Calling an unlisted tool
+  directly still works. Claude Code 2.1.322 does not reload the tool list after a change, so the listing never
+  changes and `tools_more` is a dispatcher, not a switch.
+- **Added** the setting `agent: {mcp_tools: core | all}` (default `core`). `all` lists every tool directly and
+  leaves out `tools_more`. The guide's topics that call a family tool say to call it through `tools_more` under
+  `core`.
+- **Changed** a bare `beamtime guide` prints a short index: one line per topic and the defaults, and nothing
+  else. Read the topic you need with `beamtime guide <topic>`; the view guide is `beamtime guide views`
+  (was `overview`). Every topic stays listed in the index.
+- **Added** the CLI takes MCP tool names as commands: `beamtime memory_show` runs `beamtime memory show`, so an
+  agent that copies a name from the MCP listing runs it. A command that needs a log dir and finds none names
+  `--root <project>` in its error.
 - **Changed** the parameters of `keys`, `groups`, `runs`, `series`, `data` and `timeline` are their query structs
   plus `cursor`, `to` and `smooth`, so MCP tool schemas list the properties in the query's order (`from`, `depth`,
   `where`, then the kind's own fields, then `cursor`/`to`; `logs`, `wait` and `diagnose` list `cursor` after

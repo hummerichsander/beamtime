@@ -26,6 +26,7 @@ uv run python bench/agents/mine.py                             # tool counts and
 `--guide <dir>` replaces the guide parts that have a file of the same name in `<dir>` (`index.md`,
 `views.md`, `notes.md`, ..., and `instructions.md` for the agent rules in CLAUDE.md), so a text can
 be tested without a release. The examples and the block catalogue are always the shipped ones.
+The MCP setup runs the default `mcp_tools: core` surface: 19 tools are listed and the others are called through `tools_more`, so a record names those calls `mcp__beamtime__tools_more`.
 
 Runs go to `bench/agents/runs/<stamp>/` (not committed): per run the project with its generated log
 dir, the agent's transcript (`transcript.jsonl`), `record.json` (tool calls with errors, rounds,
