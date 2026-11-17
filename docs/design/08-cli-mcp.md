@@ -199,6 +199,8 @@ drift from the commands.
 - **Small definitions.** Each tool has a short description and a precise schema; how to use them well
   lives in `guide`, loaded on demand. Texts every query tool repeats appear once, in the server
   instructions: what `from`/`group` and `depth` mean, the `where` operators and field examples, and `to`.
+  The instructions open as the rules block does: `status` starts a work session, a question about data goes to
+  the narrowest tool; the field examples include the series fields (`nonfinite_step`, `rise_step:<k>`, `[b.min_step]`).
   A schema keeps a pointer (`see instructions: where`, `see instructions: to`) or nothing (`from`, `group`,
   `author`, `depth` as a plain integer); defaults an absent key reads anyway (`from`, `group`, `x`, `band`) are left
   out, and `tools_more` names its families without a description. The definitions of a fresh server,

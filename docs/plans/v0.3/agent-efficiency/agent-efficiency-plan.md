@@ -127,6 +127,10 @@ The tickets run in this order: E91 E92 E93 E95 E96 E97 E98 E99 E94 X91.
     tool definitions and the instructions, measured with `json.dumps` defaults. Measured 13,271 + 977 before,
     9,990 + 1,405 = 11,395 after. Rejected: 8,000, because the structure alone (names, types, 20 wrappers,
     `cursor` in 10 tools) is about 6.7k compact, so it needs dropping almost every parameter description.
+13. **The MCP instructions follow the rules block** (E94; scope extension after the E99 review): their opening
+    sentence says to start a work session with `status` and to use the narrowest tool for a question about data
+    (it said `keys` first), and their field examples include the series fields (`nonfinite_step`, `rise_step:3`,
+    `metric.a[b.min_step]`); the rules block's table names them too. The 11,500-character limit holds.
 
 ## E. Efficiency
 
@@ -300,7 +304,7 @@ The tickets run in this order: E91 E92 E93 E95 E96 E97 E98 E99 E94 X91.
    only if the operation reads the same default when the key is absent (check in `decoded`'s callers).
 4. CLI help texts come from the same registry: check `docs/reference/cli.md` still reads well.
 
-### E94. The rules block points at the shortest path (sonnet + review) — real data
+### E94. The rules block points at the shortest path (sonnet + review) — real data — **done**
 
 - **Touches:** `src/beamtime/guide/rules/rules.md`, `src/beamtime/guide/parts/analysis.md`,
   `src/beamtime/guide/rules.py` (only if a new placeholder is needed), `tests/guide/test_rules.py`,

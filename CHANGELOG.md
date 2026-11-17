@@ -24,6 +24,10 @@
   versions and the chain.
 - **Changed** a command line usage error (unknown flag, missing required flag, bad value) prints the command's whole
   help to stderr before the error line, so `--help` is not needed upfront; exit code 2 and `--help` are unchanged.
+- **Changed** the agent rules block (`beamtime setup`, `mcp install --instructions`) starts a work session with
+  `status` and sends a question about data straight to the narrowest tool, says a usage error prints the help, and
+  holds a table "question -> tool or field" including `min_step`, `nonfinite_step`, `rise_step` and step-reference
+  windows. The MCP instructions say the same and give the new series fields as examples.
 - **Changed** the MCP tool list is smaller: the `where` operators, field examples, `from`/`group`/`depth` and `to`
   are written once in the server instructions instead of in every schema, and the tool definitions with the
   instructions come to 11.4k characters instead of 14.2k. Every tool keeps every parameter (`depth` is now typed

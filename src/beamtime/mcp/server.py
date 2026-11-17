@@ -56,8 +56,8 @@ def instructions(mcp_tools: str = "core") -> str:
             "`view_*` tools through `tools_more`. "
         )
     return (
-        "Beamtime records ML experiments as runs in groups below a log dir. Start in an "
-        "unfamiliar group with `keys`; check `status` before working with live runs. "
+        "Beamtime records ML experiments as runs in groups below a log dir. Start a "
+        "work session with `status`; for a question about data use the narrowest tool. "
         "Before designing an experiment read `memory_show`; before a launch write the "
         "proposal with `proposal_set`; judge results with `check` and a verdict note "
         "(`note_add`), never claiming more than the check says. Writes are additive and pass "
@@ -68,7 +68,8 @@ def instructions(mcp_tools: str = "core") -> str:
         "from and group: a group below the log dir or a run id; depth: levels below it, "
         "default all. where: field -> value or {op: value}; ops eq ne lt le gt ge in nin has "
         "exists glob; also any: [...], not: {...}. fields: run.status, config.lr, "
-        "metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc. to: write all of the "
+        "metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc, "
+        "metric.a.nonfinite_step, metric.a.rise_step:3, metric.a[b.min_step]. to: write all of the "
         "answer to a "
         ".csv or .json file below .beamtime/exports/ and answer the path, outside the token budget."
     )

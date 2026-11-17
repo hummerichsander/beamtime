@@ -31,6 +31,18 @@ def test_render_each_preset(style: str) -> None:
     assert ("`proposal_set`" in text) == (style != "analysis")
 
 
+def test_render_orients_and_tabulates() -> None:
+    """The block starts with `status`, skips `--help`, and tabulates question to tool in under 3k characters."""
+    text = render(agent(), USER_ONLY)
+    assert "Start a work session with `status`" in text
+    assert "no `--help` first" in text
+    for field in ("min_step", "nonfinite_step", "rise_step", "[val/loss.min_step]", "to: name.csv"):
+        assert field in text
+    rows = [line for line in text.splitlines() if line.startswith("| ")]
+    assert len(rows) - 1 <= 12
+    assert len(text) < 3_000
+
+
 def test_render_record_required_and_conventions() -> None:
     """A required record, detected conventions and a seed count show in the block."""
     text = render(

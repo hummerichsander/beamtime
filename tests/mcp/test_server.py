@@ -155,6 +155,8 @@ def test_tool_definitions_under_11500_characters(project: Path) -> None:
 def test_instructions_name_the_where_ops() -> None:
     """The instructions carry the ``where`` operators once; a schema only points to them."""
     assert "ops eq ne lt le gt ge in nin has exists glob" in INSTRUCTIONS
+    assert "Start a work session with `status`" in INSTRUCTIONS
+    assert "metric.a.nonfinite_step" in INSTRUCTIONS
     where = schema(BY_TOOL["runs"])["properties"]["where"]
     assert where["description"] == "see instructions: where"
 
