@@ -171,7 +171,7 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   step 1 %; the prompts that compute ask for the values at full precision. `find-runs` compares at
   exactly 0.922 without tolerance.
   The `chart` task's `judge` list holds seven statements (points of the final accuracy against lr, a
-  line through the means, log x, no points for the failed and killed runs, no point above about 0.95
+  line through the means, log x, no points for the failed and killed runs, every point below about 0.95
   (the superseded run left out), the peak at 3e-4 readable, labelled axes; no count, since overlapping
   points can't be counted); each becomes a check `judge1`..`judge7` next to `file`, answered by `score.ask` with the pinned model
   (`grade(..., model=)`) from the PNG alone, run in a fresh folder holding only a copy of the image

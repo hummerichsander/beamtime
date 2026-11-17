@@ -14,6 +14,6 @@ judge:
   - A line connects the mean accuracy of each learning rate.
   - The x axis is logarithmic.
   - No points are drawn for runs that failed or were killed (no accuracies near zero, no diverged runs).
-  - No point lies above an accuracy of about 0.95.
+  - Every point lies below an accuracy of about 0.95.
   - The highest accuracies are at a learning rate of about 3e-4, and this peak can be read off the plot.
   - Both axes are labelled.
