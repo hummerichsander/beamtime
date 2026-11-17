@@ -8,7 +8,7 @@ step per run."""
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -305,7 +305,7 @@ class WideGenerator(Generator):
         return vmin + (2.3 - vmin) * fall
 
 
-def make_wide_logdir(dest: Path, *, seed: int, now: datetime | None = None) -> Manifest:
+def make_wide_logdir(dest: Path, *, seed: int, now: datetime) -> Manifest:
     """Generate the wide log dir at ``dest/beamtime``.
 
     :param dest: The folder that will hold ``beamtime/``.
@@ -314,6 +314,6 @@ def make_wide_logdir(dest: Path, *, seed: int, now: datetime | None = None) -> M
     :return: The manifest; its roles stay in memory for grading, never written into ``dest``."""
     logdir = dest / "beamtime"
     logdir.mkdir(parents=True, exist_ok=True)
-    gen = WideGenerator(logdir=logdir, seed=seed, now=now or datetime.now(timezone.utc))
+    gen = WideGenerator(logdir=logdir, seed=seed, now=now)
     gen.run()
     return gen.manifest
