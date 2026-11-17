@@ -4,6 +4,8 @@ A cluster's log dir can appear next to the local one. Its groups are named `@<na
 (`status` lists the connected sources); everything works the same: `keys`, `runs`, `series`,
 `check`, and the writes (notes, proposals, memory, views, library blocks) land on the remote.
 
+{{agent.tools_more}}
+
 ## What differs
 
 - **The remote is the source of truth.** Data flows one way; nothing local is merged into it.

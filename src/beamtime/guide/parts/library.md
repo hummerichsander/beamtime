@@ -4,6 +4,8 @@ Custom blocks that prove useful become library blocks: named, described, with pa
 view like a built-in block (`- phase-map: {x: config.lr, y: config.wd, value: metric.val/acc.max}`).
 `block_list <group>` shows what a group can use; `block_show <name>` its params and code.
 
+{{agent.tools_more}}
+
 `block_promote <group> <block-id> <name>` and `block_fork <name> <new-name>` write a draft `.beamtime/drafts/blocks/<name>/block.yaml`. Replace fixed fields with `$params`, read
 field names from the query's columns and values from `bt.params`, say when to use it and when not,
 and give at least two examples:

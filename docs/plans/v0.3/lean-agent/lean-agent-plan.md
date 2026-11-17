@@ -238,7 +238,7 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
 6. `08-cli-mcp.md` § Tools: core, families, the dispatcher, the 3.5k-token budget (replacing "about 35 small tools …
    under about 6k tokens").
 
-### M82. The `mcp_tools` setting (sonnet) — code
+### M82. The `mcp_tools` setting (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/settings.py` (`PRESETS` 7–60, `AGENT_KEYS` 73, `AgentSettings` 141); `src/beamtime/mcp/server.py`
   (`list_tools`; `call_tool` 374–393, the `name in CORE` refusal at 381; `unknown_more` 172); `tests/test_settings.py`;

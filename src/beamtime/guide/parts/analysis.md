@@ -2,6 +2,8 @@
 
 Ask with the tools; never parse run files. Start with `keys` (what exists), then the narrowest tool.
 
+{{agent.tools_more}}
+
 | Question | Tool |
 |---|---|
 | What metrics, config keys and data does the group have? | `keys` |

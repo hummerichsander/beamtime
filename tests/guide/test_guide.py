@@ -237,3 +237,29 @@ def test_proposal_words_reach_the_guide(project: Path) -> None:
     assert any("near 80 words" in x and x.endswith("(beamtime.yaml)") for x in defaults_of(ctx))
     ctx = with_agent(project, "{style: analysis}")
     assert not [x for x in defaults_of(ctx) if "Keep a proposal" in x]
+
+
+def test_topics_naming_family_tools_carry_the_line(project: Path) -> None:
+    """Topics that tell the agent to call a family tool say so under ``core`` and not under ``all``."""
+    pytest.importorskip("mcp")
+    from beamtime.guide import TOOLS_MORE
+    from beamtime.mcp.server import FAMILIES
+
+    members = {name for names in FAMILIES.values() for name in names}
+    only_the_checker = {"charts", "anti-patterns", "kit-api"}
+    core, every = with_agent(project, "{mcp_tools: core}"), with_agent(project, "{mcp_tools: all}")
+    for topic in TOPICS:
+        named = members & set(re.findall(r"`(\w+)", TEXTS[topic]))
+        text = call("guide", {"part": topic}, core)["text"]
+        assert (TOOLS_MORE in text) == (bool(named) and topic not in only_the_checker), topic
+        if TOOLS_MORE in text:
+            all_text = call("guide", {"part": topic}, every)["text"]
+            assert text.replace(f"{TOOLS_MORE}\n\n", "") == all_text, topic
+            assert "\n\n\n" not in all_text and "tools_more" not in all_text, topic
+
+
+def test_mcp_tools_is_not_listed_in_the_defaults(project: Path) -> None:
+    """The knob is for the user: the default answer does not mention it, under either value."""
+    for value in ("core", "all"):
+        text = call("guide", {}, with_agent(project, f"{{mcp_tools: {value}}}"))["text"]
+        assert "mcp_tools" not in text and "tools_more" not in text

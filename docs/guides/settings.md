@@ -70,6 +70,7 @@ agent:
 | `memory_tokens` | an integer, 1 or more | 1500 | 1500 | 1500 |
 | `render_rounds` | an integer, 1 or more | 2 | 2 | 2 |
 | `custom_blocks` | `builtin_first`, `free` | `builtin_first` | `builtin_first` | `builtin_first` |
+| `mcp_tools` | `core`, `all` | `core` | `core` | `core` |
 
 `main_metric`, `direction` (`min` or `max`), `seed_key` (a config field such as `config.seed`) and
 `domain` (`ml` or `simulation`) have no default and are never detected or asked for: set them
@@ -80,7 +81,9 @@ These are guidance for agents, not enforcement: Beamtime never runs your experim
 `launch_runs: never` tells agents not to launch, and `research_record: required` tells them to
 write a proposal first. `proposal_words` is how long agents keep a proposal (the words of its
 statement, rationale and prediction descriptions); `beamtime proposal set` warns beyond it and
-still writes. A key or value that isn't in the table is reported by `beamtime settings` and
+still writes. `mcp_tools` is for the MCP server: `core` lists 19 core tools and a `tools_more` tool that reaches
+the views, blocks, run-control and export tools, which keeps the agent's first prompt small; `all` lists
+every tool from the start. A key or value that isn't in the table is reported by `beamtime settings` and
 `beamtime doctor`, and the default is used. After changing `agent`, `beamtime setup` offers to
 rewrite the rules block to match.
 

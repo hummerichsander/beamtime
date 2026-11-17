@@ -107,15 +107,17 @@ assert all(name in BY_TOOL for names in FAMILIES.values() for name in names)
 assert sum(map(len, FAMILIES.values())) == len({n for names in FAMILIES.values() for n in names})
 
 
-def tools() -> list[types.Tool]:
-    """List the tools: the core operations and the ``tools_more`` dispatcher. The listing is the
-    same for the life of the server.
+def tools(mcp_tools: str = "core") -> list[types.Tool]:
+    """List the tools: the core operations and the ``tools_more`` dispatcher, or every tool.
 
+    :param mcp_tools: The agent setting: ``core`` or ``all`` (every tool, no dispatcher).
     :return: The tool definitions."""
     core = [
         types.Tool(name=name, description=BY_TOOL[name].summary, input_schema=schema(BY_TOOL[name]))
-        for name in CORE
+        for name in (CORE if mcp_tools == "core" else BY_TOOL)
     ]
+    if mcp_tools == "all":
+        return core
     more = {
         "type": "object",
         "properties": {
@@ -358,7 +360,8 @@ def build(root: str | Path | None = None) -> Server:
     from importlib.metadata import version
 
     async def list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
-        return types.ListToolsResult(tools=tools())
+        agent = Context.make(root=root, caller="mcp").settings.agent
+        return types.ListToolsResult(tools=tools(agent.mcp_tools))
 
     async def invoke(op: Op, arguments: dict[str, Any]) -> types.CallToolResult:
         def run() -> dict[str, Any]:
@@ -378,7 +381,7 @@ def build(root: str | Path | None = None) -> Server:
                 if (family := arguments.get("family")) not in FAMILIES:
                     return error(f"give a family ({', '.join(FAMILIES)}) or a tool and args")
                 return types.CallToolResult(content=[types.TextContent(text=family_text(family))])
-            if (op := BY_TOOL.get(name)) is None or name in CORE:
+            if (op := BY_TOOL.get(name)) is None:
                 return error(unknown_more(str(name)))
             args = arguments.get("args") or {}
             if isinstance(args, str):

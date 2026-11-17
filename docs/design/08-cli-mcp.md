@@ -179,10 +179,16 @@ drift from the commands.
   `output`, `file`, `timeline`, `digest`, `plan_missing`, `name`) and `export` (`export`, `cp`); the core
   is every other tool, so a new operation is core unless a family names it. `tools_more(family)`
   answers that family's tools as compact text, one line each: `name(param: type, other?: type): summary`.
-  `tools_more(tool, args)` calls a family tool exactly as a direct call: the same parameter validation,
-  routing to `@source/path` targets and error results. An unknown family or tool is an error that names
-  the families, or the family's tools when the name shares their prefix; user-only commands stay refused.
-  A known tool outside the listing still runs when called directly, for clients that cache an older list.
+  `tools_more(tool, args)` calls any known tool, core or family, exactly as a direct call: the same
+  parameter validation, routing to `@source/path` targets and error results. An unknown family or tool is
+  an error that names the families, or the family's tools when the name shares their prefix; user-only
+  commands stay refused. A known tool outside the listing still runs when called directly, for clients
+  that cache an older list.
+- **`mcp_tools: core | all`** (agent setting, default `core` in every style; read per session from the
+  project's settings): `all` lists every non-user tool from the start and omits `tools_more`. The guide's
+  line "Over MCP with the default tool set, call these through `tools_more`." (the `{{agent.tools_more}}`
+  placeholder) appears in the topics that send the agent to a family tool and is empty under `all`; the
+  Defaults section does not list the knob.
 - **Small definitions.** Each tool has a short description and a precise schema; how to use them well
   lives in `guide`, loaded on demand. The definitions of a fresh server, `tools_more` included, stay under
   3.5k tokens (characters of the JSON / 4; `tests/mcp` checks it).

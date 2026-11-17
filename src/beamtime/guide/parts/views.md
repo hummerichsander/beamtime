@@ -8,6 +8,8 @@ view, else the built-in default; views are not inherited by subgroups or runs.
 Tools are named as over MCP (`view_new`); on the command line the same operation is
 `beamtime view new`.
 
+{{agent.tools_more}}
+
 1. Look at the group: `keys`, `memory_show`, `proposal_show`, `notes`, `view_show` for its
    current view, and `block_list` for library blocks made for problems like this one.
 2. Decide the one question the view answers; it decides the blocks (table below). **Built-in blocks

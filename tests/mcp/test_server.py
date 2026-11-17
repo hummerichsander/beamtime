@@ -201,20 +201,51 @@ def test_tools_more_remote_target(project: Path) -> None:
 
 
 def test_tools_more_refuses_user_only(project: Path) -> None:
-    """User-only commands and unknown or core tools are refused as they are directly."""
+    """User-only commands and unknown tools are refused as they are directly."""
 
     async def work(s):
         return [
             await s.call_tool("tools_more", {"tool": "set", "args": {}}),
             await s.call_tool("set", {}),
             await s.call_tool("tools_more", {"tool": "view_nope"}),
-            await s.call_tool("tools_more", {"tool": "runs"}),
         ]
 
-    through, direct, close, core = session(project, work)
+    through, direct, close = session(project, work)
     assert through.is_error and direct.is_error and "unknown tool" in through.content[0].text
     assert all(name in close.content[0].text for name in FAMILIES["views"])
-    assert core.is_error
+
+
+def test_tools_more_runs_a_core_tool(project: Path) -> None:
+    """A core tool through ``tools_more`` returns what the direct call returns, also for bad args."""
+
+    async def work(s):
+        good = {"from": "scaling/lr-sweep", "limit": 2}
+        bad = {"from": "scalng"}
+        return [
+            await s.call_tool("tools_more", {"tool": "runs", "args": good}),
+            await s.call_tool("runs", good),
+            await s.call_tool("tools_more", {"tool": "runs", "args": bad}),
+            await s.call_tool("runs", bad),
+        ]
+
+    through, direct, bad_through, bad_direct = session(project, work)
+    assert not direct.is_error and through.content == direct.content
+    assert bad_direct.is_error and bad_through.content == bad_direct.content
+
+
+def test_mcp_tools_setting_per_project(project: Path, tmp_path: Path) -> None:
+    """``agent: {mcp_tools: all}`` lists every tool without ``tools_more``; another project keeps core."""
+    other = tmp_path / "all"
+    other.mkdir()
+    (other / ".git").mkdir()
+    (other / "beamtime.yaml").write_text("agent: {mcp_tools: all}\n")
+
+    async def work(s):
+        return [t.name for t in (await s.list_tools()).tools]
+
+    listed = session(other, work)
+    assert listed == list(BY_TOOL) and "tools_more" not in listed
+    assert session(project, work) == [*CORE, "tools_more"]
 
 
 def test_calls_answer_and_errors_return_to_the_agent(project: Path) -> None:

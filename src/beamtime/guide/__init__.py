@@ -30,6 +30,7 @@ TOPICS = (
     "remote",
     "analysis",
 )
+TOOLS_MORE = "Over MCP with the default tool set, call these through `tools_more`."
 EXAMPLES = ("sweep", "ablation", "run", "direction", "custom")
 LAUNCH = {
     "never": "Never launch runs yourself.",
@@ -106,16 +107,23 @@ def read(name: str, agent: AgentSettings) -> str:
     :param agent: The project's agent settings; ``{{agent.<key>}}`` takes the knob's value.
     :return: Its Markdown."""
     text = (files(__package__) / "parts" / name).read_text()
-    return re.sub(r"\{\{agent\.(\w+)\}\}", lambda mt: value_of(agent, mt.group(1)), text)
+    text = re.sub(r"\{\{agent\.(\w+)\}\}", lambda mt: value_of(agent, mt.group(1)), text)
+    return re.sub(r"\n{3,}", "\n\n", text)
 
 
 def value_of(agent: AgentSettings, key: str) -> str:
     """Render one placeholder of a part.
 
     :param agent: The agent settings.
-    :param key: A knob, or ``defaults`` for the index's generated section.
+    :param key: A knob, ``defaults`` for the index's generated section or ``tools_more``.
     :return: The text that replaces ``{{agent.<key>}}``."""
-    return defaults(agent) if key == "defaults" else str(getattr(agent, key))
+    match key:
+        case "defaults":
+            return defaults(agent)
+        case "tools_more":
+            return TOOLS_MORE if agent.mcp_tools == "core" else ""
+        case _:
+            return str(getattr(agent, key))
 
 
 def defaults(agent: AgentSettings) -> str:

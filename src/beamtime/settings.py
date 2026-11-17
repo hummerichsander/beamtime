@@ -40,6 +40,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         "proposal_words": 150,
         "render_rounds": 2,
         "custom_blocks": "builtin_first",
+        "mcp_tools": "core",
     },
     "hands-on": {
         "launch_runs": "allowed",
@@ -52,6 +53,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         "proposal_words": 150,
         "render_rounds": 2,
         "custom_blocks": "builtin_first",
+        "mcp_tools": "core",
     },
     "analysis": {
         "launch_runs": "ask",
@@ -64,6 +66,7 @@ PRESETS: dict[str, dict[str, Any]] = {
         "proposal_words": 150,
         "render_rounds": 2,
         "custom_blocks": "builtin_first",
+        "mcp_tools": "core",
     },
 }
 PRESETS["custom"] = PRESETS["careful"]
@@ -105,6 +108,7 @@ AGENT_KEYS: dict[str, tuple[str, ...] | Callable[[Any], bool]] = {
     "proposal_words": positive_int,
     "render_rounds": positive_int,
     "custom_blocks": ("builtin_first", "free"),
+    "mcp_tools": ("core", "all"),
     "main_metric": nonempty_str,
     "direction": ("min", "max"),
     "seed_key": nonempty_str,
@@ -152,6 +156,7 @@ class AgentSettings:
     proposal_words: int
     render_rounds: int
     custom_blocks: str
+    mcp_tools: str
     main_metric: str | None = None
     direction: str | None = None
     seed_key: str | None = None

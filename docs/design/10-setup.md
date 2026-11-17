@@ -499,6 +499,7 @@ a set of values; single keys override it.
 | `memory_tokens` | an integer ≥ 1 | 1500 | 1500 | 1500 |
 | `render_rounds` | an integer ≥ 1 | 2 | 2 | 2 |
 | `custom_blocks` | `builtin_first`, `free` | `builtin_first` | `builtin_first` | `builtin_first` |
+| `mcp_tools` | `core`, `all` | `core` | `core` | `core` |
 | `main_metric`, `direction` | a metric key; `min` or `max` | not set | not set | not set |
 | `seed_key` | a config field | not set | | |
 | `domain` | `ml`, `simulation` | not set | | |

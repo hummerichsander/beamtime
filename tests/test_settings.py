@@ -79,6 +79,16 @@ def test_custom_starts_from_careful(home: Path) -> None:
     assert agent.research_record == "encouraged"
 
 
+def test_mcp_tools_is_core_in_every_style_and_checked(home: Path) -> None:
+    """The default is ``core`` in every style; a bad value names both choices."""
+    assert all(preset["mcp_tools"] == "core" for preset in PRESETS.values())
+    (home / "beamtime.yaml").write_text("agent: {style: analysis, mcp_tools: all}\n")
+    assert load(home).agent.mcp_tools == "all"
+    (home / "beamtime.yaml").write_text("agent: {mcp_tools: some}\n")
+    s = load(home)
+    assert any("core" in p and "all" in p for p in s.problems) and s.agent.mcp_tools == "core"
+
+
 def test_agent_in_user_file_is_a_problem(home: Path) -> None:
     """``agent`` belongs to the project: in the user file it is reported and ignored."""
     path = user_settings_path()
@@ -99,6 +109,7 @@ def test_agent_in_user_file_is_a_problem(home: Path) -> None:
         ("{significance: 1}", "significance"),
         ("{significance: 0}", "significance"),
         ("{direction: up}", "direction"),
+        ("{mcp_tools: some}", "mcp_tools"),
         ("{style: wild}", "style"),
         ("{colour: red}", "colour"),
     ],
