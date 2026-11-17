@@ -3,6 +3,7 @@
 import json
 import os
 import shutil
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -203,6 +204,32 @@ def test_cache_per_session(tmp_path: Path, data_dir: Path, envs: setups.Envs) ->
         assert project.root.parent in Path(project.env["XDG_CONFIG_HOME"]).parents
     server = json.loads(m.mcp_config.read_text())["mcpServers"]["beamtime"]
     assert server["env"]["BEAMTIME_CACHE"] == m.env["BEAMTIME_CACHE"]
+
+
+@pytest.mark.parametrize("name", ["cli", "mcp"])
+def test_warm_indexes_everything(
+    tmp_path: Path, data_dir: Path, envs: setups.Envs, name: str
+) -> None:
+    """A prepared session has every run indexed, even one with a long series."""
+    long_dir = tmp_path / "long"
+    shutil.copytree(data_dir, long_dir)
+    metrics = next((long_dir / "beamtime").rglob("_metrics.jsonl"))
+    with metrics.open("a") as f:
+        f.writelines(
+            json.dumps({"_step": s, "_t": 1.0, "training/loss": 1.0}) + "\n"
+            for s in range(1_000_000, 1_100_000)
+        )
+    project = prepare(name, tmp_path, long_dir, envs)
+
+    beamtime = str(Path(sys.prefix) / "bin" / "beamtime")
+    out = subprocess.run(
+        [beamtime, "--root", str(project.root), "status"],
+        env=project.env,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert "not yet indexed" not in out
 
 
 def test_data_is_copied(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:

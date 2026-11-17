@@ -153,7 +153,7 @@ The tickets run in this order: E91 E92 E93 E95 E96 E97 E98 E99 E94 X91.
 5. `query.run`: before dumping, `freshness.deferred -= ctx.ingested` and recompute `behind`.
 6. Spec § Freshness: a query reads every run it selects in full; the budget only bounds catch-up of the rest.
 
-### E92. The harness indexes fully before a session (sonnet) — code
+### E92. The harness indexes fully before a session (sonnet) — code — **done**
 
 - **Touches:** `bench/agents/compare/setups.py` (`warm` 232–242), `tests/bench/test_compare_setups.py`,
   `bench/agents/README.md`.

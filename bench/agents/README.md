@@ -196,7 +196,8 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   `--setting-sources project`, `--disable-slash-commands`, `--no-session-persistence`); the session
   adds the prompt, model and output format. Only `cli` has `beamtime` on the PATH; `mcp` reaches the
   server through the absolute command in its MCP config. A Beamtime project's index is warmed with
-  `beamtime runs` before the session. `make_envs(root)` builds the two venvs with `uv venv` and
+  `beamtime reindex` before the session (a user-only operation; the harness plays the user), so `status` never
+  reports runs not yet indexed. `make_envs(root)` builds the two venvs with `uv venv` and
   `uv pip install` (`base`: numpy, pandas, scipy, matplotlib, tensorboard, pyyaml; `beamtime`: the same plus this
   checkout's `beamtime[serve]`) and keeps venvs whose install finished (marked by `.installed`).
 - Data sets: a task names its `data` (default `s`); `data.DATASETS` maps a name to its builder and

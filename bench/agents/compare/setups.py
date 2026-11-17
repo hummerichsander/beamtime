@@ -232,14 +232,16 @@ def export(envs: Envs, function: str, logdir: Path, dest: Path) -> None:
 
 
 def warm(envs: Envs, root: Path, env: dict[str, str]) -> None:
-    """Build the project's index before the session, so no setup pays for it in its own time.
+    """Index the whole project before the session, as a running daemon would keep it.
+
+    ``reindex`` is a user-only operation; the harness plays the user.
 
     :param envs: The environments.
     :param root: The project.
     :param env: The session's environment, with its own cache."""
     beamtime = str(envs.bin("beamtime") / "beamtime")
     subprocess.run(
-        [beamtime, "--root", str(root), "runs"], env=env, check=True, stdout=subprocess.DEVNULL
+        [beamtime, "--root", str(root), "reindex"], env=env, check=True, stdout=subprocess.DEVNULL
     )
 
 
