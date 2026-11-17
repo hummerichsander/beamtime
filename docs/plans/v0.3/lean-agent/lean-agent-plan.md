@@ -105,6 +105,13 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
    `beamtime.yaml` line `agent: {mcp_tools: all}`), and `guide views` says so.
 7. **Calling an unlisted known tool still works** (proposed): listing is only what the client sees; dispatch keeps
    `BY_TOOL`. Rejected: refusing, which would break clients that cache an older list.
+8. **Claude Code does not reload the list** (measured by S81, `bench/agents/probes/list_changed.py`, claude 2.1.322, two
+   runs): a stub server declared `tools: {listChanged: true}`, its tool `more` added `b` and sent
+   `notifications/tools/list_changed`; the session called `more` successfully, but `b` was never offered (ToolSearch
+   found only `a` and `more`) and could not be called. So Decision 6 applies: `tools_more` does not add tools for
+   Claude Code; it answers with the `beamtime.yaml` line `agent: {mcp_tools: all}` for the user. The server still
+   declares `tools_changed=True` and sends the notification, for clients that do reload (without
+   `NotificationOptions(tools_changed=True)` in `create_initialization_options` the capability is `listChanged: false`).
 
 ## G. Guide
 
@@ -162,7 +169,7 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
 
 ## S. Probe
 
-### S81. Does Claude Code reload the tool list? (sonnet) — code
+### S81. Does Claude Code reload the tool list? (sonnet) — code — **done**
 
 - **Touches:** new `bench/agents/probes/list_changed.py`; this plan (Decision 8 added, M81's step 3 settled).
 - **Read:** the `mcp` package's low-level server: `grep -rn "list_changed\|tools_changed\|send_tool_list_changed"
@@ -201,8 +208,9 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
    disjoint and inside `BY_TOOL`.
 2. Per server session a `listed: set[str]` starting with `CORE`; `list_tools` returns those plus `tools_more` (schema:
    `family`, one of the four, with a one-line description each).
-3. `tools_more`: add the family, send the notification through the request context's session, answer
-   `{"kind": "tools", "added": [...]}`; if Decision 8 says the client does not reload, answer per Decision 6 instead.
+3. `tools_more`: add the family and send the notification through the request context's session
+   (`ctx.session.send_tool_list_changed()`), answer `{"kind": "tools", "added": [...]}`; Decision 8 says Claude Code
+   does not reload, so the answer also carries the Decision 6 hint (the `agent: {mcp_tools: all}` line for the user).
 4. `INSTRUCTIONS`: one sentence on `tools_more`; the `view_*` sentence says to call `tools_more views` first.
 5. `08-cli-mcp.md` § Tools: core, families, `tools_more`, the 3.5k-token budget (replacing "about 35 small tools …
    under about 6k tokens").
