@@ -32,8 +32,6 @@ FILES = """The runs are plain files in `runs/<group>/<run id>/`; groups nest as 
   metric was not logged at that step.
 - `output.log`: the run's captured output; its last line tells how the run ended. There is no
   status file.
-- `record/<group>/`: the researchers' proposals (with predictions), notes and memory, where there
-  are any.
 """
 
 TENSORBOARD = """The runs are TensorBoard logs in `tb/<group>/<run id>/`; groups nest as folders.
@@ -43,8 +41,11 @@ TENSORBOARD = """The runs are TensorBoard logs in `tb/<group>/<run id>/`; groups
 - `hparams.yaml`: the run's config as logged, nested.
 - `output.log`: the run's captured output; its last line tells how the run ended. There is no
   status file.
-- `record/<group>/`: the researchers' proposals (with predictions), notes and memory, where there
-  are any.
+"""
+
+# only data sets with a record get this line, so the `s` sessions keep the text of L72.
+RECORD_LINE = """- `record/<group>/`, next to `{top}/`: the researchers' proposals (with predictions), notes and
+  memory, where there are any.
 """
 
 
@@ -169,7 +170,10 @@ def prepare(setup: str, session_dir: Path, data_dir: Path, envs: Envs) -> Projec
             export(envs, "export_tensorboard", logdir, root)
         case _:
             raise ValueError(f"unknown data {spec.data!r}")
-    project.claude_md.write_text(f"{PREAMBLE}\n## Data\n\n{spec.section}")
+    section = spec.section
+    if (root / "record").is_dir():
+        section += RECORD_LINE.format(top="runs" if spec.data == "files" else "tb")
+    project.claude_md.write_text(f"{PREAMBLE}\n## Data\n\n{section}")
 
     # a host BEAMTIME_LOGDIR and the like would redirect the CLI and MCP setups.
     env = {k: v for k, v in os.environ.items() if not k.startswith("BEAMTIME_")}

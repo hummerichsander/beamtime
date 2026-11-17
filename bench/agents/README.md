@@ -221,7 +221,8 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   counted, `lion-beats-adamw` goes from inconclusive to confirmed and `sgd-under` from confirmed to
   inconclusive; the other two stay confirmed. `formats.export_record` copies every `proposal/`, `notes/` and
   `memory/` folder outside runs to `record/<group>/…` (the project memory to `record/memory/`) in the files and
-  TensorBoard exports; the `s` data set has no record, so its exports have none.
+  TensorBoard exports, and only then do their CLAUDE.md sections name `record/`; the `s` data set has no
+  record, so its exports and texts are as before.
 - `compare/sessions.py`: `uv run python bench/agents/compare/sessions.py [--setups ...] [--tasks ...]
   [--seeds 7 8 9] [--reps 1] [--parallel 3] [--model sonnet] [--keep] [--dry-run] [--grade-only BATCH]`.
   `--dry-run` lists the 96 sessions (8 tasks x 4 setups x 3 seeds, in a fixed shuffled order) with their

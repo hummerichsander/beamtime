@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from beamtime.format.authored import read_markdown_doc
 from beamtime.format.tree import iter_runs
@@ -362,8 +363,6 @@ def yaml_predictions(proposal: Path) -> list[dict[str, Any]]:
 
     :param proposal: The proposal file.
     :return: One dict per prediction."""
-    import yaml
-
     return yaml.safe_load(proposal.read_text())["predictions"]
 
 
@@ -372,12 +371,12 @@ def test_note_before_second_batch(study: Path) -> None:
     seeds 3 to 5 started."""
     (note,) = (study / "notes").iterdir()
     runs = sorted(iter_runs(study))
-    first, second = (r for r in runs if seed_of(r) < 3), [r for r in runs if seed_of(r) >= 3]
+    first = [r for r in runs if seed_of(r) < 3]
+    second = [r for r in runs if seed_of(r) >= 3]
     when = stamp_of(note.stem)
 
-    assert max(ended(r) for r in (r for r in runs if seed_of(r) < 3)) < when
-    assert when < min(started(r) for r in second)
-    assert first
+    assert len(first) == len(second) == 9
+    assert max(ended(r) for r in first) < when < min(started(r) for r in second)
 
 
 def test_note_and_memory_state_the_verdicts(study: Path, made: tuple[Path, Manifest, int]) -> None:

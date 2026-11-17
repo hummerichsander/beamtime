@@ -104,6 +104,19 @@ def test_claude_md(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
     assert len(set(tail.values())) == 3
     assert "beamtime" in tail["mcp"] and "beamtime" not in tail["files"].lower()
     assert "numpy, pandas, scipy and\nmatplotlib" in head["files"]
+    assert "record/" not in tail["files"] and "record/" not in tail["tensorboard"]
+
+
+def test_claude_md_names_a_record(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
+    """A data set with a record exports it and names ``record/`` in the files section."""
+    with_record = tmp_path / "data"
+    shutil.copytree(data_dir, with_record)
+    (with_record / "beamtime" / "study" / "proposal").mkdir(parents=True)
+    (with_record / "beamtime" / "study" / "proposal" / "p.yaml").write_text("schema: 1\n")
+    project = prepare("files", tmp_path, with_record, envs)
+
+    assert (project.root / "record" / "study" / "proposal" / "p.yaml").is_file()
+    assert "- `record/<group>/`, next to `runs/`:" in project.claude_md.read_text()
 
 
 def test_tools_and_mcp(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:

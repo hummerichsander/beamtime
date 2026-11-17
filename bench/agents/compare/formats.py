@@ -46,6 +46,8 @@ def export_runs(logdir: Path) -> Iterator[ExportRun]:
 def export_files(logdir: Path, dest: Path) -> int:
     """Write ``dest/runs/<group>/<run id>/{config.json, metrics.csv, output.log}`` per run.
 
+    The research record goes to ``dest/record/`` (``export_record``).
+
     :param logdir: The log dir.
     :param dest: The folder that will hold ``runs/``.
     :return: The number of runs written."""
@@ -80,7 +82,8 @@ def export_tensorboard(logdir: Path, dest: Path) -> int:
     """Write ``dest/tb/<group>/<run id>/{events, hparams.yaml, output.log}`` per run.
 
     The event file holds one scalar event per logged value (step and wall time as logged) and one
-    hparams event with the flattened config; ``hparams.yaml`` keeps the config nested.
+    hparams event with the flattened config; ``hparams.yaml`` keeps the config nested. The research
+    record goes to ``dest/record/`` (``export_record``).
 
     :param logdir: The log dir.
     :param dest: The folder that will hold ``tb/``.
