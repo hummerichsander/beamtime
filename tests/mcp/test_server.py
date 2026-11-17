@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -16,7 +17,7 @@ pytest.importorskip("mcp")
 from mcp.client.session import ClientSession  # noqa: E402
 from mcp.client.stdio import StdioServerParameters, stdio_client  # noqa: E402
 
-from beamtime.mcp.server import CORE, FAMILIES, build, content, slim  # noqa: E402
+from beamtime.mcp.server import CORE, FAMILIES, PROMPTS, build, content, slim  # noqa: E402
 
 BEAMTIME = Path(sys.executable).parent / ("beamtime.exe" if sys.platform == "win32" else "beamtime")
 
@@ -104,6 +105,14 @@ def test_tools_match_the_registry(project: Path) -> None:
     assert before == after
     assert all(t.input_schema["type"] == "object" for t in before)
     assert not any(name in CORE for name in FAMILIES["views"])
+
+
+def test_prompts_reach_family_tools_through_tools_more() -> None:
+    """A prompt that names a family tool says it is called through ``tools_more``."""
+    members = {name for names in FAMILIES.values() for name in names}
+    for name, (_, _, body) in PROMPTS.items():
+        if members & set(re.findall(r"`(\w+)`", body)):
+            assert "tools_more" in body, name
 
 
 def test_tool_definitions_under_3500_tokens(project: Path) -> None:
@@ -321,7 +330,16 @@ def test_arguments_sent_as_json_text_are_decoded_once() -> None:
         series,
         {"points": '"all"', "y": '["val/acc"]', "x": "_step", "band": '"std"', "from": "scaling"},
     )
-    assert got == {"points": "all", "y": ["val/acc"], "x": "_step", "band": "std", "from": "scaling"}
+    assert got == {
+        "points": "all",
+        "y": ["val/acc"],
+        "x": "_step",
+        "band": "std",
+        "from": "scaling",
+    }
     assert decoded(series, {"points": "500"}) == {"points": 500}
     note = BY_NAME["note add"]
-    assert decoded(note, {"body": '"quoted"', "group": "[1]"}) == {"body": '"quoted"', "group": "[1]"}
+    assert decoded(note, {"body": '"quoted"', "group": "[1]"}) == {
+        "body": '"quoted"',
+        "group": "[1]",
+    }

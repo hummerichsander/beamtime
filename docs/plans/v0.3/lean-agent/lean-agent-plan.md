@@ -95,7 +95,7 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
    no longer read by default.
 3. **MCP tool names work on the CLI** (your decision): an alias at parse time, not new subcommands, so `--help` and
    `cli.md` do not grow.
-4. **Core set plus `tools_more` by family** (your decision; reached through the dispatcher, Decision 6): families views (8 `view_*`), blocks (7 `block_*`), runs
+4. **Core set plus `tools_more` by family** (your decision; reached through the dispatcher, Decision 6): families views (8 `view_*`), blocks (6 `block_*`; `block export` and `block import` are user-only), runs
    (`wait`, `resume`, `output`, `file`, `timeline`, `digest`, `plan_missing`, `name`), export (`export`, `cp`).
    Rejected: one switch for all (a view task would also pay for blocks and run tools); a static core only (views would
    become unreachable over MCP).

@@ -223,7 +223,8 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
             """Review what happened in Beamtime group {group} since {since}. Use
             `timeline` (from, since) for events and notes, `runs` sorted by
             -run.created_at for new runs with their key metrics, and `card` plus
-            `output` (tail) for every failed, killed or lost run. Report what ran,
+            `output` (tail) for every failed, killed or lost run; `timeline` and `output`
+            are called through `tools_more`. Report what ran,
             what finished, what failed and why, which curves look off, and what to do
             next. Be concise; cite run ids."""
         ),
@@ -234,10 +235,10 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
         text(
             """Find out why Beamtime run {run} failed or misbehaved. Read `guide analysis`
             first, then its `card`
-            (status, error, warnings, recent events), its `output` (tail 80, then grep
-            for Error|Traceback|nan if needed) and the `series` of its loss near the
-            end. Name the cause, the evidence and a fix. If the run is still running,
-            say so and check `status` for freshness."""
+            (status, error, warnings, recent events), its `output` through `tools_more`
+            (tail 80, then grep for Error|Traceback|nan if needed) and the `series` of
+            its loss near the end. Name the cause, the evidence and a fix. If the run is
+            still running, say so and check `status` for freshness."""
         ),
     ),
     "compare": (
@@ -285,10 +286,11 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
             and `check` {group}: each prediction's result, effect, interval and points, and
             whether the result is provisional (plan not complete). Look at the evidence:
             `runs` with the predicted metrics, `series` of the key curves, and `card` plus
-            `output` of failed runs. Judge every prediction as confirmed, refuted or
-            inconclusive. Follow the check unless you have a reason not to, and if you
-            disagree, say why in the body. Never claim more than the check supports:
-            `insufficient`, `inconclusive` and provisional results stay that way. Write
+            `output` (through `tools_more`) of failed runs. Judge every prediction as
+            confirmed, refuted or inconclusive. Follow the check unless you have a reason
+            not to, and if you disagree, say why in the body. Never claim more than the
+            check supports: `insufficient`, `inconclusive` and provisional results stay
+            that way. Write
             the note with `note_add` (type verdict, proposal = the version, verdict per
             prediction, overall, a one-line description, evidence with run ids and
             group#prediction links, author); the check snapshot is added automatically.

@@ -288,7 +288,7 @@ Decided while building the CLI and MCP server (milestone M3):
 - **MCP answers** are the canonical answer as compact JSON, with `null` meta fields dropped; operation
   errors are tool errors with the same message, so agents can correct themselves. Parameters that
   agents can't guess (`where`, `select`, `sort`, `seeds`, `y`, `x`, `steps`, `query`) carry short
-  descriptions; all tool definitions together are about 2k tokens.
+  descriptions; the listed definitions stay under 3.5k tokens (§ Tools).
 - **Prompts in M3**: `review`, `debug` and `compare`, which need only reading. M4 adds `proposal`,
   `verdict` and `memory`; `view` and `report` follow with the milestones that add their tools.
 - **Two-word commands** (`note add`, `proposal show`, `proposal set`, `memory show`,
@@ -328,6 +328,6 @@ Decided while building the CLI and MCP server (milestone M3):
   exist only in the CLI and are never run by agents.
 - Compact text output, identical in terminals and pipes; `--json` for the canonical answer. Exit codes
   distinguish errors, usage, validation failures and missing items.
-- MCP over stdio (`beamtime mcp`, also over ssh), with about 35 small tools, nine prompts, and token
+- MCP over stdio (`beamtime mcp`, also over ssh), with 19 core tools plus `tools_more` for the rest, nine prompts, and token
   budgets with cursors.
 - `beamtime setup`, `demo`, `doctor` and `mcp install` cover onboarding.
