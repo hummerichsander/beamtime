@@ -10,7 +10,7 @@ tools, so check a block's data with them before writing it.
 |---|---|
 | `run.name`, `run.id`, `run.status`, `run.group`, `run.created_at` (or `run.started`), `run.tags` | the run |
 | `config.<key>` | a config value, e.g. `config.lr`, `config.model.depth` |
-| `metric.<key>.<stat>` | a statistic of a metric's curve: `last`, `min`, `max`, `mean`, `first`, `count` (`metric.<key>` alone is `last`); over a step window `metric.val/loss.mean[0:1000]`; `metric.<key>.nonfinite_step` is the first step with a NaN or infinity, `metric.<key>.rise_step:<k>` the first step above k times the lowest value before it (or non-finite; `rise_step` alone is k = 10), both empty when it never happens |
+| `metric.<key>.<stat>` | a statistic of a metric's curve: `last`, `min`, `max`, `mean`, `first`, `count` (`metric.<key>` alone is `last`); over a step window `metric.val/loss.mean[0:1000]`; `metric.<key>.nonfinite_step` is the first step with a NaN or infinity, `metric.<key>.rise_step:<k>` the first step above k times the lowest value before it (or non-finite; `rise_step` alone is k = 10), both empty when it never happens; `metric.<a>[<b>.<step stat>]` is `a` at the step `b.<step stat>` of the same run (`min_step`, `max_step`, `last_step`, `nonfinite_step`, `rise_step:<k>`), e.g. `metric.train/loss[val/loss.min_step]` |
 | `value.<key>` | a summary value logged once, e.g. `value.test/acc` |
 
 Metric keys (`val/loss`) are used where a block plots a curve over steps (`line.y`,

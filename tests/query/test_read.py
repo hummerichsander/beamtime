@@ -271,3 +271,13 @@ def test_rise_flat() -> None:
 def test_rise_negative_min() -> None:
     """With a negative lowest value k times it is below it, so any later value above that rises."""
     assert rise_step([0, 1, 2], [-2.0, -2.0, -1.0], 10) == 1
+
+
+def test_value_at_is_the_last_value_at_or_before_the_step() -> None:
+    """A step with a point gives it; a step between points the earlier one; none before the first."""
+    steps, values = [10, 20, 40], [1.0, 2.0, 4.0]
+    assert value_at(steps, values, 20) == 2.0
+    assert value_at(steps, values, 30) == 2.0
+    assert value_at(steps, values, 99) == 4.0
+    assert value_at(steps, values, 9) is None
+    assert value_at([], [], 5) is None

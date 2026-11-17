@@ -26,6 +26,8 @@ STATS = (
 )
 # statistics the run card doesn't hold: they are computed from the columns, like windows.
 SERIES_STATS = ("nonfinite_step", "rise_step")
+# the statistics that are a step, so a metric can be read at it: ``metric.<a>[<b>.<step stat>]``.
+STEP_STATS = ("min_step", "max_step", "last_step", *SERIES_STATS)
 RISE_DEFAULT = 10.0
 WINDOW_STATS = ("first", "last", "min", "max", "mean", "count")
 
@@ -95,6 +97,7 @@ RUN_ALIASES = {
 }
 
 _WINDOW = re.compile(r"\[(-?\d*):(-?\d*)\]$")
+_REF = re.compile(r"\[([^\[\]]+)\]$")
 _RISE = re.compile(r"(.+)\.rise_step(?::(.*))?")
 _CONFIG_PART = re.compile(r'\.([^.\[\]"]+)|\["([^"]+)"\]')
 _CONFIG = re.compile(r'(?:\.[^.\[\]"]+|\["[^"]+"\])+')
@@ -102,7 +105,7 @@ _CONFIG = re.compile(r'(?:\.[^.\[\]"]+|\["[^"]+"\])+')
 
 @dataclass(frozen=True)
 class Field:
-    """A parsed field such as ``metric.val/acc.mean[1000:2000]``."""
+    """A parsed field such as ``metric.val/acc.mean[1000:2000]`` or ``metric.a[b.min_step]``."""
 
     text: str
     ns: str
@@ -110,6 +113,7 @@ class Field:
     stat: str | None = None
     window: tuple[int | None, int | None] | None = None
     arg: float | None = None
+    ref: "Field | None" = None
 
     @property
     def key(self) -> str:
@@ -163,9 +167,12 @@ def parse_field(text: str) -> Field:
             return Field(text=text, ns="config", path=parts)
         case "metric":
             body = rest[1:]
-            window = None
+            window = ref = None
             if m := _WINDOW.search(body):
                 window = (int(m[1]) if m[1] else None, int(m[2]) if m[2] else None)
+                body = body[: m.start()]
+            elif m := _REF.search(body):
+                ref = step_reference(text, m[1])
                 body = body[: m.start()]
             arg = None
             if rise := _RISE.fullmatch(body):
@@ -182,7 +189,11 @@ def parse_field(text: str) -> Field:
                 )
             if window is not None and stat not in WINDOW_STATS:
                 raise QueryError(f"{text!r}: windowed statistics are {', '.join(WINDOW_STATS)}")
-            return Field(text=text, ns="metric", path=(key,), stat=stat, window=window, arg=arg)
+            if ref is not None and stat != "last":
+                raise QueryError(f"{text!r}: a metric read at a step takes no statistic of its own")
+            return Field(
+                text=text, ns="metric", path=(key,), stat=stat, window=window, arg=arg, ref=ref
+            )
         case "value":
             if not rest[1:]:
                 raise QueryError(f"{text!r} names no value key, e.g. value.test/acc")
@@ -199,6 +210,22 @@ def parse_field(text: str) -> Field:
                 f"unknown field {text!r}: fields start with run., config., metric., "
                 "value. or proposal."
             )
+
+
+def step_reference(text: str, body: str) -> "Field":
+    """Parse the step of ``metric.<a>[<b>.<step stat>]``.
+
+    :param text: The field text, for the error.
+    :param body: What is inside the brackets, e.g. ``val/loss.min_step``.
+    :return: The step field."""
+    ref = parse_field(f"metric.{body}")
+    if ref.window is not None or ref.ref is not None or ref.stat not in STEP_STATS:
+        raise QueryError(
+            f"{text!r}: inside [ ] a metric is read at a step statistic of another, "
+            f"metric.<a>[<b>.<step stat>]; step stats: {', '.join(STEP_STATS)} "
+            "(rise_step:<k> takes a factor)"
+        )
+    return ref
 
 
 def rise_factor(text: str, arg: str | None) -> float:
@@ -258,7 +285,7 @@ def sql(field: Field) -> str | None:
         case "config":
             return f"json_extract(config, '{json_path(field.path)}')"
         case "metric":
-            if field.window is not None or field.stat in SERIES_STATS:
+            if field.window is not None or field.ref is not None or field.stat in SERIES_STATS:
                 return None
             return f"json_extract(card, '{json_path(('metrics', field.key, field.stat))}')"
         case "value":

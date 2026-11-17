@@ -250,6 +250,17 @@ fields its own step. A `k` that is not a positive number is an error naming the 
 any other, in `select`, `where`, `sort` and `to`: `metric.train/loss.rise_step:10` finds where a run
 diverges without exporting its curve.
 
+A **step-reference window** reads one metric at a step of another: `metric.<a>[<b>.<s>]`, with `s` one of
+`min_step`, `max_step`, `last_step`, `nonfinite_step` or `rise_step:<k>`. Its value is the value of `a`
+logged at that step of the same run, or the last value of `a` before it when `a` has no point there (the
+columns' sorted steps are bisected); it is `null` when the step is `null`, when `a` has no point at or
+before it, when the run has no `a` or `b`, and when the value is NaN or infinite (answers carry no
+non-finite numbers). The reference takes no statistic of its own (`metric.a.mean[b.min_step]` is an error), and
+a reference to a statistic that is not a step (`[val/loss.min]`) is an error naming the step statistics. It is
+a field like any other, computed from the columns like the series steps: `metric.train/loss[val/loss.min_step]`
+is the training loss at each run's best validation step, next to `metric.val/loss.min_step` itself. A numeric
+window (`[1000:2000]`) is unchanged; the two forms differ in what stands inside the brackets.
+
 `run.created_at` is when the run first started (`init` writes it together with the first attempt's
 `started_at`; a resumed run keeps it), so `run.started` is accepted as the same field. It resolves
 to `run.created_at`, and a column shows the name as typed.

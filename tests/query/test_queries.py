@@ -267,6 +267,118 @@ def test_rise_step_parses_decimals_and_refuses_windows() -> None:
         parse_field("metric.loss.rise_step:3[0:10]")
 
 
+def last_at(series: list[tuple[int, float]], step: int | None) -> float | None:
+    """Brute force: the value logged at a step, or the last one before it.
+
+    :param series: ``(step, value)`` in file order.
+    :param step: The step.
+    :return: The value, or ``None``."""
+    before = [v for s, v in series if step is not None and s <= step]
+    return before[-1] if before else None
+
+
+def test_ref_reads_a_metric_at_a_step_of_another(ask, logdir) -> None:
+    """metric.a[b.min_step] is a's value at b's best step; a bare step stat shows the step."""
+    best = "metric.val/acc.max_step"
+    ref = "metric.train/loss[val/acc.max_step]"
+    rows = table(ask({"runs": {"from": "scaling/lr-sweep", "select": ["run.id", best, ref]}}))
+    assert rows
+    for row in rows:
+        train = brute_series(logdir, row["run.id"], "train/loss")
+        acc = brute_series(logdir, row["run.id"], "val/acc")
+        step = max(acc, key=lambda p: p[1])[0]
+        assert row[best] == step
+        assert row[ref] == dict(train)[step]
+    only = table(ask({"runs": {"from": "scaling/lr-sweep", "select": ["run.id", ref]}}))
+    assert {r["run.id"]: r[ref] for r in only} == {r["run.id"]: r[ref] for r in rows}
+
+
+def test_ref_between_points(ask, logdir) -> None:
+    """val/acc is logged every 50 steps; at another step the last point before it counts."""
+    ref = "metric.val/acc[train/loss.min_step]"
+    rows = table(ask({"runs": {"from": "scaling/lr-sweep", "select": ["run.id", ref]}}))
+    assert rows
+    off_grid = 0
+    for row in rows:
+        loss = brute_series(logdir, row["run.id"], "train/loss")
+        acc = brute_series(logdir, row["run.id"], "val/acc")
+        step = min(loss, key=lambda p: p[1])[0]
+        off_grid += step not in dict(acc)
+        assert row[ref] == last_at(acc, step)
+    assert off_grid
+
+
+def test_ref_to_the_series_steps(ask, logdir) -> None:
+    """A reference may be nonfinite_step or rise_step:<k>, computed from the columns."""
+    fields = [
+        "metric.train/loss[train/loss.nonfinite_step]",
+        "metric.val/acc[train/loss.rise_step:10]",
+    ]
+    rows = table(ask({"runs": {"from": "scaling/lr-sweep", "select": ["run.id", *fields]}}))
+    for row in rows:
+        loss = brute_series(logdir, row["run.id"], "train/loss")
+        acc = brute_series(logdir, row["run.id"], "val/acc")
+        bad = next((s for s, v in loss if not math.isfinite(v)), None)
+        got = row[fields[0]]
+        want = last_at(loss, bad)
+        assert got == (want if want is None or math.isfinite(want) else None)
+        lowest, rise = math.inf, None
+        for s, v in loss:
+            if not math.isfinite(v) or v > 10 * lowest:
+                rise = s
+                break
+            lowest = min(lowest, v)
+        assert row[fields[1]] == last_at(acc, rise)
+
+
+def test_ref_missing_metric(ask, logdir) -> None:
+    """A run without the referenced metric, or without a, gets None."""
+    ref = "metric.train/loss[val/ppl.min_step]"
+    back = "metric.val/ppl[train/loss.min_step]"
+    rows = table(ask({"runs": {"from": ".", "select": ["run.id", ref, back]}}))
+    with_ppl = {r["run.id"] for r in rows if r[back] is not None}
+    assert with_ppl and len(with_ppl) < len(rows)
+    for row in rows:
+        assert (row[ref] is not None) == (row["run.id"] in with_ppl)
+
+
+def test_ref_in_where_and_sort_leaves_no_hidden_column(ask, logdir) -> None:
+    """The window filters and sorts like any field; the step it reads is not an extra column."""
+    ref = "metric.val/acc[train/loss.min_step]"
+    a = ask(
+        {
+            "runs": {
+                "from": "scaling/lr-sweep",
+                "select": ["run.id", ref],
+                "where": {ref: {"gt": 0}},
+                "sort": [f"-{ref}"],
+            }
+        }
+    )
+    values = [r[ref] for r in table(a)]
+    assert values and values == sorted(values, reverse=True)
+    assert a["columns"] == ["run.id", ref]
+
+
+@pytest.mark.parametrize("bad", ["val/acc.max", "val/acc", "val/acc.max_step:3"])
+def test_ref_needs_a_step_stat(bad: str) -> None:
+    """A reference to a statistic that is not a step is an error naming the step stats."""
+    with pytest.raises(QueryError, match=r"min_step, max_step, last_step, nonfinite_step"):
+        parse_field(f"metric.train/loss[{bad}]")
+
+
+def test_ref_parses_and_takes_no_statistic() -> None:
+    """The window keeps the metric as key, the step as ref; numeric windows are unchanged."""
+    f = parse_field("metric.train/loss[val/acc.rise_step:2.5]")
+    assert (f.key, f.stat, f.window) == ("train/loss", "last", None)
+    assert (f.ref.key, f.ref.stat, f.ref.arg) == ("val/acc", "rise_step", 2.5)
+    assert parse_field("metric.a.b.last[a.b.min_step]").key == "a.b"
+    with pytest.raises(QueryError, match="takes no statistic"):
+        parse_field("metric.train/loss.mean[val/acc.min_step]")
+    g = parse_field("metric.train/loss.mean[10:20]")
+    assert (g.window, g.ref) == ((10, 20), None)
+
+
 def test_keys(ask) -> None:
     """keys lists metrics, config keys, data keys, tags and statuses."""
     a = ask({"keys": {"from": "."}})

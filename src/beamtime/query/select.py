@@ -3,6 +3,7 @@
 The research record builds on this module (its checks select runs with ``select_runs``); the
 ``proposal.*`` fields in turn need the record's status, so ``research`` imports it at call time."""
 
+import math
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -13,7 +14,7 @@ from beamtime.index.store import in_scope
 from beamtime.query import models as m
 from beamtime.query.fields import SERIES_STATS, Field, decode_cell, parse_field, sql
 from beamtime.query.models import QueryError, closest
-from beamtime.query.read import nonfinite_step, rise_step, window_stat
+from beamtime.query.read import nonfinite_step, rise_step, value_at, window_stat
 from beamtime.query.resolve import resolve
 from beamtime.query.where import fields_of, matches, number
 
@@ -205,8 +206,10 @@ def select_runs(
         and the parsed fields."""
     texts = list(dict.fromkeys([*fields_of(sel.where), *extra]))
     fields = [parse_field(t) for t in texts]
-    check_known(ctx, fields)
-    exprs = [(f, e) for f in fields if (e := sql(f)) is not None]
+    # the steps a window refers to are fetched like fields but not part of the answer.
+    steps = [r for f in fields if (r := f.ref) is not None and r not in fields]
+    check_known(ctx, [*fields, *steps])
+    exprs = [(f, e) for f in [*fields, *steps] if (e := sql(f)) is not None]
     whole = "config" if config else "NULL"
     cols = ", ".join(["id", "path", "status", "heartbeat", whole, *[e for _, e in exprs]])
     cond, params = scope_condition(ctx, sel.depth)
@@ -216,7 +219,7 @@ def select_runs(
     rows = ctx.index.store.db.execute(
         f"SELECT {cols} FROM runs WHERE {cond}{pre}", [*params, *pre_params]
     ).fetchall()
-    windowed = [f for f in fields if f.window is not None or f.stat in SERIES_STATS]
+    windowed = [f for f in fields if f.window is not None or f.ref or f.stat in SERIES_STATS]
     proposal = [f for f in fields if f.ns == "proposal"]
     out = []
     for row in rows:
@@ -232,21 +235,32 @@ def select_runs(
         if windowed:
             cols_ = Columns(index=ctx.index, run_id=row[0], ingested=ctx.ingested)
             for f in windowed:
-                values[f.text] = series_field(f, cols_.get(f.key))
+                values[f.text] = series_field(f, cols_, values)
             cols_.close()
+        for r in steps:
+            values.pop(r.text, None)
         if matches(sel.where, values):
             out.append(values)
     return out, fields
 
 
-def series_field(f: Field, col: Column | None) -> Any:
-    """Compute a field that reads a metric's column: a windowed statistic or a step.
+def series_field(f: Field, cols: Columns, values: dict[str, Any]) -> Any:
+    """Compute a field that reads a metric's column: a window, a step or a value at a step.
 
     :param f: The field.
-    :param col: The metric's column, or ``None`` if the run has none.
+    :param cols: The run's columns.
+    :param values: The run's SQL-backed field values, which hold the card's steps.
     :return: The value, or ``None`` without a column."""
-    if col is None:
+    if (col := cols.get(f.key)) is None:
         return None
+    if f.ref is not None:
+        if f.ref.stat in SERIES_STATS:
+            step = series_field(f.ref, cols, values)
+        else:
+            step = values[f.ref.text]
+        value = None if step is None else value_at(col.steps, col.values, step)
+        # answers carry no NaN or infinity (not JSON), so a non-finite value reads as empty.
+        return value if value is not None and math.isfinite(value) else None
     match f.stat:
         case "nonfinite_step":
             return nonfinite_step(col.steps, col.values) if col.nonfinite else None

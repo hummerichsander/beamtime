@@ -247,7 +247,7 @@ The tickets run in this order: E91 E92 E93 E95 E96 E97 E98 E99 E94 X91.
 3. `select_runs`: compute these fields from `Columns` (with E91's ingest).
 4. Spec, `src/beamtime/guide/parts/queries.md` field table, CHANGELOG.
 
-### E98. Step-reference windows (sonnet + review) — real data
+### E98. Step-reference windows (sonnet + review) — real data — **done**
 
 - **Touches:** `src/beamtime/query/fields.py` (`parse_field`, `Field.window`), `src/beamtime/query/read.py`
   (new `value_at`), `src/beamtime/query/select.py` (`select_runs`), `docs/design/03-index.md` § Fields,

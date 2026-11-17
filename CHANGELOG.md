@@ -13,6 +13,10 @@
   `metric.<key>.rise_step:<k>` (the first step above k times the lowest finite value before it, or non-finite;
   `rise_step` alone is k = 10), usable in `select`, `where`, `sort` and `to`; they are empty for a run where it
   never happens, and `rise_step:0` or `rise_step:x` is an error naming the form.
+- **Added** step-reference windows: `metric.<a>[<b>.<step stat>]` (step stats `min_step`, `max_step`, `last_step`,
+  `nonfinite_step`, `rise_step:<k>`) is the value of `a` at that step of the same run, or its last value before
+  it, e.g. `metric.train/loss[val/loss.min_step]` for the training loss at the best validation step; empty without
+  a step, a point or a metric. Numeric windows `[10:20]` work as before.
 - **Changed** the error for a group given as `note add` evidence shows an example of each form, built from the
   group, and lists the group's prediction names.
 - **Changed** `status` answers the root memory's text with its version (`memory: {version, notes_since, text}`), and
