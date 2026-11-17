@@ -157,6 +157,7 @@ def test_instructions_name_the_where_ops() -> None:
     assert "ops eq ne lt le gt ge in nin has exists glob" in INSTRUCTIONS
     assert "Start a work session with `status`" in INSTRUCTIONS
     assert "metric.a.nonfinite_step" in INSTRUCTIONS
+    assert "`memory_show`" not in INSTRUCTIONS
     where = schema(BY_TOOL["runs"])["properties"]["where"]
     assert where["description"] == "see instructions: where"
 

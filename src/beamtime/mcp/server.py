@@ -58,7 +58,7 @@ def instructions(mcp_tools: str = "core") -> str:
     return (
         "Beamtime records ML experiments as runs in groups below a log dir. Start a "
         "work session with `status`; for a question about data use the narrowest tool. "
-        "Before designing an experiment read `memory_show`; before a launch write the "
+        "Before designing an experiment read the memory in `status`; before a launch write the "
         "proposal with `proposal_set`; judge results with `check` and a verdict note "
         "(`note_add`), never claiming more than the check says. Writes are additive and pass "
         "`author` (your model id). Answers are cut at about 8k tokens; pass `cursor` from "
