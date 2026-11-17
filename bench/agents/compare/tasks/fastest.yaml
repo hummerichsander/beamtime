@@ -1,10 +1,13 @@
 prompt: >
-  Which learning rate in scaling/lr-sweep first reaches a val/acc of 0.85 in the fewest steps? For
-  each run that finished, take the first step at which its logged val/acc is at least 0.85, average
-  that step over the runs of a learning rate, and name the learning rate with the lowest average.
-  Give that average step too.
+  The learning-rate sweep ran in two batches, scaling/lr-sweep and later scaling/lr-sweep-2. Which
+  learning rate reaches a validation accuracy of 0.9 in the fewest steps? Count each combination of
+  learning rate and seed once: where it was run more than once, only its most recent run counts,
+  and it is left out if that run did not finish. For each counted run, take the first step at which
+  its logged validation accuracy is at least 0.9, and average that step over the counted runs of a
+  learning rate. A learning rate qualifies only if every one of its counted runs reaches 0.9. Name
+  the qualifying learning rate with the lowest average and give that average step.
 answer: '{"lr": <number>, "step": <number>}'
 time_limit_s: 400
 checks:
   lr: {kind: equal, truth: lr}
-  step: {kind: close, truth: step, rel: 0.1}
+  step: {kind: close, truth: step, rel: 0.01}

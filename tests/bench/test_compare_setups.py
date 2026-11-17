@@ -74,9 +74,9 @@ def test_data_per_setup(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> No
     files = prepare("files", tmp_path, data_dir, envs)
 
     assert (mcp.root / "beamtime.yaml").is_file()
-    assert len(list((mcp.root / "beamtime").rglob("_run.json"))) == 47
+    assert len(list((mcp.root / "beamtime").rglob("_run.json"))) == 61
     assert not list(mcp.root.rglob("_synth.json"))
-    assert len(list((files.root / "runs").rglob("metrics.csv"))) == 47
+    assert len(list((files.root / "runs").rglob("metrics.csv"))) == 61
     assert not (files.root / "beamtime").exists()
 
 
@@ -85,7 +85,7 @@ def test_tensorboard_data(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> 
     pytest.importorskip("tensorboard")
     project = prepare("tensorboard", tmp_path, data_dir, envs)
 
-    assert len(list((project.root / "tb").rglob("hparams.yaml"))) == 47
+    assert len(list((project.root / "tb").rglob("hparams.yaml"))) == 61
     assert list((project.root / "tb").rglob("*tfevents*"))
     assert not (project.root / "beamtime").exists()
 

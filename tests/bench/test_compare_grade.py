@@ -21,39 +21,68 @@ import truth as truth_module  # noqa: E402
 
 NOW = datetime(2026, 10, 26, 12, 0, 0, tzinfo=timezone.utc)
 PNG = b"\x89PNG\r\n\x1a\n" + b"\0" * 16
-IDS = ["20261020-080300-aaaaaaaa", "20261020-081000-bbbbbbbb", "20261020-082000-cccccccc"]
+IDS = [
+    "20261020-080300-aaaaaaaa",
+    "20261020-081000-bbbbbbbb",
+    "20261020-082000-cccccccc",
+    "20261021-090000-dddddddd",
+]
 
 TRUTH: dict[str, dict[str, Any]] = {
     "best-config": {
         "best_lr": 0.0003,
         "runner_up_lr": 0.001,
-        "difference": 0.0079,
-        "ci": [-0.0002, 0.016],
-        "significant": False,
+        "difference": 0.0078,
+        "ci": [0.0019, 0.0137],
+        "significant": True,
     },
     "failures": {
-        "ids": sorted(IDS[:2]),
-        "causes": {IDS[0]: "diverged", IDS[1]: "killed"},
+        "ids": sorted([IDS[0], IDS[1], IDS[3]]),
+        "causes": {IDS[0]: "diverged", IDS[1]: "killed", IDS[3]: "oom"},
+        "reruns": {IDS[0]: None, IDS[1]: IDS[2], IDS[3]: "20261021-091000-eeeeeeee"},
     },
     "sweep-summary": {
-        "per_arm": {"small": 1.0005, "medium": 0.9267, "large": 0.8404},
+        "per_arm": {"small": 1.0164, "medium": 0.9267, "large": 0.9118},
         "best_arm": "large",
         "exclude": [IDS[2]],
+        "per_arm_final": {"small": 1.0005, "medium": 0.9267, "large": 0.8404},
     },
     "check-prediction": {
         "effect": 0.3985,
-        "ci": [0.278, 0.519],
-        "threshold": 0.1,
+        "ci": [0.2734, 0.5236],
+        "seeds": [0, 1, 2],
+        "threshold": 0.2,
         "verdict": "confirmed",
     },
     "chart": {"points": []},
-    "find-runs": {"ids": IDS},
-    "fastest": {"lr": 0.003, "step": 466.67},
+    "find-runs": {"ids": IDS[:3]},
+    "fastest": {"lr": 0.001, "step": 840.0},
     "table": {
         "rows": [
-            {"id": IDS[0], "lr": 3e-05, "seed": 0, "finished": True, "val_acc": 0.871044},
-            {"id": IDS[1], "lr": 0.0003, "seed": 1, "finished": False, "val_acc": 0.5},
-            {"id": IDS[2], "lr": 0.003, "seed": 2, "finished": False, "val_acc": None},
+            {
+                "id": IDS[0],
+                "lr": 3e-05,
+                "seed": 0,
+                "finished": True,
+                "superseded": False,
+                "val_acc": 0.871044,
+            },
+            {
+                "id": IDS[1],
+                "lr": 0.0003,
+                "seed": 1,
+                "finished": False,
+                "superseded": True,
+                "val_acc": 0.5,
+            },
+            {
+                "id": IDS[2],
+                "lr": 0.003,
+                "seed": 2,
+                "finished": False,
+                "superseded": False,
+                "val_acc": None,
+            },
         ]
     },
 }
@@ -62,24 +91,25 @@ CORRECT: dict[str, dict[str, Any]] = {
     "best-config": {
         "best_lr": 3e-4,
         "runner_up_lr": 1e-3,
-        "difference": 0.008,
-        "significant": False,
+        "difference": 0.0079,
+        "significant": True,
     },
     "failures": {
         "runs": [
-            {"id": IDS[0], "cause": "loss diverged to NaN"},
-            {"id": IDS[1], "cause": "job was killed (SIGTERM)"},
+            {"id": IDS[0], "cause": "loss diverged to NaN", "rerun": None},
+            {"id": IDS[1], "cause": "job was killed (SIGTERM)", "rerun": IDS[2]},
+            {"id": IDS[3], "cause": "CUDA out of memory", "rerun": "20261021-091000-eeeeeeee"},
         ]
     },
     "sweep-summary": {
-        "per_arm": {"small": 1.0, "medium": 0.927, "large": 0.84},
+        "per_arm": {"small": 1.0165, "medium": 0.92672, "large": 0.9119},
         "best_arm": "large",
         "exclude": [IDS[2]],
     },
-    "check-prediction": {"verdict": "confirmed", "effect": 0.4, "ci": [0.28, 0.52]},
+    "check-prediction": {"verdict": "confirmed", "effect": 0.399, "ci": [0.274, 0.523]},
     "chart": {"file": "fig.png"},
-    "find-runs": {"runs": IDS},
-    "fastest": {"lr": 0.003, "step": 470},
+    "find-runs": {"runs": IDS[:3]},
+    "fastest": {"lr": 0.001, "step": 842},
     "table": {"file": "table.csv"},
 }
 
@@ -87,32 +117,31 @@ WRONG: dict[str, dict[str, Any]] = {
     "best-config": {
         "best_lr": 1e-3,
         "runner_up_lr": 3e-4,
-        "difference": 0.008,
+        "difference": 0.0015,
         "significant": False,
     },
     "failures": {
         "runs": [
-            {"id": IDS[0], "cause": "loss diverged to NaN"},
-            {"id": IDS[1], "cause": "job was killed (SIGTERM)"},
-            {"id": IDS[2], "cause": "still running"},
+            {"id": IDS[0], "cause": "loss diverged to NaN", "rerun": None},
+            {"id": IDS[1], "cause": "job was killed (SIGTERM)", "rerun": None},
         ]
     },
     "sweep-summary": {
-        "per_arm": {"small": 1.0, "medium": 0.927, "large": 0.84},
+        "per_arm": {"small": 1.0005, "medium": 0.9267, "large": 0.8404},
         "best_arm": "large",
-        "exclude": [],
+        "exclude": [IDS[2]],
     },
-    "check-prediction": {"verdict": "inconclusive", "effect": 0.4, "ci": [0.28, 0.52]},
+    "check-prediction": {"verdict": "confirmed", "effect": 0.4024, "ci": [0.2934, 0.5115]},
     "chart": {},
     "find-runs": {"runs": IDS[:2] + ["20261020-099999-dddddddd"]},
-    "fastest": {"lr": 0.001, "step": 550},
+    "fastest": {"lr": 0.003, "step": 480},
     "table": {"file": "table.csv"},
 }
 
-TABLE = """run_id,lr,seed,finished,val_acc
-{a},3e-05,0,yes,0.871044
-{b},0.0003,1,no,0.5
-{c},0.003,2,no,
+TABLE = """run_id,lr,seed,finished,superseded,val_acc
+{a},3e-05,0,yes,no,0.871044
+{b},0.0003,1,no,yes,0.5
+{c},0.003,2,no,no,
 """
 
 
@@ -129,7 +158,7 @@ def reply(answer: dict[str, Any] | None, *, before: str = "Done.") -> str:
 
 @pytest.fixture(autouse=True)
 def judge(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
-    """Stub the judge model: it answers yes to all five chart items and records every call.
+    """Stub the judge model: it answers yes to all seven chart items and records every call.
 
     :param monkeypatch: Replaces ``score.ask``.
     :return: One dict per call with the prompt, the model, the tools and the folder's files."""
@@ -144,7 +173,7 @@ def judge(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
                 "files": sorted(p.name for p in folder.iterdir()),
             }
         )
-        return {"items": [{"item": i, "yes": True, "why": f"ok {i}"} for i in range(1, 6)]}
+        return {"items": [{"item": i, "yes": True, "why": f"ok {i}"} for i in range(1, 8)]}
 
     monkeypatch.setattr(score, "ask", ask)
     return calls
@@ -199,17 +228,22 @@ def test_typical_wrong_answer(tasks: dict[str, grade.Task], project: Path, task_
     """A typical wrong answer scores below 1."""
     if task_id == "table":
         (project / "table.csv").write_text(
-            TABLE.format(a=IDS[0], b=IDS[1], c=IDS[2]).replace("0.0003,1,no", "0.0003,1,yes")
+            TABLE.format(a=IDS[0], b=IDS[1], c=IDS[2]).replace("0.0003,1,no,yes", "0.0003,1,no,no")
         )
     result = grade.grade(tasks[task_id], reply(WRONG[task_id]), TRUTH[task_id], project)
     assert result.score < 1.0 and not result.correct, result.checks
 
 
-def test_counting_the_killed_run(tasks: dict[str, grade.Task], project: Path) -> None:
-    """Listing only the diverged run, or a wrong cause, fails the matching check only."""
-    answer = {"runs": [{"id": IDS[0], "cause": "failed"}, {"id": IDS[1], "cause": "cancelled"}]}
+def test_failure_checks_apart(tasks: dict[str, grade.Task], project: Path) -> None:
+    """A vague cause, or a rerun left out, fails the matching check only."""
+    answer = {"runs": [dict(r) for r in CORRECT["failures"]["runs"]]}
+    answer["runs"][0]["cause"] = "failed"
     result = grade.grade(tasks["failures"], reply(answer), TRUTH["failures"], project)
-    assert result.checks == {"ids": 1.0, "causes": 0.0}
+    assert result.checks == {"ids": 1.0, "causes": 0.0, "reruns": 1.0}
+    answer = {"runs": [dict(r) for r in CORRECT["failures"]["runs"]]}
+    answer["runs"][1]["rerun"] = None
+    result = grade.grade(tasks["failures"], reply(answer), TRUTH["failures"], project)
+    assert result.checks == {"ids": 1.0, "causes": 1.0, "reruns": 0.0}
 
 
 def test_no_block_scores_zero(tasks: dict[str, grade.Task], project: Path) -> None:
@@ -262,7 +296,7 @@ def test_lr_forms(tasks: dict[str, grade.Task], project: Path, lr: Any) -> None:
 )
 def test_id_forms(tasks: dict[str, grade.Task], project: Path, form: str) -> None:
     """A run id with a group prefix or decoration matches the trailing id."""
-    answer = {"runs": [form.format(id=i) for i in IDS]}
+    answer = {"runs": [form.format(id=i) for i in IDS[:3]]}
     assert grade.grade(tasks["find-runs"], reply(answer), TRUTH["find-runs"], project).correct
 
 
@@ -274,38 +308,63 @@ def test_find_runs_f1(tasks: dict[str, grade.Task], project: Path) -> None:
 
 
 def test_cause_words(tasks: dict[str, grade.Task], project: Path) -> None:
-    """``failed`` alone is no cause; a divergence word or a kill word is."""
+    """``failed`` alone is no cause; a divergence, kill or memory word is."""
     check = tasks["failures"].checks["causes"]
     expected = TRUTH["failures"]["causes"]
 
-    def passes(first: str, second: str) -> float:
-        answer = {"runs": [{"id": IDS[0], "cause": first}, {"id": IDS[1], "cause": second}]}
+    def passes(first: str, second: str, third: str = "OOM") -> float:
+        answer = {
+            "runs": [
+                {"id": IDS[0], "cause": first},
+                {"id": IDS[1], "cause": second},
+                {"id": IDS[3], "cause": third},
+            ]
+        }
         return grade.run_check("causes", check, answer, TRUTH["failures"], project)
 
-    assert expected == {IDS[0]: "diverged", IDS[1]: "killed"}
+    assert expected == {IDS[0]: "diverged", IDS[1]: "killed", IDS[3]: "oom"}
     assert passes("failed", "failed") == 0.0
     assert passes("failed: non-finite loss", "stopped by SIGTERM") == 1.0
-    assert passes("FloatingPointError", "JOB CANCELLED") == 1.0
-    assert passes("loss became inf", "killed") == 1.0
+    assert passes("FloatingPointError", "JOB CANCELLED", "ran out of GPU memory") == 1.0
+    assert passes("loss became inf", "killed", "torch.OutOfMemoryError") == 1.0
+    assert passes("loss became inf", "killed", "crashed") == 0.0
     assert passes("killed", "diverged") == 0.0
     assert passes("information", "failed") == 0.0
 
 
+def test_rerun_forms(tasks: dict[str, grade.Task], project: Path) -> None:
+    """No rerun may be written as null, an empty string or none; a rerun id in any id form."""
+    check = tasks["failures"].checks["reruns"]
+    runs = CORRECT["failures"]["runs"]
+    for none in (None, "", "null", "None"):
+        for later, ok in (
+            (f"scaling/lr-sweep-2/{IDS[2]}", True),
+            (IDS[3], False),
+            (None, False),
+        ):
+            answer = {"runs": [{**runs[0], "rerun": none}, {**runs[1], "rerun": later}, runs[2]]}
+            assert grade.run_check("reruns", check, answer, TRUTH["failures"], project) == ok
+    answer = {"runs": [{**runs[0], "rerun": IDS[2]}, *runs[1:]]}
+    assert grade.run_check("reruns", check, answer, TRUTH["failures"], project) == 0.0
+    assert grade.run_check("reruns", check, {"runs": runs[:2]}, TRUTH["failures"], project) == 0.0
+
+
 def test_difference_tolerance(tasks: dict[str, grade.Task], project: Path) -> None:
-    """The difference passes within 20 % and fails beyond."""
-    for value, ok in ((0.0079 * 1.15, True), (0.0079 * 1.3, False), (0.0079 * 0.7, False)):
+    """The difference passes within 5 % and fails beyond."""
+    for value, ok in ((0.0078 * 1.04, True), (0.0078 * 1.07, False), (0.0078 * 0.9, False)):
         answer = {**CORRECT["best-config"], "difference": value}
         result = grade.grade(tasks["best-config"], reply(answer), TRUTH["best-config"], project)
         assert (result.checks["difference"] == 1.0) is ok
 
 
-def test_ci_contains_effect(tasks: dict[str, grade.Task], project: Path) -> None:
-    """The interval must contain the true effect, in either order."""
+def test_ci_bounds(tasks: dict[str, grade.Task], project: Path) -> None:
+    """Both bounds of the interval must lie within 0.005 of the true ones, in either order."""
     for ci, ok in (
-        ([0.28, 0.52], True),
-        ([0.52, 0.28], True),
-        ([0.45, 0.6], False),
-        ([0.4], False),
+        ([0.274, 0.523], True),
+        ([0.523, 0.274], True),
+        ([0.2934, 0.5115], False),
+        ([0.28, 0.52], False),
+        ([0.3985], False),
     ):
         answer = {**CORRECT["check-prediction"], "ci": ci}
         result = grade.grade(
@@ -315,12 +374,13 @@ def test_ci_contains_effect(tasks: dict[str, grade.Task], project: Path) -> None
 
 
 def test_per_arm_needs_every_arm(tasks: dict[str, grade.Task], project: Path) -> None:
-    """A missing arm, or one off by more than 1 %, fails ``per_arm``."""
+    """A missing arm, or one off by more than 0.2 %, fails ``per_arm``."""
     base = CORRECT["sweep-summary"]
     for per_arm, ok in (
         (base["per_arm"], True),
         ({"small": 1.0, "medium": 0.927}, False),
-        ({**base["per_arm"], "large": 0.9}, False),
+        ({**base["per_arm"], "large": 0.9118 * 1.003}, False),
+        (TRUTH["sweep-summary"]["per_arm_final"], False),
     ):
         result = grade.grade(
             tasks["sweep-summary"],
@@ -353,11 +413,11 @@ def test_chart_file(
 def test_chart_judge_items(
     tasks: dict[str, grade.Task], project: Path, judge: list[dict[str, Any]]
 ) -> None:
-    """The five items count as checks next to the file; the pinned model judges the image."""
+    """The seven items count as checks next to the file; the pinned model judges the image."""
     chart = tasks["chart"]
-    assert len(chart.judge) == 5
+    assert len(chart.judge) == 7
     result = grade.grade(chart, reply({"file": "fig.png"}), TRUTH["chart"], project, model="pinned")
-    assert list(result.checks) == ["file", "judge1", "judge2", "judge3", "judge4", "judge5"]
+    assert list(result.checks) == ["file", *(f"judge{i}" for i in range(1, 8))]
     assert result.correct and result.notes["judge2"] == "ok 2"
     assert [c["model"] for c in judge] == ["pinned"] and judge[0]["tools"] == "Read"
     for i, item in enumerate(chart.judge, 1):
@@ -374,11 +434,11 @@ def test_chart_judge_marks(
     chart, text = tasks["chart"], reply({"file": "fig.png"})
     monkeypatch.setattr(score, "ask", lambda *a, **k: partial)
     result = grade.grade(chart, text, TRUTH["chart"], project)
-    judged = [result.checks[f"judge{i}"] for i in range(1, 6)]
-    assert result.checks["file"] == 1.0 and judged == [1.0, 0.0, 1.0, 0.0, 0.0]
+    judged = [result.checks[f"judge{i}"] for i in range(1, 8)]
+    assert result.checks["file"] == 1.0 and judged == [1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
     monkeypatch.setattr(score, "ask", lambda *a, **k: {"error": "no JSON"})
     result = grade.grade(chart, text, TRUTH["chart"], project)
-    assert result.score == pytest.approx(1 / 6)
+    assert result.score == pytest.approx(1 / 8)
 
 
 def test_not_png(tasks: dict[str, grade.Task], project: Path, judge: list[dict[str, Any]]) -> None:
@@ -395,7 +455,7 @@ def test_no_block_not_judged(
 ) -> None:
     """A reply without a json block scores 0 everywhere and costs no judge call."""
     result = grade.grade(tasks["chart"], "Here it is.", TRUTH["chart"], project)
-    assert result.score == 0.0 and len(result.checks) == 6 and judge == []
+    assert result.score == 0.0 and len(result.checks) == 8 and judge == []
 
 
 def test_judge_sees_only_image(
@@ -421,7 +481,7 @@ def test_judge_usage_limit(
 
 
 def test_table_checks(tasks: dict[str, grade.Task], project: Path) -> None:
-    """The table is graded on its rows, values and finished flags apart."""
+    """The table is graded on its rows, values, finished and superseded flags apart."""
     table, truth = tasks["table"], TRUTH["table"]
     path = project / "table.csv"
     good = TABLE.format(a=IDS[0], b=IDS[1], c=IDS[2])
@@ -431,20 +491,28 @@ def test_table_checks(tasks: dict[str, grade.Task], project: Path) -> None:
         return grade.grade(table, reply({"file": "table.csv"}), truth, project).checks
 
     assert set(checks(good).values()) == {1.0}
-    assert checks(good.replace(f"{IDS[2]},0.003,2,no,\n", ""))["rows"] == 0.0
+    assert checks(good.replace(f"{IDS[2]},0.003,2,no,no,\n", ""))["rows"] == 0.0
     assert checks(good.replace("0.871044", "0.8710"))["values"] == 0.0
     assert checks(good.replace("0.871044", "0.8710441"))["values"] == 1.0
-    assert checks(good.replace(",no,0.5", ",yes,0.5")) == {
+    assert checks(good.replace(",no,yes,0.5", ",yes,yes,0.5")) == {
         "file": 1.0,
         "rows": 1.0,
         "values": 1.0,
         "finished": 0.0,
+        "superseded": 1.0,
     }
-    assert (
-        checks(good.replace(",yes,", ",finished,").replace(",no,", ",killed,"))["finished"] == 1.0
-    )
-    assert checks(good.replace("0.003,2,no,", "0.003,2,no,nan"))["values"] == 1.0
-    assert checks(good.replace("0.003,2,no,", "0.003,2,no,0.9"))["values"] == 0.0
+    assert checks(good.replace(",no,yes,0.5", ",no,no,0.5")) == {
+        "file": 1.0,
+        "rows": 1.0,
+        "values": 1.0,
+        "finished": 1.0,
+        "superseded": 0.0,
+    }
+    assert checks(good.replace(",0,yes,", ",0,finished,").replace(",1,no,", ",1,killed,")) == {
+        k: 1.0 for k in table.checks
+    }
+    assert checks(good.replace("0.003,2,no,no,", "0.003,2,no,no,nan"))["values"] == 1.0
+    assert checks(good.replace("0.003,2,no,no,", "0.003,2,no,no,0.9"))["values"] == 0.0
     assert checks(good.replace(IDS[0], f"scaling/lr-sweep/{IDS[0]}")) == {
         k: 1.0 for k in table.checks
     }
@@ -466,7 +534,11 @@ def seed7(tmp_path_factory: pytest.TempPathFactory) -> tuple[dict[str, Any], dic
         "best-config": {
             k: best[k] for k in ("best_lr", "runner_up_lr", "difference", "significant")
         },
-        "failures": {"runs": [{"id": i, "cause": c} for i, c in fail["causes"].items()]},
+        "failures": {
+            "runs": [
+                {"id": i, "cause": c, "rerun": fail["reruns"][i]} for i, c in fail["causes"].items()
+            ]
+        },
         "sweep-summary": {k: truth["sweep-summary"][k] for k in ("per_arm", "best_arm", "exclude")},
         "check-prediction": {k: truth["check-prediction"][k] for k in ("verdict", "effect", "ci")},
         "find-runs": {"runs": truth["find-runs"]["ids"]},
@@ -481,7 +553,12 @@ def test_shipped_truth_shapes(
     """Every check's truth key exists in the real truth, and answers copied from it score 1."""
     truth, answers = seed7
     answers["failures"]["runs"] = [
-        {"id": r["id"], "cause": {"diverged": "diverged", "killed": "killed"}[r["cause"]]}
+        {
+            **r,
+            "cause": {"diverged": "diverged", "killed": "killed", "oom": "out of memory"}[
+                r["cause"]
+            ],
+        }
         for r in answers["failures"]["runs"]
     ]
     for task in tasks.values():
@@ -491,8 +568,9 @@ def test_shipped_truth_shapes(
     for task_id, answer in answers.items():
         assert grade.grade(tasks[task_id], reply(answer), truth[task_id], project).correct, task_id
     rows = truth["table"]["rows"]
-    lines = ["run_id,lr,seed,finished,val_acc"] + [
+    lines = ["run_id,lr,seed,finished,superseded,val_acc"] + [
         f"{r['id']},{r['lr']!r},{r['seed']},{'yes' if r['finished'] else 'no'},"
+        f"{'yes' if r['superseded'] else 'no'},"
         f"{'' if r['val_acc'] is None else repr(r['val_acc'])}"
         for r in rows
     ]

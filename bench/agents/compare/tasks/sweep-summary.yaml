@@ -1,11 +1,12 @@
 prompt: >
-  Summarize realistic/egnn-bench. Give the mean final validation/w1_energy per arm, taken over the
-  runs that finished (final means the last logged value of a run), name the best arm (the lowest
-  mean), and list the runs that should be left out of such a comparison because they did not finish.
-  Identify runs by their run id.
+  Summarize realistic/egnn-bench. Judge every run by the checkpoint a trainer would keep: its
+  evaluation with the lowest validation/loss. For each arm, give the mean of validation/w1_energy
+  at that checkpoint (the value logged at the same step), taken over the runs that finished; name
+  the best arm (the lowest mean); and list the runs that should be left out of such a comparison
+  because they did not finish. Identify runs by their run id. Use the values at full precision.
 answer: '{"per_arm": {<arm>: <number>}, "best_arm": <arm>, "exclude": [<run id>]}'
 time_limit_s: 400
 checks:
-  per_arm: {kind: close, truth: per_arm, rel: 0.01}
+  per_arm: {kind: close, truth: per_arm, rel: 0.002}
   best_arm: {kind: equal, truth: best_arm}
   exclude: {kind: set, truth: exclude}

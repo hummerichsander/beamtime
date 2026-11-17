@@ -117,6 +117,17 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   at `dest/beamtime` and strips what states the answers: `_synth.json`, every `proposal/`, `notes/` and
   `memory/` folder outside runs, and `proposals`/`proposal_hashes` in each `_run.json` (its mtime, the
   heartbeat, is kept). The manifest's roles are returned, never written. Seeds 7, 8 and 9.
+- `compare/data.py`: `make_logdir(dest, seed=, now=)` writes the synth's scale `s` through
+  `BenchGenerator` (a subclass of the synth's `Generator`) with the messier data of Decision 17 planted
+  on top, each planted run from a random stream of its own: an early run of lr 1e-3 seed 1 in
+  `scaling/lr-sweep` that a later run supersedes (final accuracy 0.975); a second batch
+  `scaling/lr-sweep-2` (seeds 3 and 4 per lr) that logs `val/accuracy` every 100 steps instead of
+  `val/acc` every 50, and reruns the killed lr 3e-4 seed 3; an out-of-memory crash in it (lr 3e-3 seed 4)
+  rerun to completion; a tokenizer seed 3 whose unigram run was killed (no pair); an egnn `large` arm
+  whose validation/loss rises late (overfitting) and a NaN validation/loss at step 300 of one `small`
+  run. Then `strip_record` deletes the manifest and the research record. 61 runs in six groups; the
+  manifest's roles (`superseded`, `killed_rerun`, `oom`, `oom_rerun`, `unpaired`, `unpaired_killed`,
+  `nan_loss`, the synth's own) stay in memory for tests.
 - `compare/formats.py`: `export_runs(logdir)` reads every run once (group, run id = folder name, config,
   effective metrics with resumed attempts resolved, output, status); `export_files(logdir, dest)` writes
   the plain-files baseline `dest/runs/<group>/<run id>/{config.json, metrics.csv, output.log}`. The CSV
@@ -131,7 +142,12 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   `failures`, `sweep-summary`, `check-prediction`, `chart`, `find-runs`, `fastest`, `table`) in pure
   Python from the plain-files export, so it is computed per seed at grading time and never written into
   a session's reach. Only finished runs enter a mean (`_run.json` status `finished`); the final value is
-  the last logged value of a metric; the intervals are Beamtime's own `welch_interval` at 95 %. Truth
+  the last logged value of a metric, and validation accuracy is `val/acc` or `val/accuracy`. The sweep
+  tasks read both batches and count the most recent run of each lr and seed (run ids start with the
+  start time), if it finished. `sweep-summary` reads validation/w1_energy at each run's lowest finite
+  validation/loss; `check-prediction` pairs the tokenizers by seed (`paired_interval`, threshold 0.2);
+  `fastest` asks for 0.9, where an lr qualifies only if all its counted runs reach it. The intervals
+  are Beamtime's own `welch_interval` and `paired_interval` at 95 %. Truth
   and graded checks tell finished from not finished only: running, lost and killed runs are alike.
 - `compare/tasks/<id>.yaml` and `compare/grade.py`: the eight tasks (`best-config`, `failures`,
   `sweep-summary`, `check-prediction`, `chart`, `find-runs`, `fastest`, `table`). A file holds the
@@ -143,15 +159,21 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   mean of the checks, `correct` means all passed. Check kinds: `equal` (numbers as floats, 1e-9
   relative, so `0.0003` is `3e-4`), `close` (`rel`, `abs`; a dict key by key), `set` and `f1` (run ids,
   also `{id: ...}`, matched on the trailing path part, so `group/id` is `id`), `contains` (the interval
-  holds the true effect), `cause` (each stopped run's cause matches the wording of its true cause:
-  diverged is `diverg`, `nan`, `inf`, `FloatingPoint`; killed is `kill`, `SIGTERM`, `cancel`; `failed`
-  alone is no cause), `file` (a PNG or a table, inside `project`), and for the table task
-  `table_ids` (17 rows), `table_values` (lr, seed, val/acc within 1e-6; the prompt asks for full precision) and `table_finished`
-  (yes/no for finished or not; running, lost and killed are not told apart). `find-runs` compares at
+  holds the true effect; no shipped task uses it now), `interval` (both bounds within `abs`, in either
+  order), `cause` (each stopped run's cause matches the wording of its true cause:
+  diverged is `diverg`, `nan`, `inf`, `FloatingPoint`; oom is `memory`, `oom`; killed is `kill`,
+  `SIGTERM`, `cancel`; `failed` alone is no cause), `rerun` (each stopped run names its completed rerun
+  in any id form, or null, `""` or `none` when there is none), `file` (a PNG or a table, inside
+  `project`), and for the table task `table_ids` (29 rows), `table_values` (lr, seed, val_acc within
+  1e-6; the prompt asks for full precision) and `table_flag` (yes/no in the `finished` and the
+  `superseded` column; running, lost and killed are not told apart). Tolerances (Decision 17):
+  `difference` 5 %, `per_arm` 0.2 %, `effect` 0.002 and the interval's bounds 0.005 absolute, `fastest`'s
+  step 1 %; the prompts that compute ask for the values at full precision. `find-runs` compares at
   exactly 0.922 without tolerance.
-  The `chart` task's `judge` list holds five statements (scatter of val/acc against lr, log x, no points
-  for the failed and killed runs (no count, since overlapping points can't be counted), the peak at 3e-4 readable, labelled axes); each
-  becomes a check `judge1`..`judge5` next to `file`, answered by `score.ask` with the pinned model
+  The `chart` task's `judge` list holds seven statements (points of the final accuracy against lr, a
+  line through the means, log x, no points for the failed and killed runs, no point above about 0.95
+  (the superseded run left out), the peak at 3e-4 readable, labelled axes; no count, since overlapping
+  points can't be counted); each becomes a check `judge1`..`judge7` next to `file`, answered by `score.ask` with the pinned model
   (`grade(..., model=)`) from the PNG alone, run in a fresh folder holding only a copy of the image
   (`Grade.notes` keeps the judge's reasons). A file that is not a PNG (PDF, SVG) scores 0 on `file` and
   all items without a judge call; a usage-limit answer raises `score.JudgeStalled`, so the session

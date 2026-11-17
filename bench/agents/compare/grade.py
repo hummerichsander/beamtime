@@ -17,19 +17,22 @@ TASKS = Path(__file__).resolve().parent / "tasks"
 AGENTS = Path(__file__).resolve().parents[1]
 SETUPS = ["mcp", "cli", "files", "tensorboard"]
 PNG = b"\x89PNG\r\n\x1a\n"
-COLUMNS = ("run_id", "lr", "seed", "finished", "val_acc")
-YES = {"yes", "y", "true", "1", "finished", "completed", "complete", "done"}
+COLUMNS = ("run_id", "lr", "seed", "finished", "superseded", "val_acc")
+YES = {"yes", "y", "true", "1", "finished", "completed", "complete", "done", "superseded"}
+NONE = {"", "null", "none", "no", "-"}
 KINDS = {
     "equal",
     "close",
     "set",
     "f1",
     "contains",
+    "interval",
     "cause",
+    "rerun",
     "file",
     "table_ids",
     "table_values",
-    "table_finished",
+    "table_flag",
 }
 
 
@@ -207,8 +210,19 @@ def run_check(
             case "contains":
                 low, high = sorted(number(v) for v in given)
                 return float(len(given) == 2 and low <= number(expected) <= high)
+            case "interval":
+                low, high = sorted(number(v) for v in given)
+                return float(
+                    len(given) == 2
+                    and all(
+                        abs(g - t) <= spec["abs"]
+                        for g, t in zip((low, high), expected, strict=True)
+                    )
+                )
             case "cause":
                 return float(cause(given, expected, spec["patterns"]))
+            case "rerun":
+                return float(rerun(given, expected))
             case "file":
                 return float(file_ok(project_file(project, given), spec["format"]))
             case "table_ids":
@@ -219,10 +233,11 @@ def run_check(
                 )
             case "table_values":
                 return float(table_values(read_table(project_file(project, given)), expected, spec))
-            case "table_finished":
+            case "table_flag":
                 rows = read_table(project_file(project, given))
-                flags = {trail(r["run_id"]): r["finished"].strip().casefold() in YES for r in rows}
-                return float(all(flags[t["id"]] == t["finished"] for t in expected))
+                column = spec["column"]
+                flags = {trail(r["run_id"]): r[column].strip().casefold() in YES for r in rows}
+                return float(all(flags[t["id"]] == t[column] for t in expected))
             case _:
                 raise ValueError(f"unknown check kind {spec['kind']!r}")
     except (TypeError, ValueError, KeyError, AttributeError, OSError):
@@ -306,6 +321,25 @@ def cause(given: Any, expected: dict[str, str], patterns: dict[str, str]) -> boo
     :return: Whether every true run has a matching cause."""
     said = {trail(r["id"]): str(r["cause"]) for r in given}
     return all(re.search(patterns[c], said.get(i, ""), re.IGNORECASE) for i, c in expected.items())
+
+
+def rerun(given: Any, expected: dict[str, str | None]) -> bool:
+    """Check that every run that stopped names its completed rerun, or none when there is none.
+
+    :param given: The answer's list of ``{id, rerun}``.
+    :param expected: The run id mapped to the id of its completed rerun, or ``None``.
+    :return: Whether every true run has the right rerun."""
+    said = {trail(r["id"]): r.get("rerun") for r in given}
+    for run_id, later in expected.items():
+        if run_id not in said:
+            return False
+        value = said[run_id]
+        if later is None:
+            if value is not None and str(value).strip().casefold() not in NONE:
+                return False
+        elif value is None or trail(value) != later:
+            return False
+    return True
 
 
 def project_file(project: Path, value: Any) -> Path:

@@ -1,14 +1,16 @@
 prompt: >
-  In scaling/lr-sweep, which learning rate gives the best final val/acc? Final means the last logged
-  value of a run. Use only runs that finished; leave out any run that crashed, was killed or did not
-  reach its end. Take the mean over the remaining runs of each learning rate, then name the best
-  learning rate and the runner-up. Give the difference between their means (best minus runner-up) and
-  say whether the lead is statistically significant at 95 % (Welch's t-interval for the difference
-  of the two means, over the final values of the individual runs).
+  The learning-rate sweep ran in two batches, scaling/lr-sweep and later scaling/lr-sweep-2. Which
+  learning rate gives the best final validation accuracy? Final means the last logged value of a
+  run. Count each combination of learning rate and seed once: where it was run more than once, only
+  its most recent run counts, and it is left out if that run did not finish. Take the mean over the
+  counted runs of each learning rate, then name the best learning rate and the runner-up. Give the
+  difference between their means (best minus runner-up) and say whether the lead is statistically
+  significant at 95 % (Welch's t-interval for the difference of the two means, over the final
+  values of the individual runs). Use the values at full precision.
 answer: '{"best_lr": <number>, "runner_up_lr": <number>, "difference": <number>, "significant": <true or false>}'
-time_limit_s: 300
+time_limit_s: 400
 checks:
   best_lr: {kind: equal, truth: best_lr}
   runner_up_lr: {kind: equal, truth: runner_up_lr}
-  difference: {kind: close, truth: difference, rel: 0.2}
+  difference: {kind: close, truth: difference, rel: 0.05}
   significant: {kind: equal, truth: significant}

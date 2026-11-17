@@ -164,6 +164,47 @@ What's left runs in this order: N71 M71 M72 M73 M74 J71 J72 J73 J74 L71 L72 U71 
     model or another model wrote more than 5 % of the output tokens, so Claude Code's own helper
     calls don't flag every session. L72's pilot confirms this on its first sessions: their
     `model_usage` shows whether a helper model appears and that its share stays below 5 %.
+17. **Harder tasks through messier data** (L72 pilot, seed 7: 31 of 32 sessions scored 1.0, so the
+    setups differed only in cost and time): the tasks get the difficulties of real research data
+    and multi-step analyses, never a trap that one interface hides. `data.make_logdir` writes the
+    synth through `BenchGenerator` (a subclass in `bench/agents/compare/data.py`; `src/` untouched,
+    and the synth's own runs keep their values because every planted run draws from its own random
+    stream). Planted: (a) a second batch `scaling/lr-sweep-2` with seeds 3 and 4 per lr after a
+    "refactor" that logs `val/accuracy` every 100 steps instead of `val/acc` every 50; (b) an early
+    lr 1e-3 seed 1 run in `scaling/lr-sweep` (final 0.975) that the regular run supersedes, and the
+    killed lr 3e-4 seed 3 run redone in the second batch; (c) an out-of-memory crash (lr 3e-3 seed
+    4, `torch.OutOfMemoryError` in the traceback) redone right after; (d) a tokenizer seed 3 whose
+    unigram run was killed; (e) an egnn `large` arm whose validation/loss rises after 60 % of
+    training (overfitting; validation/w1_energy keeps falling); (f) a NaN validation/loss at step 300
+    of one egnn `small` run. 61 runs in six groups (M71's 47 in five no longer holds). Per task:
+    - `best-config`, `chart`, `fastest`, `table`, `failures` read both batches and count, per lr and
+      seed, its most recent run if it finished (run ids start with the start time, so "most recent"
+      reads the same everywhere); validation accuracy has two names. `best-config`: difference
+      within 5 % (was 20 %); seed 7 significant, 8 not, 9 significant. `chart`: a line through the
+      means and seven judge items (adds "a mean line" and "no point above about 0.95", the
+      superseded run). `fastest`: 0.9 instead of 0.85, an lr qualifies only if all its counted runs
+      reach it (3e-3 never does), step within 1 % (was 10 %). `table`: 29 rows and a `superseded`
+      column (`table_flag` check). `failures`: three causes (diverged, killed, oom) and each run's
+      completed rerun or null (`rerun` check).
+    - `sweep-summary`: validation/w1_energy at each run's lowest finite validation/loss (the
+      checkpoint a trainer keeps), `per_arm` within 0.2 % (was 1 %). The final value is off by
+      7–10 % for `large`; a NaN-blind argmin (NumPy) picks the NaN step for one `small` run.
+    - `check-prediction`: threshold 0.2 (was 0.1), a paired t-interval over the seeds with a finished
+      run of both tokenizers (seed 3 drops out), effect within 0.002 and both bounds within 0.005
+      (`interval` check; was "contains the effect"): confirmed, inconclusive, confirmed for seeds 7,
+      8, 9; Welch over all finished runs gives bounds the check tells apart on every seed.
+    - `find-runs`: "validation accuracy" under either name, any group and status, still at 0.922
+      (Decision 14's margin holds on every seed: no final within 5e-4 of it).
+    Fairness: every planted effect sits in `_metrics.jsonl`, `_run.json` and the output as the synth
+    writes them, so the plain files, the event files and Beamtime's index carry it alike
+    (`test_matches_beamtime_query` compares every sweep run's final accuracy and every egnn
+    checkpoint with `beamtime.query.run`). One difference stays and is the product's documented
+    behaviour: Beamtime's JSON shows the NaN as `null` (its statistics cover finite values only),
+    the CSV as `nan`, TensorBoard as NaN; and `beamtime runs` from the root shows 50 of 61 runs with
+    a "--limit to see more" line. The prompts that compute a statistic now say "use the values at
+    full precision", like `table` (Decision 15), since Beamtime's text tables print three digits.
+    Time limits: `best-config`, `failures`, `table` 400 s (were 300 s). J71's task table, J72's five
+    judge items and M71's run count describe the first version; this Decision replaces them.
 
 ## N. Harness repair
 

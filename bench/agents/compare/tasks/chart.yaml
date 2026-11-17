@@ -1,14 +1,19 @@
 prompt: >
-  Make a figure of the final val/acc against the learning rate for scaling/lr-sweep, with one point
-  per run that finished (final means the last logged value of a run) and a logarithmic x axis. Label
-  the axes. Save it as a PNG file in the current directory and give its path.
+  Make a figure of the final validation accuracy against the learning rate for the learning-rate
+  sweep, which ran in two batches, scaling/lr-sweep and later scaling/lr-sweep-2. Final means the
+  last logged value of a run. Draw one point per combination of learning rate and seed: where it
+  was run more than once, only its most recent run counts, and it is left out if that run did not
+  finish. Add a line through the mean of each learning rate. Use a logarithmic x axis and label the
+  axes. Save it as a PNG file in the current directory and give its path.
 answer: '{"file": <path of the PNG>}'
 time_limit_s: 600
 checks:
   file: {kind: file, format: png}
 judge:
-  - A scatter plot with the final validation accuracy (val/acc) on the y axis and the learning rate on the x axis.
+  - Individual points of the final validation accuracy (y axis) against the learning rate (x axis), several per learning rate.
+  - A line connects the mean accuracy of each learning rate.
   - The x axis is logarithmic.
   - No points are drawn for runs that failed or were killed (no accuracies near zero, no diverged runs).
+  - No point lies above an accuracy of about 0.95.
   - The highest accuracies are at a learning rate of about 3e-4, and this peak can be read off the plot.
   - Both axes are labelled.

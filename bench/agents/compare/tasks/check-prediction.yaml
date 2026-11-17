@@ -1,12 +1,14 @@
 prompt: >
-  A prediction for tokenizer/bpe-vs-unigram says that unigram lowers the final val/ppl against BPE by
-  more than 0.1. Is it supported at 95 %? Use the final value (the last logged value) of each run
-  that finished, and Welch's t-interval for the difference of the two means. Report the verdict
-  (confirmed when the whole interval lies above 0.1, refuted when it lies at or below 0.1,
-  otherwise inconclusive), the effect (mean for BPE minus mean for unigram) and the interval.
+  A prediction for tokenizer/bpe-vs-unigram says that unigram lowers the final val/ppl against BPE
+  by more than 0.2. Is it supported at 95 %? Runs with the same seed share their data order, so
+  compare the tokenizers seed by seed: for every seed with a finished run of each tokenizer, take
+  the final val/ppl (the last logged value) of BPE minus that of unigram, and use the t-interval of
+  the mean of these differences. Report the verdict (confirmed when the whole interval lies above
+  0.2, refuted when it lies at or below 0.2, otherwise inconclusive), the effect (the mean
+  difference) and the interval. Use the values at full precision.
 answer: '{"verdict": <confirmed, refuted or inconclusive>, "effect": <number>, "ci": [<low>, <high>]}'
 time_limit_s: 300
 checks:
   verdict: {kind: equal, truth: verdict}
-  effect: {kind: close, truth: effect, abs: 0.05}
-  ci: {kind: contains, truth: effect}
+  effect: {kind: close, truth: effect, abs: 0.002}
+  ci: {kind: interval, truth: ci, abs: 0.005}

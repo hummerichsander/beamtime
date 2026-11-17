@@ -58,7 +58,7 @@ def test_files_layout(made: tuple[Path, Path, dict[str, str]]) -> None:
     logdir, out, _ = made
     runs = list(iter_runs(logdir))
 
-    assert len(runs) == 47
+    assert len(runs) == 61
     for run in runs:
         folder = out / "runs" / run.parent.relative_to(logdir) / run.name
         assert sorted(p.name for p in folder.iterdir()) == [
@@ -155,8 +155,8 @@ def test_files_export_runs_status(made: tuple[Path, Path, dict[str, str]]) -> No
     logdir, _, _ = made
     runs = list(formats.export_runs(logdir))
 
-    assert len(runs) == 47
-    assert len({(r.group, r.id) for r in runs}) == 47
+    assert len(runs) == 61
+    assert len({(r.group, r.id) for r in runs}) == 61
     assert {r.status for r in runs} >= {"finished"}
 
 
@@ -172,7 +172,7 @@ def tb_made(
     pytest.importorskip("tensorboard")
     logdir, _, _ = made
     out = tmp_path_factory.mktemp("tb")
-    assert formats.export_tensorboard(logdir, out) == 47
+    assert formats.export_tensorboard(logdir, out) == 61
     return out
 
 

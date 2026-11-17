@@ -37,20 +37,23 @@ fully offline path to give an agent.
 
 ## The data
 
-The runs are synthetic, from Beamtime's seeded generator (scale `s`): 47 runs in five groups, with
-learning curves, configs and captured output.
+The runs are synthetic, from Beamtime's seeded generator (scale `s`) with messier data planted on
+top, as real projects have it: 61 runs in six groups, with learning curves, configs and captured
+output.
 
 | Group | Runs | What it holds |
 | --- | --- | --- |
-| `scaling/lr-sweep` | 17 | five learning rates times three seeds that finished (peak at 3e-4), one run that diverged, one killed |
-| `tokenizer/bpe-vs-unigram` | 6 | BPE against unigram, where unigram lowers the final validation perplexity |
-| `realistic/egnn-bench` | 9 | three arms (small, medium, large) with three seeds each, one killed |
+| `scaling/lr-sweep` | 18 | five learning rates times three seeds that finished (peak at 3e-4), one run that diverged, one killed, and an earlier run of one setting that a later run supersedes |
+| `scaling/lr-sweep-2` | 11 | the sweep's second batch: two more seeds per learning rate, validation accuracy renamed (`val/accuracy`) and logged half as often, one run out of GPU memory and rerun |
+| `tokenizer/bpe-vs-unigram` | 8 | BPE against unigram, where unigram lowers the final validation perplexity; seed 3's unigram run was killed |
+| `realistic/egnn-bench` | 9 | three arms (small, medium, large) with three seeds each, one killed; the large arm overfits late, and one run has a NaN validation loss |
 | `realistic/lr-scan` | 12 | a scan with its own metric names |
 | `scaling/long-context` | 3 | a resumed run, one still running and one lost |
 
 Three data seeds (7, 8 and 9) give three different sets of numbers with the same planted structure.
-In seeds 7 and 8 the best learning rate does not lead significantly over the runner-up; in seed 9 it
-does, so the answer to "is it significant" is not the same in every session.
+With both batches, the best learning rate leads significantly in seeds 7 and 9 and not in seed 8,
+and the tokenizer prediction is confirmed in seeds 7 and 9 and inconclusive in seed 8, so these
+answers are not the same in every session.
 
 Beamtime's research record is removed before any session: no proposals, notes or memory and no
 generator manifest, since they state the answers. A session sees the runs and nothing else. Each
@@ -65,26 +68,27 @@ are in
 
 | Task | The question | Time limit |
 | --- | --- | --- |
-| `best-config` | Which learning rate gives the best final `val/acc` among the runs that finished, and is the lead significant? | 300 s |
-| `failures` | Which runs of the sweep did not complete, and why did each stop? | 300 s |
-| `sweep-summary` | The mean final metric per arm of the egnn benchmark, the best arm, and the runs to leave out. | 400 s |
-| `check-prediction` | Is "unigram lowers `val/ppl` by more than 0.1" supported at 95 %? Verdict, effect, interval. | 300 s |
-| `chart` | A figure of final `val/acc` against the learning rate, saved as a PNG. | 600 s |
-| `find-runs` | Which runs have a last `val/acc` of at least 0.922, whatever their status? | 400 s |
-| `fastest` | Which learning rate first reaches `val/acc` 0.85 in the fewest steps? | 400 s |
-| `table` | A CSV table of every run of the sweep with its learning rate, seed, status and final accuracy. | 300 s |
+| `best-config` | Over both batches of the sweep, counting the most recent finished run of each learning rate and seed: which learning rate gives the best final validation accuracy, and is the lead significant? | 400 s |
+| `failures` | Which runs of both batches did not complete, why did each stop, and which completed later run redid it? | 400 s |
+| `sweep-summary` | Per arm of the egnn benchmark, the mean energy metric at each run's best-validation-loss checkpoint, the best arm, and the runs to leave out. | 400 s |
+| `check-prediction` | Is "unigram lowers `val/ppl` by more than 0.2" supported at 95 %, compared seed by seed? Verdict, effect, interval. | 300 s |
+| `chart` | A figure of the final validation accuracy against the learning rate over both batches, with a line through the means, saved as a PNG. | 600 s |
+| `find-runs` | Which runs of the project have a last validation accuracy of at least 0.922, whatever their status? | 400 s |
+| `fastest` | Which learning rate reaches a validation accuracy of 0.9 in the fewest steps, over both batches? | 400 s |
+| `table` | A table of every run of both batches with its learning rate, seed, whether it finished or was superseded, and its final accuracy. | 400 s |
 
 ## Grading
 
 Truth is computed from the data after the sessions, with plain Python, and never written into a
 session's folder. A mean over runs uses only runs that finished (status `finished` in the run's
-`_run.json`); the final value is the last logged value; intervals are 95 % Welch intervals.
+`_run.json`); the final value is the last logged value; intervals are 95 % t-intervals (Welch, or paired by seed
+where the task says so).
 
 The grader reads the last fenced `json` block of the reply. Each task has a few checks (an exact
-value, a number within a tolerance, a set of run ids, an interval that contains the true effect, a
+value, a number within a tolerance, a set of run ids, an interval whose bounds lie near the true ones, a
 file of the right kind). The score is the share of checks passed, a session is `correct` when all
 pass, and a missing or malformed block scores 0. For the `chart` task, the model that ran the
-sessions also judges five statements about the PNG, seeing only the image. Running, lost and killed
+sessions also judges seven statements about the PNG, seeing only the image. Running, lost and killed
 runs are not told apart anywhere: Beamtime calls a run lost only after 300 seconds without a
 heartbeat, which a snapshot of files cannot show, so tasks and truth distinguish finished from
 not finished.
@@ -101,7 +105,8 @@ not finished.
 - Only a failure of the agent scores 0: a timeout, or running out of turns. A crash of `claude`, an
   API error or a hit usage limit leaves the session ungraded, and the report counts them.
 - Prompts and checks were fixed before the first batch. Where a check tests a printed value, the same
-  rule holds in every setup: the `table` task asks for numbers at full precision, and `find-runs`
+  rule holds in every setup: the `table` task and the tasks that compute a statistic ask for the values
+  at full precision, and `find-runs`
   compares at a threshold (0.922) that no run's rounded value sits on.
 
 ## Measures
@@ -132,8 +137,9 @@ documents every file and flag.
 
 - **One model.** The numbers hold for the model and the Claude Code version of the batch; another
   model may rank the setups differently.
-- **Synthetic data.** The runs are small and clean, with planted effects. Real projects have messier
-  logs, and a different layout of files could suit an agent better than this one.
+- **Synthetic data.** The runs are small, with planted effects and a few planted difficulties (a second
+  batch, a renamed metric, superseded runs, a NaN, overfitting). Real projects are messier in other
+  ways, and a different layout of files could suit an agent better than this one.
 - **One author's tasks.** The tasks are the questions a researcher asks of a sweep. They were written
   by Beamtime's author and favour no setup on purpose, but they are not neutral.
 - **Three seeds and one session each.** Language models vary from session to session. The ranges in

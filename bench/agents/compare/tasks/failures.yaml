@@ -1,8 +1,11 @@
 prompt: >
-  Which runs in scaling/lr-sweep did not complete, and why did each of them stop? Identify runs by
-  their run id and give the cause as a short phrase.
-answer: '{"runs": [{"id": <run id>, "cause": <short phrase>}]}'
-time_limit_s: 300
+  The learning-rate sweep ran in two batches, scaling/lr-sweep and later scaling/lr-sweep-2. Which
+  of its runs did not complete, and why did each of them stop? For each, also say whether its
+  combination of learning rate and seed was run again later and that later run completed: give the
+  run id of that completed rerun, or null if there is none. Identify runs by their run id and give
+  the cause as a short phrase.
+answer: '{"runs": [{"id": <run id>, "cause": <short phrase>, "rerun": <run id or null>}]}'
+time_limit_s: 400
 checks:
   ids: {kind: set, key: runs, truth: ids}
   causes:
@@ -11,4 +14,6 @@ checks:
     truth: causes
     patterns:
       diverged: 'diverg|\bnans?\b|\binf\b|infinit|non-?finite|floatingpoint'
+      oom: 'memory|\boom\b'
       killed: 'kill|sigterm|cancel'
+  reruns: {kind: rerun, key: runs, truth: reruns}

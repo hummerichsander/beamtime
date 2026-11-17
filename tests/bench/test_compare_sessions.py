@@ -456,7 +456,7 @@ def batch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Batch:
     monkeypatch.setattr(
         sessions, "truth_for", lambda root, seed: {"best-config": BEST, "chart": {}}
     )
-    marks = {i: {"yes": True, "why": f"ok {i}"} for i in range(1, 6)}
+    marks = {i: {"yes": True, "why": f"ok {i}"} for i in range(1, 8)}
     monkeypatch.setattr(grade, "judge_chart", lambda image, items, *, model: marks)
     return Batch(tmp_path)
 

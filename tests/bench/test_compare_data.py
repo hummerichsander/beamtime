@@ -33,12 +33,12 @@ def made(
 
 
 def test_shape(made: tuple[Path, int]) -> None:
-    """Every seed has 47 runs in five groups, no manifest, no record folders, no proposals."""
+    """Every seed has 61 runs in six groups, no manifest, no record folders, no proposals."""
     logdir, _ = made
     runs = list(iter_runs(logdir))
 
-    assert len(runs) == 47
-    assert len({r.parent.relative_to(logdir) for r in runs}) == 5
+    assert len(runs) == 61
+    assert len({r.parent.relative_to(logdir) for r in runs}) == 6
     assert not (logdir / "_synth.json").exists()
     for name in data.RECORD:
         assert not list(logdir.rglob(name))
@@ -85,9 +85,9 @@ def test_heartbeats_survive(tmp_path: Path) -> None:
 def test_index_reads_stripped_logdir(made: tuple[Path, int]) -> None:
     """The index and the query path read the stripped log dir without errors."""
     logdir, _ = made
-    answer = query({"runs": {"from": ".", "select": ["run.id"]}}, logdir=logdir)
+    answer = query({"runs": {"from": ".", "select": ["run.id"], "limit": 100}}, logdir=logdir)
 
-    assert len(answer["rows"]) == 47
+    assert len(answer["rows"]) == 61
 
 
 def test_deterministic_metrics(tmp_path: Path) -> None:
@@ -97,6 +97,6 @@ def test_deterministic_metrics(tmp_path: Path) -> None:
     a, b = (tmp_path / n / "beamtime" for n in "ab")
 
     files = sorted(p.relative_to(a) for p in a.rglob("_metrics.jsonl"))
-    assert len(files) == 47
+    assert len(files) == 61
     for rel in files:
         assert (a / rel).read_bytes() == (b / rel).read_bytes()
