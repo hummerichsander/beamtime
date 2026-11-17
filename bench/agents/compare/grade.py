@@ -249,7 +249,8 @@ def run_check(
             case "set":
                 return float(ids(given) == ids(expected))
             case "f1":
-                return f1(ids(given), ids(expected))
+                field = spec.get("field", "id")
+                return f1(ids(given, field), ids(expected, field))
             case "contains":
                 low, high = sorted(number(v) for v in given)
                 return float(len(given) == 2 and low <= number(expected) <= high)
@@ -402,15 +403,16 @@ def trail(run_id: Any) -> str:
     return str(run_id).strip().strip("`").rstrip("/").rsplit("/", 1)[-1]
 
 
-def ids(value: Any) -> set[str]:
-    """Read a list of run ids, or of dicts with an ``id``.
+def ids(value: Any, field: str = "id") -> set[str]:
+    """Read a list of run ids, or of dicts with an ``id`` (or another field that names them).
 
     :param value: The list.
+    :param field: The field of a dict that holds the id, e.g. ``name`` for predictions.
     :return: The ids.
     :raises TypeError: When it is not a list."""
     if not isinstance(value, list):
         raise TypeError(f"not a list: {value!r}")
-    return {trail(v["id"] if isinstance(v, dict) else v) for v in value}
+    return {trail(v[field] if isinstance(v, dict) else v) for v in value}
 
 
 def f1(given: set[str], expected: set[str]) -> float:

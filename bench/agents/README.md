@@ -288,3 +288,18 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   their prompts; their checks are `equal`/`close` (`drivers`), `f1` on the ids and `keyed` on `val_loss`,
   `step` (abs 0) and `train_loss` (abs 1e-6). Numbers in a task file are written `0.0001`, not `1e-4`, which
   YAML reads as text; a task whose `abs` or `rel` is not a number fails on load.
+- Research record tasks (`wide_truth.check_all`, `stale_verdicts`): the truth reads the newest proposal and the
+  newest verdict note of `study/optimizer` from `record/` of the export (YAML, the last file name by id), never
+  from the project memory. Per prediction: `each` forms points from the finished runs that match `where` and
+  agree on every config key but the seeds key, takes the t-interval of each point's mean and reports the worst
+  point's mean and interval minus the value; `compare` takes a Welch t-interval of mean(a) minus mean(b) over
+  all runs of both sides. The t quantile is computed here (Simpson integral, bisection), not taken from
+  Beamtime. The claim is decided as `beamtime check` does (`confirmed`, `refuted`, `inconclusive` for `pass`,
+  `fail`, `inconclusive`), values keep six significant digits like the check's answer, and `points` counts as
+  the check does (a point for `each`, every run on both sides for `compare`: 12 over six seeds, 6 over three).
+  `tests/bench/test_compare_wide_truth.py` runs `beamtime check study/optimizer` on seeds 7, 8 and 9 and
+  requires equal verdicts, effects, intervals (abs 1e-9) and points. `check-all` is graded `keyed` on
+  `verdict` and on `effect` (abs 0.002); `stale-verdicts` names the predictions whose verdict in the note no
+  longer holds (two, planted: `lion-beats-adamw` inconclusive to confirmed, `sgd-under` confirmed to
+  inconclusive) with `f1` on the names (`field: name`; `f1` reads `id` unless the check names a field) and
+  `keyed` on `new`. With these two the comparison has 14 tasks, 168 sessions per model and repetition.

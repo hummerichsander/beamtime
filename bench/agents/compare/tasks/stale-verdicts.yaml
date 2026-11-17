@@ -1,0 +1,19 @@
+prompt: >
+  The group study/optimizer has a verdict note that recorded verdicts for the predictions of its
+  proposal. Runs were added since. Which predictions' verdicts no longer hold, and what are they now?
+  A prediction's verdict now is decided against all finished runs of the group: a run's value is
+  the last logged value of the prediction's metric. A prediction with a value (test each) is
+  checked per point: the runs that match its where condition and agree on every config key except
+  the seeds key form a point, and the point's mean over the seeds has a t-interval for the mean. A
+  prediction with a and b (test compare) uses all runs matching a and all runs matching b, and a
+  Welch t-interval for the difference of the two means, mean of a minus mean of b. The level is 95 %.
+  A claim op T (op is < or >; T is the value for each, and 0 for compare plus or minus the margin,
+  which is 0 if not given) is confirmed when the whole interval satisfies it, refuted when the
+  whole interval violates it, otherwise inconclusive. Give one entry per prediction whose verdict
+  in the note differs from its verdict now: old is the note's, new is the verdict now.
+answer: '{"changed": [{"name": <prediction name>, "old": <confirmed, refuted or inconclusive>, "new": <confirmed, refuted or inconclusive>}]}'
+time_limit_s: 600
+data: wide
+checks:
+  names: {kind: f1, key: changed, truth: changed, field: name}
+  new: {kind: keyed, answer: changed, truth: changed, key: name, field: new}

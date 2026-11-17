@@ -228,7 +228,7 @@ Y81 ─ Y82 ─ Y83 ─ Y84 ─ Y85 ─ Y86      in this order (shared modules)
    answer `{"runs": [{"id", "step", "train_loss"}]}`; checks: `keyed` on `step` (abs 0) and on `train_loss` (abs
    1e-6).
 
-### Y85. Truth and tasks on the research record (sonnet + review) — code
+### Y85. Truth and tasks on the research record (sonnet + review) — code — **done**
 
 - **Touches:** `bench/agents/compare/wide_truth.py` (new `check_all`, `stale_verdicts`), new
   `bench/agents/compare/tasks/{check-all,stale-verdicts}.yaml`; `tests/bench/test_compare_wide_truth.py`.

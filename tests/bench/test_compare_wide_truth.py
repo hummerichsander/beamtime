@@ -2,6 +2,8 @@
 
 import json
 import math
+import shutil
+import subprocess
 import sys
 from datetime import datetime, timezone
 from itertools import accumulate
@@ -22,7 +24,16 @@ import wide_truth  # noqa: E402
 
 NOW = datetime(2026, 10, 26, 12, 0, 0, tzinfo=timezone.utc)
 SEEDS = (7, 8, 9)
-TASKS = ("drivers", "leaderboard", "divergence", "best-checkpoint")
+TASKS = (
+    "drivers",
+    "leaderboard",
+    "divergence",
+    "best-checkpoint",
+    "check-all",
+    "stale-verdicts",
+)
+STUDY = wide.STUDY_GROUP
+NOW_VERDICT = {"pass": "confirmed", "fail": "refuted", "inconclusive": "inconclusive"}
 
 
 class Made:
@@ -33,11 +44,25 @@ class Made:
 
         :param root: An empty folder.
         :param seed: The data seed."""
+        self.root = root
         self.roles = data.DATASETS["wide"](root, seed=seed, now=NOW).roles
         self.logdir = root / "beamtime"
         formats.export_files(self.logdir, root)
         self.truth = truth.TRUTHS["wide"](root, self.logdir)
         self.runs = truth.load_runs(root, self.logdir)
+
+    def check(self) -> list[dict[str, Any]]:
+        """Run ``beamtime check`` on the study group.
+
+        :return: The predictions of its canonical answer."""
+        out = subprocess.run(
+            [sys.executable, "-m", "beamtime.cli", "--root", str(self.root), "--json"]
+            + ["check", STUDY],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return json.loads(out.stdout)["predictions"]
 
     def role(self, name: str) -> list[str]:
         """Give the run ids of a planted role.
@@ -226,6 +251,8 @@ def test_perfect_answers_score_one(made: Made, tmp_path: Path) -> None:
             ]
         },
         "best-checkpoint": {"runs": [dict(x) for x in t["best-checkpoint"]["runs"]]},
+        "check-all": {"predictions": [dict(x) for x in t["check-all"]["predictions"]]},
+        "stale-verdicts": {"changed": [dict(x) for x in t["stale-verdicts"]["changed"]]},
     }
 
     for task_id in TASKS:
@@ -250,10 +277,95 @@ def test_trap_answers_score_below_one(made: Made, tmp_path: Path) -> None:
         "leaderboard": {"runs": board},
         "divergence": {"runs": spiked},
         "best-checkpoint": {"runs": last},
+        "check-all": {
+            "predictions": [
+                dict(x, verdict="confirmed") for x in t["check-all"]["predictions"]
+            ]
+        },
+        "stale-verdicts": {"changed": t["stale-verdicts"]["changed"][:1]},
     }
 
     for task_id in TASKS:
         assert score(task_id, answers[task_id], t[task_id], tmp_path) < 1.0
+
+
+def test_t_quantile() -> None:
+    """The quantiles equal the textbook values for 2, 10 and 1 degrees of freedom."""
+    for df, expected in ((1, 12.706205), (2, 4.302653), (10, 2.228139)):
+        assert wide_truth.t_quantile(0.975, df) == pytest.approx(expected, abs=1e-6)
+
+
+def test_matches_beamtime_check(made: Made) -> None:
+    """Verdict, effect, interval and points equal those of ``beamtime check`` (ends abs 1e-9)."""
+    checked = {p["name"]: p for p in made.check()}
+    found = made.truth["check-all"]["predictions"]
+
+    assert [p["name"] for p in found] == list(checked)
+    for p in found:
+        c = checked[p["name"]]
+        assert p["verdict"] == NOW_VERDICT[c["result"]]
+        assert p["effect"] == pytest.approx(c["effect"], abs=1e-9)
+        assert p["ci"] == pytest.approx(c["ci"], abs=1e-9)
+        assert p["points"] == c["points"]
+
+
+def test_points_convention(made: Made) -> None:
+    """A compare over six seeds has 12 points, an each over its one point has 1; three seeds halve
+    the compare to 6, and the early truth equals what the verdict note recorded."""
+    found = {p["name"]: p for p in made.truth["check-all"]["predictions"]}
+    early = [r for r in made.runs if r.group != STUDY or r.config["seed"] < 3]
+    first = {
+        p["name"]: p for p in wide_truth.check_all(early, made.root)["predictions"]
+    }
+
+    assert [found[n]["points"] for n in wide.EARLY_CHECK] == [1, 12, 12, 1]
+    for name, recorded in wide.EARLY_CHECK.items():
+        assert NOW_VERDICT[recorded["result"]] == first[name]["verdict"]
+        assert first[name]["effect"] == pytest.approx(recorded["effect"], abs=1e-9)
+        assert first[name]["ci"] == pytest.approx(recorded["ci"], abs=1e-9)
+        assert first[name]["points"] == recorded["points"]
+
+
+def test_less_than_verdicts() -> None:
+    """For ``<`` an interval below the threshold confirms and one above refutes; ``>`` mirrors it."""
+    decide = wide_truth.decide
+
+    assert decide("<", -0.2, -0.1, 0.0) == "confirmed"
+    assert decide("<", 0.1, 0.2, 0.0) == "refuted"
+    assert decide("<", -0.1, 0.1, 0.0) == "inconclusive"
+    assert decide("<", 0.0, 0.2, 0.0) == "refuted"
+    assert decide("<=", -0.2, 0.0, 0.0) == "confirmed"
+    assert decide(">", 0.1, 0.2, 0.0) == "confirmed"
+    assert decide(">", -0.2, -0.1, 0.0) == "refuted"
+    assert decide(">", -0.1, 0.1, 0.0) == "inconclusive"
+    assert decide(">=", 0.0, 0.2, 0.0) == "confirmed"
+
+
+def test_planted_flips(made: Made) -> None:
+    """Exactly two verdicts changed since the note: Lion's lead became clear, the SGD bound unclear."""
+    assert made.truth["stale-verdicts"]["changed"] == [
+        {"name": "lion-beats-adamw", "old": "inconclusive", "new": "confirmed"},
+        {"name": "sgd-under", "old": "confirmed", "new": "inconclusive"},
+    ]
+
+
+def test_old_from_note(made: Made, tmp_path: Path) -> None:
+    """The old verdict is the newest verdict note's, not the memory's; a newer note replaces it."""
+    record = tmp_path / "record"
+    shutil.copytree(made.root / "record", record)
+    memory = next((record / "memory").glob("*.md"))
+    memory.write_text(memory.read_text().replace("inconclusive", "refuted"))
+
+    assert wide_truth.stale_verdicts(made.runs, tmp_path) == made.truth["stale-verdicts"]
+
+    folder = record / STUDY / "notes"
+    older = next(folder.glob("*.md"))
+    (folder / "99999999-000000-zzzz.md").write_text(
+        older.read_text().replace("sgd-under: confirmed", "sgd-under: inconclusive")
+    )
+    changed = wide_truth.stale_verdicts(made.runs, tmp_path)["changed"]
+
+    assert [x["name"] for x in changed] == ["lion-beats-adamw"]
 
 
 def test_independent_of_beamtime() -> None:
