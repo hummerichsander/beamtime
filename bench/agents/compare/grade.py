@@ -62,10 +62,19 @@ class Task:
 
         :param file: The task file; its stem is the task id.
         :return: The task.
-        :raises ValueError: When a check has an unknown kind; grading would score it 0 silently."""
+        :raises ValueError: When a check has an unknown kind or a tolerance that is not a number;
+            grading would score it 0 silently."""
         data = yaml.safe_load(file.read_text())
         if unknown := {c["kind"] for c in data["checks"].values()} - KINDS:
             raise ValueError(f"{file.name}: unknown check kinds {sorted(unknown)}")
+        # YAML reads 1e-4 (no dot) as text.
+        if bad := [
+            f"{name}.{t}"
+            for name, c in data["checks"].items()
+            for t in ("abs", "rel")
+            if t in c and (isinstance(c[t], bool) or not isinstance(c[t], int | float))
+        ]:
+            raise ValueError(f"{file.name}: tolerances that are not numbers: {bad}")
         answer = data["answer"].strip()
         data["prompt"] = (
             f"{data['prompt'].strip()}\n\nEnd your reply with a fenced json block: {answer}"

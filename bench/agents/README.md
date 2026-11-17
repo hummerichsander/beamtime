@@ -287,4 +287,4 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   `drivers`, `leaderboard`, `divergence` and `best-checkpoint` (`data: wide`, 600 s) state these rules in
   their prompts; their checks are `equal`/`close` (`drivers`), `f1` on the ids and `keyed` on `val_loss`,
   `step` (abs 0) and `train_loss` (abs 1e-6). Numbers in a task file are written `0.0001`, not `1e-4`, which
-  YAML reads as text.
+  YAML reads as text; a task whose `abs` or `rel` is not a number fails on load.
