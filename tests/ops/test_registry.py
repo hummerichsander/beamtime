@@ -153,8 +153,17 @@ def test_export_renders_both_answers() -> None:
     """The page export answers with lines, the file export of a table with its size."""
     page = {"kind": "export", "lines": ["wrote x/index.html: 3 answers"], "dir": "x", "meta": {}}
     assert render(page) == "wrote x/index.html: 3 answers"
-    file = {"kind": "export", "path": "x.csv", "format": "csv", "rows": 4, "bytes": 90, "meta": {}}
-    assert render(file) == "wrote 4 rows to x.csv (90 bytes)"
+    file = {
+        "kind": "export",
+        "path": "x.csv",
+        "format": "csv",
+        "rows": 4,
+        "bytes": 90,
+        "columns": ["run", "step"],
+        "first_row": ["a1", None],
+        "meta": {},
+    }
+    assert render(file) == "wrote 4 rows to x.csv (90 bytes)\ncolumns: run, step\nfirst row: a1, "
 
 
 def test_stale_kinds_are_declared() -> None:

@@ -16,6 +16,12 @@
   versions and the chain.
 - **Changed** a command line usage error (unknown flag, missing required flag, bad value) prints the command's whole
   help to stderr before the error line, so `--help` is not needed upfront; exit code 2 and `--help` are unchanged.
+- **Breaking:** a series CSV export (`series --to out.csv`) is wide: the header is `run, name, step, <y1>, <y2>, ...`
+  (the `by` labels instead of `run, name` for grouped curves; a metric as `x` adds its own column after `step`), with
+  one row per run and step where any metric was logged and empty cells where one has no point; downsampled curves add
+  `<y>.lo`, `<y>.hi` and `<y>.n` per metric. It was one row per curve point with `metric`, `x`, `y` columns. JSON
+  exports keep their layout. Every export answer (CLI and MCP) lists the file's `columns` and its `first_row`; the CLI
+  prints them on two lines after the path.
 
 - **Changed** the MCP server lists 19 core tools and `tools_more`: about 3.3k tokens of definitions instead of
   about 5.8k for all 43 tools. The tools for views, blocks, run control and export are reached through

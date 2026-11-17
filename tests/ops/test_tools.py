@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 import shutil
@@ -325,28 +326,106 @@ def test_to_writes_a_table_outside_the_budget(ctx: Context) -> None:
     assert (ctx.root / ".beamtime" / ".gitignore").is_file()
 
 
-def test_to_writes_curves_one_row_per_point(ctx: Context) -> None:
-    """Curves go to CSV as one row per point, and to JSON as the answer."""
+def read_export(ctx: Context, name: str) -> tuple[list[str], list[list[str]]]:
+    """Read an exported CSV file.
+
+    :param ctx: The operation context.
+    :param name: The file name below ``.beamtime/exports/``.
+    :return: The header and the rows."""
+    path = ctx.root / ".beamtime" / "exports" / name
+    header, *rows = list(csv.reader(path.read_text().splitlines()))
+    return header, rows
+
+
+def test_to_csv_one_row_per_run_and_step(ctx: Context) -> None:
+    """A series CSV is wide: one row per run and step, one column per metric."""
     query = {"from": "scaling/lr-sweep", "y": ["val/acc"], "points": "all"}
-    csv = call("series", query | {"to": "curves.csv"}, ctx)
-    header, *rows = (ctx.root / ".beamtime" / "exports" / "curves.csv").read_text().splitlines()
-    assert header.split(",")[:3] == ["run", "name", "metric"] and "x" in header.split(",")
-    assert len(rows) == csv["rows"] > 500
+    a = call("series", query | {"to": "curves.csv"}, ctx)
+    header, rows = read_export(ctx, "curves.csv")
+    assert header == ["run", "name", "step", "val/acc"]
+    assert len(rows) == a["rows"] > 500
+    assert a["columns"] == header and [str(v) for v in a["first_row"]] == rows[0]
     out = call("series", query | {"to": "sub/curves.json"}, ctx)
     data = json.loads((ctx.root / ".beamtime" / "exports" / "sub" / "curves.json").read_text())
     assert len(data["curves"]) == out["rows"] == 17
+    assert (
+        out["columns"] == list(data["curves"][0])
+        and out["first_row"][0] == data["curves"][0]["run"]
+    )
 
 
-def test_series_csv_and_json_carry_the_envelope_only(ctx: Context) -> None:
-    """A downsampled and a grouped export write y, lo, hi, n and none of the old names."""
+def test_to_csv_union_of_steps(ctx: Context) -> None:
+    """Metrics logged at different steps share rows at the union of steps, with empty cells."""
+    run = run_ids(ctx, "scaling/lr-sweep")[0]
+    query = {"from": run, "y": ["val/acc", "train/loss"], "points": "all"}
+    curves = call("series", query, ctx)["curves"]
+    steps = {m["metric"]: m["x"] for m in curves}
+    call("series", query | {"to": "wide.csv"}, ctx)
+    header, rows = read_export(ctx, "wide.csv")
+    assert header == ["run", "name", "step", "val/acc", "train/loss"]
+    assert [int(r[2]) for r in rows] == sorted({*steps["val/acc"], *steps["train/loss"]})
+    sparse = [r for r in rows if int(r[2]) not in steps["val/acc"]]
+    assert sparse and all(r[3] == "" and r[4] != "" for r in sparse)
+    both = next(r for r in rows if int(r[2]) in steps["val/acc"])
+    assert both[3] == str(curves[0]["y"][steps["val/acc"].index(int(both[2]))])
+
+
+def test_to_csv_other_x(ctx: Context) -> None:
+    """A metric as x gets its own column after ``step``."""
+    query = {"from": "scaling/lr-sweep", "x": "val/acc", "y": ["train/loss"], "points": "all"}
+    a = call("series", query | {"to": "other.csv"}, ctx)
+    header, rows = read_export(ctx, "other.csv")
+    assert header == ["run", "name", "step", "val/acc", "train/loss"]
+    assert a["columns"] == header and rows and all(r[3] != "" for r in rows)
+
+
+def test_to_csv_grouped(ctx: Context) -> None:
+    """Grouped curves give one row per group label and step, with ``lo``, ``hi`` and ``n``."""
+    query = {"from": "scaling/lr-sweep", "y": ["train/loss"], "by": ["config.lr"], "points": 10}
+    a = call("series", query | {"to": "grouped.csv"}, ctx)
+    header, rows = read_export(ctx, "grouped.csv")
+    assert header == [
+        "config.lr",
+        "step",
+        "train/loss",
+        "train/loss.lo",
+        "train/loss.hi",
+        "train/loss.n",
+    ]
+    assert len({(r[0], r[1]) for r in rows}) == len(rows) == a["rows"]
+    assert len({r[0] for r in rows}) == 6
+
+
+def test_to_csv_downsampled_runs_carry_the_envelope(ctx: Context) -> None:
+    """A downsampled per-run export adds lo, hi and n per metric and none of the old names."""
+    query = {"from": "scaling/lr-sweep", "y": ["train/loss"], "points": 10}
+    call("series", query | {"to": "down.csv"}, ctx)
+    header, _ = read_export(ctx, "down.csv")
+    assert header == [
+        "run",
+        "name",
+        "step",
+        "train/loss",
+        "train/loss.lo",
+        "train/loss.hi",
+        "train/loss.n",
+    ]
+
+
+def test_runs_export_answers_its_columns(ctx: Context) -> None:
+    """A run table export names its columns and its first row."""
+    a = call("runs", {"select": ["metric.val/acc.last"], "to": "t.csv"}, ctx)
+    header, rows = read_export(ctx, "t.csv")
+    assert a["columns"] == header and len(a["first_row"]) == len(header)
+    assert [str(c) for c in a["first_row"][:1]] == rows[0][:1]
+
+
+def test_series_json_carries_the_envelope_only(ctx: Context) -> None:
+    """A downsampled and a grouped JSON export write y, lo, hi, n and none of the old names."""
     old = {"last", "min", "max", "count", "mean"}
     exports = ctx.root / ".beamtime" / "exports"
     query = {"from": "scaling/lr-sweep", "y": ["train/loss"], "points": 10}
     for name, extra in (("down", {}), ("grouped", {"by": ["config.lr"]})):
-        call("series", query | extra | {"to": f"{name}.csv"}, ctx)
-        header = (exports / f"{name}.csv").read_text().splitlines()[0].split(",")
-        assert {"x", "y", "lo", "hi", "n"} <= set(header) and not old & set(header)
-        assert len(header) == len(set(header))
         call("series", query | extra | {"to": f"{name}.json"}, ctx)
         curve = json.loads((exports / f"{name}.json").read_text())["curves"][0]
         assert {"y", "lo", "hi", "n"} <= set(curve) and not old & set(curve)

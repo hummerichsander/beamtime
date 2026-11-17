@@ -140,7 +140,7 @@ def series(ctx: Context, p: r.SeriesParams) -> dict[str, Any]:
     :return: The answer."""
     q = body(p) | {"smooth": {"ema": p.smooth} if p.smooth is not None else None}
     if p.to is not None:
-        return export(ctx, evaluate(ctx, {"series": q}), p.to)
+        return export(ctx, evaluate(ctx, {"series": q}), p.to, p.x)
     return ask(ctx, {"series": q}, p.cursor)
 
 
@@ -742,7 +742,7 @@ def plan_missing(ctx: Context, p: r.GroupParams) -> dict[str, Any]:
     return page(ctx, answer, None)
 
 
-def export(ctx: Context, answer: dict[str, Any], to: str) -> dict[str, Any]:
+def export(ctx: Context, answer: dict[str, Any], to: str, x: str = "_step") -> dict[str, Any]:
     """Write a whole run table or set of curves to a CSV or JSON file, outside the token budget.
 
     Files go under ``.beamtime/exports/`` of the project and are never overwritten.
@@ -750,7 +750,8 @@ def export(ctx: Context, answer: dict[str, Any], to: str) -> dict[str, Any]:
     :param ctx: The operation context.
     :param answer: A ``runs`` or ``series`` answer, uncut.
     :param to: The file name below ``.beamtime/exports/``, ending in ``.csv`` or ``.json``.
-    :return: The file's path, format and size."""
+    :param x: The x axis of a ``series`` answer, named in the CSV header when it is not the step.
+    :return: The file's path, format, size, columns and first row."""
     import csv
 
     from beamtime.views.store import drafts
@@ -770,68 +771,109 @@ def export(ctx: Context, answer: dict[str, Any], to: str) -> dict[str, Any]:
         kept = {k: v for k, v in budget.envelope_only(answer).items() if k != "meta"}
         path.write_text(json.dumps(kept, default=str))
         n = len(answer.get("rows") or answer.get("curves") or [])
+        if "columns" in kept:
+            header, first = kept["columns"], (kept["rows"] or [None])[0]
+        elif kept["curves"]:
+            header = list(kept["curves"][0])
+            first = [v[0] if isinstance(v, list) and v else v for v in kept["curves"][0].values()]
+        else:
+            header, first = [], None
     else:
-        header, rows = table_of(answer)
+        header, rows = table_of(answer, x)
         with path.open("w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(header)
             writer.writerows(rows)
         n = len(rows)
+        first = rows[0] if rows else None
     return {
         "kind": "export",
         "path": str(path),
         "format": path.suffix[1:],
         "rows": n,
         "bytes": path.stat().st_size,
+        "columns": header,
+        "first_row": first,
         "meta": {"matched": answer["meta"].get("matched")},
     }
 
 
-def table_of(answer: dict[str, Any]) -> tuple[list[str], list[list[Any]]]:
+def table_of(answer: dict[str, Any], x: str = "_step") -> tuple[list[str], list[list[Any]]]:
     """Flatten a ``runs`` or ``series`` answer into one table for CSV.
 
     :param answer: The answer.
+    :param x: The x axis of a ``series`` answer.
     :return: The header and the rows. A run table keeps its columns, a ``{mean, std, n}`` cell
-        becoming three columns; curves become one row per point, with the curve's labels and the
-        envelope ``y``, ``lo``, ``hi``, ``n`` (not the old ``last``, ``min``, ``max``, ``count``,
-        ``mean``)."""
-    if answer["kind"] == "runs":
-        spread = {
-            j for j, col in enumerate(answer["columns"])
-            if any(isinstance(row[j], dict) and "mean" in row[j] for row in answer["rows"])
-        }  # fmt: skip
-        header = [
-            f"{col}.{stat}" if j in spread else col
-            for j, col in enumerate(answer["columns"])
-            for stat in (("mean", "std", "n") if j in spread else (None,))
-        ]
-        rows = []
-        for row in answer["rows"]:
-            out = []
-            for j, cell in enumerate(row):
-                if j in spread:
-                    out += [
-                        cell.get(k) if isinstance(cell, dict) else None
-                        for k in ("mean", "std", "n")
-                    ]
-                else:
-                    out.append(json.dumps(cell) if isinstance(cell, (list, dict)) else cell)
-            rows.append(out)
-        return header, rows
-    header: list[str] = []
+        becoming three columns. Curves become one row per run (or group) and step, one column per
+        metric, empty where a metric has no point; see ``series_table``."""
+    if answer["kind"] == "series":
+        return series_table(answer["curves"], x)
+    spread = {
+        j for j, col in enumerate(answer["columns"])
+        if any(isinstance(row[j], dict) and "mean" in row[j] for row in answer["rows"])
+    }  # fmt: skip
+    header = [
+        f"{col}.{stat}" if j in spread else col
+        for j, col in enumerate(answer["columns"])
+        for stat in (("mean", "std", "n") if j in spread else (None,))
+    ]
     rows = []
-    for curve in answer["curves"]:
-        points = len(curve["x"])
-        labels = {k: v for k, v in curve.items() if not isinstance(v, (list, dict))}
-        labels |= {k: v for k, v in curve.get("by", {}).items()}
-        arrays = {k: v for k, v in curve.items() if isinstance(v, list) and len(v) == points}
-        arrays = {k: v for k, v in arrays.items() if k not in budget.OLD_CURVE_FIELDS}
-        names = [*labels, *arrays]
-        if names != header:
-            header = list(dict.fromkeys([*header, *names]))
-        for i in range(points):
-            rows.append({**labels, **{k: v[i] for k, v in arrays.items()}})
-    return header, [[row.get(k) for k in header] for row in rows]
+    for row in answer["rows"]:
+        out = []
+        for j, cell in enumerate(row):
+            if j in spread:
+                out += [
+                    cell.get(k) if isinstance(cell, dict) else None for k in ("mean", "std", "n")
+                ]
+            else:
+                out.append(json.dumps(cell) if isinstance(cell, (list, dict)) else cell)
+        rows.append(out)
+    return header, rows
+
+
+def series_table(curves: list[dict[str, Any]], x: str) -> tuple[list[str], list[list[Any]]]:
+    """Merge curves into a wide table: ``run, name, step, <y>, ...`` or the group labels first.
+
+    :param curves: The curves of a ``series`` answer.
+    :param x: The x axis; a metric as x gets its own column after ``step`` (per run) or replaces
+        it (grouped curves have no single step).
+    :return: The header and one row per run (or group) and step where any metric has a point;
+        ``<y>.lo``, ``<y>.hi`` and ``<y>.n`` follow a metric whose curves are not raw."""
+    grouped = any("by" in c for c in curves)
+    labels = list(dict.fromkeys(k for c in curves for k in c.get("by", {})))
+    other = x != "_step"
+    metrics = list(dict.fromkeys(c["metric"] for c in curves))
+    spread = {c["metric"] for c in curves if "lo" in c}
+    if grouped:
+        head = [*labels, x if other else "step"]
+    else:
+        head = ["run", "name", "step", *([x] if other else [])]
+    stats = {y: ("", ".lo", ".hi", ".n") if y in spread else ("",) for y in metrics}
+    header = [*head, *(f"{y}{s}" for y in metrics for s in stats[y])]
+
+    points: dict[str, dict[Any, dict[str, Any]]] = {}
+    firsts: dict[str, list[Any]] = {}
+    for curve in curves:
+        key = json.dumps(curve["by"], sort_keys=True) if grouped else curve["run"]
+        firsts.setdefault(
+            key, [curve["by"].get(k) for k in labels] if grouped else [curve["run"], curve["name"]]
+        )
+        by_step = points.setdefault(key, {})
+        for i, xi in enumerate(curve["x"]):
+            step = curve["step"][i] if other and not grouped else xi
+            row = by_step.setdefault(step, {})
+            if other and not grouped:
+                row[x] = xi
+            for stat, name in (("y", ""), ("lo", ".lo"), ("hi", ".hi"), ("n", ".n")):
+                if stat in curve:
+                    row[f"{curve['metric']}{name}"] = curve[stat][i]
+    rows = []
+    for key, by_step in points.items():
+        for step in sorted(by_step):
+            row = by_step[step]
+            tail = [step, *([row.get(x)] if other and not grouped else [])]
+            rows.append([*firsts[key], *tail, *(row.get(h) for h in header[len(head) :])])
+    return header, rows
 
 
 def find_run(ctx: Context, run_id: str) -> Path:

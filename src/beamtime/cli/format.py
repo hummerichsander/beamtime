@@ -241,7 +241,13 @@ def render_export(answer: dict[str, Any]) -> str:
     :return: The text."""
     if "lines" in answer:
         return "\n".join(answer["lines"])
-    return f"wrote {answer['rows']} rows to {answer['path']} ({answer['bytes']} bytes)"
+    first = answer["first_row"]
+    shown = "none" if first is None else ", ".join("" if v is None else str(v) for v in first)
+    return (
+        f"wrote {answer['rows']} rows to {answer['path']} ({answer['bytes']} bytes)\n"
+        f"columns: {', '.join(answer['columns'])}\n"
+        f"first row: {shown}"
+    )
 
 
 def render_data(answer: dict[str, Any]) -> str:

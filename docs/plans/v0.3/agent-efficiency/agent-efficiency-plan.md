@@ -199,7 +199,7 @@ The tickets run in this order: E91 E92 E93 E95 E96 E97 E98 E99 E94 X91.
    `f"{self.prog}: error: {message}"` to stderr and exits 2; use it for the top parser and every subparser
    (`parser_class=` on `add_subparsers`).
 
-### E96. Exports read in one step (sonnet + review) — real data
+### E96. Exports read in one step (sonnet + review) — real data — **done**
 
 - **Touches:** `src/beamtime/ops/reading.py` (`export` 745–786, `table_of` 790–836), `src/beamtime/cli/format.py`
   (`render_export` 237–244), `docs/design/08-cli-mcp.md` (file export row l. 244), `src/beamtime/guide/parts/

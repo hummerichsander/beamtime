@@ -385,7 +385,7 @@ series:
   A serve answering a CLI or MCP call (`x-beamtime-caller`) strips like the CLI, `serve --stdio` does not
   (`Context.wire`), and `remote.answer` strips what a remote or a serve answered, so a federated call ends up
   envelope-only too; what an older remote or an older running serve answered gains the envelope first
-  (`answers.upgraded`), so the strip never takes a curve's values. A CSV export (`series --to`) writes `y`, `lo`, `hi`, `n` and none of the old names.
+  (`answers.upgraded`), so the strip never takes a curve's values. A CSV export (`series --to`) is wide, one row per run and step with `<y>`, `<y>.lo`, `<y>.hi`, `<y>.n` columns and none of the old names ([layer 8](08-cli-mcp.md#reading-cli-and-mcp)).
 - A metric as `x` (`read.x_values`) pairs each point with that metric's most recent value at or before
   the same step (none where it isn't finite), so x is always a value the run logged and a stair-logged
   `epoch` stays a stair.
