@@ -219,7 +219,9 @@ def select_runs(
     rows = ctx.index.store.db.execute(
         f"SELECT {cols} FROM runs WHERE {cond}{pre}", [*params, *pre_params]
     ).fetchall()
-    windowed = [f for f in fields if f.window is not None or f.ref or f.stat in SERIES_STATS]
+    windowed = [
+        f for f in fields if f.window is not None or f.ref is not None or f.stat in SERIES_STATS
+    ]
     proposal = [f for f in fields if f.ns == "proposal"]
     out = []
     for row in rows:

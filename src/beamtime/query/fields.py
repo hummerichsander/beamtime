@@ -212,7 +212,7 @@ def parse_field(text: str) -> Field:
             )
 
 
-def step_reference(text: str, body: str) -> "Field":
+def step_reference(text: str, body: str) -> Field:
     """Parse the step of ``metric.<a>[<b>.<step stat>]``.
 
     :param text: The field text, for the error.

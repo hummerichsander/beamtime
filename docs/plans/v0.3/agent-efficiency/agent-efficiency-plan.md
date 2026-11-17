@@ -119,6 +119,10 @@ The tickets run in this order: E91 E92 E93 E95 E96 E97 E98 E99 E94 X91.
    `a` before it when `a` has no point there; `None` when the step is `None` or `a` has no point at or before it.
    Rejected: `@` syntax (only `src/beamtime/format/place.py` parses `@`).
 10. **`status` carries the memory's text** as `memory.text`; `memory_show` stays for older versions and the chain.
+11. **A step-reference value that is NaN or infinite reads as `None`** (review of E98): a point read follows the
+    curves and the x-axis mapping (`read.py`, `null` for non-finite points), so answers never carry non-finite numbers.
+    Rejected: the last finite value at or before the step (it would report a value the run didn't log there, e.g.
+    the pre-divergence loss at `nonfinite_step`).
 
 ## E. Efficiency
 
