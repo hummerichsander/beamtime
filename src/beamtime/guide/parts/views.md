@@ -93,24 +93,3 @@ Every node is `- <block>: {props}`; layouts take a list of children, or `childre
 props. Ids are optional (made from the block and its main prop) and name blocks in findings and
 renders. Common props: `id`, `title`, `caption`, `span` (1, 2, full), `from` (a group relative to
 the page, or a run id), `where`, `depth: 1` (only the group's own runs).
-
-## Defaults
-
-{{agent.defaults}}
-
-## More: `guide <topic>`
-
-| Topic | For |
-|---|---|
-| `examples [name]` | complete views: sweep, ablation, run, direction, custom |
-| `blocks [name]` | the block catalog, or one block's schema |
-| `queries` | the query language |
-| `charts` | axis labels, captions, scales, many curves |
-| `checklist`, `anti-patterns` | the screenshot checklist; common mistakes |
-| `kit`, `kit-api`, `library` | custom blocks: tiers and vocabulary; every `bt` name; library blocks |
-| `proposals`, `predictions` | writing proposals with plans; `each` and `compare` checks |
-| `notes`, `verdicts`, `memory` | the record: note types, judging a proposal, compressing |
-| `remote` | `@source/...` groups on clusters |
-| `analysis` | which tool answers which question |
-
-With a group (`guide examples sweep --group <group>`), examples use its metrics and config.

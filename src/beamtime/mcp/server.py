@@ -22,7 +22,7 @@ INSTRUCTIONS = (
     "proposal with `proposal_set`; judge results with `check` and a verdict note "
     "(`note_add`), never claiming more than the check says. Writes are additive and pass "
     "`author` (your model id). Answers are cut at about 8k tokens; pass `cursor` from "
-    "`meta.next` for more. To build a group's page, read `guide` and use the `view_*` "
+    "`meta.next` for more. To build a group's page, read `guide views` and use the `view_*` "
     "tools. User-only commands "
     f"({', '.join(sorted(op.name for op in OPS if op.user_only))}) "
     "are not tools: give the user the command."
@@ -113,7 +113,7 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
             ("idea", "what the view should show; default: the group's result", False),
         ],
         text(
-            """Build the Beamtime view of group {group}. Aim: {idea}. Read `guide` first
+            """Build the Beamtime view of group {group}. Aim: {idea}. Read `guide views` first
             (and `guide examples`, `guide charts`, `guide kit`), then look at the group:
             `keys`, `memory_show`,
             `proposal_show`, `check`, `notes`, `view_show` and `block_list`. Decide the one question

@@ -316,7 +316,7 @@ def test_save_page_from_the_ui(ctx: Context) -> None:
 
 def test_guide_parts(ctx: Context) -> None:
     """The guide answers every part; blocks list the union; a group adds its keys."""
-    assert "view_new" in call("guide", {}, ctx)["text"]
+    assert "view_new" in call("guide", {"part": "views"}, ctx)["text"]
     assert "**scatter**" in call("guide", {"part": "blocks"}, ctx)["text"]
     assert (
         "- x: text (required" in call("guide", {"part": "blocks", "name": "scatter"}, ctx)["text"]

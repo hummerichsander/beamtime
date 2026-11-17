@@ -15,7 +15,7 @@ from beamtime.record.proposals import parse as parse_proposal
 from beamtime.views import model as m
 
 PARTS = files("beamtime.guide") / "parts"
-NAMES = ["overview", *TOPICS]
+NAMES = ["index", *TOPICS]
 TEXTS = {name: (PARTS / f"{name}.md").read_text() for name in NAMES}
 LONGEST = 125
 SWEEP = "scaling/lr-sweep"
@@ -53,16 +53,16 @@ def label_of(node: m.Node) -> str:
     return title.lower() if title and len(title.split()) <= 2 else ""
 
 
-def test_every_topic_is_a_short_file_and_listed_in_the_overview() -> None:
-    """Each topic exists, stays short, and the overview names it."""
+def test_every_topic_is_a_short_file() -> None:
+    """Each topic and the index exist and stay short."""
     for name in NAMES:
         assert len(TEXTS[name].splitlines()) <= LONGEST, name
-    for name in TOPICS:
-        assert (
-            f"`{name}`" in TEXTS["overview"]
-            or f"`{name}," in TEXTS["overview"]
-            or (f" {name}`" in TEXTS["overview"])
-        ), name
+
+
+def test_every_topic_is_listed_in_the_index() -> None:
+    """The index names every topic, plus the examples and the blocks."""
+    for name in (*TOPICS, "examples", "blocks"):
+        assert re.search(rf"`{name}[`, \[]", TEXTS["index"]), name
 
 
 def test_registry_lists_the_topics(ctx: Context) -> None:
@@ -132,10 +132,10 @@ def test_note_types_and_verdict_words_are_all_there() -> None:
 
 
 def test_vocabulary_table_and_title_rule_are_in_the_parts() -> None:
-    """The kit part has the vocabulary table; overview, kit and checklist say titles go left."""
+    """The kit part has the vocabulary table; views, kit and checklist say titles go left."""
     assert "bt.theme.tone" in TEXTS["kit"] and "bt.ui.Predictions" in TEXTS["kit"]
     assert "bt.ui.Sym" in TEXTS["checklist"]
-    for name in ("overview", "kit", "checklist"):
+    for name in ("views", "kit", "checklist"):
         assert "left column" in TEXTS[name], name
 
 
@@ -165,12 +165,12 @@ def with_agent(project: Path, agent: str) -> Context:
 
 
 def defaults_of(ctx: Context) -> list[str]:
-    """Take the lines of the overview's Defaults section.
+    """Take the lines of the index's Defaults section.
 
     :param ctx: The operation context.
     :return: Its bullet lines."""
     text = call("guide", {}, ctx)["text"]
-    section = text.split("## Defaults")[1].split("## More")[0]
+    section = text.split("## Defaults")[1]
     return [line for line in section.splitlines() if line.startswith("- ")]
 
 

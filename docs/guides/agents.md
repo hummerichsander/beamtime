@@ -57,6 +57,6 @@ once a run records it, so shorten it now`.
 
 ## The agent's manual
 
-`beamtime guide` prints what agents read about Beamtime: how to write proposals, how to build
-pages, and checklists. Its defaults come from the `agent` setting and say where each value comes
-from; your own instruction file can change them ("always put the run table first").
+`beamtime guide` lists the topics agents read about Beamtime (`beamtime guide <topic>`): how to
+write proposals, how to build pages, and checklists. Its defaults come from the `agent` setting and
+say where each value comes from; your own instruction file can change them ("always put the run table first").

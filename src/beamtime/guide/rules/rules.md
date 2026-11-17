@@ -4,8 +4,8 @@ This project's experimental record lives in Beamtime: runs, proposals, notes and
 up there, and write findings there. Tools are named as over MCP; the CLI is `beamtime <name>` with
 spaces for `_`.
 
-- Start each session with `memory_show`, then `status`. Read `guide` before working with runs,
-  proposals, notes or views.
+- Start each session with `memory_show`, then `status`. `guide` lists its topics; read the one you
+  need before working with runs, proposals, notes or views.
 - Questions about past experiments: answer from `notes`, `memory_show` and `runs`, not from
   recollection or loose files.
 - Results, conclusions, dead ends and open questions go into a note on the run or group

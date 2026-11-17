@@ -453,6 +453,7 @@ class GuideParams(Params, kw_only=True):
         Literal[
             "examples",
             "blocks",
+            "views",
             "queries",
             "checklist",
             "anti-patterns",
@@ -469,7 +470,7 @@ class GuideParams(Params, kw_only=True):
             "analysis",
         ]
         | None,
-        msgspec.Meta(description="default: the overview"),
+        msgspec.Meta(description="default: the list of topics"),
     ] = None
     name: Annotated[
         str | None, msgspec.Meta(description="one example or block, e.g. sweep or scatter")

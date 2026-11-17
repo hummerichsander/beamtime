@@ -686,14 +686,15 @@ it, with a link to its code and the error; the frame and every other block stay 
 ## The agent guide
 
 `beamtime guide` and the `guide` tool give agents everything they need to build views: short design
-guidance by topic (each part under about 100 lines, indexed in the overview), a few complete examples, deterministic checks and a fixed screenshot checklist, which the
+guidance by topic (each part under about 100 lines, indexed in the default answer), a few complete examples, deterministic checks and a fixed screenshot checklist, which the
 research shows work better than long rule lists.
 
 ### Progressive disclosure
 
 | Call | Returns | Size |
 |---|---|---|
-| `guide` | workflow, design principles, defaults, and an index of the other parts | ~1.5k tokens |
+| `guide` | the index: one line per topic, and the agent defaults | ~300 tokens |
+| `guide views` | workflow, design principles, the view format | ~1.5k |
 | `guide examples [name]` | the example views, or one with commentary | ~1k each |
 | `guide blocks [name]` | the catalog, or one block's schema and description | ~1.5k / ~300 |
 | `guide queries` | the query language | ~1.5k |

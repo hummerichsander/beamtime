@@ -108,7 +108,7 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
 
 ## G. Guide
 
-### G81. The guide's default answer is an index (sonnet + review) — reproduced
+### G81. The guide's default answer is an index (sonnet + review) — reproduced — **done**
 
 - **Touches:** new `src/beamtime/guide/parts/index.md`; `src/beamtime/guide/parts/overview.md` → `views.md`
   (`## Defaults` and `## More` moved to the index); `src/beamtime/guide/__init__.py` (`TOPICS` 16, `guide` 78–98);

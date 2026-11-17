@@ -14,6 +14,7 @@ from beamtime.remote import answer as remote_answer
 from beamtime.settings import AgentSettings
 
 TOPICS = (
+    "views",
     "queries",
     "checklist",
     "anti-patterns",
@@ -84,7 +85,7 @@ def guide(ctx: Context, p: r.GuideParams) -> dict[str, Any]:
     agent = ctx.settings.agent
     match p.part:
         case None:
-            text = read("overview.md", agent)
+            text = read("index.md", agent)
             if p.group is not None:
                 text += "\n" + about(ctx, p.group)
         case "examples":
@@ -95,7 +96,7 @@ def guide(ctx: Context, p: r.GuideParams) -> dict[str, Any]:
             text = read(f"{topic}.md", agent)
         case other:
             raise ValueError(f"no guide part {other!r}")
-    return {"kind": "guide", "part": p.part or "overview", "text": text}
+    return {"kind": "guide", "part": p.part or "index", "text": text}
 
 
 def read(name: str, agent: AgentSettings) -> str:
@@ -112,13 +113,13 @@ def value_of(agent: AgentSettings, key: str) -> str:
     """Render one placeholder of a part.
 
     :param agent: The agent settings.
-    :param key: A knob, or ``defaults`` for the overview's generated section.
+    :param key: A knob, or ``defaults`` for the index's generated section.
     :return: The text that replaces ``{{agent.<key>}}``."""
     return defaults(agent) if key == "defaults" else str(getattr(agent, key))
 
 
 def defaults(agent: AgentSettings) -> str:
-    """Render the overview's defaults: one line per knob agents act on, each with its origin.
+    """Render the index's defaults: one line per knob agents act on, each with its origin.
 
     :param agent: The agent settings.
     :return: Markdown for the body of ``## Defaults``."""
