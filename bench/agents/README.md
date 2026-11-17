@@ -23,9 +23,9 @@ uv run python bench/agents/report.py --base <stamp> --new <stamp>  # per-task de
 uv run python bench/agents/mine.py                             # tool counts and errors of real sessions
 ```
 
-`--guide <dir>` replaces the guide parts that have a file of the same name in `<dir>` (`overview.md`,
-`notes.md`, ..., and `instructions.md` for the agent rules in CLAUDE.md), so a text can be tested
-without a release. The examples and the block catalogue are always the shipped ones.
+`--guide <dir>` replaces the guide parts that have a file of the same name in `<dir>` (`index.md`,
+`views.md`, `notes.md`, ..., and `instructions.md` for the agent rules in CLAUDE.md), so a text can
+be tested without a release. The examples and the block catalogue are always the shipped ones.
 
 Runs go to `bench/agents/runs/<stamp>/` (not committed): per run the project with its generated log
 dir, the agent's transcript (`transcript.jsonl`), `record.json` (tool calls with errors, rounds,

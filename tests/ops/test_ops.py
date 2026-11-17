@@ -440,7 +440,8 @@ def test_instructions_block(project: Path) -> None:
     lines = call("setup", {"instructions": True, "yes": True}, ctx)["lines"]
     again = (project / "AGENTS.md").read_text()
     assert any("updated" in line for line in lines)
-    assert again.count(START) == 1 and "`guide` lists its topics; read the one you" in again and again.endswith("Mine after.\n")
+    assert again.count(START) == 1 and again.endswith("Mine after.\n")
+    assert "`guide` lists its topics; read the one you" in again
     assert again.index(END) < again.index("Mine after.")
     assert not any(
         "Agent rules" in line for line in call("setup", {"instructions": True, "yes": True}, ctx)["lines"]
