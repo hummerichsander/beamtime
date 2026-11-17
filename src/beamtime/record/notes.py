@@ -13,11 +13,12 @@ from beamtime.record.proposals import RecordError, Target, all_versions, load
 VERDICTS = ("confirmed", "refuted", "inconclusive")
 
 
-def evidence_entry(item: str | dict[str, Any]) -> dict[str, Any]:
+def evidence_entry(item: str | dict[str, Any], target: Target) -> dict[str, Any]:
     """Turn an evidence item into a typed entry.
 
     :param item: A typed entry, or a run id, note id, ``group#prediction`` or
         ``group@view-version``.
+    :param target: The target of the note, to find the proposal of a group given by mistake.
     :return: The typed entry, e.g. ``{run: <id>}``."""
     if isinstance(item, dict):
         if not item or not any(k in item for k in (*EVIDENCE_KINDS, "metric")):
@@ -28,10 +29,27 @@ def evidence_entry(item: str | dict[str, Any]) -> dict[str, Any]:
         return item
     kind = link_kind(item)
     if kind == "folder":
+        names = prediction_names(target, item)
         raise RecordError(
-            f"evidence {item!r}: give a run id, a note id, group#prediction or group@view-version"
+            f"evidence {item!r} is a group; give a run id (20261024-101532-k3m9xq2a), a note id "
+            f"(20261024-101532-a1b2),\n{item}#{names[0] if names else '<prediction>'} or "
+            f"{item}@<view-version>"
+            + (f"; predictions of {item}: {', '.join(names)}" if names else "")
         )
     return {kind: item}
+
+
+def prediction_names(target: Target, group: str) -> list[str]:
+    """List the predictions in a group's newest proposal.
+
+    :param target: The target of the note, for the log dir.
+    :param group: The group path, as given.
+    :return: The names, or none if the group has no readable proposal."""
+    folder = target.index.folder_path(group.strip("/"))
+    try:
+        return [p.name for p in load(folder, all_versions(folder)[-1]).predictions]
+    except (OSError, IndexError, RecordError):
+        return []
 
 
 def build(
@@ -96,7 +114,7 @@ def build(
     elif proposal or verdicts or overall:
         problems.append("proposal, verdict and overall belong to verdict notes (--type verdict)")
     try:
-        entries = [evidence_entry(e) for e in evidence]
+        entries = [evidence_entry(e, target) for e in evidence]
     except RecordError as e:
         problems.append(str(e))
         entries = []

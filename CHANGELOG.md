@@ -2,6 +2,12 @@
 
 ## 0.3.0 (unreleased)
 
+- **Added** `run.started` as an alias of `run.created_at` in `select`, `sort` and `where` (the column keeps the name
+  as typed), and a bare `metric.<key>` means `metric.<key>.last`; a key whose last segment is a statistic's name
+  still needs the explicit `.last` (`metric.loss.min.last`).
+- **Changed** the error for a group given as `note add` evidence shows an example of each form, built from the
+  group, and lists the group's prediction names.
+
 - **Changed** the MCP server lists 19 core tools and `tools_more`: about 3.3k tokens of definitions instead of
   about 5.8k for all 43 tools. The tools for views, blocks, run control and export are reached through
   `tools_more`: `tools_more(family="views")` describes a family, `tools_more(tool="view_show", args={...})` calls

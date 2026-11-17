@@ -11,7 +11,7 @@ from beamtime.format.authored import file_hash, load_yaml, newest, versions
 from beamtime.format.run import derived_status
 from beamtime.index.index import Index
 from beamtime.query import models as m
-from beamtime.query.fields import CODE_SQL, json_path, parse_field
+from beamtime.query.fields import CODE_SQL, json_path, metric_key, parse_field
 from beamtime.query.models import QueryError, closest
 from beamtime.query.select import Context, select_runs
 from beamtime.query.where import fields_of
@@ -192,7 +192,7 @@ def reduce_problems(r: Reduce) -> list[str]:
     if not metric or metric != r.metric:
         return [f"reduce.metric {r.metric!r}: a metric key like val/acc, without spaces"]
     if metric.startswith(("metric.", "config.", "value.", "run.")):
-        key = metric.removeprefix("metric.").rsplit(".", 1)[0]
+        key = metric_key(metric) or metric.removeprefix("metric.")
         return [
             f"reduce.metric is a metric key like {key!r}, not a field; "
             "the statistic goes in reduce.stat"

@@ -72,9 +72,10 @@ PROGRESS_SQL = (
 # the attempts a run recorded; 0 for a run without any (older or still empty runs).
 ATTEMPTS_SQL = "COALESCE(json_array_length(info, '$.attempts'), 0)"
 PROPOSAL = ("status", "check", "progress", "verdict")
+# run fields that mean the same as a canonical one (``created_at`` is the run's first start).
+RUN_SAME = {"started": "created_at"}
 # what people try for a run field that has another name.
 RUN_ALIASES = {
-    "started": "created_at",
     "start": "created_at",
     "created": "created_at",
     "finished": "ended_at",
@@ -131,7 +132,7 @@ def parse_field(text: str) -> Field:
         rest = "." + rest
     match ns:
         case "run":
-            name = rest[1:]
+            name = RUN_SAME.get(rest[1:], rest[1:])
             known = [*RUN_COLUMNS, *RUN_CARD, *RUN_INFO, *RUN_COMPUTED]
             if name not in known:
                 fields = [f"run.{k}" for k in known]
@@ -160,8 +161,12 @@ def parse_field(text: str) -> Field:
                 body = body[: m.start()]
             key, _, stat = body.rpartition(".")
             if not key or stat not in STATS:
+                # a bare key is its last value; a key ending in a stat name needs ``.last``.
+                key, stat = body, "last"
+            if not key:
                 raise QueryError(
-                    f"{text!r}: a metric field is metric.<key>.<stat>; stats: {', '.join(STATS)}"
+                    f"{text!r}: a metric field is metric.<key>.<stat> or metric.<key> (the last "
+                    f"value); stats: {', '.join(STATS)}"
                 )
             if window is not None and stat not in WINDOW_STATS:
                 raise QueryError(f"{text!r}: windowed statistics are {', '.join(WINDOW_STATS)}")
@@ -182,6 +187,18 @@ def parse_field(text: str) -> Field:
                 f"unknown field {text!r}: fields start with run., config., metric., "
                 "value. or proposal."
             )
+
+
+def metric_key(text: str) -> str | None:
+    """Give the metric key of a metric field.
+
+    :param text: A field such as ``metric.val/acc.max`` or ``metric.val/acc``.
+    :return: The key, or ``None`` if the text is not a metric field."""
+    try:
+        field = parse_field(text)
+    except QueryError:
+        return None
+    return field.key if field.ns == "metric" else None
 
 
 def sql(field: Field) -> str | None:

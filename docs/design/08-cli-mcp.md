@@ -122,8 +122,10 @@ MCP server, started by an agent client).
   6000 tokens (a test checks it) as the tool set grows.
 - **Arguments sent as JSON text** (`"\"all\""` for `all`, `"[1, 2]"` for a list; seen once in
   `series.points`) are decoded once (`mcp/server.py:decoded`), unless the parameter is a plain string.
-- **Errors name the way out**: an unknown run field suggests the field that exists (`run.started` ->
-  `run.created_at`, `run.statu` -> `run.status`), and an unknown group lists its siblings' closest
+- **Errors name the way out**: an unknown run field suggests the field that exists (`run.created` ->
+  `run.created_at`, `run.statu` -> `run.status`; `run.started` is accepted as `run.created_at`, and a
+  bare `metric.<key>` as `metric.<key>.last`), a group given as evidence shows each form with an
+  example from that group and lists its predictions, and an unknown group lists its siblings' closest
   matches and the top-level groups; every no-log-dir error says `run from the project folder or pass
   `--root <project>``.
 - **MCP tool names on the CLI**: the first command word may be a tool name (`beamtime memory_show`,

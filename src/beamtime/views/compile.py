@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from beamtime.format.ids import is_run_id
 from beamtime.format.schema import SchemaError
+from beamtime.query.fields import metric_key
 from beamtime.views import model as m
 from beamtime.views import settings
 from beamtime.views.defaults import lower_is_better
@@ -404,7 +405,7 @@ class Compiler:
         :return: From the view's ``metrics``, else guessed from the name."""
         if not field:
             return False
-        metric = field.removeprefix("metric.").rsplit(".", 1)[0]
+        metric = metric_key(field) or field
         info = self.view.metrics.get(metric)
         if info is not None and info.higher_is_better is not None:
             return not info.higher_is_better

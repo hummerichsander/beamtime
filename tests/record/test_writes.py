@@ -274,3 +274,22 @@ def test_notes_page_by_before(ctx: Context) -> None:
     assert [e["description"] for e in second["entries"]] == ["Idea 2.", "Idea 1."]
     last = call("notes", {"from": "paging", "limit": 2, "before": second["entries"][-1]["id"]}, ctx)
     assert [e["description"] for e in last["entries"]] == ["Idea 0."] and not last["more"]
+
+
+def test_evidence_group_error_shows_each_form(ctx: Context) -> None:
+    """A group as evidence names the forms with examples from that group and its predictions."""
+    sweep = "tokenizer/bpe-vs-unigram"
+    base = {"group": ".", "type": "observation", "description": "x"}
+    with pytest.raises(OpError) as e:
+        call("note add", base | {"evidence": [sweep]}, ctx)
+    message = str(e.value)
+    assert len(message.splitlines()) == 2
+    for form in (f"{sweep}#unigram-wins", f"{sweep}@<view-version>", "20261024-101532-"):
+        assert form in message
+    assert "predictions of tokenizer/bpe-vs-unigram: unigram-wins" in message
+    with pytest.raises(OpError) as e:
+        call("note add", base | {"evidence": ["tokenizer"]}, ctx)
+    message = str(e.value)
+    assert len(message.splitlines()) == 2
+    assert "tokenizer#<prediction>" in message and "tokenizer@<view-version>" in message
+    assert "predictions of" not in message

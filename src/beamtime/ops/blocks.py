@@ -21,6 +21,7 @@ from beamtime.ops import call
 from beamtime.ops import registry as r
 from beamtime.ops.authored import author_of, save, target_of, written
 from beamtime.ops.context import Context, OpError
+from beamtime.query.fields import metric_key
 from beamtime.views import code, store
 from beamtime.views import model as m
 from beamtime.views.library import (
@@ -473,7 +474,7 @@ def hard_coded(
     known = metrics | fields
 
     def named(s: str) -> bool:
-        return s in known or (s.startswith("metric.") and s[7:].rsplit(".", 1)[0] in metrics)
+        return s in known or metric_key(s) in metrics
 
     out = []
     literals = {s[1:-1] for s in code.STRING.findall(code.COMMENT.sub(" ", source))}

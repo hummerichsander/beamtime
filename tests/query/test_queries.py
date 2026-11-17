@@ -10,6 +10,7 @@ import pytest
 
 from beamtime.index.index import Index
 from beamtime.query import QueryError, run
+from beamtime.query.fields import parse_field
 from beamtime.synth import generate
 from beamtime.synth.generate import SCALES, Generator
 
@@ -641,3 +642,73 @@ def test_models_import_is_light() -> None:
     done = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert done.returncode == 0, done.stderr
     assert done.stdout.strip() == ""
+
+
+def test_run_started_is_run_created_at(ask) -> None:
+    """``run.started`` is ``run.created_at``, the run's first start: the column keeps the typed name."""
+    a = ask(
+        {
+            "runs": {
+                "from": "scaling/lr-sweep",
+                "select": ["run.started", "run.created_at"],
+                "sort": ["-run.started"],
+            }
+        }
+    )
+    assert a["columns"][1:] == ["run.started", "run.created_at"]
+    rows = table(a)
+    assert rows and all(r["run.started"] == r["run.created_at"] is not None for r in rows)
+    assert [r["run.started"] for r in rows] == sorted((r["run.started"] for r in rows), reverse=True)
+    newest = rows[0]["run.started"]
+    where = ask({"runs": {"from": "scaling/lr-sweep", "where": {"run.started": {"ge": newest}}}})
+    assert len(where["rows"]) >= 1
+
+
+def test_bare_metric_key_means_last(ask) -> None:
+    """``metric.<key>`` is ``metric.<key>.last`` in select, sort and where."""
+    bare = ask(
+        {
+            "runs": {
+                "from": "scaling/lr-sweep",
+                "where": {"run.status": "finished", "metric.val/acc": {"gt": 0}},
+                "select": ["metric.val/acc", "metric.val/acc.last"],
+                "sort": ["-metric.val/acc"],
+            }
+        }
+    )
+    assert bare["columns"][1:] == ["metric.val/acc", "metric.val/acc.last"]
+    rows = table(bare)
+    assert rows and all(r["metric.val/acc"] == r["metric.val/acc.last"] for r in rows)
+    values = [r["metric.val/acc"] for r in rows]
+    assert values == sorted(values, reverse=True)
+    explicit = ask(
+        {
+            "runs": {
+                "from": "scaling/lr-sweep",
+                "where": {"run.status": "finished", "metric.val/acc.last": {"gt": 0}},
+                "select": ["metric.val/acc.last"],
+                "sort": ["-metric.val/acc.last"],
+            }
+        }
+    )
+    assert [r["metric.val/acc.last"] for r in table(explicit)] == values
+
+
+def test_bare_metric_key_parsing() -> None:
+    """The last segment is the stat only if it names one; keys with dots stay whole."""
+    f = parse_field("metric.val/acc")
+    assert (f.key, f.stat, f.window, f.text) == ("val/acc", "last", None, "metric.val/acc")
+    f = parse_field("metric.layer.0.grad")
+    assert (f.key, f.stat) == ("layer.0.grad", "last")
+    f = parse_field("metric.layer.0.grad.max")
+    assert (f.key, f.stat) == ("layer.0.grad", "max")
+    f = parse_field("metric.loss.min")
+    assert (f.key, f.stat) == ("loss", "min")
+    f = parse_field("metric.loss.min.last")
+    assert (f.key, f.stat) == ("loss.min", "last")
+    f = parse_field("metric.loss[10:20]")
+    assert (f.key, f.stat, f.window) == ("loss", "last", (10, 20))
+    with pytest.raises(QueryError, match="windowed statistics"):
+        parse_field("metric.loss.ema_last[10:20]")
+    with pytest.raises(QueryError, match="metric.<key>"):
+        parse_field("metric.")

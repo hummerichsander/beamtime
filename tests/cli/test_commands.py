@@ -86,7 +86,8 @@ def test_series_steps_and_query_argument(project: Path) -> None:
     "args, code, text",
     [
         (["runs", "nope"], 4, "no group 'nope'"),
-        (["runs", "--select", "metric.val/acc.mx"], 2, "metric field"),
+        (["runs", "--select", "metric."], 2, "metric field"),
+        (["runs", "--select", "metric.val/acc.mx"], 4, "Did you mean 'val/acc'"),
         (["runs", "--where", "config.lr"], 2, "operator"),
         (["card", "20200101-000000-zzzzzzzz"], 4, "no run"),
         (["runs", "--limit", "x"], 2, "invalid int"),

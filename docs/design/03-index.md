@@ -220,11 +220,18 @@ Every value a query can filter, sort or show is a **field**, a dotted path with 
 | `value.` | `value.test/acc` | explicit run card values |
 | `proposal.` | `proposal.status`, `proposal.check`, `proposal.progress`, `proposal.verdict` | the check and the notes ([research record](09-research-record.md#the-check)) |
 
-For `metric.`, the last segment is always the statistic and everything between is the metric key,
-so keys containing dots (`metric.layer.0.grad.max`) stay unambiguous. The statistics are the run
-card's: `first`, `last`, `ema_last`, `min`, `min_step`, `max`, `max_step`, `mean`, `count`,
+For `metric.`, the last segment is the statistic when it names one and everything before it is the
+metric key, so keys containing dots (`metric.layer.0.grad.max`) stay unambiguous. A bare
+`metric.<key>` is `metric.<key>.last`, in `select`, `sort` and `where` alike, and the column keeps the
+name as typed. The one trap is a key whose last segment is a statistic's name: `metric.loss.min` is
+the minimum of `loss`, so the last value of a key literally named `loss.min` is written
+`metric.loss.min.last`. The statistics are the run card's: `first`, `last`, `ema_last`, `min`, `min_step`, `max`, `max_step`, `mean`, `count`,
 `last_step`, `nonfinite`, `slope_last10pct`. A config key that itself contains a dot is quoted:
 `config["a.b"]`.
+
+`run.created_at` is when the run first started (`init` writes it together with the first attempt's
+`started_at`; a resumed run keeps it), so `run.started` is accepted as the same field. It resolves
+to `run.created_at`, and a column shows the name as typed.
 
 **`run.code`** is one comparable identity for the code a run ran on: the short commit, plus the
 short diff hash (`run.dirty`'s `diff_sha`) when the checkout was dirty (`f385eda+1a2b3c4d`), so the

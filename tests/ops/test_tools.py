@@ -359,7 +359,7 @@ def test_to_stays_under_the_exports_folder_and_never_overwrites(ctx: Context) ->
 def test_field_errors_suggest_the_right_run_field(ctx: Context) -> None:
     """A guessed run field names the field that exists; close spellings are suggested."""
     with pytest.raises(OpError, match=r"Did you mean 'run.created_at'\?") as e:
-        call("runs", {"select": ["run.started"]}, ctx)
+        call("runs", {"select": ["run.created"]}, ctx)
     assert e.value.code == 2
     with pytest.raises(OpError, match="Did you mean 'run.status'"):
         call("runs", {"where": {"run.statu": "finished"}}, ctx)
