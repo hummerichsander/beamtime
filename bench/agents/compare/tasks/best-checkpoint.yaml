@@ -1,0 +1,10 @@
+prompt: >
+  The runs in long/schedules overfit: their validation loss falls and then rises. For every run in
+  the group, find the step of its lowest logged val/loss (the first such step if several are
+  equal) and the train/loss logged at that very step, at full precision. Give one entry per run.
+answer: '{"runs": [{"id": <run id>, "step": <step number>, "train_loss": <number>}]}'
+time_limit_s: 600
+data: wide
+checks:
+  step: {kind: keyed, answer: runs, truth: runs, key: id, field: step, abs: 0}
+  train_loss: {kind: keyed, answer: runs, truth: runs, key: id, field: train_loss, abs: 0.000001}

@@ -1,0 +1,12 @@
+prompt: >
+  Which five runs under sweeps/ have the lowest final validation loss? Only finished runs count; a
+  run that failed or was killed is left out however low its loss went, and the final validation
+  loss is the last logged val/loss of a run, not its lowest. Give the five runs best first, each
+  with its run id, its group as the path below the log dir (for example sweeps/s03) and its final
+  validation loss at full precision.
+answer: '{"runs": [{"id": <run id>, "group": <group path>, "val_loss": <number>}]}'
+time_limit_s: 600
+data: wide
+checks:
+  ids: {kind: f1, key: runs, truth: runs}
+  val_loss: {kind: keyed, answer: runs, truth: runs, key: id, field: val_loss, abs: 0.0001}

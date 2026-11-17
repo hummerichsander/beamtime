@@ -218,13 +218,16 @@ def run_check(
 ) -> float:
     """Run one check; an answer of the wrong shape scores 0.
 
-    :param name: The check's name; the answer key it reads unless the spec has a ``key``.
+    :param name: The check's name; the answer key it reads unless the spec has a ``key`` (``answer``
+        for ``keyed``, whose ``key`` names the object).
     :param spec: The check from the task file.
     :param answer: The parsed answer.
     :param truth: The expected values of the task.
     :param project: The agent's folder.
     :return: 1 for a pass, 0 for a fail, the F1 for ``f1``."""
-    given = answer.get(name if spec["kind"] == "keyed" else spec.get("key", name))
+    given = answer.get(
+        spec.get("answer", name) if spec["kind"] == "keyed" else spec.get("key", name)
+    )
     expected = truth[spec["truth"]] if "truth" in spec else None
     try:
         match spec["kind"]:

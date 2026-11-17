@@ -104,15 +104,15 @@ def transcript(events: list[dict[str, Any]]) -> str:
 
 
 def test_jobs() -> None:
-    """96 sessions: eight tasks, four setups, three seeds; the order is fixed and shuffled."""
+    """144 sessions: twelve tasks, four setups, three seeds; the order is fixed and shuffled."""
     tasks = grade.load_tasks()
     jobs = sessions.make_jobs(tasks, list(setups.SETUPS), [7, 8, 9], 1)
 
-    assert len(jobs) == 96
-    assert len({j.name for j in jobs}) == 96
+    assert len(jobs) == 144
+    assert len({j.name for j in jobs}) == 144
     assert jobs == sessions.make_jobs(tasks, list(setups.SETUPS), [7, 8, 9], 1)
     assert [j.name for j in jobs] != sorted(j.name for j in jobs)
-    assert len(sessions.make_jobs(tasks, ["mcp"], [7], 2)) == 16
+    assert len(sessions.make_jobs(tasks, ["mcp"], [7], 2)) == 24
 
 
 def test_jobs_respect_task_setups() -> None:
@@ -124,14 +124,14 @@ def test_jobs_respect_task_setups() -> None:
 
 
 def test_dry_run(capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
-    """The dry run lists 96 sessions with their commands and builds nothing."""
+    """The dry run lists 144 sessions with their commands and builds nothing."""
     monkeypatch.setattr(sys, "argv", ["sessions.py", "--dry-run"])
     sessions.main()
     lines = capsys.readouterr().out.splitlines()
 
-    assert lines[-1] == "96 sessions"
-    assert len(lines) == 97
-    assert sum("--mcp-config" in line for line in lines) == 24
+    assert lines[-1] == "144 sessions"
+    assert len(lines) == 145
+    assert sum("--mcp-config" in line for line in lines) == 36
     assert all(
         "--no-session-persistence" in line and "--model sonnet" in line for line in lines[:-1]
     )
@@ -650,8 +650,16 @@ def other_task() -> grade.Task:
 
 
 def test_task_data_defaults_to_s() -> None:
-    """A shipped task without ``data`` runs on ``s``, and the dry run is unchanged."""
-    assert {t.data for t in grade.load_tasks().values()} == {"s"}
+    """A shipped task without ``data`` runs on ``s``; only the wide tasks name their data set."""
+    tasks = grade.load_tasks()
+
+    assert {t.data for t in tasks.values()} == {"s", "wide"}
+    assert {i for i, t in tasks.items() if t.data == "wide"} == {
+        "drivers",
+        "leaderboard",
+        "divergence",
+        "best-checkpoint",
+    }
     assert sessions.data_dir(Path("r"), "s", 7) == Path("r/data/7")
     assert sessions.data_dir(Path("r"), "other", 7) == Path("r/data-other/7")
 

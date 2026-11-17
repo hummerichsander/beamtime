@@ -200,7 +200,7 @@ Y81 ─ Y82 ─ Y83 ─ Y84 ─ Y85 ─ Y86      in this order (shared modules)
    `<dest>/record/<group>/<folder>`, the project memory to `<dest>/record/memory`. `FILES` and `TENSORBOARD` gain one line:
    "`record/<group>/`: the researchers' proposals (with predictions), notes and memory, where there are any."
 
-### Y84. Truth and tasks at scale and on long series (sonnet + review) — code
+### Y84. Truth and tasks at scale and on long series (sonnet + review) — code — **done**
 
 - **Touches:** new `bench/agents/compare/wide_truth.py`, `bench/agents/compare/truth.py` (`TRUTHS`), new
   `bench/agents/compare/tasks/{drivers,leaderboard,divergence,best-checkpoint}.yaml`; new

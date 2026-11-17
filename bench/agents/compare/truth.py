@@ -335,4 +335,18 @@ def table(runs: list[TruthRun]) -> dict[str, Any]:
     return {"rows": sorted(rows, key=lambda row: row["id"])}
 
 
-TRUTHS: dict[str, Callable[[Path, Path], dict[str, dict[str, Any]]]] = {"s": compute}
+def compute_wide(files_root: Path, logdir: Path) -> dict[str, dict[str, Any]]:
+    """Compute the expected values of the tasks on the ``wide`` data set.
+
+    :param files_root: The folder that holds ``runs/`` (the plain-files export).
+    :param logdir: The log dir the export was made from.
+    :return: The task id mapped to its expected values."""
+    import wide_truth  # imported late: wide_truth reads this module's loader
+
+    return wide_truth.compute(files_root, logdir)
+
+
+TRUTHS: dict[str, Callable[[Path, Path], dict[str, dict[str, Any]]]] = {
+    "s": compute,
+    "wide": compute_wide,
+}

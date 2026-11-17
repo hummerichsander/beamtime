@@ -1,0 +1,11 @@
+prompt: >
+  Some runs in long/stability diverge. A run diverges at the first step where its train/loss is NaN
+  or infinite, or is more than 10 times the lowest finite train/loss logged before that step; a
+  run that never does not diverge, however high its loss spikes for a while. Which runs diverge,
+  and at which step? Steps are counted as logged. Give one entry per diverging run.
+answer: '{"runs": [{"id": <run id>, "step": <step number>}]}'
+time_limit_s: 600
+data: wide
+checks:
+  ids: {kind: f1, key: runs, truth: runs}
+  step: {kind: keyed, answer: runs, truth: runs, key: id, field: step, abs: 0}

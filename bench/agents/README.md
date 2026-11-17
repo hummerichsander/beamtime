@@ -166,7 +166,8 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   `SIGTERM`, `cancel`; `failed` alone is no cause), `rerun` (each stopped run names its completed rerun
   in any id form, or null, `""` or `none` when there is none), `file` (a PNG or a table, inside
   `project`), `keyed` (a list of objects, or a dict of key to object, scored per key: `key` names the
-  object, `field` the compared value, with `abs`/`rel` as `close` and without as `equal`; the score is
+  object, `field` the compared value, `answer` the answer key to read when it is not the check's name
+  (several keyed checks on one list), with `abs`/`rel` as `close` and without as `equal`; the score is
   the keys right over the larger of the given and the expected keys, a key given twice counts once and
   a key without the field is wrong), and for the table task `table_ids` (29 rows), `table_values` (lr, seed, val_acc within
   1e-6; the prompt asks for full precision) and `table_flag` (yes/no in the `finished` and the
@@ -274,3 +275,16 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   listed. When a setup has no graded session without a leak for a task, nothing is written and the
   command names the missing `setup/task`. The figures use scienceplots as it is, with `no-latex` added
   when `latex` is not on the PATH. Tests: `tests/bench/test_compare_report.py`.
+- `compare/wide_truth.py`: `compute(files_root, logdir)` for the `wide` data set (`truth.TRUTHS["wide"]`),
+  from the plain-files export with `truth.load_runs`, in pure Python and without Beamtime. `drivers`:
+  the finished runs under `sweeps/`, final = last logged `val/loss`; per config key except `seed` eta squared
+  (between-value sum of squares over the total), the key with the largest, its value with the lowest mean and
+  that mean (config values are read from `config.json`, so `0` and `1e-4` stay two values). `leaderboard`: the
+  five finished runs with the lowest final `val/loss` (the failed and killed traps are left out). `divergence`:
+  in `long/stability` the first step where `train/loss` is NaN or infinite or above 10 times the lowest finite
+  `train/loss` logged before that step; the spike (about 6 times) does not count. `best-checkpoint`: per run of
+  `long/schedules` the first step of the lowest finite `val/loss` and the `train/loss` at that step. The tasks
+  `drivers`, `leaderboard`, `divergence` and `best-checkpoint` (`data: wide`, 600 s) state these rules in
+  their prompts; their checks are `equal`/`close` (`drivers`), `f1` on the ids and `keyed` on `val_loss`,
+  `step` (abs 0) and `train_loss` (abs 1e-6). Numbers in a task file are written `0.0001`, not `1e-4`, which
+  YAML reads as text.

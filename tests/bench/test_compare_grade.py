@@ -192,10 +192,10 @@ def project(tmp_path: Path) -> Path:
 
 @pytest.fixture(scope="module")
 def tasks() -> dict[str, grade.Task]:
-    """The shipped tasks.
+    """The shipped tasks on the ``s`` data set; the wide ones are tested in ``test_compare_wide_truth``.
 
     :return: The tasks by id."""
-    return grade.load_tasks()
+    return {i: t for i, t in grade.load_tasks().items() if t.data == "s"}
 
 
 def test_eight_tasks(tasks: dict[str, grade.Task]) -> None:
@@ -681,3 +681,19 @@ def test_keyed_check_in_a_task(tmp_path: Path) -> None:
     )
     assert grade.grade(task, reply({"runs": "a, b"}), truth, tmp_path).score == 0
     assert grade.grade(task, reply({"runs": [1, 2]}), truth, tmp_path).score == 0
+
+
+def test_keyed_checks_share_an_answer_key(tmp_path: Path) -> None:
+    """Two keyed checks read one list of the answer through ``answer``, each its own field."""
+    (tmp_path / "x.yaml").write_text(
+        "prompt: p\nanswer: '{}'\ntime_limit_s: 1\ndata: wide\nchecks:\n"
+        "  step: {kind: keyed, answer: runs, truth: runs, key: id, field: step, abs: 0}\n"
+        "  loss: {kind: keyed, answer: runs, truth: runs, key: id, field: loss, abs: 0.000001}\n"
+    )
+    task = grade.load_tasks(tmp_path)["x"]
+    truth = {"runs": [{"id": "a", "step": 10, "loss": 0.5}, {"id": "b", "step": 20, "loss": 0.25}]}
+    answer = [{"id": "a", "step": 10, "loss": 0.5}, {"id": "b", "step": 21, "loss": 0.25}]
+
+    result = grade.grade(task, reply({"runs": answer}), truth, tmp_path)
+
+    assert result.checks == {"step": 0.5, "loss": 1.0}

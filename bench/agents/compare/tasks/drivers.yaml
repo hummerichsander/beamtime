@@ -1,0 +1,16 @@
+prompt: >
+  Which setting of the runs under sweeps/ drives the final validation loss most? Use only the
+  finished runs; the final validation loss is the last logged val/loss of a run. For every config
+  key except seed, split the runs by the key's value and compute eta squared: the sum over the
+  values of (number of runs with the value times the squared difference between the value's mean
+  and the mean of all runs), divided by the sum of the squared differences of every run from the
+  mean of all runs. The key with the largest eta squared is the driver. Report it, the value of
+  that key with the lowest mean final validation loss, and that mean. Values such as 0 and 0.0001
+  are different values. Use the values at full precision.
+answer: '{"key": <config key>, "best_value": <number or text>, "mean_at_best": <number>}'
+time_limit_s: 600
+data: wide
+checks:
+  key: {kind: equal, truth: key}
+  best_value: {kind: equal, truth: best_value}
+  mean_at_best: {kind: close, truth: mean_at_best, abs: 0.002}
