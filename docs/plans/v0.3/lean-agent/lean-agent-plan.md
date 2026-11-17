@@ -116,6 +116,15 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
    `notifications/tools/list_changed`; the session called `more` successfully, but `b` was never offered (ToolSearch
    found only `a` and `more`) and could not be called. So a family cannot be added to the listing mid-session, and
    `tools_more` is a dispatcher (Decision 6, your decision) instead of a switch.
+9. **The guide says family tools go through `tools_more`** (your decision, after the M81 review): the topics that
+   tell the agent to call a family tool (`analysis`: `digest`, `wait`, `output`, `plan_missing`, `timeline`; `views`,
+   `library`, `kit`, `remote`: `view_*`, `block_*`) get one line, "Over MCP with the default tool set, call these
+   through `tools_more`.", from a `{{agent.tools_more}}` placeholder that renders empty under `mcp_tools: all`.
+   `charts`, `anti-patterns` and `kit-api` name `view_validate` only as the checker and get no line. Rejected:
+   leaving it to the server instructions, which agents reading a topic over the CLI or a cached guide don't see.
+10. **A core tool through `tools_more` runs** (your decision, after the M81 review; overrides Decision 6's "non-core"):
+   `tools_more(tool=<core tool>, args)` calls it like a direct call instead of answering "unknown tool". Rejected:
+   refusing, which confused agents because `runs` is both a core tool and a family name.
 
 ## G. Guide
 
@@ -232,18 +241,34 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
 ### M82. The `mcp_tools` setting (sonnet) — code
 
 - **Touches:** `src/beamtime/settings.py` (`PRESETS` 7–60, `AGENT_KEYS` 73, `AgentSettings` 141); `src/beamtime/mcp/server.py`
-  (`list_tools`); `tests/test_settings.py`; `tests/mcp/test_server.py`; `docs/guides/settings.md` (table l. 61);
-  `docs/design/08-cli-mcp.md` § Tools.
+  (`list_tools`; `call_tool` 374–393, the `name in CORE` refusal at 381; `unknown_more` 172); `tests/test_settings.py`;
+  `tests/mcp/test_server.py` (`test_tools_more_refuses_user_only` 203–215); `src/beamtime/guide/__init__.py`
+  (`value_of` 112–118); `src/beamtime/guide/parts/` `analysis.md` (after l. 3), `views.md` (after l. 9),
+  `library.md`, `kit.md`, `remote.md` (after their first paragraph); `tests/guide/test_guide.py`;
+  `docs/guides/settings.md` (table l. 61); `docs/design/08-cli-mcp.md` § Tools (183–184).
+- **Read:** Decisions 9, 10.
 - **Check:** `uv run pytest -q -n 2 tests/test_settings.py tests/mcp tests/guide`.
 - **Done:** `agent: {mcp_tools: all}` in `beamtime.yaml` lists every tool from the start and omits `tools_more`; the default is `core` in every
   style; an invalid value is a settings error naming `core` and `all`; the guide's Defaults section does not list it
-  (it is for the user, not the agent).
+  (it is for the user, not the agent); `guide analysis`, `guide views`, `guide library`, `guide kit` and `guide remote`
+  carry the `tools_more` line under `core` and not under `all`; `tools_more(tool="runs", args={...})` returns what
+  `runs` returns.
 - **Risks:** the setting read once at import instead of per session → `test_mcp_tools_setting_per_project`; the guide's
-  defaults test breaks on the new knob → `tests/guide`.
+  defaults test breaks on the new knob → `tests/guide`; a topic that names a family tool without the line →
+  `test_topics_naming_family_tools_carry_the_line` (reads `FAMILIES` only where `mcp` imports, else a list in the
+  test); an empty placeholder leaves a stray blank line → the same test compares the `all` text without blank runs;
+  a core tool through `tools_more` skips the direct call's validation → `test_tools_more_runs_a_core_tool` (same
+  content as the direct call, also for a bad `args`).
 
 1. Knob `mcp_tools: str` with choices `("core", "all")`, `"core"` in each preset.
 2. `list_tools` reads it from `Context.make(root=root, caller="mcp").settings.agent` once per session: `all` lists
    every non-user tool without `tools_more`.
+3. `value_of` renders `tools_more` as the line of Decision 9 when `agent.mcp_tools == "core"`, else `""` (drops the
+   line under `all`: simple, since `read` already has the agent settings); put `{{agent.tools_more}}` on its own line
+   in the five topics, and collapse the blank lines it leaves.
+4. `call_tool`: drop `or name in CORE` (l. 381), so any known non-user tool runs through `invoke`; `unknown_more` then
+   handles only names outside `BY_TOOL`. Update `test_tools_more_refuses_user_only` (its `runs` case now succeeds)
+   and `08-cli-mcp.md` l. 183–184 (core tools run through `tools_more` too).
 
 ## Z. Close
 
