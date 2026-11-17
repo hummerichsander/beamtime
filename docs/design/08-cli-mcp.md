@@ -169,12 +169,23 @@ without a local Beamtime, the client runs `ssh cluster beamtime mcp`. Through a 
 
 ### Tools
 
-The tools are the operations above, without the user-only commands: about 35 small tools. The server
+The tools are the operations above, without the user-only commands: 43 small tools. The server
 instructions list the user-only commands, generated from the registry (`user_only`), so the list cannot
 drift from the commands.
 
+- **A core set and a dispatcher.** The listing is the 19 core tools plus `tools_more`, fixed for the life of
+  the server (no `tools/list_changed`: Claude Code does not reload the list after one). `FAMILIES` in
+  `mcp/server.py` holds the rest: `views` (`view_*`), `blocks` (`block_*`), `runs` (`wait`, `resume`,
+  `output`, `file`, `timeline`, `digest`, `plan_missing`, `name`) and `export` (`export`, `cp`); the core
+  is every other tool, so a new operation is core unless a family names it. `tools_more(family)`
+  answers that family's tools as compact text, one line each: `name(param: type, other?: type): summary`.
+  `tools_more(tool, args)` calls a family tool exactly as a direct call: the same parameter validation,
+  routing to `@source/path` targets and error results. An unknown family or tool is an error that names
+  the families, or the family's tools when the name shares their prefix; user-only commands stay refused.
+  A known tool outside the listing still runs when called directly, for clients that cache an older list.
 - **Small definitions.** Each tool has a short description and a precise schema; how to use them well
-  lives in `guide`, loaded on demand. All tool definitions together stay under about 6k tokens.
+  lives in `guide`, loaded on demand. The definitions of a fresh server, `tools_more` included, stay under
+  3.5k tokens (characters of the JSON / 4; `tests/mcp` checks it).
 - **Writes take `author`**, the model id.
 - **`view_render` returns images** scaled to about 1280 px wide, one for the page and one per block
   on request. A page taller than `SHOT_HEIGHT` is clipped there, not shrunk: height, not width, is

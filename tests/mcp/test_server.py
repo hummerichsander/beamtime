@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from beamtime.ops.registry import OPS
+from beamtime.ops.registry import BY_TOOL
 from beamtime.synth import generate
 
 anyio = pytest.importorskip("anyio")
@@ -16,7 +16,7 @@ pytest.importorskip("mcp")
 from mcp.client.session import ClientSession  # noqa: E402
 from mcp.client.stdio import StdioServerParameters, stdio_client  # noqa: E402
 
-from beamtime.mcp.server import content, slim  # noqa: E402
+from beamtime.mcp.server import CORE, FAMILIES, build, content, slim  # noqa: E402
 
 BEAMTIME = Path(sys.executable).parent / ("beamtime.exe" if sys.platform == "win32" else "beamtime")
 
@@ -83,18 +83,129 @@ def session(project: Path, work):
     return anyio.run(main)
 
 
+def test_every_tool_is_core_or_in_one_family() -> None:
+    """A new operation belongs to a family or is core: the families are disjoint and known."""
+    members = [name for names in FAMILIES.values() for name in names]
+    assert len(members) == len(set(members)) and set(members) <= set(BY_TOOL)
+    assert set(CORE) | set(members) == set(BY_TOOL) and not set(CORE) & set(members)
+    assert len(CORE) == 19 and set(FAMILIES) == {"views", "blocks", "runs", "export"}
+
+
 def test_tools_match_the_registry(project: Path) -> None:
-    """Every operation except the user-only commands is a tool, with small definitions."""
+    """The listing is the core tools and ``tools_more``, small, and the same after a call."""
+
+    async def work(s):
+        before = (await s.list_tools()).tools
+        await s.call_tool("tools_more", {"family": "views"})
+        return before, (await s.list_tools()).tools
+
+    before, after = session(project, work)
+    assert [t.name for t in before] == [*CORE, "tools_more"]
+    assert before == after
+    assert all(t.input_schema["type"] == "object" for t in before)
+    assert not any(name in CORE for name in FAMILIES["views"])
+
+
+def test_tool_definitions_under_3500_tokens(project: Path) -> None:
+    """The definitions of a fresh server, ``tools_more`` included, stay under 3.5k tokens."""
 
     async def work(s):
         return (await s.list_tools()).tools
 
-    tools = session(project, work)
-    expected = {op.name.replace(" ", "_") for op in OPS if not op.user_only}
-    assert {t.name for t in tools} == expected
-    assert all(t.input_schema["type"] == "object" for t in tools)
-    size = sum(len(json.dumps(t.model_dump(exclude_none=True, by_alias=True))) for t in tools)
-    assert size / 4 < 6000
+    size = sum(
+        len(json.dumps(t.model_dump(exclude_none=True, by_alias=True)))
+        for t in session(project, work)
+    )
+    assert size / 4 < 3500
+
+
+def test_no_list_changed_is_announced() -> None:
+    """The listing never changes, so the server does not declare ``listChanged``."""
+    options = build().create_initialization_options()
+    assert not options.capabilities.tools.list_changed
+
+
+def test_tools_more_describes_a_family(project: Path) -> None:
+    """``tools_more`` with a family answers one compact line per tool; bad calls name the way."""
+
+    async def work(s):
+        return [
+            await s.call_tool("tools_more", {"family": "views"}),
+            await s.call_tool("tools_more", {"family": "nope"}),
+            await s.call_tool("tools_more", {}),
+        ]
+
+    views, unknown, empty = session(project, work)
+    lines = views.content[0].text.splitlines()
+    assert not views.is_error and len(lines) == 8
+    assert "view_new(group: string, from?: " in lines[0] and lines[0].endswith(".")
+    assert "view_show(group?: string, version?: string): " in views.content[0].text
+    for result in (unknown, empty):
+        assert result.is_error
+        assert all(name in result.content[0].text for name in FAMILIES)
+
+
+def test_tools_more_calls_a_tool_like_a_direct_call(project: Path) -> None:
+    """``tools_more`` with a tool returns what the direct call returns; a direct call still works."""
+
+    async def work(s):
+        args = {"group": "scaling/lr-sweep"}
+        return [
+            await s.call_tool("tools_more", {"tool": "view_show", "args": args}),
+            await s.call_tool("tools_more", {"tool": "view_show", "args": json.dumps(args)}),
+            await s.call_tool("view_show", args),
+        ]
+
+    through, through_text, direct = session(project, work)
+    assert not direct.is_error and through.content == direct.content == through_text.content
+
+
+def test_tools_more_args_errors_match_direct(project: Path) -> None:
+    """A missing required parameter or an unknown key answers the direct call's error."""
+
+    async def work(s):
+        out = []
+        for tool, args in (("view_new", {}), ("view_show", {"nope": 1})):
+            out.append(await s.call_tool("tools_more", {"tool": tool, "args": args}))
+            out.append(await s.call_tool(tool, args))
+        out.append(await s.call_tool("tools_more", {"tool": "view_show", "args": [1]}))
+        return out
+
+    a, b, c, d, e = session(project, work)
+    assert a.is_error and a.content == b.content
+    assert c.is_error and c.content == d.content
+    assert e.is_error and "object" in e.content[0].text
+
+
+def test_tools_more_remote_target(project: Path) -> None:
+    """A nested ``@source/path`` target routes through the dispatcher as it does directly."""
+
+    async def work(s):
+        args = {"group": "@nowhere/scaling"}
+        return [
+            await s.call_tool("tools_more", {"tool": "view_show", "args": args}),
+            await s.call_tool("view_show", args),
+        ]
+
+    through, direct = session(project, work)
+    assert direct.is_error and through.content == direct.content
+
+
+def test_tools_more_refuses_user_only(project: Path) -> None:
+    """User-only commands and unknown or core tools are refused as they are directly."""
+
+    async def work(s):
+        return [
+            await s.call_tool("tools_more", {"tool": "set", "args": {}}),
+            await s.call_tool("set", {}),
+            await s.call_tool("tools_more", {"tool": "view_nope"}),
+            await s.call_tool("tools_more", {"tool": "runs"}),
+        ]
+
+    through, direct, close, core = session(project, work)
+    assert through.is_error and direct.is_error and "unknown tool" in through.content[0].text
+    assert all(name in close.content[0].text for name in FAMILIES["views"])
+    assert core.is_error
 
 
 def test_calls_answer_and_errors_return_to_the_agent(project: Path) -> None:

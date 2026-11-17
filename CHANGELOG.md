@@ -2,6 +2,10 @@
 
 ## 0.3.0 (unreleased)
 
+- **Changed** the MCP server lists 19 core tools and `tools_more`, under 3.5k tokens of definitions instead of
+  about 5.8k. The tools for views, blocks, run control and export are reached through `tools_more`:
+  `tools_more(family="views")` describes a family, `tools_more(tool="view_show", args={...})` calls one tool
+  with the same validation and errors as a direct call. Calling an unlisted tool directly still works.
 - **Changed** the parameters of `keys`, `groups`, `runs`, `series`, `data` and `timeline` are their query structs
   plus `cursor`, `to` and `smooth`, so MCP tool schemas list the properties in the query's order (`from`, `depth`,
   `where`, then the kind's own fields, then `cursor`/`to`; `logs`, `wait` and `diagnose` list `cursor` after

@@ -22,8 +22,10 @@ INSTRUCTIONS = (
     "proposal with `proposal_set`; judge results with `check` and a verdict note "
     "(`note_add`), never claiming more than the check says. Writes are additive and pass "
     "`author` (your model id). Answers are cut at about 8k tokens; pass `cursor` from "
-    "`meta.next` for more. To build a group's page, read `guide views` and use the `view_*` "
-    "tools. User-only commands "
+    "`meta.next` for more. Tools for views, blocks, run control and export are not listed: "
+    "`tools_more` with `family` describes a family, with `tool` and `args` calls one. To build "
+    "a group's page read `guide views`, then `tools_more views`, then call the `view_*` tools "
+    "through `tools_more`. User-only commands "
     f"({', '.join(sorted(op.name for op in OPS if op.user_only))}) "
     "are not tools: give the user the command."
 )
@@ -87,14 +89,96 @@ def slim(node: Any) -> Any:
     return out
 
 
+FAMILIES: dict[str, tuple[str, ...]] = {
+    "views": tuple(name for name in BY_TOOL if name.startswith("view_")),
+    "blocks": tuple(name for name in BY_TOOL if name.startswith("block_")),
+    "runs": ("wait", "resume", "output", "file", "timeline", "digest", "plan_missing", "name"),
+    "export": ("export", "cp"),
+}
+FAMILY_HELP = {
+    "views": "build, validate, render and save a group's view",
+    "blocks": "custom and library blocks",
+    "runs": "wait for, resume and inspect runs, plan what is missing",
+    "export": "export a group or copy runs",
+}
+CORE = tuple(name for name in BY_TOOL if not any(name in names for names in FAMILIES.values()))
+
+assert all(name in BY_TOOL for names in FAMILIES.values() for name in names)
+assert sum(map(len, FAMILIES.values())) == len({n for names in FAMILIES.values() for n in names})
+
+
 def tools() -> list[types.Tool]:
-    """List the tools: every operation except the user-only commands.
+    """List the tools: the core operations and the ``tools_more`` dispatcher. The listing is the
+    same for the life of the server.
 
     :return: The tool definitions."""
-    return [
-        types.Tool(name=name, description=op.summary, input_schema=schema(op))
-        for name, op in BY_TOOL.items()
+    core = [
+        types.Tool(name=name, description=BY_TOOL[name].summary, input_schema=schema(BY_TOOL[name]))
+        for name in CORE
     ]
+    more = {
+        "type": "object",
+        "properties": {
+            "family": {
+                "enum": list(FAMILIES),
+                "description": "; ".join(f"{name}: {help}" for name, help in FAMILY_HELP.items()),
+            },
+            "tool": {"type": "string", "description": "a tool of a family, to call"},
+            "args": {"type": "object", "description": "the tool's arguments"},
+        },
+    }
+    summary = "Unlisted tools: `family` describes a family's tools, `tool` with `args` calls one."
+    return [*core, types.Tool(name="tools_more", description=summary, input_schema=more)]
+
+
+def type_name(node: dict[str, Any]) -> str:
+    """Name a schema node's type in a few characters.
+
+    :param node: A JSON schema node.
+    :return: The type, an enum as ``a|b``, an array as ``list[item]``."""
+    if "enum" in node:
+        return "|".join(map(str, node["enum"]))
+    if "anyOf" in node:
+        return "|".join(type_name(member) for member in node["anyOf"])
+    if "$ref" in node:
+        return node["$ref"].split("/")[-1]
+    match node.get("type"):
+        case "array":
+            return f"list[{type_name(node.get('items', {}))}]"
+        case None:
+            return "any"
+        case kind:
+            return kind
+
+
+def family_text(family: str) -> str:
+    """Describe the tools of a family, one line each.
+
+    :param family: A key of ``FAMILIES``.
+    :return: ``name(param: type, other?: type): summary`` per tool."""
+    lines = []
+    for name in FAMILIES[family]:
+        op = BY_TOOL[name]
+        full = schema(op)
+        required = full.get("required", [])
+        params = ", ".join(
+            f"{key}{'' if key in required else '?'}: {type_name(node)}"
+            for key, node in full.get("properties", {}).items()
+        )
+        lines.append(f"{name}({params}): {op.summary}")
+    return "\n".join(lines)
+
+
+def unknown_more(name: str) -> str:
+    """Say what a ``tools_more`` call may name instead of an unknown tool.
+
+    :param name: The name that is no known tool.
+    :return: The message, listing the family's tools when the name shares their prefix."""
+    prefix = name.split("_")[0]
+    close = [n for names in FAMILIES.values() for n in names if n.split("_")[0] == prefix]
+    if close:
+        return f"unknown tool {name!r}; the tools of its family: {', '.join(close)}"
+    return f"unknown tool {name!r}; the families are {', '.join(FAMILIES)}"
 
 
 def text(paragraph: str) -> str:
@@ -114,7 +198,8 @@ PROMPTS: dict[str, tuple[str, list[tuple[str, str, bool]], str]] = {
         ],
         text(
             """Build the Beamtime view of group {group}. Aim: {idea}. Read `guide views` first
-            (and `guide examples`, `guide charts`, `guide kit`), then look at the group:
+            (and `guide examples`, `guide charts`, `guide kit`) and `tools_more views`; the
+            `view_*` and `block_*` tools are called through `tools_more`. Then look at the group:
             `keys`, `memory_show`,
             `proposal_show`, `check`, `notes`, `view_show` and `block_list`. Decide the one question
             the view answers and the finding the data supports, no stronger than the
@@ -273,19 +358,38 @@ def build(root: str | Path | None = None) -> Server:
     async def list_tools(ctx: Any, params: Any) -> types.ListToolsResult:
         return types.ListToolsResult(tools=tools())
 
-    async def call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
-        if (op := BY_TOOL.get(params.name)) is None:
-            return error(f"unknown tool {params.name!r}")
-
+    async def invoke(op: Op, arguments: dict[str, Any]) -> types.CallToolResult:
         def run() -> dict[str, Any]:
             context = Context.make(root=root, caller="mcp")
-            return remote.answer(op.name, decoded(op, params.arguments or {}), context)
+            return remote.answer(op.name, decoded(op, arguments), context)
 
         try:
             answer = await anyio.to_thread.run_sync(run)
         except OpError as e:
             return error(str(e))
         return types.CallToolResult(content=content(answer))
+
+    async def call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
+        arguments = params.arguments or {}
+        if params.name == "tools_more":
+            if (name := arguments.get("tool")) is None:
+                if (family := arguments.get("family")) not in FAMILIES:
+                    return error(f"give a family ({', '.join(FAMILIES)}) or a tool and args")
+                return types.CallToolResult(content=[types.TextContent(text=family_text(family))])
+            if (op := BY_TOOL.get(name)) is None or name in CORE:
+                return error(unknown_more(str(name)))
+            args = arguments.get("args") or {}
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except ValueError:
+                    pass
+            if not isinstance(args, dict):
+                return error("args must be an object")
+            return await invoke(op, args)
+        if (op := BY_TOOL.get(params.name)) is None:
+            return error(f"unknown tool {params.name!r}")
+        return await invoke(op, arguments)
 
     async def list_prompts(ctx: Any, params: Any) -> types.ListPromptsResult:
         return types.ListPromptsResult(prompts=prompts())

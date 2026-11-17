@@ -193,7 +193,7 @@ After Z81, the benchmark plan's L72 runs its full batches on this surface.
 
 ## M. MCP tools
 
-### M81. Core tools and the `tools_more` dispatcher (sonnet + review) — reproduced
+### M81. Core tools and the `tools_more` dispatcher (sonnet + review) — reproduced — **done**
 
 - **Touches:** `src/beamtime/mcp/server.py` (`INSTRUCTIONS` 19–30, `tools` 90–97, `build` 266–318); new `FAMILIES`,
   `CORE`; `tests/mcp/test_server.py`; `docs/design/08-cli-mcp.md` § Tools (165–180); `CHANGELOG.md`.
