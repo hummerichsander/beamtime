@@ -47,9 +47,16 @@ def run(
         target = q.view if kind == "file" else q.from_
         scope, run_id = resolve_from(index, base, target)
         freshness = index.catch_up(scope, budget_s)
+        index.damaged.clear()
         now = now or time.time()
         ctx = Context(index=index, caller=caller, scope=scope, run_id=run_id, now=now)
         answer = KIND_FUNCTIONS[kind](ctx, q)
+        freshness.deferred -= ctx.ingested
+        freshness.behind = len(freshness.deferred)
+        if not freshness.behind:
+            freshness.behind_s = None
+        freshness.damaged += index.damaged
+        index.damaged.clear()
         answer["meta"]["freshness"] = freshness.dump()
         return answer
     finally:

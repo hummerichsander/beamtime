@@ -2,6 +2,10 @@
 
 ## 0.3.0 (unreleased)
 
+- **Fixed** a query on a log dir the index had not caught up with (a first call within the 200 ms budget) answered
+  from the runs it had indexed and left the others out: `series` missed curves and windowed fields were empty.
+  A query now ingests the streams of every run it reads, whatever the budget; "N runs not yet indexed" counts
+  only runs the answer didn't read.
 - **Added** `run.started` as an alias of `run.created_at` in `select`, `sort` and `where` (the column keeps the name
   as typed), and a bare `metric.<key>` means `metric.<key>.last`; a key whose last segment is a statistic's name
   still needs the explicit `.last` (`metric.loss.min.last`).

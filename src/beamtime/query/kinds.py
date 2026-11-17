@@ -244,7 +244,7 @@ def series_kind(ctx: Context, q: m.Series) -> dict[str, Any]:
         per_curve = point_budget(ctx, q, len(runs) * len(q.y))
         curves = []
         for r in runs:
-            cols = Columns(index=ctx.index, run_id=r["_id"])
+            cols = Columns(index=ctx.index, run_id=r["_id"], ingested=ctx.ingested)
             for y in q.y:
                 if (curve := run_curve(ctx, r, cols, y, window, per_curve, q)) is not None:
                     if marks := resume_marks(cols, q.x):
@@ -351,7 +351,7 @@ def grouped_curve(
         return grouped_curve_by_x(ctx, label, runs, y, window, points, q)
     series = []
     for r in runs:
-        cols = Columns(index=ctx.index, run_id=r["_id"])
+        cols = Columns(index=ctx.index, run_id=r["_id"], ingested=ctx.ingested)
         if (col := cols.get(y)) is not None:
             steps, values = col.steps, col.values
             if q.smooth is not None:
@@ -403,7 +403,7 @@ def grouped_curve_by_x(
     :return: The aggregated curve; ``x`` is the bucket centre."""
     series = []
     for r in runs:
-        cols = Columns(index=ctx.index, run_id=r["_id"])
+        cols = Columns(index=ctx.index, run_id=r["_id"], ingested=ctx.ingested)
         known = []
         if (col := cols.get(y)) is not None:
             values = ema(col.values, q.smooth.ema) if q.smooth is not None else col.values

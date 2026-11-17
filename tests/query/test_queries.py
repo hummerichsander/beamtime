@@ -712,3 +712,62 @@ def test_bare_metric_key_parsing() -> None:
         parse_field("metric.loss.ema_last[10:20]")
     with pytest.raises(QueryError, match="metric.<key>"):
         parse_field("metric.")
+
+
+@pytest.fixture
+def behind(logdir: Path, tmp_path: Path):
+    """An index of the log dir that caught up with no time for streams.
+
+    :param logdir: The log dir.
+    :param tmp_path: Pytest's temporary directory.
+    :return: The open index and the number of runs whose streams were deferred."""
+    index = Index(logdir=logdir, cache=tmp_path / "cache")
+    deferred = index.catch_up(".", budget_s=0.0).behind
+    assert deferred > 0
+    yield index, deferred
+    index.close()
+
+
+def test_series_reads_every_run(ask, behind) -> None:
+    """A query ingests the streams of the runs it reads, whatever the catch-up budget."""
+    index, deferred = behind
+    q = {"series": {"from": ".", "y": ["train/loss"], "points": "all"}}
+    want = ask(q)["curves"]
+    a = run(q, logdir=index.logdir, index=index, budget_s=0.0)
+    assert len(a["curves"]) == len(want) > 0
+    assert a["meta"]["freshness"]["behind"] <= deferred - len(want)
+
+
+def test_windowed_field_has_a_value_for_every_run(ask, behind) -> None:
+    """A windowed field is computed from the columns of every selected run."""
+    index, _ = behind
+    q = {"runs": {"from": "scaling", "select": ["metric.train/loss.mean[0:50]"], "limit": 200}}
+    want = [r[1] for r in ask(q)["rows"]]
+    got = [r[1] for r in run(q, logdir=index.logdir, index=index, budget_s=0.0)["rows"]]
+    assert got == want and any(v is not None for v in got)
+
+
+def test_behind_counts_only_runs_the_answer_did_not_read(behind, roles) -> None:
+    """Runs a query ingested leave the behind count; a second query ingests nothing."""
+    index, _ = behind
+    db = index.store.db
+    run_id = roles["resumed"]
+    folder = db.execute("SELECT folder FROM runs WHERE id = ?", (run_id,)).fetchone()[0]
+    in_folder = db.execute("SELECT count(*) FROM runs WHERE folder = ?", (folder,)).fetchone()[0]
+    assert in_folder > 1
+    q = {
+        "series": {
+            "from": folder,
+            "where": {"run.id": run_id},
+            "y": ["train/loss"],
+            "points": "all",
+        }
+    }
+    first = run(q, logdir=index.logdir, index=index, budget_s=0.0)
+    assert len(first["curves"]) == 1
+    assert first["meta"]["freshness"]["behind"] == in_folder - 1
+    calls = []
+    original = index.ingester.ingest_streams
+    index.ingester.ingest_streams = lambda d: calls.append(d) or original(d)
+    second = run(q, logdir=index.logdir, index=index, budget_s=0.0)
+    assert calls == [] and second["curves"] == first["curves"]

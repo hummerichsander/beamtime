@@ -17,6 +17,7 @@ from beamtime.index.columns import Column, ColumnWriter, open_columns
 from beamtime.index.daemon import Daemon
 from beamtime.index.index import Freshness, Index
 from beamtime.index.store import SCHEMA_VERSION
+from beamtime.query import QueryError
 
 
 @pytest.fixture
@@ -293,6 +294,58 @@ def test_deferred_streams_are_read_later(index: Index, logdir: Path) -> None:
     assert index.catch_up(".", budget_s=0.0).behind > 0
     assert index.catch_up(".", budget_s=float("inf")).behind == 0
     check_all(index, logdir)
+
+
+def test_ensure_streams_ingests_one_run(index: Index, logdir: Path) -> None:
+    """ensure_streams reads a deferred run in full, once."""
+    index.catch_up(".", budget_s=0.0)
+    (run_id,) = index.store.db.execute("SELECT id FROM runs WHERE indexed_at IS NULL").fetchone()
+    run = next(p for p in iter_runs(logdir) if p.name == run_id)
+    assert index.ensure_streams(run.name)
+    got = columns(index, run.name)
+    got.pop("_t")
+    assert got == expected(run)
+    assert not index.ensure_streams(run.name)
+    assert not index.ensure_streams("no-such-run")
+
+
+def test_ensure_running_run(index: Index, logdir: Path) -> None:
+    """A running run whose streams grew between two queries is ingested again, not served stale."""
+    index.catch_up(".", budget_s=float("inf"))
+    roles = json.loads((logdir / "_synth.json").read_text())["roles"]
+    run = next(p for p in iter_runs(logdir) if p.name == roles["running"])
+    assert not index.ensure_streams(run.name)
+    with (run / "_metrics.jsonl").open("ab") as f:
+        f.write(json_line({"_step": 5000, "_t": 1.0, "train/loss": 0.1}))
+    assert index.ensure_streams(run.name)
+    assert columns(index, run.name)["train/loss"][-1] == (5000, 0.1)
+    assert not index.ensure_streams(run.name)
+
+
+def test_ensure_waits_for_lock(index: Index, logdir: Path, tmp_path: Path, monkeypatch) -> None:
+    """While another process indexes, ensure_streams waits, then asks to try again."""
+    index.catch_up(".", budget_s=0.0)
+    (run_id,) = index.store.db.execute("SELECT id FROM runs WHERE indexed_at IS NULL").fetchone()
+    other = Index(logdir=logdir, cache=tmp_path / "cache")
+    assert other.lock.acquire()
+    monkeypatch.setattr("beamtime.index.index.ENSURE_TIMEOUT_S", 0.2)
+    with pytest.raises(QueryError, match="index is busy"):
+        index.ensure_streams(run_id)
+    other.lock.release()
+    other.close()
+    assert index.ensure_streams(run_id)
+    assert index.lock.fd is None
+
+
+def test_ensure_damaged_run(index: Index, logdir: Path) -> None:
+    """A run whose streams can't be read is skipped and named, not a crash."""
+    index.catch_up(".", budget_s=0.0)
+    (run_id,) = index.store.db.execute("SELECT id FROM runs WHERE indexed_at IS NULL").fetchone()
+    run = next(p for p in iter_runs(logdir) if p.name == run_id)
+    (run / "_metrics.jsonl").unlink()
+    (run / "_metrics.jsonl").mkdir()
+    assert not index.ensure_streams(run.name)
+    assert len(index.damaged) == 1 and run.name in index.damaged[0]
 
 
 def test_damaged_run_is_skipped(index: Index, logdir: Path) -> None:

@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 # mtimes can be a second coarse; folders changed around a walk are listed again.
 MTIME_SLACK_S = 2.0
+ENSURE_TIMEOUT_S = 30.0
 AUTHORED = (c.PROPOSAL, c.MEMORY, c.VIEW)
 
 
@@ -32,6 +33,8 @@ class Freshness:
     behind: int = 0
     behind_s: float | None = None
     damaged: list[str] = field(default_factory=list)
+    # runs whose streams catch-up skipped; not dumped.
+    deferred: set[str] = field(default_factory=set)
     # run or group path to the kinds that changed: "metrics", "status" or "authored".
     changed: dict[str, set[str]] = field(default_factory=dict)
 
@@ -118,6 +121,7 @@ class Index:
         self.lock = FileLock(path=data / INDEX_LOCK)
         self.ingester = Ingester(store=self.store, logdir=self.logdir, series=self.series)
         self.authored: dict[str, tuple[float | None, ...]] = {}
+        self.damaged: list[str] = []
 
     def folder_path(self, rel: str) -> Path:
         """Turn a folder relative to the log dir into a path.
@@ -265,6 +269,7 @@ class Index:
             lags: list[float | None] = []
             for run_dir in todo:
                 if time.monotonic() > deadline:
+                    freshness.deferred.add(run_dir.name)
                     indexed = self.store.run(run_dir.name)["indexed_at"]
                     lags.append(None if indexed is None else now - indexed)
                     continue
@@ -278,12 +283,41 @@ class Index:
                         touch(freshness.changed, rel, "status")
                 except (OSError, ValueError) as e:
                     freshness.damaged.append(f"{run_dir.name}: {e}")
-            freshness.behind = len(lags)
+            freshness.behind = len(freshness.deferred)
             if lags and None not in lags:
                 freshness.behind_s = max(lags)
             return freshness
         finally:
             self.lock.release()
+
+    def ensure_streams(self, run_id: str) -> bool:
+        """Ingest a run's streams if they are stale, whatever the catch-up budget.
+
+        A damaged run is skipped and listed in ``damaged``.
+
+        :param run_id: The run id.
+        :return: Whether the streams were ingested.
+        :raises QueryError: When another process holds the index for 30 s."""
+        held = self.lock.fd is not None
+        if not self.lock.acquire(timeout=ENSURE_TIMEOUT_S):
+            from beamtime.query.models import QueryError
+
+            raise QueryError("the index is busy; try again")
+        try:
+            # read after the lock: another process may have ingested the run while it was awaited.
+            row = self.store.run(run_id)
+            if row is None or not (run_dir := self.logdir / row["path"]).is_dir():
+                return False
+            if not self.ingester.stale(row["path"], row["run_mtime"], row)[1]:
+                return False
+            self.ingester.ingest_streams(run_dir)
+            return True
+        except (OSError, ValueError) as e:
+            self.damaged.append(f"{run_id}: {e}")
+            return False
+        finally:
+            if not held:
+                self.lock.release()
 
     def reindex(self) -> Freshness:
         """Rebuild the index from the files.

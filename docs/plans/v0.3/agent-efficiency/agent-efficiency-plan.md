@@ -122,7 +122,7 @@ The tickets run in this order: E91 E92 E93 E95 E96 E97 E98 E99 E94 X91.
 
 ## E. Efficiency
 
-### E91. Queries ingest the runs they read (sonnet + review) — real data, code
+### E91. Queries ingest the runs they read (sonnet + review) — real data, code — **done**
 
 - **Touches:** `src/beamtime/index/index.py` (`Freshness` 26–70, `catch_up` 214–286, new `ensure_streams`),
   `src/beamtime/query/select.py` (`Columns` 55–80, `Context`), `src/beamtime/query/__init__.py` (`run` 15–60),

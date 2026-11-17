@@ -3,7 +3,7 @@
 The research record builds on this module (its checks select runs with ``select_runs``); the
 ``proposal.*`` fields in turn need the record's status, so ``research`` imports it at call time."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from beamtime.format.run import derived_status
@@ -34,6 +34,7 @@ class Context:
     scope: str
     run_id: str | None
     now: float
+    ingested: set[str] = field(default_factory=set)
 
     @property
     def defaults(self) -> dict[str, int]:
@@ -55,11 +56,14 @@ def resolve_from(index: Index, base: str, target: str) -> tuple[str, str | None]
 class Columns:
     """Lazily opened column files of one run."""
 
-    def __init__(self, *, index: Index, run_id: str) -> None:
-        """Prepare access to a run's columns.
+    def __init__(self, *, index: Index, run_id: str, ingested: set[str] | None = None) -> None:
+        """Prepare access to a run's columns, ingesting its streams first when they are stale.
 
         :param index: The index.
-        :param run_id: The run id."""
+        :param run_id: The run id.
+        :param ingested: Collects the id of a run this call had to ingest."""
+        if index.ensure_streams(run_id) and ingested is not None:
+            ingested.add(run_id)
         self.dir = index.series / run_id
         self.manifest, self.entries = open_columns(self.dir)
         self.open: dict[str, Column] = {}
@@ -226,7 +230,7 @@ def select_runs(
             status = research(ctx, row[1], row[0])
             values |= {f.text: status[f.key] for f in proposal}
         if windowed:
-            cols_ = Columns(index=ctx.index, run_id=row[0])
+            cols_ = Columns(index=ctx.index, run_id=row[0], ingested=ctx.ingested)
             for f in windowed:
                 col = cols_.get(f.key)
                 values[f.text] = (
