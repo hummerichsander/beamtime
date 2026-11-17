@@ -492,3 +492,21 @@ def test_status_without_logdir(ctx: Context) -> None:
     shutil.rmtree(ctx.logdir)
     answer = call("status", {}, ctx)
     assert answer["logdir_exists"] is False and answer["memory"] is None
+
+
+def test_series_json_first_row_keeps_curve_fields(ctx: Context) -> None:
+    """A grouped JSON export's first row takes the first point of the point arrays only."""
+    query = {"from": "scaling/lr-sweep", "y": ["train/loss"], "by": ["config.lr"], "points": 10}
+    a = call("series", query | {"to": "g.json"}, ctx)
+    curve = json.loads((ctx.root / ".beamtime" / "exports" / "g.json").read_text())["curves"][0]
+    first = dict(zip(a["columns"], a["first_row"], strict=True))
+    assert first["runs"] == curve["runs"] and first["by"] == curve["by"]
+    assert first["y"] == curve["y"][0]
+
+
+def test_to_csv_grouped_other_x(ctx: Context) -> None:
+    """Grouped curves on a metric as x name that column in place of ``step``."""
+    query = {"from": "scaling/lr-sweep", "x": "_elapsed", "y": ["train/loss"], "by": ["config.lr"]}
+    call("series", query | {"to": "gx.csv"}, ctx)
+    header, rows = read_export(ctx, "gx.csv")
+    assert header[:2] == ["config.lr", "_elapsed"] and rows

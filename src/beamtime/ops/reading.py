@@ -774,8 +774,14 @@ def export(ctx: Context, answer: dict[str, Any], to: str, x: str = "_step") -> d
         if "columns" in kept:
             header, first = kept["columns"], (kept["rows"] or [None])[0]
         elif kept["curves"]:
-            header = list(kept["curves"][0])
-            first = [v[0] if isinstance(v, list) and v else v for v in kept["curves"][0].values()]
+            curve = kept["curves"][0]
+            header = list(curve)
+            # every list but a group's runs is one value per point.
+            first = None
+            if curve["x"]:
+                first = [
+                    v[0] if isinstance(v, list) and k != "runs" else v for k, v in curve.items()
+                ]
         else:
             header, first = [], None
     else:
