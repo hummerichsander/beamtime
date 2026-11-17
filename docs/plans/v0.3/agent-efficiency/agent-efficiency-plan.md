@@ -183,7 +183,7 @@ The tickets run in this order: E91 E92 E93 E95 E96 E97 E98 E99 E94 X91.
 1. `project_memory` adds `text`: the newest memory's body as `memory_show` gives it (same reader, no front matter).
 2. `render_status`: after the existing memory line, a blank line and the text.
 
-### E95. A usage error prints the operation's help (sonnet) — real data
+### E95. A usage error prints the operation's help (sonnet) — real data — **done**
 
 - **Touches:** `src/beamtime/cli/__init__.py` (parser setup 212–230), `tests/cli/test_commands.py`,
   `docs/design/08-cli-mcp.md` § Errors name the way out.

@@ -116,6 +116,34 @@ def test_exit_codes(project: Path, args: list[str], code: int, text: str) -> Non
     assert out.returncode == code and text in out.stderr
 
 
+def test_usage_error_prints_the_operations_help(project: Path) -> None:
+    """A usage error prints the operation's help and the error line; --help is unchanged."""
+    out = beamtime(project, "series", "x", "-y", "loss", "--bogus")
+    assert out.returncode == 2 and out.stdout == ""
+    assert out.stderr.startswith("usage: beamtime series")
+    assert "-y" in out.stderr and "--steps" in out.stderr
+    assert out.stderr.rstrip().endswith("error: unrecognized arguments: --bogus")
+    assert beamtime(project, "series", "--help").stdout in out.stderr
+
+
+def test_usage_error_required(project: Path) -> None:
+    """A missing required flag prints the help too."""
+    out = beamtime(project, "series", ".")
+    assert out.returncode == 2 and "--steps" in out.stderr and "required" in out.stderr
+
+
+def test_usage_error_in_a_group(project: Path) -> None:
+    """A usage error in a grouped command prints that command's help."""
+    out = beamtime(project, "note", "add", "--bogus")
+    assert out.returncode == 2 and "usage: beamtime note add" in out.stderr
+
+
+def test_usage_error_top_level(project: Path) -> None:
+    """A bad top-level argument prints the top-level help."""
+    out = beamtime(project, "--bogus")
+    assert out.returncode == 2 and "examples:" in out.stderr and "error:" in out.stderr
+
+
 def test_root_flag(project: Path, tmp_path: Path) -> None:
     """--root answers for another project from anywhere."""
     out = beamtime(tmp_path, "--root", str(project), "keys", ".")

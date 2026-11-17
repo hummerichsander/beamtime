@@ -122,7 +122,9 @@ MCP server, started by an agent client).
   6000 tokens (a test checks it) as the tool set grows.
 - **Arguments sent as JSON text** (`"\"all\""` for `all`, `"[1, 2]"` for a list; seen once in
   `series.points`) are decoded once (`mcp/server.py:decoded`), unless the parameter is a plain string.
-- **Errors name the way out**: an unknown run field suggests the field that exists (`run.created` ->
+- **Errors name the way out**: a usage error (unknown flag, missing required flag, bad value) prints the
+  operation's whole help to stderr before the error line and exits 2, so `--help` is never needed upfront
+  (`cli.Parser`, used for the top parser and every subparser); an unknown run field suggests the field that exists (`run.created` ->
   `run.created_at`, `run.statu` -> `run.status`; `run.started` is accepted as `run.created_at`, and a
   bare `metric.<key>` as `metric.<key>.last`), a group given as evidence shows each form with an
   example from that group and lists its predictions, and an unknown group lists its siblings' closest

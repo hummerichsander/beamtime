@@ -5,7 +5,7 @@ import json
 import sys
 import types
 from pathlib import Path
-from typing import Annotated, Any, Literal, Union, get_args, get_origin
+from typing import Annotated, Any, Literal, NoReturn, Union, get_args, get_origin
 
 EXAMPLES = """examples:
   beamtime runs scaling/lr-sweep --where 'config.lr<1e-3' --sort -metric.val/acc.max
@@ -201,6 +201,32 @@ class Version(argparse.Action):
         parser.exit()
 
 
+class Parser(argparse.ArgumentParser):
+    """An argument parser whose usage error prints its whole help first."""
+
+    def parse_known_args(
+        self, args: list[str] | None = None, namespace: argparse.Namespace | None = None
+    ) -> tuple[argparse.Namespace, list[str]]:
+        """Parse like argparse, but report leftovers here, not in the top parser.
+
+        :param args: The arguments.
+        :param namespace: The namespace to fill.
+        :return: The namespace and the leftover arguments (always empty)."""
+        parsed, rest = super().parse_known_args(args, namespace)
+        if rest:
+            self.error(f"unrecognized arguments: {' '.join(rest)}")
+        return parsed, rest
+
+    def error(self, message: str) -> NoReturn:
+        """Print the help and the error to stderr and exit with 2.
+
+        :param message: The error.
+        :raises SystemExit: Always, with code 2."""
+        print(self.format_help(), file=sys.stderr)
+        print(f"{self.prog}: error: {message}", file=sys.stderr)
+        sys.exit(2)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the parser from the operation registry.
 
@@ -218,7 +244,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="the canonical answer",
     )
     common.add_argument("--quiet", action="store_true", default=argparse.SUPPRESS)
-    parser = argparse.ArgumentParser(
+    parser = Parser(
         prog="beamtime",
         description="Experiment tracking for people and their coding agents.",
         epilog=EXAMPLES,
@@ -228,7 +254,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--root", default=None, help="another project's root")
     parser.add_argument("--json", action="store_true", help="the canonical answer as JSON")
     parser.add_argument("--quiet", action="store_true", help="print nothing on success")
-    commands = parser.add_subparsers(dest="command", metavar="COMMAND")
+    commands = parser.add_subparsers(dest="command", metavar="COMMAND", parser_class=Parser)
     groups: dict[str, Any] = {}
     for op in OPS:
         if op.name == "query":
@@ -243,7 +269,9 @@ def build_parser() -> argparse.ArgumentParser:
             if group not in groups:
                 help_ = GROUPS[group]
                 group_parser = commands.add_parser(group, parents=[common], help=help_)
-                groups[group] = group_parser.add_subparsers(dest=f"{group}_command")
+                groups[group] = group_parser.add_subparsers(
+                    dest=f"{group}_command", parser_class=Parser
+                )
             where = groups[group]
         label = op.summary + (" (user only)" if op.user_only else "")
         sub = where.add_parser(name, parents=[common], help=label, description=op.summary)

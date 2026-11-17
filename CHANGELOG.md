@@ -14,6 +14,8 @@
 - **Changed** `status` answers the root memory's text with its version (`memory: {version, notes_since, text}`), and
   `beamtime status` prints it below the table: one call starts a work session. `memory_show` stays for older
   versions and the chain.
+- **Changed** a command line usage error (unknown flag, missing required flag, bad value) prints the command's whole
+  help to stderr before the error line, so `--help` is not needed upfront; exit code 2 and `--help` are unchanged.
 
 - **Changed** the MCP server lists 19 core tools and `tools_more`: about 3.3k tokens of definitions instead of
   about 5.8k for all 43 tools. The tools for views, blocks, run control and export are reached through
