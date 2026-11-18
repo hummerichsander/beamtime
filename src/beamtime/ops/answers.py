@@ -589,7 +589,7 @@ class ViewOutdated(Grouped):
 
 
 WRITES = (
-    "view save", "view upgrade", "name", "note add", "proposal set", "memory update",
+    "view save", "view upgrade", "name", "run promote", "note add", "proposal set", "memory update",
     "block save", "cp",
 )  # fmt: skip
 # kinds whose answer names a group (and nothing else is a place).

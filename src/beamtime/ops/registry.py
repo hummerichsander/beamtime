@@ -243,6 +243,14 @@ class NameParams(Params, kw_only=True):
     author: Author = None
 
 
+class RunPromoteParams(Params, kw_only=True):
+    """Parameters of ``run promote``."""
+
+    runs: Annotated[list[RunId], msgspec.Meta(description="hidden runs to count from now on")]
+    reason: str | None = None
+    author: Author = None
+
+
 class NoteRmParams(Params, kw_only=True):
     """Parameters of ``note rm``."""
 
@@ -1284,6 +1292,15 @@ METHODS = [
         impl=f"{W}:name",
         positional=("run", "name"),
         summary="Give a run a display name (a new version; the id never changes).",
+    ),
+    Op(
+        name="run promote",
+        kind="run promote",
+        writes=True,
+        params=RunPromoteParams,
+        impl=f"{W}:run_promote",
+        positional=("runs",),
+        summary="Count hidden (test) runs like any run from now on.",
     ),
     Op(
         name="block export",

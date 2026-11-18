@@ -366,6 +366,19 @@ beamtime name <run> <name>
 |---|---|---|
 | `--author` |  | who writes it: a person, or your model id such as claude-opus-5-5; default: the local account |
 
+### `beamtime run promote`
+
+Count hidden (test) runs like any run from now on.
+
+```sh
+beamtime run promote <runs>
+```
+
+| Option | Default | |
+|---|---|---|
+| `--reason` |  |  |
+| `--author` |  | who writes it: a person, or your model id such as claude-opus-5-5; default: the local account |
+
 ### `beamtime note rm` *(you)*
 
 Move a note, with the earlier versions it replaced, into the trash.

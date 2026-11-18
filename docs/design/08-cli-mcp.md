@@ -188,7 +188,7 @@ drift from the commands.
 - **A core set and a dispatcher.** The listing is the 19 core tools plus `tools_more`, fixed for the life of
   the server (no `tools/list_changed`: Claude Code does not reload the list after one). `FAMILIES` in
   `mcp/server.py` holds the rest: `views` (`view_*`), `blocks` (`block_*`), `runs` (`wait`, `resume`,
-  `output`, `file`, `timeline`, `digest`, `plan_missing`, `name`) and `export` (`export`, `cp`); the core
+  `output`, `file`, `timeline`, `digest`, `plan_missing`, `name`, `run_promote`) and `export` (`export`, `cp`); the core
   is every other tool, so a new operation is core unless a family names it. `tools_more(family)`
   answers that family's tools as compact text, one line each: `name(param: type, other?: type): summary`.
   `tools_more(tool, args)` calls any known tool, core or family, exactly as a direct call: the same

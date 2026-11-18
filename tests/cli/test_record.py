@@ -2,7 +2,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -120,3 +120,27 @@ def test_theory_type_and_verdict_boundary(project: Path) -> None:
         "--description", "x", "--supersedes", json.loads(verdict.stdout)["version"],
     )
     assert blocked.returncode == 3 and "a verdict's type can't change" in blocked.stderr
+
+
+def test_run_promote_command(project: Path) -> None:
+    """``run promote`` is a two-word command; a hidden run shows on the card and leaves after it."""
+    run_json = next((project / "beamtime/scaling/long-context").glob("*/_run.json"))
+    info = json.loads(run_json.read_text())
+    old = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
+    run_json.write_text(json.dumps(info | {"hidden": True, "created_at": old}))
+    run = info["id"]
+
+    card = beamtime(project, "card", run)
+    assert card.returncode == 0, card.stderr
+    assert "  hidden" in card.stdout.splitlines()[0]
+    status = beamtime(project, "status").stdout
+    assert "1 runs (1 older than 7 days" in status and "beamtime run promote <id>" in status
+
+    out = beamtime(project, "run", "promote", run, "--reason", "checked", "--author", "me")
+    assert out.returncode == 0, out.stderr
+    assert "now counts like any run" in out.stdout
+    assert "hidden" not in beamtime(project, "card", run).stdout.splitlines()[0]
+    assert "hidden " not in beamtime(project, "status").stdout
+    again = beamtime(project, "run", "promote", run)
+    assert "already visible" in again.stdout
+    assert beamtime(project, "run", "promote", "scaling").returncode == 2

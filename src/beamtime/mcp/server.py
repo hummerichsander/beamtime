@@ -157,7 +157,17 @@ def slim(node: Any) -> Any:
 FAMILIES: dict[str, tuple[str, ...]] = {
     "views": tuple(name for name in BY_TOOL if name.startswith("view_")),
     "blocks": tuple(name for name in BY_TOOL if name.startswith("block_")),
-    "runs": ("wait", "resume", "output", "file", "timeline", "digest", "plan_missing", "name"),
+    "runs": (
+        "wait",
+        "resume",
+        "output",
+        "file",
+        "timeline",
+        "digest",
+        "plan_missing",
+        "name",
+        "run_promote",
+    ),
     "export": ("export", "cp"),
 }
 CORE = tuple(name for name in BY_TOOL if not any(name in names for names in FAMILIES.values()))

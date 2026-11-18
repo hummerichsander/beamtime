@@ -375,7 +375,7 @@ def render_card(answer: dict[str, Any]) -> str:
     :return: The text."""
     run = answer["run"]
     lines = [
-        f"{run['name']}  {run['id']}  {run['status']}",
+        f"{run['name']}  {run['id']}  {run['status']}" + ("  hidden" if run.get("hidden") else ""),
         f"path        {run['path']}",
     ]
     for key in (
@@ -614,6 +614,20 @@ def render_entry(entry: dict[str, Any]) -> str:
     return f"{head}  {entry.get('file', entry.get('path'))}"
 
 
+def hidden_text(hidden: dict[str, Any]) -> str:
+    """Say how many runs are hidden, and which old ones to promote or delete.
+
+    :param hidden: The ``hidden`` entry of the status: ``count``, ``older`` and ``old`` ids.
+    :return: The text after ``hidden``."""
+    text = f"{hidden['count']} runs"
+    if old := hidden["old"]:
+        text += (
+            f" ({hidden['older']} older than 7 days, e.g. {', '.join(old)}: promote with "
+            "beamtime run promote <id>, or the user deletes them with beamtime rm <id>)"
+        )
+    return text
+
+
 def render_status(answer: dict[str, Any]) -> str:
     """Render ``status``.
 
@@ -638,6 +652,8 @@ def render_status(answer: dict[str, Any]) -> str:
             f"memory    {memory['version']}"
             + (f"; {since} note(s) since, `beamtime memory update .`" if since else "; current")
         )
+    if (hidden := answer.get("hidden")) and hidden["count"]:
+        lines.append(f"hidden    {hidden_text(hidden)}")
     if answer.get("setup"):
         lines.append(f"setup     {answer['setup']}")
     if answer["web_ui"]:

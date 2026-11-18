@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -645,3 +646,66 @@ def test_card_reads_a_deferred_run(ctx: Context, monkeypatch: pytest.MonkeyPatch
     c = call("card", {"run": run.name}, ctx)
     assert c["progress"] is not None
     assert c["meta"]["freshness"]["behind"] == 0
+
+
+def hide(run_json: Path, **fields: object) -> None:
+    """Mark a run hidden in its ``_run.json``, and change other fields.
+
+    :param run_json: The run's ``_run.json``.
+    :param fields: Fields to set."""
+    run_json.write_text(json.dumps(json.loads(run_json.read_text()) | {"hidden": True} | fields))
+
+
+def test_promote_brings_a_hidden_run_back(ctx: Context, project: Path) -> None:
+    """``run promote`` writes a visibility version; the run then shows and the card says so."""
+    run_json = next((project / "beamtime" / "scaling" / "lr-sweep").glob("*/_run.json"))
+    run = json.loads(run_json.read_text())["id"]
+    hide(run_json)
+    before = len(call("runs", {"from": "scaling/lr-sweep", "limit": 100}, ctx)["rows"])
+    assert call("card", {"run": run}, ctx)["run"]["hidden"] is True
+    answer = call("run promote", {"runs": [run], "reason": "checked", "author": "me"}, ctx)
+    written = project / "beamtime" / answer["path"]
+    text = written.read_text()
+    assert "hidden: false" in text and "author: me" in text and "reason: checked" in text
+    assert len(call("runs", {"from": "scaling/lr-sweep", "limit": 100}, ctx)["rows"]) == before + 1
+    assert call("card", {"run": run}, ctx)["run"]["hidden"] is False
+
+
+def test_promote_refuses_group(ctx: Context) -> None:
+    """A group is no argument of ``run promote``."""
+    with pytest.raises(OpError) as e:
+        call("run promote", {"runs": ["scaling/lr-sweep"]}, ctx)
+    assert e.value.code == 2 and "group" in str(e.value)
+
+
+def test_promote_visible_run(ctx: Context, project: Path) -> None:
+    """A visible run is reported and gets no file."""
+    run_json = next((project / "beamtime" / "scaling" / "lr-sweep").glob("*/_run.json"))
+    run = json.loads(run_json.read_text())["id"]
+    answer = call("run promote", {"runs": [run]}, ctx)
+    assert answer["lines"] == [f"{run} is already visible"] and answer["path"] is None
+    assert not (run_json.parent / "visibility").exists()
+
+
+def test_promote_warns_on_edited_proposal(ctx: Context, project: Path) -> None:
+    """A proposal version edited after the hidden run recorded it gives a warning line."""
+    group = project / "beamtime" / "scaling" / "lr-sweep"
+    run_json = next(group.glob("*/_run.json"))
+    run = json.loads(run_json.read_text())["id"]
+    hide(run_json)
+    version = next((group / "proposal").glob("*.yaml"))
+    version.write_text(version.read_text() + "# edited\n")
+    answer = call("run promote", {"runs": [run]}, ctx)
+    assert any(line.startswith("warning:") and "edited" in line for line in answer["lines"])
+
+
+def test_status_hints_at_old_hidden_runs(ctx: Context, project: Path) -> None:
+    """A hidden run created 8 days ago is listed for promotion; a 1-day-old one is only counted."""
+    now = datetime.now(timezone.utc)
+    runs = sorted((project / "beamtime" / "scaling" / "lr-sweep").glob("*/_run.json"))[:2]
+    hide(runs[0], created_at=(now - timedelta(days=1)).isoformat())
+    assert call("status", {}, ctx)["hidden"] == {"count": 1, "older": 0, "old": []}
+    hide(runs[1], created_at=(now - timedelta(days=8)).isoformat())
+    answer = call("status", {}, ctx)["hidden"]
+    assert answer["count"] == 2 and answer["older"] == 1
+    assert answer["old"] == [json.loads(runs[1].read_text())["id"]]

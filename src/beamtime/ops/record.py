@@ -216,6 +216,49 @@ def name(ctx: Context, p: r.NameParams) -> dict[str, Any]:
     return written(ctx, "name", path, [f"{target.run_id} is now shown as {p.name.strip()!r}"])
 
 
+def run_promote(ctx: Context, p: r.RunPromoteParams) -> dict[str, Any]:
+    """Make hidden runs count like any run, as a new version in each run's ``visibility/`` folder.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The answer: a line per run, and the first file written as ``path``."""
+    from beamtime.format.run import read_run_info, run_hidden
+
+    if not p.runs:
+        raise OpError("name the hidden runs to promote", code=2)
+    author, user = author_of(ctx, p.author)
+    lines: list[str] = []
+    paths: list[str] = []
+    for run in p.runs:
+        with target_of(ctx, run) as target:
+            if target.run_id is None:
+                raise OpError(f"{run!r} is a group; promote runs by id", code=2)
+            info = read_run_info(target.dir)
+            if not run_hidden(target.dir, info):
+                lines.append(f"{target.run_id} is already visible")
+                continue
+            fields = {"schema": 1, "hidden": False, "author": author, "user": user}
+            if p.reason:
+                fields = {"schema": 1, "hidden": False, "reason": p.reason, **fields}
+            path = save(target.dir / c.VISIBILITY, ".yaml", dump(fields))
+            paths.append(path.relative_to(ctx.logdir).as_posix())
+            lines.append(f"wrote {paths[-1]}: {target.run_id} now counts like any run")
+            for key, version in info.proposals.items():
+                owner = target if key == "." else Target(index=target.index, rel=key, run_id=None)
+                if not owner.dir.is_dir():
+                    continue
+                recorded = [{"hash": info.proposal_hashes.get(key)}]
+                if problem := owner.hash_problem(version, recorded):
+                    lines.append(f"warning: {problem}")
+    return {
+        "kind": "run promote",
+        "lines": lines,
+        "path": paths[0] if paths else None,
+        "version": Path(paths[0]).stem if paths else None,
+        "meta": {},
+    }
+
+
 def note_rm(ctx: Context, p: r.NoteRmParams) -> dict[str, Any]:
     """Move a note into the trash, with the versions it superseded, so it is gone everywhere.
 

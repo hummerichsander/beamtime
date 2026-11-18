@@ -274,7 +274,7 @@ Write the design before code (CLAUDE.md: a deviation is decided and written back
 2. `reference`: unchanged code path, since `select_runs` with `m.Selection()` and `ctx.run_id=None` already
    filters; add the test that proves it.
 
-### U44. `run promote`, the card and the status hint (sonnet + review) — code
+### U44. `run promote`, the card and the status hint (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/ops/registry.py` (new `RunPromoteParams` after `NameParams` 235–240, new `Op` after
   `name` 1232–1240), `src/beamtime/ops/record.py` (new `run_promote` after `name` 199–214),

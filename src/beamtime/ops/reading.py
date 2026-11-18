@@ -18,9 +18,10 @@ from beamtime.format.run import (
     read_events,
     read_output,
     read_run_info,
+    run_hidden,
     run_status,
 )
-from beamtime.format.times import iso
+from beamtime.format.times import iso, parse_iso
 from beamtime.index.cache import daemon_status
 from beamtime.index.index import Index
 from beamtime.ops import budget
@@ -40,6 +41,8 @@ from beamtime.record.check import rounded
 from beamtime.record.stats import mean
 
 RECENT_EVENTS = 10
+HIDDEN_OLD_S = 7 * 86400
+HIDDEN_LISTED = 5
 COMPARE_METRICS = 20
 DIGEST_NOTES = 5
 DIGEST_VALUES = 8
@@ -942,6 +945,7 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
             "name": given_name(run_dir) or info.name,
             "path": run_dir.relative_to(ctx.logdir).as_posix(),
             "status": status,
+            "hidden": run_hidden(run_dir, info),
             "created_at": info.created_at,
             "ended_at": info.ended_at,
             "exit": info.exit,
@@ -1113,6 +1117,9 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
                 "SELECT status, heartbeat FROM runs WHERE hidden = 0"
             )
         )
+        hidden = index.store.db.execute(
+            "SELECT id, created_at FROM runs WHERE hidden = 1"
+        ).fetchall()
         cache = index.cache
         memory = project_memory(index) if ctx.logdir.is_dir() else None
     daemon = daemon_status(cache)
@@ -1124,6 +1131,7 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         "logdir_exists": ctx.logdir.is_dir(),
         "cache": str(cache),
         "runs": dict(counts),
+        "hidden": old_hidden(hidden, now),
         "daemon": daemon,
         "web_ui": f"http://localhost:{daemon['port']}" if daemon and daemon.get("port") else None,
         "remotes": sorted(ctx.settings.remotes),
@@ -1133,6 +1141,18 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         "setup": setup_note(ctx.root),
         "meta": {"freshness": freshness.dump() if freshness else None},
     }
+
+
+def old_hidden(hidden: list[tuple[str, str | None]], now: float) -> dict[str, Any]:
+    """Summarize the hidden runs for ``status``: how many, and which are older than a week.
+
+    :param hidden: Id and creation time of every hidden run.
+    :param now: The current unix time.
+    :return: ``count``, ``older`` (the runs older than a week) and ``old`` (up to
+        ``HIDDEN_LISTED`` of their ids, newest first)."""
+    aged = sorted(((parse_iso(made), run_id) for run_id, made in hidden if made), reverse=True)
+    old = [run_id for made, run_id in aged if now - made > HIDDEN_OLD_S]
+    return {"count": len(hidden), "older": len(old), "old": old[:HIDDEN_LISTED]}
 
 
 def setup_note(root: Path) -> str | None:
