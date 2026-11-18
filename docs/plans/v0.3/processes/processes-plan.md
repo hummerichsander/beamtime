@@ -289,7 +289,7 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
 3. `serves(ctx) -> list[dict]` (live `serve` and `index` rows, legacy ones included) is the function J55 and J56
    reuse.
 
-### J54. ssh logins in `ps` (sonnet) — code
+### J54. ssh logins in `ps` (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/ops/procs.py` (`ssh_rows`, which J53 wrote; decision 14), `tests/ops/test_procs.py`.
 - **Read:** `src/beamtime/setup/remotes.py` 14–23 (`SSH_MARK`, `SSH_BLOCK`); decisions 5 and 14.

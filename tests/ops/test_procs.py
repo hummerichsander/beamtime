@@ -3,6 +3,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -110,10 +111,18 @@ def test_every_kind_is_grouped_in_order(
     cache = str(tmp_path / "cache" / log_hash(isolated / "beamtime"))
     mcp = spawn("mcp", {"root": str(isolated), "logdir": logdir, "client": "claude"})
     remote = spawn("remote", {"logdir": "/r/log", "client": "10.0.0.1"})
-    index = spawn("index", {"root": "/other", "logdir": "/other/log", "cache": str(tmp_path / "c2")})
+    index = spawn(
+        "index", {"root": "/other", "logdir": "/other/log", "cache": str(tmp_path / "c2")}
+    )
     web = spawn(
         "serve",
-        {"root": str(isolated), "logdir": logdir, "cache": cache, "cache_kind": "disk", "port": 8123},
+        {
+            "root": str(isolated),
+            "logdir": logdir,
+            "cache": cache,
+            "cache_kind": "disk",
+            "port": 8123,
+        },
     )
     answer = ps(project_ctx, NoParams())
     assert answer["kind"] == "ps" and list(answer["groups"]) == list(KINDS)
@@ -123,7 +132,9 @@ def test_every_kind_is_grouped_in_order(
     (serve_row,) = answer["groups"]["serve"]
     assert serve_row["url"] == "http://localhost:8123/f/local?token=tok"
     assert 0 <= serve_row["uptime_s"] < 60 and serve_row["used_here"] == "live index, remote calls"
-    assert answer["groups"]["mcp"][0]["used_here"] == "-" and answer["groups"]["mcp"][0]["url"] is None
+    assert (
+        answer["groups"]["mcp"][0]["used_here"] == "-" and answer["groups"]["mcp"][0]["url"] is None
+    )
     json.dumps(answer)
     text = render(answer)
     assert [line for line in text.splitlines() if not line.startswith(" ")] == [
@@ -166,9 +177,7 @@ def test_killed_process_is_stale_once(
     assert ps(project_ctx, NoParams())["stale"] == []
 
 
-def test_stale_serve_json_is_removed(
-    isolated: Path, project_ctx: Context, tmp_path: Path
-) -> None:
+def test_stale_serve_json_is_removed(isolated: Path, project_ctx: Context, tmp_path: Path) -> None:
     """A serve.json whose lock is free is reported once and deleted; the token stays."""
     cache = tmp_path / "cache" / "abc"
     cache.mkdir(parents=True)
@@ -190,13 +199,21 @@ def test_legacy_serve_listed_once(
     new = tmp_path / "cache" / "new"
     both = spawn(
         "serve",
-        {"root": str(isolated), "logdir": logdir, "cache": str(new), "cache_kind": "disk", "port": 8002},
+        {
+            "root": str(isolated),
+            "logdir": logdir,
+            "cache": str(new),
+            "cache_kind": "disk",
+            "port": 8002,
+        },
         "json",
     )
     answer = ps(project_ctx, NoParams())
     assert sorted(pids(answer, "serve")) == sorted([1, both.pid]) and answer["stale"] == []
     (old_row,) = [x for x in answer["groups"]["serve"] if x["cache"] == str(old)]
-    assert old_row["schema"] == 0 and old_row["version"] == "0.1.0" and old_row["url"].endswith("tok")
+    assert (
+        old_row["schema"] == 0 and old_row["version"] == "0.1.0" and old_row["url"].endswith("tok")
+    )
     assert 90 < old_row["uptime_s"] < 200 and legacy.poll() is None
     assert [x["pid"] for x in serves(project_ctx)].count(both.pid) == 1
 
@@ -229,16 +246,17 @@ def record(isolated: Path, kind: str, cache: Path, cache_kind: str) -> dict[str,
 def test_used_here_words(isolated: Path, project_ctx: Context, tmp_path: Path) -> None:
     """A serve on this shell's cache says what the calls get from it; other kinds and log dirs show -."""
     disk = tmp_path / "cache" / log_hash(isolated / "beamtime")
-    assert used_here(project_ctx, record(isolated, "serve", disk, "disk")) == "live index, remote calls"
+    assert (
+        used_here(project_ctx, record(isolated, "serve", disk, "disk"))
+        == "live index, remote calls"
+    )
     assert used_here(project_ctx, record(isolated, "index", disk, "disk")) == "live index"
     other = record(isolated, "serve", disk, "disk") | {"logdir": "/elsewhere"}
     assert used_here(project_ctx, other) == "-"
     assert used_here(project_ctx, record(isolated, "mcp", disk, "disk")) == "-"
 
 
-def test_used_here_memory(
-    isolated: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_used_here_memory(isolated: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """With a memory cache a UI serve serves all reads and a --no-ui one nothing."""
     monkeypatch.setenv("BEAMTIME_CACHE", "memory")
     ctx = Context.make(root=isolated)
@@ -259,27 +277,96 @@ def test_used_here_other_cache(isolated: Path, project_ctx: Context, tmp_path: P
     assert memory.startswith("no: this shell's cache is ")
 
 
-def test_ssh_logins(tmp_path: Path, project_ctx: Context, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Hosts of Beamtime's marked ssh blocks are listed while their login is open."""
+def ssh_config(tmp_path: Path, hosts: list[str], plain: list[str] = ()) -> None:
+    """Write a ``~/.ssh/config`` with marked blocks for ``hosts`` and unmarked ones for ``plain``.
+
+    :param tmp_path: The test's home is ``tmp_path / "home"``.
+    :param hosts: Hosts with Beamtime's marked block.
+    :param plain: Hosts of the user's own, without the mark."""
     from beamtime.setup.remotes import SSH_MARK
 
     ssh = tmp_path / "home" / ".ssh"
-    ssh.mkdir()
-    (ssh / "config").write_text(
-        f"Host plain\n  User x\n\n{SSH_MARK} up\nHost up\n\n{SSH_MARK} down\nHost down\n"
-    )
+    ssh.mkdir(exist_ok=True)
+    text = "".join(f"Host {h}\n  User x\n\n" for h in plain)
+    text += "".join(f"{SSH_MARK} {h}\nHost {h}\n\n" for h in hosts)
+    (ssh / "config").write_text(text)
+
+
+def fake_ssh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script: str) -> Path:
+    """Put a fake ``ssh`` first on ``PATH``.
+
+    :param tmp_path: Where the ``bin`` folder is made.
+    :param monkeypatch: Sets ``PATH``.
+    :param script: The body of the shell script; ``$3`` is the host.
+    :return: The ``bin`` folder."""
     bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
+    bin_dir.mkdir(exist_ok=True)
     fake = bin_dir / "ssh"
-    fake.write_text(
-        '#!/bin/sh\n[ "$3" = up ] && { echo "Master running (pid=4242)" >&2; exit 0; }\nexit 255\n'
-    )
+    fake.write_text(f"#!/bin/sh\n{script}\n")
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    return bin_dir
+
+
+UP = '[ "$3" = up ] && { echo "Master running (pid=4242)" >&2; exit 0; }\nexit 255'
+
+
+def test_ssh_logins(tmp_path: Path, project_ctx: Context, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hosts of Beamtime's marked ssh blocks are listed while their login is open."""
+    ssh_config(tmp_path, ["up", "down"], plain=["plain"])
+    fake_ssh(tmp_path, monkeypatch, UP)
     answer = ps(project_ctx, NoParams())
     (login,) = answer["groups"]["ssh"]
     assert login["host"] == "up" and login["pid"] == 4242 and login["end"] == "ssh -O exit up"
     assert "ssh\n  up  pid 4242\n    end it     ssh -O exit up" in render(answer)
+
+
+def test_no_ssh_on_path(
+    tmp_path: Path, project_ctx: Context, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without ``ssh`` the group is empty and nothing raises."""
+    ssh_config(tmp_path, ["up"])
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    monkeypatch.setenv("PATH", str(empty))
+    assert ps(project_ctx, NoParams())["groups"]["ssh"] == []
+
+
+def test_ssh_check_timeout(
+    tmp_path: Path, project_ctx: Context, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An ``ssh`` that hangs is cut at the timeout and its host is not listed."""
+    ssh_config(tmp_path, ["up", "stuck"])
+    fake_ssh(tmp_path, monkeypatch, '[ "$3" = stuck ] && exec sleep 30\n' + UP)
+    monkeypatch.setattr("beamtime.ops.procs.SSH_CHECK_S", 1.5)
+    start = time.monotonic()
+    answer = ps(project_ctx, NoParams())
+    assert time.monotonic() - start < 5
+    assert [row["host"] for row in answer["groups"]["ssh"]] == ["up"]
+
+
+def test_ssh_checks_parallel(
+    tmp_path: Path, project_ctx: Context, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ten marked hosts are checked at once, and the rows keep the file's order."""
+    hosts = [f"h{i}" for i in range(10)]
+    ssh_config(tmp_path, hosts)
+    fake_ssh(tmp_path, monkeypatch, 'sleep 1\necho "Master running (pid=7)" >&2')
+    start = time.monotonic()
+    answer = ps(project_ctx, NoParams())
+    assert time.monotonic() - start < 5
+    assert [row["host"] for row in answer["groups"]["ssh"]] == hosts
+
+
+def test_unmarked_hosts_ignored(
+    tmp_path: Path, project_ctx: Context, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only Beamtime's marked hosts are checked, never the user's own."""
+    ssh_config(tmp_path, ["up"], plain=["mine", "work"])
+    log = tmp_path / "checked"
+    fake_ssh(tmp_path, monkeypatch, f'echo "$3" >> {log}\n' + UP)
+    ps(project_ctx, NoParams())
+    assert log.read_text().split() == ["up"]
 
 
 def test_not_an_mcp_tool_or_api_method() -> None:

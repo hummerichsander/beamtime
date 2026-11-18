@@ -6,6 +6,7 @@ import json
 import re
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -194,7 +195,7 @@ def used_here(ctx: Context, record: dict[str, Any]) -> str:
 def ssh_rows() -> list[dict[str, Any]]:
     """List the logins kept open for the hosts that ``beamtime setup`` configured.
 
-    :return: One row per marked host of ``~/.ssh/config`` whose login is open."""
+    :return: One row per marked host of ``~/.ssh/config`` whose login is open, in file order."""
     from beamtime.setup.remotes import SSH_MARK
 
     try:
@@ -202,35 +203,43 @@ def ssh_rows() -> list[dict[str, Any]]:
     except OSError:
         return []
     hosts = [line[len(SSH_MARK) :].strip() for line in lines if line.startswith(SSH_MARK)]
-    out = []
-    for host in dict.fromkeys(h for h in hosts if h):
-        try:
-            done = subprocess.run(
-                ["ssh", "-O", "check", host],
-                capture_output=True,
-                text=True,
-                stdin=subprocess.DEVNULL,
-                timeout=SSH_CHECK_S,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            continue
-        if done.returncode:
-            continue
-        found = re.search(r"pid=(\d+)", done.stderr + done.stdout)
-        out.append(
-            {
-                "kind": "ssh",
-                "pid": int(found[1]) if found else None,
-                "host": host,
-                "started": None,
-                "root": None,
-                "logdir": None,
-                "cache": None,
-                "cache_kind": None,
-                "url": None,
-                "uptime_s": None,
-                "used_here": "-",
-                "end": f"ssh -O exit {host}",
-            }
+    hosts = list(dict.fromkeys(h for h in hosts if h))
+    if not hosts:
+        return []
+    with ThreadPoolExecutor(max_workers=len(hosts)) as pool:
+        rows = pool.map(ssh_row, hosts)
+    return [row for row in rows if row is not None]
+
+
+def ssh_row(host: str) -> dict[str, Any] | None:
+    """Check one host's login with ``ssh -O check``.
+
+    :param host: A host that ``beamtime setup`` configured.
+    :return: The row of the open login, or None when there is none or ``ssh`` fails or hangs."""
+    try:
+        done = subprocess.run(
+            ["ssh", "-O", "check", host],
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=SSH_CHECK_S,
         )
-    return out
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if done.returncode:
+        return None
+    found = re.search(r"pid=(\d+)", done.stderr + done.stdout)
+    return {
+        "kind": "ssh",
+        "pid": int(found[1]) if found else None,
+        "host": host,
+        "started": None,
+        "root": None,
+        "logdir": None,
+        "cache": None,
+        "cache_kind": None,
+        "url": None,
+        "uptime_s": None,
+        "used_here": "-",
+        "end": f"ssh -O exit {host}",
+    }
