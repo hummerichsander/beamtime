@@ -662,8 +662,9 @@ library block is checked and saved on the source whose group it is checked again
    Data files get one check per reference (`data_table.file` and every custom `file` query): a path
    outside the draft, a missing file (with the closest names in `data/`), a format outside CSV, JSON and
    Parquet, Parquet without PyArrow (warning), and a size above 2 MB (warning) or 16 MB (error), each with
-   a fix; `columns` on a logged `data_table` is an error. A `$placeholder` path is filled by the page and
-   left to the query run, and a saved view (no draft folder) skips the file checks.
+   a fix; `columns` on a key-based (logged) `data_table` is an error, since they would be dropped silently. A
+   `$placeholder` path is not an error: the check skips it, the page fills it and the query run reports a
+   missing file, and a saved view (no draft folder) skips the file checks.
 2. **One render, when a browser is available.** The draft is rendered headless once, in the group it
    is saved for: no exceptions, no console errors, rendering within a time limit, no blank blocks,
    placeholder queries exercised once with example values. In the same render, layout is measured

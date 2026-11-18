@@ -238,7 +238,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
 - **Done:** a parametrized `test_data_file_findings` covers each row below with its message and fix, for
   `data_table.file` and a custom `file` query alike.
 - **Risks:** a saved view (no `data_dir`) skips the file checks and relies on the query run, as today
-  (`test_saved_view_with_missing_file`); a custom `file` query with a `$placeholder` path is an error, not a crash;
+  (`test_saved_view_with_missing_file`); a `$placeholder` path is skipped by the check (the page fills it and the query run reports a missing file; decided after L62, it lets a custom block pick its file per selection);
   findings are not doubled by the query run (a reference that failed the static check is not run).
 - **Stop if:** a check needs the draft's name in the fix and `structure` doesn't have it (pass it in; don't guess).
 
@@ -247,7 +247,8 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
    | Case | Message | Fix |
    |---|---|---|
    | absolute, or leaves the draft | `{ref!r} is outside the draft; a view reads only files stored with it` | `` `view_data <draft> {ref}` copies it in as data/{basename} `` |
-   | `$...` | `a file path can't be a placeholder` | `name the file: data/<name>.csv` |
+   | `$...` | no finding: the check skips it; the page fills the path and the query run reports a missing file | none |
+   | `columns` on a key-based `data_table` | `columns narrows a data file; a logged table has none` | `remove columns, or read a file: file: data/<name>.csv` |
    | missing, `data/{ref}` exists | `no file {ref!r}` | `write file: data/{ref}` |
    | missing | `no data file {ref!r}` + closest names in `data/` | `` write it to {data_dir}/{ref}, or `view_data <draft> <file>` `` |
    | suffix not in `FORMATS` | `{ref}: Beamtime reads .csv, .json and .parquet` | `save it as CSV: df.to_csv(path, index=False)` |
@@ -320,7 +321,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
    6 `view_validate`, `view_render`, `view_save`; 7 `note_add` (observation) naming the file and the script or
    person it came from); **What the block gets** (`columns`, `rows` as objects, no `curves`; `Scatter` and `Bar`
    take it, `Line` doesn't); **Rules** (snapshot: a changed file needs `view_data` again and a new save; file
-   paths are fixed, no placeholders; the file belongs to the page that saves it; CSV recommended, limits from
+   paths are stored with the view, and a `$name` path is filled by the page and not checked; the file belongs to the page that saves it; CSV recommended, limits from
    decision 6); **Errors and fixes** (the L62 table in short).
 2. `TOPICS`, `GuideParams`, the overview's index row `data-files`, `skills.py` adds `data-files` to `beamtime-views`.
 3. analysis.md 33–34 and the defaults line end with "(`guide data-files`)".
