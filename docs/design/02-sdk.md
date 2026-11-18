@@ -67,14 +67,15 @@ active run through `beamtime.current()`, which returns the run or `None`. There 
    the `_env/` files.
 4. **Start** output capture and the heartbeat thread, and install exit and signal hooks.
 
-Recording `proposals` in `_run.json` is all freezing needs: a proposal version is frozen once a run
-references it ([the research record](09-research-record.md#versions)). The run never writes into
+Recording `proposals` in `_run.json` is all freezing needs: a proposal version is frozen once a visible
+run references it ([the research record](09-research-record.md#versions)). The run never writes into
 group folders.
 
 The `proposal` argument accepts a plain string (taken as the statement), a dict in the proposal
 shape, or a path to such a YAML file, so an agent can write the proposal before a job is launched.
 `BEAMTIME_PROPOSAL` can point to that file for jobs launched by scripts. `None` writes a blank
-proposal. A run's own proposal is frozen from the start, since the run references it at `init`.
+proposal. A run's own proposal is frozen from the start, since the run references it at `init`; a
+hidden run's own proposal freezes when the run is promoted.
 
 `init(hidden=True)` (or `BEAMTIME_HIDDEN` set to `1`, `true` or `yes`, in any case; an explicit argument
 wins over the variable, so `hidden=False` overrides it) starts a hidden run: it writes `"hidden": true` into

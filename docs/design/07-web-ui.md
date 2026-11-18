@@ -314,7 +314,7 @@ it back. Files are never changed ([layer 1](01-storage.md)), so every edit is a 
 |---|---|
 | a note's title or body | a new note that `supersedes` it, with its typed fields carried over (what it resolves, completes, cites and judges); a verdict takes a fresh check snapshot, as every note records the check at the time it is written |
 | the memory | a new memory version |
-| a proposal's statement | a new proposal version, but only while no run has recorded it; a frozen statement is locked and says how to supersede it |
+| a proposal's statement | a new proposal version, but only while no visible run has recorded it; a frozen statement is locked and says how to supersede it |
 | the Promote button of a hidden run | a new `visibility/` version of the run (`beamtime run promote`); the run then counts like any run |
 
 **Hidden runs** ([layer 9](09-research-record.md#hidden-runs)) are shown on demand. Charts, tables and

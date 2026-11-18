@@ -71,12 +71,13 @@ user: ada
 
 - **Membership.** At `init`, every run records in its own `_run.json` the current proposal version of
   each ancestor group and its own ([layer 1](01-storage.md#_runjson)). A proposal version is evaluated
-  against exactly the runs that recorded it that are visible
-  ([hidden runs](#hidden-runs)). This is explicit, needs no clock, and survives moving a
-  run: a moved run keeps its membership, and the UI notes that it was recorded under another group.
+  against exactly the visible runs that recorded it ([hidden runs](#hidden-runs)). This is explicit,
+  needs no clock, and survives moving a run: a moved run keeps its membership, and the UI notes that it
+  was recorded under another group.
 - **Freezing.** A version is frozen once any *visible* run has recorded it. A run's own proposal is
-  frozen from the run's start, unless the run is hidden: then it freezes when the run is promoted. Frozen versions never change; the index refuses to treat an edited frozen file as
-  valid and shows the hash mismatch.
+  frozen from the run's start, unless the run is hidden: then it freezes when the run is promoted.
+  Frozen versions never change; the index refuses to treat an edited frozen file as valid and shows the
+  hash mismatch.
 - **Before freezing**, a version can be replaced freely by saving a new one.
 - **After freezing**, a new version must say what it supersedes and why:
 
@@ -413,7 +414,8 @@ Decided while building the research record (milestone M4):
 ## Decisions
 
 - Proposals are versioned; runs record their membership in `_run.json`; a version is frozen once a
-  visible run records it; hidden runs are never members until promoted; frozen versions are superseded with a reason, never edited.
+  visible run records it; hidden runs are never members until promoted; frozen versions are superseded
+  with a reason, never edited.
 - Plans are optional (`runs`, `grid`, `children`); without one, checks stay provisional until a
   decision note completes the group.
 - Predictions are named, automatic or manual; v1 has `each` and `compare`, with `trend` and `best` in
