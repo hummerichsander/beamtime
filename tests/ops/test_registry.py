@@ -34,7 +34,7 @@ def test_instructions_name_every_user_only_op() -> None:
 def test_one_source_params_exist() -> None:
     """The parameters an operation limits to one source are fields of its struct."""
     named = {op.name: op.one_source for op in OPS if op.one_source}
-    assert named == {"compare": ("targets",), "cp": ("source", "dest")}
+    assert named == {"compare": ("targets",), "cp": ("source", "dest"), "run promote": ("runs",)}
     for op in OPS:
         assert set(op.one_source) <= set(op.params.__struct_fields__)
 

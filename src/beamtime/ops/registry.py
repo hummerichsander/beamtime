@@ -1300,6 +1300,7 @@ METHODS = [
         params=RunPromoteParams,
         impl=f"{W}:run_promote",
         positional=("runs",),
+        one_source=("runs",),
         summary="Count hidden (test) runs like any run from now on.",
     ),
     Op(

@@ -9,7 +9,9 @@ from typing import Any
 from beamtime.format.place import Place
 
 # parameters that name a place: a group, a run, a page.
-TARGETS = ("group", "from", "run", "path", "view", "source", "to", "target", "dest", "targets")
+TARGETS = (
+    "group", "from", "run", "runs", "path", "view", "source", "to", "target", "dest", "targets",
+)  # fmt: skip
 
 
 def places(params: dict[str, Any]) -> list[str]:

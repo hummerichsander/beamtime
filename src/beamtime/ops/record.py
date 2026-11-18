@@ -9,6 +9,7 @@ from typing import Any
 
 from beamtime.format import constants as c
 from beamtime.format.authored import split_frontmatter
+from beamtime.format.run import read_run_info, run_hidden
 from beamtime.format.schema import SchemaError
 from beamtime.format.times import stamp
 from beamtime.format.tree import to_trash
@@ -222,8 +223,6 @@ def run_promote(ctx: Context, p: r.RunPromoteParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: The answer: a line per run, and the first file written as ``path``."""
-    from beamtime.format.run import read_run_info, run_hidden
-
     if not p.runs:
         raise OpError("name the hidden runs to promote", code=2)
     author, user = author_of(ctx, p.author)
@@ -237,9 +236,8 @@ def run_promote(ctx: Context, p: r.RunPromoteParams) -> dict[str, Any]:
             if not run_hidden(target.dir, info):
                 lines.append(f"{target.run_id} is already visible")
                 continue
-            fields = {"schema": 1, "hidden": False, "author": author, "user": user}
-            if p.reason:
-                fields = {"schema": 1, "hidden": False, "reason": p.reason, **fields}
+            reason = {"reason": p.reason} if p.reason else {}
+            fields = {"schema": 1, "hidden": False, **reason, "author": author, "user": user}
             path = save(target.dir / c.VISIBILITY, ".yaml", dump(fields))
             paths.append(path.relative_to(ctx.logdir).as_posix())
             lines.append(f"wrote {paths[-1]}: {target.run_id} now counts like any run")
