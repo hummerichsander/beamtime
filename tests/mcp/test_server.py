@@ -465,6 +465,31 @@ def test_mcp_registers_with_its_client_after_a_call(
     assert listed() == ([], [])
 
 
+def test_mcp_runs_without_a_registry(
+    project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A runtime base that can't be written costs the record, not the server."""
+    blocker = tmp_path / "file"
+    blocker.write_text("")
+    monkeypatch.setenv("BEAMTIME_RUNTIME", str(blocker / "rt"))
+    monkeypatch.setenv("BEAMTIME_CACHE", str(tmp_path / "cache"))
+    errlog = tmp_path / "err.txt"
+
+    async def main():
+        params = StdioServerParameters(
+            command=str(BEAMTIME), args=["mcp"], cwd=str(project), env=dict(os.environ)
+        )
+        with errlog.open("w") as errfile:
+            async with stdio_client(params, errlog=errfile) as (read, write):
+                async with ClientSession(read, write) as s:
+                    await s.initialize()
+                    return await s.call_tool("runs", {"from": "scaling/lr-sweep", "limit": 1})
+
+    result = anyio.run(main)
+    assert not result.is_error
+    assert "not listed in the process registry" in errlog.read_text()
+
+
 def test_mcp_without_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Outside a project the server still starts and registers, with the working directory as root."""
     from beamtime.index.procs import listed

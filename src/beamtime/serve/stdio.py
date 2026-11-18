@@ -148,14 +148,17 @@ def run(*, logdir: str, cache: str | None = None) -> int:
     out, sys.stdout = sys.stdout, sys.stderr
     registration: Registration | None = None
     try:
-        registration = register(
-            "remote",
-            root=str(ctx.root),
-            logdir=str(path),
-            cache=str(resolved.path),
-            cache_kind="temporary" if own else resolved.kind,
-            client=os.environ.get("SSH_CONNECTION", "").split(" ")[0] or None,
-        )
+        try:
+            registration = register(
+                "remote",
+                root=str(ctx.root),
+                logdir=str(path),
+                cache=str(resolved.path),
+                cache_kind="temporary" if own else resolved.kind,
+                client=os.environ.get("SSH_CONNECTION", "").split(" ")[0] or None,
+            )
+        except OSError as e:
+            print(f"beamtime: not listed in the process registry ({e})", file=sys.stderr)
         ctx = dataclasses.replace(ctx, logdir=path)
         Remote(ctx=ctx, out=out).serve(sys.stdin)
     finally:

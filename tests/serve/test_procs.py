@@ -130,6 +130,18 @@ def test_stdio_registers_as_remote_with_the_ssh_peer(project: Path, start, monke
     assert listed() == ([], [])
 
 
+def test_stdio_runs_without_a_registry(project: Path, start, monkeypatch, tmp_path: Path) -> None:
+    """A runtime base that can't be written costs the record, not the session."""
+    blocker = tmp_path / "file"
+    blocker.write_text("")
+    monkeypatch.setenv("BEAMTIME_RUNTIME", str(blocker / "rt"))
+    proc = start("--stdio", "--logdir", str(project / "beamtime"), stdin=subprocess.PIPE)
+    proc.stdin.write('{"id": 1, "op": "hello"}\n')
+    proc.stdin.close()
+    err = proc.stderr.read()
+    assert proc.wait(15) == 0 and "not listed in the process registry" in err
+
+
 def test_killed_process_leaves_a_stale_record(project: Path, start) -> None:
     """After ``kill -9`` the record stays until ``listed`` finds its lock free."""
     proc = start("--no-ui")
