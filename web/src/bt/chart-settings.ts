@@ -23,8 +23,13 @@ export function effective(node: Node, prefs: ViewPrefs): Effective {
   return cascade(nodeSettings(node), prefs, node.id);
 }
 
-// the series call a chart makes: the node's call with the viewer's settings applied.
-export function seriesCall(node: Node, prefs: Effective, opts: { zoom: [number, number] | null; width: number }): Call {
+// the series call a chart makes: the node's call with the viewer's settings applied; `seed` is the group's seed key
+// (`keys.config.seed`), which "mean over seeds" averages over unless the node names its own.
+export function seriesCall(
+  node: Node,
+  prefs: Effective,
+  opts: { zoom: [number, number] | null; width: number; seed?: string | null },
+): Call {
   const base = node.data!.main;
   const params: Record<string, unknown> = { ...base.params };
   params.y = prefs.y?.length ? prefs.y : metricsOf(node);
@@ -34,7 +39,7 @@ export function seriesCall(node: Node, prefs: Effective, opts: { zoom: [number, 
   delete params.seeds;
   delete params.by;
   delete params.steps;
-  if (prefs.by === "seeds") params.seeds = SEEDS_FIELD;
+  if (prefs.by === "seeds") params.seeds = base.params.seeds ?? opts.seed ?? SEEDS_FIELD;
   else if (prefs.by) params.by = [prefs.by];
   // an exported page has no server to ask for the window: it zooms into the stored curve.
   if (opts.zoom && prefs.x === "_step" && !EXPORTED) params.steps = [Math.floor(opts.zoom[0]), Math.ceil(opts.zoom[1])];

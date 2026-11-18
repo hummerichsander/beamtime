@@ -42,3 +42,22 @@ for (const c of cases) {
     }
   });
 }
+
+const plain: Node = {
+  block: "line",
+  id: "p",
+  props: { y: "val/loss" },
+  data: { main: { method: "series", params: { from: "g", y: ["val/loss"] }, scope: "g" } },
+} as unknown as Node;
+
+test("mean over seeds averages over the group's seed key", () => {
+  const eff = { ...effective(plain, prefsOf("fixture.plain").value), by: "seeds" } as ReturnType<typeof effective>;
+  assert.equal(seriesCall(plain, eff, { zoom: null, width: 600, seed: "config.trainer.seed" }).params.seeds, "config.trainer.seed");
+  assert.equal(seriesCall(plain, eff, { zoom: null, width: 600 }).params.seeds, "config.seed");
+});
+
+test("a node's own seeds win over the group's seed key", () => {
+  const own = { ...plain, data: { main: { ...plain.data!.main, params: { ...plain.data!.main.params, seeds: "config.rng_seed" } } } } as Node;
+  const eff = effective(own, prefsOf("fixture.own").value);
+  assert.equal(seriesCall(own, eff, { zoom: null, width: 600, seed: "config.trainer.seed" }).params.seeds, "config.rng_seed");
+});

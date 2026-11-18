@@ -399,7 +399,8 @@ Line charts behave like W&B's panels:
     when logged, wall time, elapsed time; and "Metrics": every other logged metric, searchable), a step
     range; "Use this x axis on all charts on this page" sets it for every chart of the page;
   - aggregation: each run, over seeds or by a varying config key, and the band (min to max, ± std,
-    ± std error, none);
+    ± std error, none); "over seeds" averages over the seed key `keys` reports (`config.seed` when it
+    reports none, and the node's own `seeds` when it names one), and "Color by" leaves that key out;
   - smoothing: TensorBoard's debiased EMA, computed in the page; the band is smoothed with the
     curve; the raw curve faint behind, optionally;
   - axes: linear, log or symlog (linear near zero, logarithmic beyond; for values that cross zero),

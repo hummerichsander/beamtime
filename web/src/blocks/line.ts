@@ -55,7 +55,11 @@ function Chart(props: {
   const [width, setWidth] = useState(0);
   const [zoom, setZoom] = useState<[number, number] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const call = visible ? seriesCall(node, prefs, { zoom, width: Math.round(width / 50) * 50 }) : null;
+  const needsSeed = prefs.by === "seeds" && !node.data!.main.params.seeds;
+  const groupKeys = useCall(visible && needsSeed ? { method: "keys", params: { from: path }, scope: path } : null);
+  const seed = groupKeys.data?.config?.seed;
+  const settled = !needsSeed || groupKeys.status !== "loading";
+  const call = visible && settled ? seriesCall(node, prefs, { zoom, width: Math.round(width / 50) * 50, seed }) : null;
   const result = useCall(call);
   const theme = useTheme();
   const runs = useRunColors();

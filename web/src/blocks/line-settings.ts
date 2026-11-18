@@ -176,7 +176,7 @@ export function Settings(props: {
     setAll: (p) => setView(path, p),
     y: props.y,
     metrics: keys?.metrics?.rows.map((r: unknown[]) => r[0]) ?? [],
-    varying: (keys?.config?.varying ?? []).filter((k: string) => k !== "config.seed"),
+    varying: (keys?.config?.varying ?? []).filter((k: string) => k !== keys?.config?.seed),
     maps,
     keepsRunColors: props.keepsRunColors ?? true,
   };

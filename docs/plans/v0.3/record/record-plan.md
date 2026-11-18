@@ -401,7 +401,7 @@ ticket changes only *which key*, not *when*; whichever lands second rebases onto
    (fallback `SEEDS_FIELD`). `settings.settle(props, settings, seed=SEEDS_FIELD)`; `prefs.py` callers pass the
    group's seed key.
 
-### N43. One seed rule in the web UI (sonnet) — code
+### N43. One seed rule in the web UI (sonnet) — code — **done**
 
 - **Touches:** `web/src/bt/chart-settings.ts` (`seriesCall` 25–40), `web/src/blocks/line.ts` (where it calls
   `seriesCall`), `web/src/blocks/line-settings.ts` (l. 179 filter), `web/test/chart-settings.test.ts`,
