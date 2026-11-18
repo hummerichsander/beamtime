@@ -167,16 +167,16 @@ def test_a_set_setting_reaches_the_next_meta_with_remotes(project: Path) -> None
     assert dispatch(ctx, "meta", {})["settings"]["theme_mode"] == "system"
 
 
-def test_serve_refuses_a_second_daemon(project: Path) -> None:
-    """A second serve for the same root points at the running one."""
+def test_serve_attaches_to_a_running_daemon(project: Path) -> None:
+    """A second serve for the same root prints the running one instead of starting."""
     from beamtime.index.daemon import Daemon
 
     ctx = Context.make(caller="cli")
     daemon = Daemon(logdir=ctx.logdir, port=8123)
     assert daemon.start()
     try:
-        with pytest.raises(OpError, match="already runs .*localhost:8123"):
-            serve(ctx, ServeParams(port=0))
+        [line] = serve(ctx, ServeParams(port=0))["lines"]
+        assert "already serves" in line and "localhost:8123" in line
     finally:
         daemon.stop()
 

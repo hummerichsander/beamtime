@@ -19,6 +19,7 @@ from beamtime.ops.context import Context, OpError
 if TYPE_CHECKING:
     from beamtime.index.daemon import Daemon
 
+DEFAULT_PORT = 8080
 PORT_TRIES = 10
 WATCH_S = 1.0
 
@@ -50,6 +51,13 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
 
     hub = Hub()
     restart = threading.Event()
+    daemon = Daemon(logdir=ctx.logdir, on_change=hub.changed, settings=ctx.settings)
+    port = p.port or DEFAULT_PORT
+    if (running := running_serve(ctx, daemon.cache)) is not None:
+        if not p.replace:
+            return attach(ctx, p, running)
+        replace(running)
+        port = p.port or running.get("port") or DEFAULT_PORT
     sources = start_sources(ctx, p, hub)
     if not ctx.logdir.is_dir() and sources is None:
         raise OpError(
@@ -57,10 +65,9 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
             "`beamtime source add <name> <host:/path>`, or run `beamtime serve host:/path`",
             code=4,
         )
-    daemon = Daemon(logdir=ctx.logdir, on_change=hub.changed, settings=ctx.settings)
     cache = daemon.cache
     own = share_memory(ctx, daemon)
-    sock = None if p.no_ui else bind(p.port)
+    sock = None if p.no_ui else bind(port)
     daemon.port = None if sock is None else sock.getsockname()[1]
     if not daemon.start():
         if sock is not None:
@@ -124,6 +131,74 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
             again(daemon.port)
 
 
+def running_serve(ctx: Context, cache: Path) -> dict[str, Any] | None:
+    """Find the serve that holds a cache's lock.
+
+    :param ctx: The operation context.
+    :param cache: The cache folder with ``serve.lock``.
+    :return: The serve's row as ``beamtime ps`` shows it, or ``None`` when none runs."""
+    from beamtime.index.cache import daemon_status
+    from beamtime.ops.procs import cache_key, serves
+
+    if daemon_status(cache) is None:
+        return None
+    key = str(cache.resolve())
+    return next((x for x in serves(ctx) if cache_key(x) == key), None)
+
+
+def attach(ctx: Context, p: r.ServeParams, running: dict[str, Any]) -> dict[str, Any]:
+    """Answer a ``serve`` for a root that already has one: print the running one's URL.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :param running: The running serve's row.
+    :return: The lines to print.
+    :raises OpError: When the running serve cannot give what was asked; ``--replace`` takes over."""
+    from importlib.metadata import version
+
+    from beamtime.ops.procs import url
+    from beamtime.remote.sources import parse_arg
+
+    where, pid = running.get("logdir") or ctx.logdir, running["pid"]
+    if not running.get("port") and not p.no_ui:
+        raise OpError(
+            f"Beamtime already indexes {where} (pid {pid}) without a UI; "
+            "`beamtime serve --replace` starts one"
+        )
+    wanted = {parse_arg(arg, ctx.settings.remotes).name for arg in p.sources}
+    if not wanted <= set(running.get("sources") or []):
+        raise OpError(
+            f"Beamtime already serves {where} (pid {pid}) with other sources; "
+            "`beamtime serve --replace` restarts it with these"
+        )
+    if running.get("port"):
+        link = url(running)
+        lines = [f"Beamtime already serves {where} (pid {pid}) at {link}"]
+        if p.open:
+            webbrowser.open(link)
+    else:
+        lines = [f"Beamtime already serves {where} (pid {pid}) without a UI"]
+    if running.get("version") != version("beamtime"):
+        lines.append(
+            f"It runs Beamtime {running.get('version')}, this is {version('beamtime')}; "
+            "`beamtime serve --replace` takes over."
+        )
+    return {"kind": "serve", "lines": lines}
+
+
+def replace(running: dict[str, Any]) -> None:
+    """Stop the running serve of a root exactly as ``beamtime stop`` does.
+
+    :param running: The running serve's row.
+    :raises OpError: When it still holds its lock."""
+    from beamtime.ops.procs import stop_serve
+
+    if stop_serve(running) == "running":
+        pid = running["pid"]
+        raise OpError(f"still stopping (pid {pid}); `kill -9 {pid}` ends it now")
+    say(f"Stopped the serve of {running.get('logdir')} (pid {running['pid']}).")
+
+
 def share_memory(ctx: Context, daemon: "Daemon") -> str | None:
     """Give a serve with a memory cache one temporary index for the session.
 
@@ -153,7 +228,7 @@ def demo(ctx: Context, p: r.DemoParams) -> dict[str, Any]:
         generate(logdir, seed=p.seed)
         say(f"generated a sample log dir in {logdir}")
     demo_ctx = Context.make(root=root, caller="cli")
-    return serve(demo_ctx, r.ServeParams(port=p.port, open=p.open))
+    return serve(demo_ctx, r.ServeParams(port=p.port, open=p.open, replace=p.replace))
 
 
 def server_class() -> type:

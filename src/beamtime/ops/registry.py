@@ -681,9 +681,14 @@ class ServeParams(Params, kw_only=True):
         msgspec.Meta(description="remotes: names from the settings, name:group, or host:/path"),
     ] = msgspec.field(default_factory=list)
 
-    port: Annotated[int, msgspec.Meta(description="the first port to try")] = 8080
+    port: Annotated[
+        int | None, msgspec.Meta(description="the first port to try (default 8080)")
+    ] = None
     no_ui: Annotated[bool, msgspec.Meta(description="only index, no web UI")] = False
     open: Annotated[bool, msgspec.Meta(description="open the UI in a browser")] = False
+    replace: Annotated[
+        bool, msgspec.Meta(description="stop the running serve of this root first and take over")
+    ] = False
     watch: Annotated[
         bool,
         msgspec.Meta(description="restart when Beamtime's own code changes (working on Beamtime)"),
@@ -711,8 +716,9 @@ class DemoParams(Params, kw_only=True):
     """Parameters of ``demo``."""
 
     dir: str = "beamtime-demo"
-    port: int = 8080
+    port: int | None = None
     open: bool = False
+    replace: bool = False
     seed: int = 1
 
 

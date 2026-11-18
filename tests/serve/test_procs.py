@@ -1,8 +1,10 @@
 import json
 import os
 import signal
+import socket
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -96,14 +98,145 @@ def test_no_ui_registers_as_index_and_sigterm_cleans_up(project: Path, start) ->
     assert listed() == ([], []) and not serve_json.exists()
 
 
-def test_refused_serve_leaves_no_record(project: Path, start) -> None:
-    """A second serve for a served log dir fails and registers nothing."""
+def run_serve(*args: str, cwd: Path) -> subprocess.CompletedProcess:
+    """Run ``beamtime serve`` in a folder until it exits.
+
+    :param args: Its arguments.
+    :param cwd: The working directory.
+    :return: The finished process, with text output."""
+    return subprocess.run(
+        [*SERVE, *args], cwd=cwd, capture_output=True, text=True, timeout=60
+    )  # fmt: skip
+
+
+def free_port() -> int:
+    """Find a port nobody listens on.
+
+    :return: The port."""
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def test_second_serve_attaches_and_registers_nothing(project: Path, start) -> None:
+    """A second ``--no-ui`` serve for a served log dir prints the first one and exits 0."""
     first = start("--no-ui")
     [record] = records("index")
-    second = start("--no-ui")
-    second.wait(15)
-    assert second.returncode != 0
+    second = run_serve("--no-ui", cwd=project)
+    assert second.returncode == 0, second.stderr
+    assert f"already serves {project.resolve() / 'beamtime'} (pid {first.pid})" in second.stdout
     assert [r["pid"] for r in listed()[0]] == [first.pid] == [record["pid"]]
+
+
+def test_serve_attaches_to_a_ui_serve_without_binding(project: Path, start) -> None:
+    """Both a UI and a ``--no-ui`` serve print the running UI's URL; no port is bound."""
+    if not (STATIC / "app.js").is_file():
+        pytest.skip("the frontend is not built")
+    first = start("--port", "0")
+    [record] = records("serve")
+    for args in ((), ("--no-ui",)):
+        done = run_serve(*args, cwd=project)
+        assert done.returncode == 0, done.stderr
+        assert (
+            f"(pid {first.pid}) at http://localhost:{record['port']}/f/local?token=" in done.stdout
+        )
+    assert [r["pid"] for r in listed()[0]] == [first.pid]
+
+
+def test_ui_asked_of_an_index_serve_names_replace(project: Path, start) -> None:
+    """A UI cannot attach to a serve without one: exit 1, naming ``--replace``."""
+    start("--no-ui")
+    records("index")
+    done = run_serve(cwd=project)
+    assert done.returncode == 1 and "beamtime serve --replace" in done.stderr
+
+
+def test_other_sources_name_replace(project: Path, start) -> None:
+    """Sources the running serve doesn't have need ``--replace``."""
+    start("--no-ui")
+    records("index")
+    done = run_serve("--no-ui", "me@cluster:/abs/beamtime", cwd=project)
+    assert done.returncode == 1 and "beamtime serve --replace" in done.stderr
+
+
+def test_replace_takes_over_on_the_old_port(project: Path, start) -> None:
+    """``--replace`` stops the first serve; the new one serves on its port."""
+    if not (STATIC / "app.js").is_file():
+        pytest.skip("the frontend is not built")
+    port = free_port()
+    first = start("--port", str(port))
+    [old] = records("serve")
+    assert old["port"] == port
+    second = start("--replace")
+    first.wait(30)
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if [r for r in listed()[0] if r["pid"] == second.pid]:
+            break
+        time.sleep(0.1)
+    [new] = listed()[0]
+    assert new["pid"] == second.pid and new["port"] == port
+
+
+def test_attach_names_an_older_version(project: Path) -> None:
+    """A serve of another version is attached to, with a line naming ``--replace``."""
+    from beamtime.ops import registry as r
+    from beamtime.ops.context import Context
+    from beamtime.serve.server import attach
+
+    ctx = Context.make(root=project, caller="cli")
+    running = {"pid": 7, "port": 1, "cache": str(project), "version": "0.0.1", "sources": []}
+    answer = attach(ctx, r.ServeParams(), running)
+    assert (
+        answer["lines"][0].startswith("Beamtime already serves") and "0.0.1" in answer["lines"][1]
+    )
+    assert "beamtime serve --replace" in answer["lines"][1]
+
+
+def test_attach_memory(project: Path, start, monkeypatch) -> None:
+    """With a memory cache the second serve finds the first in the runtime folder."""
+    monkeypatch.setenv("BEAMTIME_CACHE", "memory")
+    first = start("--no-ui")
+    [record] = records("index")
+    assert record["cache_kind"] == "memory"
+    second = run_serve("--no-ui", cwd=project)
+    assert second.returncode == 0 and f"(pid {first.pid})" in second.stdout, second.stderr
+
+
+def test_stale_status_ignored(project: Path, start) -> None:
+    """A ``serve.json`` whose lock is free never counts as running: the serve starts."""
+    from beamtime.index.cache import daemon_status, resolve_cache
+
+    cache = resolve_cache((project / "beamtime").resolve()).path
+    cache.mkdir(parents=True, exist_ok=True)
+    (cache / "serve.json").write_text(json.dumps({"pid": 1, "port": 9, "version": "0"}))
+    assert daemon_status(cache) is None
+    start("--no-ui")
+    [record] = records("index")
+    assert record["pid"] != 1
+
+
+def test_start_survives_probe(tmp_path: Path) -> None:
+    """A thread probing the lock in a loop (as ``ps`` does) doesn't make ``start`` give up."""
+    from beamtime.index.daemon import Daemon
+
+    (tmp_path / "logs").mkdir()
+    daemon = Daemon(logdir=tmp_path / "logs", cache=tmp_path / "cache")
+    probe = FileLock(path=daemon.cache / "serve.lock")
+    done = threading.Event()
+
+    def probing() -> None:
+        while not done.is_set():
+            probe.held_elsewhere()
+
+    thread = threading.Thread(target=probing)
+    thread.start()
+    try:
+        assert daemon.start()
+    finally:
+        done.set()
+        thread.join()
+        daemon.stop()
 
 
 def test_watch_restart_one_record(project: Path, start) -> None:

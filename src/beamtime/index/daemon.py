@@ -59,7 +59,8 @@ class Daemon:
         """Take ``serve.lock``, write the status file, and start indexing once the log dir exists.
 
         :return: ``False`` if another daemon already serves this root."""
-        if not self.lock.acquire():
+        # a concurrent `beamtime ps` probes the lock for an instant.
+        if not self.lock.acquire(timeout=0.5):
             return False
         self.write_status()
         self.thread.start()

@@ -336,7 +336,7 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
    wait_s=10.0) -> Literal["token", "sigterm", "running"]`, polling `FileLock(cache/serve.lock).held_elsewhere()`
    every 0.1 s.
 
-### J56. `serve` attaches to a running serve; `--replace` (sonnet + review) — code
+### J56. `serve` attaches to a running serve; `--replace` (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/serve/server.py` (`serve` 59–74), `src/beamtime/index/daemon.py` (`start` 58–66: a
   0.5 s lock timeout), `src/beamtime/ops/registry.py` (`ServeParams` 654–676: `replace`), `docs/reference/cli.md`
