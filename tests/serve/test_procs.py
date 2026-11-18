@@ -3,7 +3,7 @@ import signal
 import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +31,7 @@ def runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 @pytest.fixture
-def start(project: Path) -> Callable[..., subprocess.Popen]:
+def start(project: Path) -> Iterator[Callable[..., subprocess.Popen]]:
     """Start ``beamtime serve`` in the project and wait for its first line on stderr.
 
     :param project: The project root.
@@ -66,13 +66,6 @@ def records(kind: str, timeout: float = 30) -> list[dict[str, Any]]:
     pytest.fail(f"no {kind} record")
 
 
-def wait_for_exit(proc: subprocess.Popen) -> None:
-    """Wait for a process to end.
-
-    :param proc: The process."""
-    proc.wait(15)
-
-
 def test_serve_registers_with_port_cache_and_sources(project: Path, start) -> None:
     """A serve is listed as ``serve`` with its port and cache, and gone after a clean exit."""
     if not (STATIC / "app.js").is_file():
@@ -83,7 +76,7 @@ def test_serve_registers_with_port_cache_and_sources(project: Path, start) -> No
     assert record["root"] == str(project.resolve()) and record["cache_kind"] == "disk"
     assert (Path(record["cache"]) / "serve.lock").exists()
     proc.send_signal(signal.SIGINT)
-    wait_for_exit(proc)
+    proc.wait(15)
     assert listed() == ([], [])
 
 
@@ -95,7 +88,7 @@ def test_no_ui_registers_as_index_and_sigterm_cleans_up(project: Path, start) ->
     serve_json = Path(record["cache"]) / "serve.json"
     assert serve_json.exists()
     proc.terminate()
-    wait_for_exit(proc)
+    proc.wait(15)
     assert listed() == ([], []) and not serve_json.exists()
 
 
@@ -104,7 +97,7 @@ def test_refused_serve_leaves_no_record(project: Path, start) -> None:
     first = start("--no-ui")
     [record] = records("index")
     second = start("--no-ui")
-    wait_for_exit(second)
+    second.wait(15)
     assert second.returncode != 0
     assert [r["pid"] for r in listed()[0]] == [first.pid] == [record["pid"]]
 
@@ -133,7 +126,7 @@ def test_stdio_registers_as_remote_with_the_ssh_peer(project: Path, start, monke
     assert record["cache_kind"] == "temporary" and record["client"] == "10.1.2.3"
     assert record["logdir"] == str((project / "beamtime").resolve())
     proc.stdin.close()
-    wait_for_exit(proc)
+    proc.wait(15)
     assert listed() == ([], [])
 
 
@@ -142,6 +135,6 @@ def test_killed_process_leaves_a_stale_record(project: Path, start) -> None:
     proc = start("--no-ui")
     [record] = records("index")
     proc.kill()
-    wait_for_exit(proc)
+    proc.wait(15)
     live, stale = listed()
     assert live == [] and [r["pid"] for r in stale] == [record["pid"]]

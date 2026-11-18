@@ -239,7 +239,7 @@ whose lock can be taken is **stale** (the process was killed). `ps` prints stale
 | Field (`schema: 1`) | Meaning |
 |---|---|
 | `kind`, `pid`, `ppid`, `version`, `started` | what and since when |
-| `root`, `logdir` | the project root (or `null`) and the log dir |
+| `root`, `logdir` | the project root as every call of the process resolves it (the working directory outside a project; `null` when unknown) and the log dir |
 | `cache`, `cache_kind` | the cache folder (with `serve.lock`, `serve.json`, `serve.token`) or the index folder; `disk`, `memory` or `temporary` |
 | `port`, `sources` | `serve` only: the port and the names of its remotes |
 | `client` | the MCP client's name, or the ssh peer from `SSH_CONNECTION` for `remote`; else `null` |

@@ -148,6 +148,10 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
 11. **The token is shown**: `ps` prints the URL with `?token=`, as `serve` does; the record files are mode 0600 in
     a 0700 folder.
 12. **`ps` cleans up silently but says so**: stale rows are printed once under "stale (removed)", then deleted.
+13. **An MCP server outside a project records the working directory as `root`** (review of J52): `Context.make`
+    falls back to the working directory and every tool call resolves the same root, so the record says what the
+    server really reads; `root: null` stays for records that don't know it. This replaces J52's "registers with
+    `root: null`"; J53's rows show that root like any other.
 
 ## J. Processes and the memory fix
 

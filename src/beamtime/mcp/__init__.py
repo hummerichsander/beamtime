@@ -21,21 +21,18 @@ def serve(root: str | Path | None = None) -> int:
         return 1
     from beamtime.index.cache import resolve_cache
     from beamtime.index.procs import register
-    from beamtime.ops.context import Context, OpError
+    from beamtime.ops.context import Context
 
-    fields: dict[str, str] = {}
-    try:
-        ctx = Context.make(root=root, caller="mcp")
-        cache = resolve_cache(ctx.logdir, ctx.settings)
-        fields = {
-            "root": str(ctx.root),
-            "logdir": str(ctx.logdir),
-            "cache": str(cache.path),
-            "cache_kind": cache.kind,
-        }
-    except OpError:
-        pass
-    registration = register("mcp", **fields)
+    # outside a project Context.make falls back to the working directory, as every tool call does.
+    ctx = Context.make(root=root, caller="mcp")
+    cache = resolve_cache(ctx.logdir, ctx.settings)
+    registration = register(
+        "mcp",
+        root=str(ctx.root),
+        logdir=str(ctx.logdir),
+        cache=str(cache.path),
+        cache_kind=cache.kind,
+    )
     try:
         anyio.run(run, root, registration)
     finally:
