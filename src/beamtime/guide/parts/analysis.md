@@ -35,5 +35,6 @@ Ask with the tools; never parse run files. Go straight to the narrowest tool; `k
 - Aggregate by the varying config keys plus seeds; runs that differ in more than noise must not
   be averaged (`keys` lists what varies).
 - Put a number into a note only with its source: the query, the run, the window.
-- When the tools cannot express an analysis, run your own script, save its table as a data file
-  in the view draft (`data/<name>.csv`, shown by `data_table`), and record the script in a note.
+- When the tools cannot express an analysis, run your own script, write its table as a CSV in
+  the project, copy it into the view draft with `view_data` (shown by `data_table`), and record the script
+  in a note (`guide data-files`).

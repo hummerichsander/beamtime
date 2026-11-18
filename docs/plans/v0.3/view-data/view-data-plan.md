@@ -294,7 +294,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
    bytes equal `example_file(ref)`.
 5. Overview: `--from sweep|ablation|run|direction|custom|data` and the examples row.
 
-### N62. Guide topic `data-files` with one recipe end to end (sonnet + review) — code
+### N62. Guide topic `data-files` with one recipe end to end (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/guide/parts/data-files.md`, `src/beamtime/guide/__init__.py` (`TOPICS` 16–31,
   defaults line 162–163), `src/beamtime/ops/registry.py` (`GuideParams.part` 452–475),

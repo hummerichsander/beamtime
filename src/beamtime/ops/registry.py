@@ -488,6 +488,7 @@ class GuideParams(Params, kw_only=True):
             "memory",
             "remote",
             "analysis",
+            "data-files",
         ]
         | None,
         msgspec.Meta(description="default: the list of topics"),

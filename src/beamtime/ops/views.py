@@ -4,6 +4,7 @@ Drafts live in ``.beamtime/drafts/<name>/``; saving writes a new version into th
 ``view/``, with data files copied under content hashes, and never changes an existing file."""
 
 import hashlib
+import json
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -144,8 +145,8 @@ def add_data(ctx: Context, p: r.ViewDataParams) -> dict[str, Any]:
         )
     if (size := source.stat().st_size) > MAX_BYTES:
         raise OpError(
-            f"{source.name} is {size >> 20} MB, over the {MAX_BYTES >> 20} MB limit of a view's "
-            "data; aggregate or downsample it to what the view shows",
+            f"{source.name} is {size / (1 << 20):.1f} MB, over the {MAX_BYTES >> 20} MB limit "
+            "of a view's data; aggregate or downsample it to what the view shows",
             code=2,
         )
     name = p.name or source.name
@@ -172,7 +173,12 @@ def add_data(ctx: Context, p: r.ViewDataParams) -> dict[str, Any]:
     if not target.exists():
         write_created(target, content)
     ref, listed = f"data/{name}", ", ".join(columns)
-    cols = f"[{listed}]"
+    # a name with `: `, `#`, `,` or `[` would break the pasted flow list.
+    cols = (
+        "["
+        + ", ".join(c if re.fullmatch(r"\w[\w./-]*", c) else json.dumps(c) for c in columns)
+        + "]"
+    )
     stem = re.sub(r"\W", "_", Path(name).stem)
     lines = [
         f"copied {p.file} to {p.draft}/{ref}: {len(rows)} rows, columns {listed}",
@@ -181,7 +187,9 @@ def add_data(ctx: Context, p: r.ViewDataParams) -> dict[str, Any]:
         "record where it came from in a note (note_add, type observation)",
     ]
     if size > WARN_BYTES:
-        lines.insert(1, f"{size >> 20} MB: the page loads the whole file; keep it to what it shows")
+        lines.insert(
+            1, f"{size / (1 << 20):.1f} MB: the page loads the whole file; keep it to what it shows"
+        )
     return {
         "kind": "view data",
         "draft": p.draft,

@@ -9,6 +9,7 @@ Read the topic you need: `guide <topic>`.
 - `views`: building a group page; then `charts`, `checklist`, `anti-patterns`.
 - `kit`, `kit-api`, `library`: custom and library blocks.
 - `examples`, `blocks`: complete views; block schemas.
+- `data-files`: a table of your own (CSV) on a group's page.
 - `remote`: `@source/...` groups.
 
 ## Defaults

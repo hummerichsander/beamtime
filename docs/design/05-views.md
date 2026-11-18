@@ -714,6 +714,7 @@ research shows work better than long rule lists.
 | `guide proposals`, `predictions` | proposals with plans and versions; `each` and `compare` with worked examples | ~700 each |
 | `guide notes`, `verdicts`, `memory` | note types and links; judging a proposal, stating what the check says; compressing memory | ~500 each |
 | `guide remote`, `analysis` | `@source/...` groups; which tool answers which question | ~400 each |
+| `guide data-files` | a table of your own on a page: the recipe from file to saved view (`view_data`, `data_table`, a `file` query in a custom block), the rules and the findings with their fixes | ~900 |
 | `guide <group>` | additionally: the group's metrics and varying config, its current view; from M7 library blocks and outdated pins | – |
 
 ### Workflow

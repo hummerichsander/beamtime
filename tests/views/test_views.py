@@ -252,6 +252,24 @@ def test_view_data_copies_and_describes(ctx: Context, project: Path) -> None:
     assert "x: {file: {path: data/x.csv, columns: [a, b]}}" in text
 
 
+def test_view_data_quotes_awkward_column_names(ctx: Context, project: Path) -> None:
+    """Column names that would break a YAML flow list are quoted in the lines to paste."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
+    (project / "q.csv").write_text("a: b,#c,[d],e,time (s)\n1,2,3,4,5\n")
+    text = "\n".join(call("view data", {"draft": "d", "file": "q.csv"}, ctx)["lines"])
+    flow = '["a: b", "#c", "[d]", e, "time (s)"]'
+    assert f"data_table: {{file: data/q.csv, columns: {flow}}}" in text
+    assert yaml.safe_load(f"columns: {flow}")["columns"] == ["a: b", "#c", "[d]", "e", "time (s)"]
+
+
+def test_view_data_sizes_are_not_rounded_down(ctx: Context, project: Path) -> None:
+    """A 16.5 MB file is reported as 16.5 MB, not as 16 MB over a 16 MB limit."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
+    (project / "big.csv").write_text("a\n" + "1\n" * (33 << 18))
+    with pytest.raises(OpError, match=r"16\.5 MB, over the 16 MB"):
+        call("view data", {"draft": "d", "file": "big.csv"}, ctx)
+
+
 def test_view_data_refuses_outside_files(ctx: Context, project: Path) -> None:
     """A file outside the project is refused with the user's ``cp`` command."""
     call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)

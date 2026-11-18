@@ -29,6 +29,7 @@ TOPICS = (
     "memory",
     "remote",
     "analysis",
+    "data-files",
 )
 TOOLS_MORE = "Over MCP with the default tool set, call these through `tools_more`."
 EXAMPLES = ("sweep", "ablation", "run", "direction", "custom", "data")
