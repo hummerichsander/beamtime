@@ -1,0 +1,25 @@
+# Example "data": a data file next to the runs: a table and a custom block that draws the file's
+# first two columns beside the runs' (code/reference-chart.js). The file is made-up; replace it with
+# the real table (`view_data <draft> <your file>`) and the column names in both places.
+schema: 1
+title: "{{group}}"
+finding: "TODO: the result in one sentence."
+body:
+  - section:
+      id: reference
+      title: reference
+      children:
+        - data_table:
+            id: reference-table
+            file: data/reference.csv
+            columns: [x, y, source]
+            caption: "The reference values, as stored with this view."
+        - custom:
+            id: reference-chart
+            title: "Reference against {{main}}"
+            caption: "The reference's y over x (left), and the runs' {{main}} ({{stat}}) over {{swept}} (right)."
+            code: code/reference-chart.js
+            kit: 2
+            queries:
+              ref: {file: {path: data/reference.csv, columns: [x, y]}}
+              runs: {runs: {select: [run.id, "{{swept}}", "metric.{{main}}.{{stat}}"]}}

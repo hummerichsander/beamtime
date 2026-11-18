@@ -10,6 +10,7 @@ writes RESULTS.md.
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -54,6 +55,8 @@ class Task:
     remote: str | None = None
     # whether the view should also work on other pages (a run, a subgroup, an empty group).
     robust: bool = True
+    # files the project starts with: its path in the project to a fixture under fixtures/.
+    files: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def load(cls, file: Path) -> "Task":
@@ -104,7 +107,7 @@ def tasks(
 
 
 def project(task: Task, folder: Path, guide: Path | None) -> tuple[Path, dict[str, str]]:
-    """Set up a project for a task: a generated log dir, the agent rules, the MCP server.
+    """Set up a project for a task: a log dir, the task's files, the agent rules, the MCP server.
 
     :param task: The task.
     :param folder: The run's folder.
@@ -127,6 +130,9 @@ def project(task: Task, folder: Path, guide: Path | None) -> tuple[Path, dict[st
         remote = {"path": str(box / "beamtime"), "command": command, "transport": "command"}
         config["remotes"] = {task.remote: remote}
     (root / "beamtime.yaml").write_text(yaml.safe_dump(config))
+    for path, fixture in task.files.items():
+        (root / path).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(HERE / "fixtures" / fixture, root / path)
     ctx = Context.make(root=root)
     user_only = sorted(o.name for o in OPS if o.user_only)
     write_block(root / "CLAUDE.md", render(ctx.settings.agent, user_only))
@@ -214,8 +220,8 @@ def summary(transcript: Path) -> dict[str, Any]:
     """Count what the agent did from its stream-json transcript.
 
     :param transcript: The transcript.
-    :return: Tool calls in order (name, input, whether it failed), validation and render rounds,
-        turns, tokens and cost."""
+    :return: Tool calls in order (name, input, whether it failed; a call through ``tools_more`` is
+        named by the tool it calls), validation and render rounds, turns, tokens and cost."""
     calls: list[dict[str, Any]] = []
     result: dict[str, Any] = {}
     for line in transcript.read_text().splitlines():
@@ -229,7 +235,11 @@ def summary(transcript: Path) -> dict[str, Any]:
         for part in content:
             if part.get("type") == "tool_use":
                 name = part["name"].removeprefix("mcp__beamtime__")
-                calls.append({"id": part["id"], "name": name, "input": part.get("input") or {}})
+                args = part.get("input") or {}
+                # the `core` tool surface calls the view and block tools through `tools_more`.
+                if name == "tools_more" and isinstance(tool := args.get("tool"), str):
+                    name = tool.removeprefix("mcp__beamtime__")
+                calls.append({"id": part["id"], "name": name, "input": args})
             elif part.get("type") == "tool_result":
                 for c in calls:
                     if c["id"] == part.get("tool_use_id"):

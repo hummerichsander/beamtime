@@ -39,6 +39,26 @@
   exports keep their layout. Every export answer (CLI and MCP) lists the file's `columns` and its `first_row`; the CLI
   prints them on two lines after the path.
 
+- **Added** `beamtime view data <draft> <file>` (MCP `view_data`): copies a CSV, JSON or Parquet file from inside the
+  project into the draft's `data/` and answers its columns, row count, first rows and the `data_table` and custom
+  `file` query snippets to paste. A file outside the project is refused with the `cp` command to run, an unknown
+  format or a file over 16 MB is an error, one over 2 MB a warning; the same name with other content is refused.
+- **Added** the guide topic `beamtime guide data-files`: one recipe from a table of your own to a saved view (copy it
+  in, show it in a `data_table`, draw it in a custom block), the rules and every finding with its fix; the example
+  `view new <group> --from data` shows a data file in a table and in a chart.
+- **Added** a `columns` parameter on the `file` query (a custom block's data file query) to choose and order its
+  columns, and a `columns` setting on a `data_table` with a `file`; a wrong column name is a finding listing the
+  file's columns, and `columns` on a table of logged data (a `key`) is an error.
+- **Changed** the `file` query reads tables reliably: an empty CSV cell is `null`, and a semicolon- or
+  tab-separated CSV, an empty or duplicate column name (usually a pandas index) and a row with the wrong number of
+  cells are errors that say how to write the file (`df.to_csv(path, index=False)`).
+- **Fixed** a custom block's `file` query was not copied with the view: `view save`, `view new --from` and
+  bundles now copy every data reference (`data_table` files, custom code and custom
+  `file` queries) once under its content hash, so the saved page shows what the draft showed. A custom `file` query
+  with keys other than `path` and `columns` is a schema error (it was dropped silently). The validator checks each
+  data reference once with a fix per mistake (a file outside the draft, a missing file, an unknown format, a file too
+  large, a wrong column) and skips `$placeholder` paths.
+- **Changed** kit charts given data that is not a `bt.useData` result show an error instead of an empty plot.
 - **Changed** the MCP server lists 19 core tools and `tools_more`: about 3.3k tokens of definitions instead of
   about 5.8k for all 43 tools. The tools for views, blocks, run control and export are reached through
   `tools_more`: `tools_more(family="views")` describes a family, `tools_more(tool="view_show", args={...})` calls

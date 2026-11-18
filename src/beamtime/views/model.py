@@ -155,6 +155,9 @@ class DataTable(Node, tag="data_table"):
     key: str | None = None
     step: Step = "last"
     file: Annotated[str | None, msgspec.Meta(description="e.g. data/fit.csv")] = None
+    columns: Annotated[
+        list[str] | None, msgspec.Meta(description="file only: which columns, in order")
+    ] = None
     limit: int = 50
 
 
@@ -605,3 +608,27 @@ def yaml_walk(body: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
         out.append((block, props))
         out += yaml_walk(props.get("children") or [])
     return out
+
+
+def file_refs(body: list[dict[str, Any]]) -> list[str]:
+    """List the files a body in YAML form refers to: data tables, custom code and file queries.
+
+    :param body: The nodes.
+    :return: The references in document order, without duplicates."""
+    refs: list[str] = []
+    for block, props in yaml_walk(body):
+        match block:
+            case "data_table":
+                found = [props.get("file")]
+            case "custom":
+                queries = props.get("queries")
+                files = (
+                    [q.get("file") for q in queries.values() if isinstance(q, dict)]
+                    if isinstance(queries, dict)
+                    else []
+                )
+                found = [props.get("code"), *[f.get("path") for f in files if isinstance(f, dict)]]
+            case _:
+                continue
+        refs += [r for r in found if isinstance(r, str) and not r.startswith("$") and r not in refs]
+    return refs

@@ -1,4 +1,4 @@
-"""The agent guide: how to build views, disclosed in parts, with five examples.
+"""The agent guide: how to build views, disclosed in parts, with six examples.
 
 Examples are YAML templates with ``{{name}}`` placeholders, filled with a group's metrics and
 config; nodes whose data the group doesn't have are left out."""
@@ -29,9 +29,10 @@ TOPICS = (
     "memory",
     "remote",
     "analysis",
+    "data-files",
 )
 TOOLS_MORE = "Over MCP with the default tool set, call these through `tools_more`."
-EXAMPLES = ("sweep", "ablation", "run", "direction", "custom")
+EXAMPLES = ("sweep", "ablation", "run", "direction", "custom", "data")
 LAUNCH = {
     "never": "Never launch runs yourself.",
     "ask": "Ask before you launch a run.",
@@ -176,8 +177,9 @@ def defaults(agent: AgentSettings) -> str:
     out = [head, ""]
     out += [f"- {text} ({origin(agent, keys)})" for text, keys in lines]
     out += [
-        "- Data the queries can't express goes into a data file in the draft's `data/`, shown with "
-        "`data_table: {file: data/<name>.csv}`; record the script that made it in a note. (fixed)",
+        "- Data the queries can't express goes into a CSV in the project, copied into the draft "
+        "with `view_data` and shown with `data_table`; record the script that made it in a note "
+        "(`guide data-files`). (fixed)",
         "- Never run user commands; hand the user the exact command. (fixed)",
     ]
     return "\n".join(out)

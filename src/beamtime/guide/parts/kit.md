@@ -20,7 +20,7 @@ comes from the queries it declares. Declare `kit: 2` for `bt.chart.Figure` and t
     caption: Mean val/acc per cell over seeds; click a cell for its best run.
     code: code/phase-map.js          # in the draft's code/ folder
     libs: [d3]                       # optional: d3, uplot, katex
-    queries:                         # one kind each: keys, runs, series, data, timeline, groups, file
+    queries:                         # one kind each: keys, runs, series, data, timeline, groups, file (`guide data-files`)
       runs:   {runs: {select: [run.id, config.lr, config.weight_decay, metric.val/acc.max]}}
       detail: {series: {from: $run, y: [train/acc, val/acc]}}   # $run is filled at runtime
 ```

@@ -27,7 +27,7 @@ import { groupUrl, runUrl } from "../router.ts";
 import { Store, useStore } from "../state.ts";
 import { makeFigure } from "./figure.ts";
 import { fill, placeholders } from "./protocol.ts";
-import { shape, type KitResult } from "./shape.ts";
+import { dataProblem, shape, type KitResult } from "./shape.ts";
 
 // the built-in blocks a custom block can use: only these come into its frame.
 const KIT_BLOCKS: Registry = {
@@ -88,8 +88,11 @@ export function makeKit(host: Host) {
       fill?.(rest, data);
       // each chart its own id, so two charts of a block keep their own settings.
       const own = `${block}-${useId().replace(/\W/g, "")}`;
+      const view = useStore(host.view);
+      const problem = dataProblem(data);
+      if (problem) return html`<${Notice} kind="error">${problem}<//>`;
       const node: Node = { block, id: id ?? own, props: rest, data: data?.call ? { main: data.call } : undefined };
-      return html`<${ViewCtx.Provider} value=${useStore(host.view)}><${Box} node=${node} blocks=${KIT_BLOCKS} /><//>`;
+      return html`<${ViewCtx.Provider} value=${view}><${Box} node=${node} blocks=${KIT_BLOCKS} /><//>`;
     };
   const metricsFrom = (props: any, data: KitResult | undefined) => {
     props.y ??= data?.call?.params.y;

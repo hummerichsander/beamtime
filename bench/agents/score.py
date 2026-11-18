@@ -19,7 +19,8 @@ from typing import Any
 import yaml
 from run import HERE, Task
 
-LOGDIR = re.compile(r"(?<![.\w])beamtime/")
+# the run's log dir is `proj/beamtime/`; the repository checkout around the runs is also named beamtime.
+LOGDIR = re.compile(r"(?:(?<![\w./-])|(?<=/proj/)|(?<=[\"\s]\./))beamtime/")
 JUDGE = "sonnet"
 JUDGE_LIMIT_S = 300
 USAGE_LIMIT = re.compile(r"hit your .{0,40}limit|usage limit|limit reached", re.I)
@@ -294,6 +295,9 @@ def score_view(ctx: Any, task: Task, record: dict[str, Any], folder: Path) -> di
     roles = record["roles"]
     out["metrics"] = covered_metrics(ctx, view, page, facts.get("metrics") or [])
     out["runs"] = covered_runs(ctx, view, page, [roles[r] for r in facts.get("runs") or []])
+    if want := facts.get("file"):
+        out["file"] = covered_file(ctx, view, page, want)
+        out["provenance"] = noted(ctx, page, [Path(f).stem for f in task.files.values()])
     out["finding"] = judge_finding(view.finding or "", facts, folder)
     out["lints"] = lints(ctx, page, data)
     out["checklist"] = judge_checklist(ctx, page, task.checklist, folder)
@@ -303,9 +307,47 @@ def score_view(ctx: Any, task: Task, record: dict[str, Any], folder: Path) -> di
         out["valid"]
         and all(out["metrics"].values())
         and all(out["runs"].values())
+        and out.get("file", True)
         and out["finding"].get("true")
     )
     return out
+
+
+def covered_file(ctx: Any, view: Any, page: str, want: dict[str, Any]) -> bool:
+    """Tell whether the saved view answers a ``file`` query with the fixture's columns and rows.
+
+    :param ctx: The operation context.
+    :param view: The view.
+    :param page: The page.
+    :param want: The facts' ``{columns, rows}``.
+    :return: Whether one file query of the view answers with those columns and that row count."""
+    from beamtime.ops import call
+    from beamtime.ops.context import OpError
+
+    for c in calls(ctx, view, page):
+        if c["method"] != "file":
+            continue
+        try:
+            answer = call("file", {"view": page} | c["params"], ctx)
+        except OpError:
+            continue
+        if set(want["columns"]) <= set(answer["columns"]) and len(answer["rows"]) == want["rows"]:
+            return True
+    return False
+
+
+def noted(ctx: Any, page: str, names: list[str]) -> bool:
+    """Tell whether an agent's new note in a group names where its data came from (reported only).
+
+    :param ctx: The operation context.
+    :param page: The group.
+    :param names: Names of the data files, without suffix.
+    :return: Whether a new note's description or body names one of them."""
+    return any(
+        name in f"{d.meta.get('description', '')} {d.body}"
+        for d in authored(ctx, page, "notes")
+        for name in names
+    )
 
 
 def lints(ctx: Any, page: str, data: Any) -> list[str]:

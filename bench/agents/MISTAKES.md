@@ -6,6 +6,11 @@ message, guide, task), what fixed it, and the task that guards it. Newest first.
 
 | Mistake | Class | Fix | Task |
 |---|---|---|---|
+| Agents retyped a CSV into the draft with Write (no way to copy a file in) | product | L61: `view_data` copies and checks it; guide topic `data-files` names it | `view-external-csv` |
+| A saved `data_table` with `file` and `columns` failed validation where no draft folder is known (the scorer, `view upgrade`): `columns narrows a data file` | validator | the check applies to a table with a `key` only | `test_data_table_columns_need_a_file` |
+| Agents following the `data-files` recipe saved with `finding: null` and ignored the `no finding` warning | guide | recipe step 6 names `finding` and captions | `view-external-csv` |
+| A custom `bt.chart.Scatter` of a file drew an empty plot and the agent gave up unsaved (held-out run, cause not diagnosed) | unclassified | none yet | `view-external-chart` (held-out) |
+| A finding that names the best lr by the wrong statistic (a best-run figure called a mean) | task | the truth accepts either statistic; a figure of the other statistic stays wrong, judged per run (haiku) | `view-external-csv` |
 | The judge hit its usage limit mid-batch and every checklist item was scored `no` | harness | `ask` raises on a usage-limit answer, the run stays unscored; `score.py --rescore` | none (offline check) |
 | A correct `digest` answer to `analysis-tokenizer-gap` scored incorrect: the task's `tools` list predated `digest` | task | `digest` added to the group-level analysis tasks | `analysis-tokenizer-gap` |
 | `view-remote` failed with `no source @box`: `run.py` wrote invalid YAML for `remotes:` | harness | `beamtime.yaml` is written with `yaml.safe_dump` | `view-remote` |

@@ -116,6 +116,7 @@ beamtime file <view> <path>
 
 | Option | Default | |
 |---|---|---|
+| `--columns` |  | which columns, in this order; default all |
 | `--draft` |  | read from this draft instead |
 
 ### `beamtime output`
@@ -394,6 +395,18 @@ beamtime view new <group>
 |---|---|---|
 | `--from` |  | an example to start from; default: the page's current view |
 | `--name` |  | default: the group's name |
+
+### `beamtime view data`
+
+Copy a data file into a view draft's data/ and show its columns.
+
+```sh
+beamtime view data <draft> <file>
+```
+
+| Option | Default | |
+|---|---|---|
+| `--name` |  |  |
 
 ### `beamtime view validate`
 

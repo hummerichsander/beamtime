@@ -93,6 +93,9 @@ class FileParams(Params, kw_only=True):
 
     view: str
     path: str
+    columns: Annotated[
+        list[str] | None, msgspec.Meta(description="which columns, in this order; default all")
+    ] = None
     draft: ReadDraft = None
 
 
@@ -282,10 +285,27 @@ class ViewNewParams(Params, kw_only=True):
 
     group: Group
     from_: Annotated[
-        Literal["sweep", "ablation", "run", "direction", "custom"] | None,
+        Literal["sweep", "ablation", "run", "direction", "custom", "data"] | None,
         msgspec.Meta(description="an example to start from; default: the page's current view"),
     ] = msgspec.field(default=None, name="from")
     name: Annotated[str | None, msgspec.Meta(description="default: the group's name")] = None
+
+
+class ViewDataParams(Params, kw_only=True):
+    """Parameters of ``view data``."""
+
+    draft: Draft
+    file: Annotated[str, msgspec.Meta(description="a CSV, JSON or Parquet file inside the project")]
+    name: (
+        Annotated[
+            str,
+            msgspec.Meta(
+                pattern=r"^[\w.-]{1,120}$",
+                description="the name in data/; default: the file's name",
+            ),
+        ]
+        | None
+    ) = None
 
 
 class ViewValidateParams(Params, kw_only=True):
@@ -468,6 +488,7 @@ class GuideParams(Params, kw_only=True):
             "memory",
             "remote",
             "analysis",
+            "data-files",
         ]
         | None,
         msgspec.Meta(description="default: the list of topics"),
@@ -1007,6 +1028,15 @@ METHODS = [
         impl=f"{V}:new",
         positional=("group",),
         summary="Start a view draft in .beamtime/drafts/: from an example or the current view.",
+    ),
+    Op(
+        name="view data",
+        kind="view data",
+        drafts=True,
+        params=ViewDataParams,
+        impl=f"{V}:add_data",
+        positional=("draft", "file"),
+        summary="Copy a data file into a view draft's data/ and show its columns.",
     ),
     Op(
         name="view validate",

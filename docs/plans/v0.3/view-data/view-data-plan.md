@@ -129,7 +129,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
 
 ## J. The file query and data refs
 
-### J61. Every data reference is copied: save, view new, bundles (sonnet + review) — reproduced
+### J61. Every data reference is copied: save, view new, bundles (sonnet + review) — reproduced — **done**
 
 - **Touches:** `src/beamtime/views/model.py` (new `file_refs`, next to `yaml_walk`), `src/beamtime/ops/views.py`
   (`data_refs` 118–135, `write_version` 548–580, `bundle` 248–259 unchanged but now complete);
@@ -158,7 +158,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
 5. Spec: 05-views.md l. 148: "Data files ... read through the `file` query, by `data_table` (`file`) or a custom
    block's declared query; saving copies each under its content hash."
 
-### J62. The file query reads tables reliably and checks columns (sonnet + review) — reproduced
+### J62. The file query reads tables reliably and checks columns (sonnet + review) — reproduced — **done**
 
 - **Touches:** `src/beamtime/query/files.py` (`file_kind` 15–36, `read_table` 39–74, `number_or_text` 77–85, new
   `FORMATS`, `WARN_BYTES`, `MAX_BYTES`, `pick_columns`), `src/beamtime/query/models.py` (`File` 164–168),
@@ -197,7 +197,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
 
 ## L. Getting a file into a draft, and the findings
 
-### L61. `view data`: copy a file into a draft and describe it (sonnet + review) — code
+### L61. `view data`: copy a file into a draft and describe it (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/ops/registry.py` (new `ViewDataParams` after `ViewNewParams` 280–288, new `Op` after
   `view new` 1001–1009), `src/beamtime/ops/views.py` (new `add_data` after `write_draft_files`; the `lines` of
@@ -229,7 +229,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
    from in a note (note_add, type observation)`.
 5. Spec: the agent-loop table gets the `view_data` row; the `08-cli-mcp.md` row is Z's.
 
-### L62. One check per data reference, with a fix for each mistake (sonnet) — reproduced
+### L62. One check per data reference, with a fix for each mistake (sonnet) — reproduced — **done**
 
 - **Touches:** `src/beamtime/views/validate.py` (`structure` 139–151, `custom_checks` 230–296, new
   `data_file_checks`); `tests/views/test_views.py`; `docs/design/05-views.md` § Validation (l. 652–690).
@@ -238,7 +238,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
 - **Done:** a parametrized `test_data_file_findings` covers each row below with its message and fix, for
   `data_table.file` and a custom `file` query alike.
 - **Risks:** a saved view (no `data_dir`) skips the file checks and relies on the query run, as today
-  (`test_saved_view_with_missing_file`); a custom `file` query with a `$placeholder` path is an error, not a crash;
+  (`test_saved_view_with_missing_file`); a `$placeholder` path is skipped by the check (the page fills it and the query run reports a missing file; decided after L62, it lets a custom block pick its file per selection);
   findings are not doubled by the query run (a reference that failed the static check is not run).
 - **Stop if:** a check needs the draft's name in the fix and `structure` doesn't have it (pass it in; don't guess).
 
@@ -247,7 +247,8 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
    | Case | Message | Fix |
    |---|---|---|
    | absolute, or leaves the draft | `{ref!r} is outside the draft; a view reads only files stored with it` | `` `view_data <draft> {ref}` copies it in as data/{basename} `` |
-   | `$...` | `a file path can't be a placeholder` | `name the file: data/<name>.csv` |
+   | `$...` | no finding: the check skips it; the page fills the path and the query run reports a missing file | none |
+   | `columns` on a key-based `data_table` | `columns narrows a data file; a logged table has none` | `remove columns, or read a file: file: data/<name>.csv` |
    | missing, `data/{ref}` exists | `no file {ref!r}` | `write file: data/{ref}` |
    | missing | `no data file {ref!r}` + closest names in `data/` | `` write it to {data_dir}/{ref}, or `view_data <draft> <file>` `` |
    | suffix not in `FORMATS` | `{ref}: Beamtime reads .csv, .json and .parquet` | `save it as CSV: df.to_csv(path, index=False)` |
@@ -260,7 +261,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
 
 ## N. Example and guide
 
-### N61. The `data` example: a data file in a table, a chart and a custom block (sonnet) — code
+### N61. The `data` example: a data file in a table, a chart and a custom block (sonnet) — code — **done**
 
 - **Touches:** new `src/beamtime/guide/examples/data.yaml`, new `src/beamtime/guide/examples/data/reference.csv`,
   new `src/beamtime/guide/examples/code/reference-chart.js`, `src/beamtime/guide/__init__.py` (`EXAMPLES` 32),
@@ -293,7 +294,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
    bytes equal `example_file(ref)`.
 5. Overview: `--from sweep|ablation|run|direction|custom|data` and the examples row.
 
-### N62. Guide topic `data-files` with one recipe end to end (sonnet + review) — code
+### N62. Guide topic `data-files` with one recipe end to end (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/guide/parts/data-files.md`, `src/beamtime/guide/__init__.py` (`TOPICS` 16–31,
   defaults line 162–163), `src/beamtime/ops/registry.py` (`GuideParams.part` 452–475),
@@ -320,14 +321,14 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
    6 `view_validate`, `view_render`, `view_save`; 7 `note_add` (observation) naming the file and the script or
    person it came from); **What the block gets** (`columns`, `rows` as objects, no `curves`; `Scatter` and `Bar`
    take it, `Line` doesn't); **Rules** (snapshot: a changed file needs `view_data` again and a new save; file
-   paths are fixed, no placeholders; the file belongs to the page that saves it; CSV recommended, limits from
+   paths are stored with the view, and a `$name` path is filled by the page and not checked; the file belongs to the page that saves it; CSV recommended, limits from
    decision 6); **Errors and fixes** (the L62 table in short).
 2. `TOPICS`, `GuideParams`, the overview's index row `data-files`, `skills.py` adds `data-files` to `beamtime-views`.
 3. analysis.md 33–34 and the defaults line end with "(`guide data-files`)".
 
 ## U. Measuring it
 
-### U61. Bench: tasks bring files, scores check the file query (sonnet) — code
+### U61. Bench: tasks bring files, scores check the file query (sonnet) — code — **done**
 
 - **Touches:** `bench/agents/run.py` (`Task` 38–57, `project` 106–139), `bench/agents/score.py` (`score_view`
   269–308, new `covered_file`), new `bench/agents/fixtures/jax-sweep.csv`, new
@@ -353,7 +354,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
    Put them on the scaling/lr-sweep page as a table next to our runs, and save the page." `view-external-chart`
    (`heldout: true`): the same, asking for a chart of her val_acc over lr against ours. Checklists of 4–5 items each.
 
-### U62. Baseline on today's code (sonnet) — code
+### U62. Baseline on today's code (sonnet) — code — **done**
 
 - **Touches:** new `docs/plans/v0.3/view-data/results.md`.
 - **Read:** `bench/agents/README.md` § Run it, § The loop.
@@ -366,7 +367,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
 
 Runs before J61, so the delta in U63 is this plan's effect. Don't change the guide or the code here.
 
-### U63. Measure again, refine once, run the held-out task (sonnet + review) — code
+### U63. Measure again, refine once, run the held-out task (sonnet + review) — code — **done**
 
 - **Touches:** new `docs/plans/v0.3/view-data/results.md` (from U62), `bench/agents/MISTAKES.md`, at most
   `src/beamtime/guide/parts/data-files.md` and the messages of `src/beamtime/views/validate.py`, `src/beamtime/query/files.py` and `add_data`.
@@ -381,10 +382,10 @@ Runs before J61, so the delta in U63 is this plan's effect. Don't change the gui
   held-out one); a fix in the guide for what a message should say (README's loop: fix the earliest class).
 - **Stop if:** a failure needs a product change bigger than a message; report it instead.
 
-## Z. Close
+## Z. Close — **done**
 
-- **Touches:** `CHANGELOG.md` (0.3.0 section), `docs/design/08-cli-mcp.md` (the `view data` row next to `file`,
-  l. 42), `CLAUDE.md` (Layout: `src/beamtime/query/files.py` reads data files with the limits; `guide/` gains the `data`
+- **Touches:** `CHANGELOG.md` (0.3.0 section), ~~`docs/design/08-cli-mcp.md` (the `view data` row)~~ (row added in
+  the "Spec: add view data" commit; do not add it again), `CLAUDE.md` (Layout: `src/beamtime/query/files.py` reads data files with the limits; `guide/` gains the `data`
   example), this plan's Not verified.
 - **Check:** `git status docs/design/08-cli-mcp.md` is clean before editing it (else stop and report);
   `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`.
@@ -401,11 +402,15 @@ Runs before J61, so the delta in U63 is this plan's effect. Don't change the gui
 
 ## Not verified
 
-- That the headless renderer serves a draft's custom `file` query (the compiled call carries `draft`; seen in
-  `compile.py` 361–363 and `reading.file`, not rendered). N61's render test checks it.
-- That `bt.chart.Scatter` draws a `file` answer whose columns are not fields (`shapes.points` indexes `columns`,
-  read, not rendered); its empty message speaks of runs ("Fewer than two runs log ..."), which may confuse. N61.
-- That an agent over MCP can write into `.beamtime/drafts/` with its own Write tool in the bench (the existing view
-  tasks do this for `view.yaml`). U62.
 - How `remote` saves (`view_put`) treat the new custom file refs: covered by `data_refs` through the bundle, not run
   over ssh. J61's bundle test checks the bundle only.
+- Why the held-out run's haiku-0 drew an empty `bt.chart.Scatter` from a file (cause not diagnosed: the block's code
+  or the kit); `test_data_example_renders` draws the example's two Scatters from a draft's `file` query and from
+  runs, with no blank block. Kit charts given data that is not a `bt.useData` result now show an error (11acf05).
+- The two changes after U63 (the completed task truth, the guide line naming the statistic) have not been run
+  through the bench; `view-external-csv` was correct in 5 of 6 runs and the held-out `view-external-chart` in 3 of 6
+  before them (`results.md`), and Sonnet and Haiku differ by task, so the Goal's pass condition rests on that run.
+- The `data_table` clipping after about 13 rows and charts below the fold that stay empty in a screenshot are a UI
+  matter (ticket W36 in `docs/plans/v0.3/ui/ui-plan.md`, `web/` was out of scope here).
+- That an agent over MCP can write into `.beamtime/drafts/` with its own Write tool: seen in the bench runs (the
+  draft's `view.yaml`), not tried on a client other than `claude -p`.

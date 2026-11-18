@@ -201,6 +201,8 @@ class Compiler:
             case m.DataTable():
                 if n.file is not None:
                     params = {"view": self.path, "path": n.file}
+                    if n.columns is not None:
+                        params["columns"] = n.columns
                     call = api(
                         "file", params | ({"draft": self.draft} if self.draft else {}), scope
                     )
@@ -360,8 +362,14 @@ class Compiler:
         ((kind, params),) = query.items()
         params = dict(params or {})
         if kind == "file":
+            if extra := set(params) - {"path", "columns"}:
+                raise SchemaError(
+                    f"{n.id}: a file query takes path and columns, not {', '.join(sorted(extra))}"
+                )
+            if "path" not in params:
+                raise SchemaError(f"{n.id}: a file query needs a path, e.g. data/fit.csv")
             draft = {"draft": self.draft} if self.draft else {}
-            return api("file", {"view": self.path, "path": params["path"]} | draft, self.path)
+            return api("file", {"view": self.path} | params | draft, self.path)
         sel = self.selection(n)
         target = params.pop("from", None)
         if isinstance(target, str) and not target.startswith("$"):

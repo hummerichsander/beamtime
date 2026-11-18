@@ -263,3 +263,60 @@ def test_mcp_tools_is_not_listed_in_the_defaults(project: Path) -> None:
     for value in ("core", "all"):
         text = call("guide", {}, with_agent(project, f"{{mcp_tools: {value}}}"))["text"]
         assert "mcp_tools" not in text and "tools_more" not in text
+
+
+def test_data_files_topic_is_short_and_linked() -> None:
+    """The topic stays under 100 lines; the index, the analysis part and the views skill name it."""
+    from beamtime.guide.skills import SKILLS
+
+    assert len(TEXTS["data-files"].splitlines()) <= 100
+    assert "data-files" in SKILLS["beamtime-views"][1]
+    for name in ("index", "analysis", "kit", "kit-api"):
+        assert "data-files" in TEXTS[name], name
+
+
+def test_defaults_point_to_data_files(ctx: Context) -> None:
+    """The defaults line on data files names `view_data` and the topic."""
+    (line,) = [s for s in defaults_of(ctx) if "data_table" in s]
+    assert "view_data" in line and "(`guide data-files`)" in line
+
+
+def test_data_files_recipe(ctx: Context, project: Path) -> None:
+    """The recipe's commands run in order with the topic's own snippets and save a valid view."""
+    text = TEXTS["data-files"]
+    blocks = [b for s in fences(text) for b in yaml.safe_load(s)]
+    script = re.search(r"```js\n(.*?)```", text, re.S).group(1)
+    table, chart = blocks
+    assert "data/fit.csv" in str(table) and "data/fit.csv" in str(chart)
+
+    source = project / "results" / "fit.csv"
+    source.parent.mkdir()
+    source.write_text("lr,pred_acc\n0.0001,0.52\n0.001,0.71\n0.01,0.64\n")
+    call("view new", {"group": SWEEP, "name": "fit"}, ctx)
+    answer = call("view data", {"draft": "fit", "file": "results/fit.csv", "name": "fit.csv"}, ctx)
+    assert answer["ref"] == "data/fit.csv" and answer["columns"] == ["lr", "pred_acc"]
+
+    draft = project / ".beamtime" / "drafts" / "fit"
+    view = yaml.safe_load((draft / "view.yaml").read_text())
+    view["finding"] = "lr 1e-3 is predicted best"
+    view["body"].append({"section": {"id": "fit", "title": "fit", "children": blocks}})
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "code").mkdir(exist_ok=True)
+    (draft / "code" / "fit-chart.js").write_text(script)
+
+    result = call("view validate", {"draft": "fit", "render": False}, ctx)
+    assert result["ok"], result["findings"]
+    assert not [f for f in result["findings"] if "data" in f["message"]], result["findings"]
+    saved = call("view save", {"draft": "fit", "message": "predicted accuracy"}, ctx)
+    assert saved["version"]
+    note = call(
+        "note add",
+        {"group": SWEEP, "type": "observation", "description": "fit.csv from results/fit.csv"},
+        ctx,
+    )
+    assert note["kind"] == "note add"
+    (stored,) = (project / "beamtime" / SWEEP / "view" / "data").glob("*-fit.csv")
+    assert stored.read_bytes() == source.read_bytes()
+    query = {"file": {"path": f"data/{stored.name}", "view": SWEEP, "columns": ["lr"]}}
+    shown = call("query", {"query": query}, ctx)
+    assert [r[0] for r in shown["rows"]] == [0.0001, 0.001, 0.01]

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 
@@ -235,6 +236,150 @@ def test_data_files_are_hashed_on_save(ctx: Context, project: Path) -> None:
     assert (project / ".beamtime" / "drafts" / "fit2" / ref).is_file()
 
 
+def test_view_data_copies_and_describes(ctx: Context, project: Path) -> None:
+    """``view data`` copies a project file into the draft and answers what to paste."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
+    source = project / "external" / "x.csv"
+    source.parent.mkdir()
+    source.write_text("a,b\n1,2\n3,4\n5,6\n7,8\n")
+    answer = call("view data", {"draft": "d", "file": "external/x.csv"}, ctx)
+    copy = project / ".beamtime" / "drafts" / "d" / "data" / "x.csv"
+    assert copy.read_bytes() == source.read_bytes()
+    assert answer["ref"] == "data/x.csv" and answer["columns"] == ["a", "b"] and answer["rows"] == 4
+    assert answer["head"] == [[1, 2], [3, 4], [5, 6]]
+    text = "\n".join(answer["lines"])
+    assert "data_table: {file: data/x.csv, columns: [a, b]}" in text
+    assert "x: {file: {path: data/x.csv, columns: [a, b]}}" in text
+
+
+def test_view_data_quotes_awkward_column_names(ctx: Context, project: Path) -> None:
+    """Column names that would break a YAML flow list are quoted in the lines to paste."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
+    (project / "q.csv").write_text("a: b,#c,[d],e,time (s)\n1,2,3,4,5\n")
+    text = "\n".join(call("view data", {"draft": "d", "file": "q.csv"}, ctx)["lines"])
+    flow = '["a: b", "#c", "[d]", e, "time (s)"]'
+    assert f"data_table: {{file: data/q.csv, columns: {flow}}}" in text
+    assert yaml.safe_load(f"columns: {flow}")["columns"] == ["a: b", "#c", "[d]", "e", "time (s)"]
+
+
+def test_view_data_sizes_are_not_rounded_down(ctx: Context, project: Path) -> None:
+    """A 16.5 MB file is reported as 16.5 MB, not as 16 MB over a 16 MB limit."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
+    (project / "big.csv").write_text("a\n" + "1\n" * (33 << 18))
+    with pytest.raises(OpError, match=r"16\.5 MB, over the 16 MB"):
+        call("view data", {"draft": "d", "file": "big.csv"}, ctx)
+
+
+def test_view_data_refuses_outside_files(ctx: Context, project: Path) -> None:
+    """A file outside the project is refused with the user's ``cp`` command."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
+    outside = project.parent / "x.csv"
+    outside.write_text("a\n1\n")
+    for file in ("/etc/hosts", "../x.csv", str(outside), "~/x.csv"):
+        with pytest.raises(OpError, match="outside the project"):
+            call("view data", {"draft": "d", "file": file}, ctx)
+    with pytest.raises(OpError, match=f"cp ../x.csv {project}/"):
+        call("view data", {"draft": "d", "file": "../x.csv"}, ctx)
+    link = project / "link.csv"
+    link.symlink_to(outside)
+    with pytest.raises(OpError, match="outside the project"):
+        call("view data", {"draft": "d", "file": "link.csv"}, ctx)
+    assert not any((project / ".beamtime" / "drafts" / "d" / "data").iterdir())
+
+
+def test_view_data_names(ctx: Context, project: Path) -> None:
+    """The same name with other content is refused naming ``--name``; the same content is a no-op."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
+    one, two = project / "one.csv", project / "two.csv"
+    one.write_text("a\n1\n")
+    two.write_text("a\n2\n")
+    call("view data", {"draft": "d", "file": "one.csv", "name": "t.csv"}, ctx)
+    call("view data", {"draft": "d", "file": "one.csv", "name": "t.csv"}, ctx)
+    with pytest.raises(OpError, match="--name"):
+        call("view data", {"draft": "d", "file": "two.csv", "name": "t.csv"}, ctx)
+    copy = project / ".beamtime" / "drafts" / "d" / "data" / "t.csv"
+    assert copy.read_bytes() == one.read_bytes()
+    answer = call("view data", {"draft": "d", "file": "two.csv"}, ctx)
+    assert answer["ref"] == "data/two.csv"
+
+
+def test_view_data_refuses_other_shapes(ctx: Context, project: Path) -> None:
+    """A JSON file that is no table and a ``--name`` with another suffix are usage errors."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
+    (project / "n.json").write_text("[1, 2, 3]")
+    with pytest.raises(OpError, match="no table") as e:
+        call("view data", {"draft": "d", "file": "n.json"}, ctx)
+    assert e.value.code == 2
+    (project / "t.csv").write_text("a,b\n1,2\n")
+    with pytest.raises(OpError, match="suffix .csv") as e:
+        call("view data", {"draft": "d", "file": "t.csv", "name": "t.json"}, ctx)
+    assert e.value.code == 2
+    assert not any((project / ".beamtime" / "drafts" / "d" / "data").iterdir())
+
+
+def test_view_data_checks_format_and_size(
+    ctx: Context, project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unknown format, a missing file, a semicolon CSV and a large file are refused first."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
+    data = project / ".beamtime" / "drafts" / "d" / "data"
+    (project / "t.xlsx").write_bytes(b"PK")
+    with pytest.raises(OpError, match=r"csv, json, parquet.*to_csv"):
+        call("view data", {"draft": "d", "file": "t.xlsx"}, ctx)
+    with pytest.raises(OpError, match="no file nope.csv"):
+        call("view data", {"draft": "d", "file": "nope.csv"}, ctx)
+    (project / "semi.csv").write_text("a;b\n1;2\n")
+    with pytest.raises(OpError, match="semicolon|;-separated"):
+        call("view data", {"draft": "d", "file": "semi.csv"}, ctx)
+    big = project / "big.csv"
+    big.write_text("a\n" + "1\n" * 50)
+    monkeypatch.setattr("beamtime.query.files.MAX_BYTES", 40)
+    with pytest.raises(OpError, match="downsample"):
+        call("view data", {"draft": "d", "file": "big.csv"}, ctx)
+    monkeypatch.setattr("beamtime.query.files.MAX_BYTES", 16 << 20)
+    monkeypatch.setattr("beamtime.query.files.WARN_BYTES", 40)
+    answer = call("view data", {"draft": "d", "file": "big.csv"}, ctx)
+    assert "loads the whole file" in "\n".join(answer["lines"])
+    assert sorted(p.name for p in data.iterdir()) == ["big.csv"]
+
+
+def test_view_data_page_reads_the_copy(ctx: Context, project: Path) -> None:
+    """The pasted snippet validates and the saved page shows the same table."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
+    (project / "t.csv").write_text("a,b\n1,2\n3,4\n")
+    call("view data", {"draft": "d", "file": "t.csv"}, ctx)
+    folder = project / ".beamtime" / "drafts" / "d"
+    data = yaml.safe_load((folder / "view.yaml").read_text())
+    data["finding"] = "x"
+    data["body"].append({"data_table": {"id": "t", "file": "data/t.csv", "columns": ["b", "a"]}})
+    (folder / "view.yaml").write_text(yaml.safe_dump(data))
+    result = call("view validate", {"draft": "d", "render": False}, ctx)
+    assert not [f for f in result["findings"] if f["level"] == "error"]
+    call("view save", {"draft": "d"}, ctx)
+    table = next(n for n in walk(page_view(ctx, SWEEP)["view"]) if n["id"] == "t")
+    ref = table["data"]["main"]["params"]["path"]
+    assert call("file", {"view": SWEEP, "path": ref, "columns": ["b", "a"]}, ctx)["rows"] == [
+        [2, 1],
+        [4, 3],
+    ]
+
+
+def test_file_columns_compile() -> None:
+    """``columns`` of a data table and of a custom file query reach the call."""
+    view = parse("body: [{data_table: {id: t, file: data/f.csv, columns: [b, a]}}]")
+    table = compile_view(view, path="g")["children"][0]
+    assert table["data"]["main"]["params"]["columns"] == ["b", "a"]
+    plain = parse("body: [{data_table: {id: t, file: data/f.csv}}]")
+    assert "columns" not in compile_view(plain, path="g")["children"][0]["data"]["main"]["params"]
+    custom = "body: [{custom: {id: c, code: code/c.js, queries: {f: {file: {path: data/f.csv, columns: [a]}}}}}]"
+    params = compile_view(parse(custom), path="g")["children"][0]["data"]["f"]["params"]
+    assert params["columns"] == ["a"]
+    with pytest.raises(SchemaError, match="a file query takes path and columns"):
+        compile_view(parse(custom.replace("columns: [a]", "limit: 3")), path="g")
+    with pytest.raises(SchemaError, match="a file query needs a path"):
+        compile_view(parse(custom.replace("path: data/f.csv, ", "")), path="g")
+
+
 def test_scorecard_is_one_runs_query_and_predictions_is_the_proposal() -> None:
     """A scorecard asks for its row field, its metrics and the status once; the direction of each
     column comes along; ``predictions`` compiles to the proposal block."""
@@ -300,6 +445,39 @@ def test_examples_validate_on_synth(ctx: Context, name: str) -> None:
     call("view new", {"group": group, "from": name, "name": f"ex-{name}"}, ctx)
     result = call("view validate", {"draft": f"ex-{name}", "render": False}, ctx)
     assert result["ok"], result["findings"]
+
+
+def test_data_example_saves(ctx: Context, project: Path) -> None:
+    """The data example saves to a page whose two data references are hashed and answer."""
+    call("view new", {"group": SWEEP, "from": "data", "name": "dx"}, ctx)
+    file = project / ".beamtime" / "drafts" / "dx" / "view.yaml"
+    file.write_text(file.read_text().replace("TODO: the result in one sentence.", "x"))
+    call("view save", {"draft": "dx"}, ctx)
+    nodes = {n["id"]: n for n in walk(page_view(ctx, SWEEP)["view"])}
+    refs = [
+        nodes["reference-table"]["data"]["main"]["params"]["path"],
+        nodes["reference-chart"]["data"]["ref"]["params"]["path"],
+    ]
+    assert refs[0] == refs[1]
+    assert refs[0].startswith("data/") and refs[0].endswith("-reference.csv")
+    answer = call("file", {"view": SWEEP, "path": refs[0], "columns": ["x", "y"]}, ctx)
+    assert answer["columns"] == ["x", "y"] and len(answer["rows"]) == 8
+
+
+def test_a_data_file_that_is_still_the_examples_gets_a_warning(ctx: Context, project: Path) -> None:
+    """The example's file warns until the agent replaces it; a changed file does not."""
+    call("view new", {"group": SWEEP, "from": "data", "name": "dw"}, ctx)
+    file = project / ".beamtime" / "drafts" / "dw" / "data" / "reference.csv"
+
+    def warned() -> list[dict]:
+        result = call("view validate", {"draft": "dw", "render": False}, ctx)
+        return [f for f in result["findings"] if "still the example's data" in f["message"]]
+
+    found = warned()
+    assert {f["id"] for f in found} == {"reference-table", "reference-chart"}
+    assert all("view_data dw" in f["fix"] for f in found)
+    file.write_text(file.read_text() + "1,1,mine\n")
+    assert not warned()
 
 
 def test_save_page_from_the_ui(ctx: Context) -> None:
@@ -694,17 +872,20 @@ def test_system_charts_are_not_averaged_over_seeds() -> None:
     assert seeds == {"val/acc": "config.seed", "val/loss": "config.seed", "sys/cpu": None}
 
 
-def lint(ctx: Context, body: str, data_dir: Path | None = None) -> list:
+def lint(
+    ctx: Context, body: str, data_dir: Path | None = None, draft: str | None = None
+) -> list:
     """Validate a view body and return its findings.
 
     :param ctx: The operation context.
     :param body: The view's ``body`` as YAML.
     :param data_dir: Where the view's code files are.
+    :param draft: The draft's name.
     :return: The findings."""
     from beamtime.views import validate
 
     data = {"title": "t", "finding": "a result", "body": yaml.safe_load(body)}
-    return validate.static(ctx, SWEEP, data, source="test", data_dir=data_dir)[1]
+    return validate.static(ctx, SWEEP, data, source="test", draft=draft, data_dir=data_dir)[1]
 
 
 @pytest.mark.parametrize(
@@ -799,3 +980,111 @@ def test_save_leaves_out_line_settings_at_their_default(ctx: Context, project: P
     saved = yaml.safe_load(call("view show", {"group": SWEEP}, ctx)["yaml"])
     props = next(p for b, p in yaml_walk(saved["body"]) if b == "line" and p["id"] == line["id"])
     assert "smooth" not in props and "band" not in props and props["scale"] == "linear"
+
+
+def sized(name: str, size: int) -> Callable[[Path], None]:
+    """Make a setup step that writes a CSV-looking file of a given size.
+
+    :param name: The file name below ``data/``.
+    :param size: Its size in bytes.
+    :return: The step, called with the draft's folder."""
+
+    def write(folder: Path) -> None:
+        with (folder / "data" / name).open("wb") as f:
+            f.write(b"a,b\n")
+            f.truncate(size)
+
+    return write
+
+
+def plain(name: str, text: str = "a,b\n1,2\n") -> Callable[[Path], None]:
+    """Make a setup step that writes a small file.
+
+    :param name: The file name below ``data/``.
+    :param text: Its content.
+    :return: The step, called with the draft's folder."""
+    return lambda folder: (folder / "data" / name).write_text(text)
+
+
+DATA_FILE_CASES = [
+    ("../x.csv", None, "error", "'../x.csv' is outside the draft", "`view_data d ../x.csv` copies it in as data/x.csv"),
+    ("/etc/hosts", None, "error", "'/etc/hosts' is outside the draft", "`view_data d /etc/hosts` copies it in as data/hosts"),
+    ("fit.csv", plain("fit.csv"), "error", "no file 'fit.csv'", "write file: data/fit.csv"),
+    ("data/none.csv", plain("nine.csv"), "error", "no data file 'data/none.csv'; closest: nine.csv", "view_data d <file>"),
+    ("data/fit.xlsx", plain("fit.xlsx"), "error", "data/fit.xlsx: Beamtime reads .csv, .json and .parquet", "df.to_csv(path, index=False)"),
+    ("data/p.parquet", plain("p.parquet"), "warning", "data/p.parquet: reading Parquet needs PyArrow", "write CSV instead"),
+    ("data/big.csv", sized("big.csv", 3 << 20), "warning", "data/big.csv is 3.0 MB; the page loads the whole file", "aggregate or downsample"),
+    ("data/huge.csv", sized("huge.csv", 17 << 20), "error", "data/huge.csv is 17.0 MB; the page loads the whole file", "aggregate or downsample"),
+]
+CUSTOM_FILE = """
+- custom:
+    id: c
+    code: code/c.js
+    queries: {{t: {{file: {{path: "{ref}"}}}}}}
+"""
+
+
+@pytest.mark.parametrize("block", ["data_table", "custom"])
+@pytest.mark.parametrize(("ref", "setup", "level", "message", "fix"), DATA_FILE_CASES)
+def test_data_file_findings(
+    ctx: Context,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    block: str,
+    ref: str,
+    setup: Callable[[Path], None] | None,
+    level: str,
+    message: str,
+    fix: str,
+) -> None:
+    """Each mistake with a data file is one finding with its fix, for a table and a custom block."""
+    monkeypatch.setattr("importlib.util.find_spec", lambda name: None)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "code").mkdir()
+    (tmp_path / "code/c.js").write_text("export default function render(root) { bt.useData('t'); }\n")
+    if setup:
+        setup(tmp_path)
+    body = (
+        f'[{{data_table: {{id: t, file: "{ref}"}}}}]'
+        if block == "data_table"
+        else CUSTOM_FILE.format(ref=ref)
+    )
+    findings = lint(ctx, body, data_dir=tmp_path, draft="d")
+    found = [f for f in findings if message in f.message]
+    assert len(found) == 1, findings
+    assert found[0].level == level and fix in (found[0].fix or "")
+
+
+def test_data_table_columns_need_a_file(ctx: Context) -> None:
+    """``columns`` narrows a file; on a logged table it would be ignored, so it is an error."""
+    findings = lint(ctx, "[{data_table: {id: t, key: val/acc, columns: [a]}}]")
+    assert any("columns narrows a data file" in f.message and f.fix for f in findings), findings
+    plain_table = lint(ctx, "[{data_table: {id: t, key: val/acc}}]")
+    assert not any("columns" in f.message for f in plain_table)
+    saved = lint(ctx, "[{data_table: {id: t, file: data/f.csv, columns: [a]}}]")
+    assert not any("columns narrows" in f.message for f in saved), saved
+
+
+def test_saved_view_with_missing_file(ctx: Context) -> None:
+    """Without a draft folder the static file checks are skipped; the query run reports the file."""
+    body = '[{custom: {id: c, code: code/c.js, queries: {t: {file: {path: data/none.csv}}}}}]'
+    findings = lint(ctx, body)
+    assert any("no file 'data/none.csv'" in f.message for f in findings), findings
+
+
+def test_placeholder_file_path_is_left_to_the_query_run(ctx: Context, tmp_path: Path) -> None:
+    """A ``$name`` path is filled by the page; the static check neither fails nor crashes."""
+    (tmp_path / "code").mkdir()
+    (tmp_path / "code/c.js").write_text("export default function render(root) { bt.useData('t'); }\n")
+    findings = lint(ctx, CUSTOM_FILE.format(ref="$name"), data_dir=tmp_path, draft="d")
+    assert not [f for f in findings if f.level == "error"], findings
+
+
+def test_view_data_quotes_names_yaml_reads_as_other_types(ctx: Context, project: Path) -> None:
+    """Column names YAML would read as numbers, booleans or null stay strings in the lines to paste."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
+    (project / "y.csv").write_text("x,2020,1e-3,true,null,on\n1,2,3,4,5,6\n")
+    lines = call("view data", {"draft": "d", "file": "y.csv"}, ctx)["lines"]
+    line = next(s for s in lines if s.startswith("data_table:"))
+    flow = yaml.safe_load(line)["data_table"]["columns"]
+    assert flow == ["x", "2020", "1e-3", "true", "null", "on"]

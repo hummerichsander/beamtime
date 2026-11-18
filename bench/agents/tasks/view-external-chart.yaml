@@ -1,0 +1,31 @@
+category: external
+heldout: true
+page: scaling/lr-sweep
+files:
+  external/jax-sweep.csv: jax-sweep.csv
+robust: false
+prompt: >
+  My colleague ran the lr sweep in JAX; her results are in external/jax-sweep.csv. On the
+  scaling/lr-sweep page, show a chart of her val_acc over lr against ours, and save the page.
+facts:
+  metrics: [val/acc]
+  file: {columns: [lr, val_acc], rows: 15}
+  finding: >-
+    Our runs and her JAX runs agree by best run: lr 3e-4 gives the best val/acc (about 0.93) and lr
+    0.01 is clearly worse. By the mean over seeds, hers is also best at 3e-4, while ours is a hair
+    higher at 1e-3 (about 0.92) because a killed 3e-4 run (0.858) pulls that mean down. A finding that
+    names the best lr correctly for either statistic is true; naming 1e-3 as best in ours by the mean is
+    not wrong.
+    Per learning rate, the final val/acc as best run / mean over seeds. Ours (17 runs; three seeds
+    each at 3e-5, 1e-4, 1e-3 and 3e-3, four at 3e-4 with the killed one, a single failed run at
+    0.01): 3e-5 0.871 / 0.864; 1e-4 0.918 / 0.914; 3e-4 0.931 / 0.910 (0.928 over the three finished
+    runs); 1e-3 0.920 / 0.920; 3e-3 0.894 / 0.889; 0.01 0.796 / 0.796. Hers (JAX, three seeds each,
+    no 3e-5): 1e-4 0.908 / 0.902; 3e-4 0.938 / 0.932; 1e-3 0.921 / 0.917; 3e-3 0.902 / 0.893; 0.01
+    0.818 / 0.800.
+  overclaims: ["lr 0.01 is best", "the differences are statistically significant"]
+checklist:
+  - There is a chart of val_acc (or val/acc) over the learning rate, with her JAX results and our runs in it.
+  - The two sources can be told apart (a legend, labels or two panels).
+  - The learning-rate axis is readable (log scale or evenly spaced), not squeezed into one corner.
+  - The chart has a title or caption saying what it shows.
+  - The page has no error messages or empty charts.

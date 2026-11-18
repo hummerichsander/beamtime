@@ -166,6 +166,7 @@ class File(Struct, kw_only=True):
 
     path: str
     view: str = "."
+    columns: list[str] | None = None
 
 
 class Importance(Selection, kw_only=True):

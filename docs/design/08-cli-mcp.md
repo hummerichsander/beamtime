@@ -71,6 +71,7 @@ wherever a group does.
 | CLI | MCP | Does |
 |---|---|---|
 | `beamtime view new <group> [--from <example>] [--name <draft>]` | `view_new` | starts a draft in `.beamtime/drafts/<name>/` |
+| `beamtime view data <draft> <file> [--name <name>]` | `view_data` | copies a project file (CSV, JSON or Parquet) into the draft's `data/` and shows its columns ([layer 5](05-views.md#agent-loop)) |
 | `beamtime view validate <draft>` | `view_validate` | validation ([layer 5](05-views.md#validation)) |
 | `beamtime view render <draft> [--block <id>] [--theme light\|dark] [--width <px>]` | `view_render` | screenshots (JPEG files in the CLI, images in MCP); a page shot is capped to 2,520 px tall, with `cut` naming what fell below it |
 | `beamtime view save <draft> [--message <text>]` | `view_save` | saves a new view version; refuses a draft with errors |

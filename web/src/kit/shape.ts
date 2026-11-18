@@ -40,6 +40,15 @@ export function shape(result: Result, call: Call | null): KitResult {
   return { status: result.status, error: result.error, meta: { refreshing: result.refreshing }, call, data: d, columns, rows, curves };
 }
 
+// why a kit component can't draw its `data`, or null: it takes a `bt.useData` result, not hand-built rows.
+export function dataProblem(data: unknown): string | null {
+  if (data === undefined) return null;
+  const given = data as Partial<KitResult> | null;
+  if (typeof given !== "object" || given === null || Array.isArray(given) || !("call" in given)) return "data must be a bt.useData result";
+  if (given.call) return null;
+  return given.error ?? "data must be a bt.useData result";
+}
+
 function curve(c: any): KitCurve {
   const out: KitCurve = { run: c.run ?? null, key: c.metric, group: c.by ?? null, x: c.x ?? [] };
   const fields: [keyof KitCurve, unknown][] = [

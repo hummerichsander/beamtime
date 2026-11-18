@@ -146,8 +146,9 @@ uses:                                    # written by view_save
   against the placeholder's type. This covers clicking into a run, step-window sliders and
   selections.
 - **Data files** stored with the view (`view/data/<sha8>-<name>.parquet`) are read through the `file`
-  query ([layer 3](03-index.md#query-kinds)). They describe the group that defines the view. Their
-  provenance (the script that made them) is recorded in a note.
+  query ([layer 3](03-index.md#query-kinds)), by `data_table` (`file`) or a custom block's declared
+  query; saving copies each under its content hash. They describe the group that defines the view.
+  Their provenance (the script that made them) is recorded in a note.
 - There is no free query API: code cannot read files, call the network or query anything it hasn't
   declared.
 
@@ -201,8 +202,8 @@ of a field or per subgroup, each narrowed to its runs; `$value` names the value 
 | `compare` | 2 | two runs or groups: config diff and metric deltas | `a`, `b` (run ids or `where` filters), `fields` |
 | `importance` | 2 | how strongly config fields relate to a target metric | `target`, `fields` |
 
-**Logged data**: `data_table` (`key` and `step`, or `file` for a data file stored with the view;
-`limit`), `images` (`key`, `step`: `last` or a step; wave 2: `slider`), `text` (`key`, `step`). All
+**Logged data**: `data_table` (`key` and `step`, or `file` for a data file stored with the view,
+with `columns` to choose and order its columns; `limit`), `images` (`key`, `step`: `last` or a step; wave 2: `slider`), `text` (`key`, `step`). All
 wave 1.
 
 **Research context** (wave 1)
@@ -620,12 +621,13 @@ The loop is available as MCP tools and CLI commands ([layer 8](08-cli-mcp.md)):
 |---|---|---|
 | `keys`, `guide` | `beamtime keys`, `beamtime guide` | what exists in the group; the design guide |
 | `view_new` | `beamtime view new <group> [--from <example>] [--name <draft>]` | starts a draft: from an example, else from the group's current view (its own, or the built-in default written out as YAML) |
+| `view_data` | `beamtime view data <draft> <file> [--name <name>]` | copies a CSV, JSON or Parquet file from inside the project into `<draft>/data/<name>` (an outside file is refused with the user's `cp` command; an unknown format, a file over 16 MB or an unreadable table is an error, one over 2 MB a warning) and answers the reference, columns, row count, first rows and the `data_table` and custom `file` query snippets to paste; the same name with other content is refused, the same content is a no-op; drafts only |
 | `view_validate` | `beamtime view validate <draft>` | structured findings: error or warning, block id, location, suggested fix |
 | `view_render` | `beamtime view render <draft>` | screenshots of the page and of each block as JPEG, the page capped to 2,520 px tall and the rest named in `cut`; the CLI writes the files, MCP returns images |
 | `view_save` | `beamtime view save <draft>` | writes the draft as a new version into `view/` |
 
 1. Read `keys` and `guide`; check the library.
-2. Write a draft: the view YAML, custom code, data files.
+2. Write a draft: the view YAML, custom code, data files (`view_data` copies a table in).
 3. `view_validate` until no errors remain.
 4. `view_render`, answer the screenshot checklist, improve; at most two rounds.
 5. `view_save`.
@@ -657,6 +659,12 @@ library block is checked and saved on the source whose group it is checked again
    `sendBeacon`, `importScripts` or `Worker`, at most 64 KB, at most 200 numeric literals in a row,
    no `#hex`, `rgb(` or `hsl(` colors. Syntax errors surface in the render and, for readers, as the
    block's error panel.
+   Data files get one check per reference (`data_table.file` and every custom `file` query): a path
+   outside the draft, a missing file (with the closest names in `data/`), a format outside CSV, JSON and
+   Parquet, Parquet without PyArrow (warning), and a size above 2 MB (warning) or 16 MB (error), each with
+   a fix; `columns` on a key-based (logged) `data_table` is an error, since they would be dropped silently. A
+   `$placeholder` path is not an error: the check skips it, the page fills it and the query run reports a
+   missing file, and a saved view (no draft folder) skips the file checks.
 2. **One render, when a browser is available.** The draft is rendered headless once, in the group it
    is saved for: no exceptions, no console errors, rendering within a time limit, no blank blocks,
    placeholder queries exercised once with example values. In the same render, layout is measured
@@ -706,6 +714,7 @@ research shows work better than long rule lists.
 | `guide proposals`, `predictions` | proposals with plans and versions; `each` and `compare` with worked examples | ~700 each |
 | `guide notes`, `verdicts`, `memory` | note types and links; judging a proposal, stating what the check says; compressing memory | ~500 each |
 | `guide remote`, `analysis` | `@source/...` groups; which tool answers which question | ~400 each |
+| `guide data-files` | a table of your own on a page: the recipe from file to saved view (`view_data`, `data_table`, a `file` query in a custom block), the rules and the findings with their fixes | ~900 |
 | `guide <group>` | additionally: the group's metrics and varying config, its current view; from M7 library blocks and outdated pins | – |
 
 ### Workflow
@@ -757,7 +766,7 @@ Marked as defaults that the user's own instructions may override ([Agent instruc
 
 ### Examples
 
-Five complete example views ship with Beamtime, each with a commentary, and double as templates
+Six complete example views ship with Beamtime, each with a commentary, and double as templates
 (`beamtime view new --from <example>`):
 
 | Example | Shows |
@@ -767,6 +776,7 @@ Five complete example views ship with Beamtime, each with a commentary, and doub
 | `run` | a view of one run's page: its metrics, output tail, logged samples |
 | `direction` | a research direction: `groups` overview of its sweeps, `timeline` of decisions and verdicts, memory, proposal |
 | `custom` | a custom block with click-to-detail, theme colors and graceful degradation |
+| `data` | a data file (made-up reference values, `data/reference.csv`) in a `data_table` and, through the `file` query, in a custom block drawing two `bt.chart.Scatter`s beside the runs'; `validate` warns while the file is still the example's (`view_data` replaces it) |
 
 ### Screenshot checklist
 
@@ -980,6 +990,6 @@ Decided while building themes (milestone M5):
 - Run colors are stable by hash with collision resolution within a view.
 - Reusable blocks form a library in `blocks/`, used like widgets; views pin block versions and upgrade
   deliberately.
-- The guide is disclosed progressively, with five examples, a checklist and anti-patterns; users
+- The guide is disclosed progressively, with six examples, a checklist and anti-patterns; users
   override its defaults in their own instruction files.
 - An evaluation harness on synthetic log dirs with planted truth guards view quality.
