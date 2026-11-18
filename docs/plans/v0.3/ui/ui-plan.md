@@ -21,7 +21,9 @@ The outcome this plan commits to, checked against at the end and in every review
   Color by offers run fields, preselects the swept key, and lists alias and dropped config keys with the
   reason. Sections accept `val/`, `val.` and `val_`, and a prefix of one metric keeps its section. Log
   scale comes from the values, clocks from the leaf name, seed merging from the arms. The top bar and the
-  favicon carry the `///` mark with its "gather left" motion.
+  favicon carry the `///` mark with its "gather left" motion. `beamtime guide type` tells agents exactly
+  which type class to use for each kind of text in custom blocks and views, and `view_validate` rejects
+  font literals (`font-size`, `font-family`, the `font` shorthand, `line-height`) in custom code.
 - **Confirmed by:** `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`;
   `cd web && npm ci && npm test && npm run build` with the bundle committed; the tests named in each
   ticket (failing first where the evidence is **code**); `uv run pytest -q tests/serve/test_browser.py`
@@ -50,6 +52,7 @@ table are short: `blocks/`, `bt/`, `shell/`, `styles/` sit under `web/src/`, `qu
 | 9 | `train/epoch`, `step`, `iter` get charts | `CLOCKS` (defaults.py 23) is three exact names | code | D32 |
 | 10 | Seeds merge only above 8 runs | `many = … and direct > SEED_GROUPING_ABOVE` (defaults.py 14, 87) | code | D33 |
 | 11 | Favicon shows a dot when live; the top bar has no mark | `shell/favicon.ts` 16–52, `shell/bars.ts` 28; `design/favicon.svg` is three rotated rects | code | L31, L32 |
+| 12 | Agents hard-code fonts in custom blocks: 10 `font-size="12"` on SVG text in 2 of 8 custom-code files of the bench runs (`bench/agents/runs/20261031-144758/sweep-heatmap-*`) | no guide part says which type class fits which text (the guide names no class at all); `views/code.py` checks color literals only (`COLOR` 39, `problems` 41–76), though `05-views.md` 790 marks "colors, fonts or sizes in custom code" as detected | real data / code | T31 |
 
 ## Brief
 
@@ -76,6 +79,8 @@ What the tickets build together, so a session doesn't rediscover the design:
   `M8.5 19.5 L15.5 4.5`, `M14.5 19.5 L21.5 4.5`, stroke 2.6, `accent`; "gather left" moves the middle −2 and
   the right −4 in x over 420 ms. The component is `Mark` (`design/components/Mark.md`, `.mark` in
   `design/components.css`, `web/src/ui/mark.ts`).
+- **Type for agents** (T31): a guide topic `type` (`src/beamtime/guide/parts/type.md`) maps each kind of text in
+  custom code and in views to a type class; `views/code.py` gains `FONT`, checked in `problems` like `COLOR`.
 
 Done, for every ticket: its Done line holds; its Check passes; the spec documents say what the code does; its heading
 is marked done in the ticket's own commit.
@@ -104,12 +109,12 @@ is marked done in the ticket's own commit.
 ## Order
 
 ```
-Q31 ─ D31 ─ D33                         Python (D31, D33 share defaults.py)
+Q31 ─ D31 ─ D33 ─ T31                   Python (D31, D33 share defaults.py; T31 edits guide parts and 05-views.md)
 W35 after Q31; then one at a time (shared bundle):
 W31 ─ W32 ─ W33 ─ W34 ─ W35 ─ D32 ─ D34 ─ L31 ─ L32 ─ Z31
 ```
 
-What's left runs in this order: Q31 D31 D33 W31 W32 W33 W34 W35 D32 D34 L31 L32 Z31
+What's left runs in this order: Q31 D31 D33 T31 W31 W32 W33 W34 W35 D32 D34 L31 L32 Z31
 
 ## Decisions taken; say if you want otherwise
 
@@ -153,6 +158,16 @@ What's left runs in this order: Q31 D31 D33 W31 W32 W33 W34 W35 D32 D34 L31 L32 
     The live favicon is `favicon-live.svg`, drawn in the gathered pose with a 2.8 s loop for browsers that
     animate SVG icons (Chrome shows the still gathered pose). The top bar mark does not loop (assumed).
     The 420 ms is an exception to `design/README.md`'s 120–150 ms motion rule, written there.
+13. **Font instructions** (your decision): a new guide topic `type`, not a section in `kit.md`; linked one line
+    from `kit`, `kit-api`, `anti-patterns`, `checklist` and the overview, and part of the `beamtime-views` skill.
+    It covers custom code (one type class per kind of text, SVG and canvas) and views (which field renders in
+    which style, Markdown conventions). Rejected: a kit helper returning font strings (`bt.theme.font(style)`),
+    because classes reach SVG and HTML and the one canvas font already exists as `bt.theme.tokens.font`.
+14. **Font literals are errors** (check: your decision; level **assumed**): `FONT` matches `font-size`,
+    `font-family`, `fontSize`, `fontFamily`, `line-height`, `lineHeight` and `font:` (not `font: bt.theme.tokens.font`),
+    in strings too, comments masked, and is reported by `problems` (an error, like a color literal). Font
+    *weight* stays allowed (`<b>`, `font-weight` for the one number that matters, as `design/README.md` says).
+    Rejected: a warning in `lints`, because the spec already promises this as a ✓ check and colors are errors.
 
 ## Q. Queries
 
@@ -443,6 +458,63 @@ asks `series {y: [live/new]}` and fails today.
 2. `setIcon(live)`: `link.type = "image/svg+xml"`, `link.href = live ? LIVE : PLAIN`; the canvas code goes.
 3. 07-web-ui.md: top bar "mark · project", the favicon paragraph rewritten for the two files.
 
+## T. Type
+
+### T31. Font instructions for agents, and a font check (sonnet + review) — real data
+
+Lines below are at `274fc44`, not the plan's base commit; refresh them if Q31–D33 moved them.
+
+- **Touches:** new `src/beamtime/guide/parts/type.md`, `src/beamtime/guide/__init__.py` (`TOPICS` 16–31),
+  `src/beamtime/ops/registry.py` (`GuideParams.part` 452–470), `src/beamtime/guide/skills.py` (`beamtime-views` 10),
+  `src/beamtime/guide/parts/overview.md` (topic table 102–114), `kit.md` (§ Reuse Beamtime's vocabulary),
+  `kit-api.md` (Rules), `anti-patterns.md`, `checklist.md`, `src/beamtime/views/code.py` (`FONT` new beside
+  `COLOR` 39, `problems` 41–76), `tests/views/test_custom.py` (`test_code_checks` 55–72),
+  `tests/views/test_views.py` (`test_chart_frames_and_live_data_pass_the_code_lints` 778–787),
+  `tests/guide/test_guide.py` (new test), `docs/design/05-views.md` (guide table 696–708, anti-patterns 790).
+- **Read:** `design/README.md` § Look (Type) and § Components; `design/tokens.css` 20–31 (the type styles);
+  `src/beamtime/guide/parts/kit.md` (all); `web/src/blocks/common.ts` 35–45 (captions), `web/src/blocks/layout.ts`
+  25–40 (section titles), `web/src/bt/md.ts` (what Markdown renders), `web/src/kit/snapshot.ts` 18.
+- **Check:** `uv run pytest -q -n0 tests/views/test_custom.py tests/views/test_views.py tests/guide/test_guide.py`;
+  `uv run beamtime guide type | wc -w` (under 900 words); then the full checks.
+- **Done:** `beamtime guide type` prints the part; the overview, `kit`, `kit-api`, `anti-patterns` and `checklist`
+  each point to it in one line; `code.problems` reports `font literal 'font-size'` with its fix for each of
+  `font-size="12"` on SVG text, `.attr("font-size", 12)`, `.style("font-family", "serif")`, `style="font: 12px x"`,
+  `fontSize: 12` and `line-height: 1.2`, and nothing for `class="small"`, `ctx.font = bt.theme.tokens.font`,
+  `font-weight` or the guide's phase map; 05-views.md's ✓ row is true.
+- **Risks:** a word in a caption string ("font size") must not match → a test with `'pick a font size'`;
+  `{font: bt.theme.tokens.font}` in a uPlot option must pass → test; the guide part must only name classes and
+  `bt` names that exist (`test_kit_names_exist_in_the_frontend` extended to `type`, and a new test that every
+  class the part names is a selector in `design/tokens.css` or `design/components.css`).
+- **Stop if:** a field the part describes renders differently from what step 2 says (then write what the code
+  does and say so in the commit); `bt.theme.tokens.font` is not the chart font string in the frame.
+
+1. `type.md`, about 60 lines, imperative, no prose beyond one line per rule. **Custom code**: never set a font
+   family, size, the `font` shorthand or line height, in inline styles, d3 `.attr`/`.style`, SVG attributes or a
+   `<style>`; put a type class on the element, the frame loads the app's stylesheet. A table, class → font →
+   use: `body` (sans 15, the frame's default: controls, cells, facts); `small` (sans 12.5: axis ticks and labels,
+   legends, table headers, meta, status words); `num` (tabular figures, no size: every number in a column or
+   on an axis, with `small` or `body`); `number` (sans 24 bold: one headline value; prefer `bt.ui.Stat`); `prose`
+   (serif 15.5: sentences inside a block); `caption` (serif italic 14: prefer the block's `caption`); `code`
+   (mono 13: run ids, metric and config keys, paths, values as logged); `heading` only through `bt.ui.Section`;
+   `title` and `statement` never in blocks. SVG text: `class="small num"` for ticks, `class="small"` for axis
+   titles, `fill="var(--muted)"`; downloads keep it (`snapshot.ts` copies the computed font). Canvas:
+   `ctx.font = bt.theme.tokens.font`, the only font string code uses. Emphasis: bold (`<b>`) only for the one
+   value that matters; no italic of your own (italic means proposed or live), no uppercase, no letter-spacing.
+2. **Views**: `title` is plain text (one or two lowercase words go to the margin in mono, longer ones are a
+   `heading`); `caption` is plain text in the serif italic, a sentence, keys as logged without backticks;
+   Markdown fields (`markdown` blocks, notes, memory) render `prose`: keys, ids and values in backticks
+   (`code`), math as `$…$` (KaTeX), `##` at most, raw HTML shows as text. Verify each claim against the files in
+   Read before writing it.
+3. Register `type`: `TOPICS`, the `GuideParams.part` literal, `SKILLS["beamtime-views"]`, the overview row
+   ``| `type` | which type class for which text in custom blocks and views |``, one line each in `kit.md`,
+   `kit-api.md` Rules ("No font literals: a type class, or `bt.theme.tokens.font` on canvas; `guide type`"),
+   `anti-patterns.md` (✓ "font sizes or families in custom code" → "a type class; `guide type`") and
+   `checklist.md` (11: "Does all text use the app's type: no odd sizes or fonts?").
+4. `code.py`: `FONT = re.compile(r"\bfont-(?:size|family)\b|\bfont(?:Size|Family)\b|\bline-?[hH]eight\b|\bfont\s*:(?!\s*bt\.theme\.tokens\.font\b)")`;
+   in `problems`, on the comment-masked text before strings are masked (beside `COLOR`), report once:
+   `(f"font literal {m.group(0)!r}", "put a type class on the element (small, body, caption, code; guide type); canvas uses bt.theme.tokens.font")`.
+5. 05-views.md: the guide table gains the `type` row (~700 tokens); the anti-pattern row names the check.
+
 ## Z. Close
 
 ### Z31. Close (sonnet) — code
@@ -465,6 +537,7 @@ asks `series {y: [live/new]}` and fails today.
 | `keys` answer | `config.varying`, `aliases` | also `config.dropped` | additive |
 | `series` meta | — | `running` | additive |
 | Favicon | mark with a dot when live | `///`, gathered when live | none |
+| Custom code with font literals | saved | `view_validate` error `font literal …` | a type class (`guide type`); canvas `bt.theme.tokens.font` |
 
 ## Not verified
 
@@ -473,3 +546,13 @@ asks `series {y: [live/new]}` and fails today.
 - That Chrome renders an SVG favicon's CSS base state (the gathered pose) and not the first keyframe (L31, by hand).
 - Whether `npm ci` works offline on the executing machine.
 - That no other reader depends on `compile.py` always emitting `scale` (D34 greps `props["scale"]` and `.scale` first).
+- That `bt.theme.tokens.font` inside the frame is the chart font string (`Theme.font`, `web/src/bt/theme.ts` 13); T31 checks first.
+- Whether library blocks (`block_save`) run `code.problems`; if not, T31's check reaches only view code (say so).
+- Custom blocks in an exported page: the inline frame strips `@font-face` (`web/src/blocks/custom.ts` 217–218) and
+  `--font-serif` is `XCharter` with no fallback, so serif classes there may render in the browser's default font.
+  Out of scope for T31; see the question below.
+
+## Questions
+
+1. Exported pages: should custom-block frames keep the fonts (inline them as data URIs, or give `--font-serif`
+   a fallback), or is a system font acceptable in exports? Not planned yet.
