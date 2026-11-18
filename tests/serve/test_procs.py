@@ -239,6 +239,15 @@ def test_start_survives_probe(tmp_path: Path) -> None:
         daemon.stop()
 
 
+def test_port_zero_binds_a_free_port(project: Path, start) -> None:
+    """``--port 0`` asks the system for a port instead of trying 8080."""
+    if not (STATIC / "app.js").is_file():
+        pytest.skip("the frontend is not built")
+    start("--port", "0")
+    [record] = records("serve")
+    assert record["port"] not in range(8080, 8090)
+
+
 def test_watch_restart_one_record(project: Path, start) -> None:
     """A ``--watch`` restart closes the old record before the new process registers its own."""
     if not (STATIC / "app.js").is_file():

@@ -52,12 +52,13 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
     hub = Hub()
     restart = threading.Event()
     daemon = Daemon(logdir=ctx.logdir, on_change=hub.changed, settings=ctx.settings)
-    port = p.port or DEFAULT_PORT
+    port = DEFAULT_PORT if p.port is None else p.port
     if (running := running_serve(ctx, daemon.cache)) is not None:
         if not p.replace:
             return attach(ctx, p, running)
         replace(running)
-        port = p.port or running.get("port") or DEFAULT_PORT
+        if p.port is None:
+            port = running.get("port") or DEFAULT_PORT
     sources = start_sources(ctx, p, hub)
     if not ctx.logdir.is_dir() and sources is None:
         raise OpError(
