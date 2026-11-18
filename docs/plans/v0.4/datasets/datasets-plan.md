@@ -1,14 +1,14 @@
 # Datasets: read-only datacards, their runs and their views
 
 Base commit `84c96a4`, branch `setup`. Proposed 2026-11-16, based on the dataset request
-(`docs/plans/v0.3/datasets/beamtime-dataset-request.md`: 20 cards and 14 archive stubs, 9 of 10 provenance links
+(`docs/plans/v0.4/datasets/beamtime-dataset-request.md`: 20 cards and 14 archive stubs, 9 of 10 provenance links
 unknown, `consumers:` kept by hand), and on the interview of 2026-11-16. It runs **after the hosts plan**
-(`docs/plans/v0.3/hosts/hosts-plan.md`), whose named sources (`@host:source`, one connection per host, data roots as a
+(`docs/plans/v0.4/hosts/hosts-plan.md`), whose named sources (`@host:source`, one connection per host, data roots as a
 source kind) it builds on. Behaviour changes are allowed; they are listed in [Breaking changes](#breaking-changes).
 
-Run a ticket with `/run-ticket docs/plans/v0.3/datasets/datasets-plan.md <ID>` in a fresh session; review tickets marked
-`+ review` with `/review-ticket docs/plans/v0.3/datasets/datasets-plan.md <ID>` on a stronger model.
-`ticket.py status docs/plans/v0.3/datasets/datasets-plan.md` shows what's done and what's next.
+Run a ticket with `/run-ticket docs/plans/v0.4/datasets/datasets-plan.md <ID>` in a fresh session; review tickets marked
+`+ review` with `/review-ticket docs/plans/v0.4/datasets/datasets-plan.md <ID>` on a stronger model.
+`ticket.py status docs/plans/v0.4/datasets/datasets-plan.md` shows what's done and what's next.
 
 ## Goal
 
@@ -152,7 +152,7 @@ What's left runs in this order: S91 F91 K91 O91 V91 Q91 Q92 W91 W92 U91 U92 T91 
   `docs/design/07-web-ui.md` (§ Pages and URLs 164: `/d/...`); `docs/design/08-cli-mcp.md` (§ Reading 29:
   `dataset list|show`); `docs/design/04-remotes.md` (data roots answer `datasets` operations); `docs/design/01-storage.md`
   (§ Settings 63: top-level `sources:`).
-- **Read:** this plan's Goal, Brief and Decisions; `docs/plans/v0.3/datasets/beamtime-dataset-request.md`;
+- **Read:** this plan's Goal, Brief and Decisions; `docs/plans/v0.4/datasets/beamtime-dataset-request.md`;
   `docs/design/00-overview.md` (to match its layer document style).
 - **Check:** `uv run pytest -q tests/test_docs.py`.
 - **Done:** `11-datasets.md` specifies decisions 1–12 with the card example of the request; the other documents
@@ -425,7 +425,7 @@ What's left runs in this order: S91 F91 K91 O91 V91 Q91 Q92 W91 W92 U91 U92 T91 
 ### Z91. Close (sonnet) — code
 
 - **Touches:** `CHANGELOG.md`, new `docs/guides/datasets.md`, `docs/nav.json`, `docs/guides/settings.md`,
-  `CLAUDE.md` (Layout: `format/datacard.py`, `ops/datasets.py`), `docs/plans/v0.3/datasets/beamtime-dataset-request.md`
+  `CLAUDE.md` (Layout: `format/datacard.py`, `ops/datasets.py`), `docs/plans/v0.4/datasets/beamtime-dataset-request.md`
   (status line: implemented by this plan).
 - **Check:** `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`;
   `uv run python scripts/release.py`.

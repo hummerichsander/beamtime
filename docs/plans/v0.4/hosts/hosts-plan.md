@@ -1,15 +1,15 @@
 # Hosts: several sources on one remote host
 
 Base commit `84c96a4`, branch `setup`. Proposed 2026-11-16, based on the dataset request
-(`docs/plans/v0.3/datasets/beamtime-dataset-request.md`), the user's setup of the data root (one cluster host carrying
+(`docs/plans/v0.4/datasets/beamtime-dataset-request.md`), the user's setup of the data root (one cluster host carrying
 the log dirs of several projects plus a shared data directory) and the interview of 2026-11-16. It runs **after the
 setup plan** (`docs/plans/setup/setup-plan.md`; W15, W16 and D11 open at the base commit) and **before the datasets
-plan** (`docs/plans/v0.3/datasets/datasets-plan.md`), which builds on it. Behaviour changes are allowed; they are listed
+plan** (`docs/plans/v0.4/datasets/datasets-plan.md`), which builds on it. Behaviour changes are allowed; they are listed
 in [Breaking changes](#breaking-changes).
 
-Run a ticket with `/run-ticket docs/plans/v0.3/hosts/hosts-plan.md <ID>` in a fresh session; review tickets marked
-`+ review` with `/review-ticket docs/plans/v0.3/hosts/hosts-plan.md <ID>` on a stronger model.
-`ticket.py status docs/plans/v0.3/hosts/hosts-plan.md` shows what's done and what's next.
+Run a ticket with `/run-ticket docs/plans/v0.4/hosts/hosts-plan.md <ID>` in a fresh session; review tickets marked
+`+ review` with `/review-ticket docs/plans/v0.4/hosts/hosts-plan.md <ID>` on a stronger model.
+`ticket.py status docs/plans/v0.4/hosts/hosts-plan.md` shows what's done and what's next.
 
 ## Goal
 
