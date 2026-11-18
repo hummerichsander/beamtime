@@ -152,6 +152,11 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
     falls back to the working directory and every tool call resolves the same root, so the record says what the
     server really reads; `root: null` stays for records that don't know it. This replaces J52's "registers with
     `root: null`"; J53's rows show that root like any other.
+14. **J53 already lists ssh logins** (review of J53): `ops/procs.py:ssh_rows()` reads the marked hosts from
+    `Path.home()/.ssh/config`, runs `ssh -O check` with the 3 s timeout and builds the rows (host, pid, `end`),
+    and `render_ps` prints them; `test_ssh_logins` covers the fixture config and fake `ssh`. It checks hosts one
+    after another. J54 keeps its Done line and finishes this function instead of adding a second one: parallel
+    checks, its three Risk tests and the no-`ssh`-on-`PATH` test.
 
 ## J. Processes and the memory fix
 
@@ -286,9 +291,8 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
 
 ### J54. ssh logins in `ps` (sonnet) — code
 
-- **Touches:** `src/beamtime/ops/procs.py` (new `ssh_logins`), `src/beamtime/cli/format.py` (`render_ps`),
-  `tests/ops/test_procs.py`.
-- **Read:** `src/beamtime/setup/remotes.py` 14–23 (`SSH_MARK`, `SSH_BLOCK`); decision 5.
+- **Touches:** `src/beamtime/ops/procs.py` (`ssh_rows`, which J53 wrote; decision 14), `tests/ops/test_procs.py`.
+- **Read:** `src/beamtime/setup/remotes.py` 14–23 (`SSH_MARK`, `SSH_BLOCK`); decisions 5 and 14.
 - **Check:** `uv run pytest -q tests/ops/test_procs.py`; then the full checks.
 - **Done:** with a fixture `~/.ssh/config` holding two marked blocks and a fake `ssh` on `PATH` that answers
   `Master running (pid=4242)` for one host and fails for the other, `ps` lists one `ssh` row (host, pid) with the
@@ -297,9 +301,10 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
   marked hosts don't take 30 s (`test_ssh_checks_parallel`); the user's own unmarked hosts are never checked
   (`test_unmarked_hosts_ignored`).
 
-1. `ssh_logins(home: Path) -> list[dict]`: hosts from lines starting with `SSH_MARK` (import the constant inside
-   the function); `subprocess.run(["ssh", "-O", "check", host], capture_output=True, timeout=3)` in a
-   `ThreadPoolExecutor`; the pid from `pid=(\d+)` in stderr.
+1. Keep `ssh_rows()` and its row shape (`render_ps` already prints them); run the per-host
+   `subprocess.run(["ssh", "-O", "check", host], ..., timeout=SSH_CHECK_S)` in a `ThreadPoolExecutor`, keeping
+   the hosts' order; add `test_ssh_check_timeout`, `test_ssh_checks_parallel`, `test_unmarked_hosts_ignored` and
+   a test without `ssh` on `PATH` (`test_ssh_logins` exists).
 
 ### J55. `beamtime stop` (sonnet + review) — code
 

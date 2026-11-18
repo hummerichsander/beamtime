@@ -300,3 +300,14 @@ def test_cli_json(isolated: Path, spawn: Callable[..., subprocess.Popen]) -> Non
     assert done.returncode == 0, done.stderr
     answer = json.loads(done.stdout)
     assert [x["pid"] for x in answer["groups"]["mcp"]] == [proc.pid]
+
+
+def test_render_log_dir_outside_root() -> None:
+    """A log dir outside the root is shown, also beside a root that is a prefix of its name."""
+    base = {"pid": 1, "uptime_s": None, "url": None, "used_here": "-", "cache": "/c/x"}
+    inside = base | {"root": "/a/proj", "logdir": "/a/proj/beamtime", "cache_kind": "disk"}
+    sibling = base | {"root": "/a/proj", "logdir": "/a/project2/beamtime", "cache_kind": "memory"}
+    answer = {"kind": "ps", "groups": {"serve": [inside, sibling]}, "stale": [], "lines": []}
+    text = render(answer)
+    assert text.count("log dir") == 1 and "log dir    /a/project2/beamtime" in text
+    assert "cache      disk /c/x" in text and text.endswith("cache      memory")

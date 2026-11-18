@@ -5,6 +5,7 @@ import time
 from collections.abc import Callable
 from functools import cache
 from importlib import import_module
+from pathlib import Path
 from typing import Any
 
 SPARKS = "▁▂▃▄▅▆▇█"
@@ -677,14 +678,12 @@ def render_ps(answer: dict[str, Any]) -> str:
             lines.append(head(x))
             if x.get("url"):
                 lines.append(f"    url        {x['url']}")
-            if x.get("logdir") and x.get("root") and not x["logdir"].startswith(x["root"]):
+            root, logdir = x.get("root"), x.get("logdir")
+            if root and logdir and Path(root) not in Path(logdir).parents:
                 lines.append(f"    log dir    {x['logdir']}")
             if x.get("cache"):
-                lines.append(
-                    f"    cache      {x['cache_kind']} {x['cache']}".replace(
-                        "memory " + x["cache"], "memory"
-                    )
-                )
+                where = "" if x["cache_kind"] == "memory" else f" {x['cache']}"
+                lines.append(f"    cache      {x['cache_kind']}{where}")
             if x.get("sources"):
                 lines.append(f"    remotes    {', '.join(x['sources'])}")
             if x.get("client"):
