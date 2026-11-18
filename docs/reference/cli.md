@@ -396,6 +396,18 @@ beamtime view new <group>
 | `--from` |  | an example to start from; default: the page's current view |
 | `--name` |  | default: the group's name |
 
+### `beamtime view data`
+
+Copy a data file into a view draft's data/ and show its columns.
+
+```sh
+beamtime view data <draft> <file>
+```
+
+| Option | Default | |
+|---|---|---|
+| `--name` |  |  |
+
 ### `beamtime view validate`
 
 Check a draft: schema, queries, fields, data, and one render for layout.

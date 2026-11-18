@@ -621,12 +621,13 @@ The loop is available as MCP tools and CLI commands ([layer 8](08-cli-mcp.md)):
 |---|---|---|
 | `keys`, `guide` | `beamtime keys`, `beamtime guide` | what exists in the group; the design guide |
 | `view_new` | `beamtime view new <group> [--from <example>] [--name <draft>]` | starts a draft: from an example, else from the group's current view (its own, or the built-in default written out as YAML) |
+| `view_data` | `beamtime view data <draft> <file> [--name <name>]` | copies a CSV, JSON or Parquet file from inside the project into `<draft>/data/<name>` (an outside file is refused with the user's `cp` command; an unknown format, a file over 16 MB or an unreadable table is an error, one over 2 MB a warning) and answers the reference, columns, row count, first rows and the `data_table` and custom `file` query snippets to paste; the same name with other content is refused, the same content is a no-op; drafts only |
 | `view_validate` | `beamtime view validate <draft>` | structured findings: error or warning, block id, location, suggested fix |
 | `view_render` | `beamtime view render <draft>` | screenshots of the page and of each block as JPEG, the page capped to 2,520 px tall and the rest named in `cut`; the CLI writes the files, MCP returns images |
 | `view_save` | `beamtime view save <draft>` | writes the draft as a new version into `view/` |
 
 1. Read `keys` and `guide`; check the library.
-2. Write a draft: the view YAML, custom code, data files.
+2. Write a draft: the view YAML, custom code, data files (`view_data` copies a table in).
 3. `view_validate` until no errors remain.
 4. `view_render`, answer the screenshot checklist, improve; at most two rounds.
 5. `view_save`.

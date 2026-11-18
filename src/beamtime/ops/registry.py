@@ -291,6 +291,23 @@ class ViewNewParams(Params, kw_only=True):
     name: Annotated[str | None, msgspec.Meta(description="default: the group's name")] = None
 
 
+class ViewDataParams(Params, kw_only=True):
+    """Parameters of ``view data``."""
+
+    draft: Draft
+    file: Annotated[str, msgspec.Meta(description="a CSV, JSON or Parquet file inside the project")]
+    name: (
+        Annotated[
+            str,
+            msgspec.Meta(
+                pattern=r"^[\w.-]{1,120}$",
+                description="the name in data/; default: the file's name",
+            ),
+        ]
+        | None
+    ) = None
+
+
 class ViewValidateParams(Params, kw_only=True):
     """Parameters of ``view validate``."""
 
@@ -1010,6 +1027,15 @@ METHODS = [
         impl=f"{V}:new",
         positional=("group",),
         summary="Start a view draft in .beamtime/drafts/: from an example or the current view.",
+    ),
+    Op(
+        name="view data",
+        kind="view data",
+        drafts=True,
+        params=ViewDataParams,
+        impl=f"{V}:add_data",
+        positional=("draft", "file"),
+        summary="Copy a data file into a view draft's data/ and show its columns.",
     ),
     Op(
         name="view validate",

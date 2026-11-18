@@ -599,8 +599,8 @@ GROUPED = (
 )  # fmt: skip
 # what a source says about its own machine, or about names and text: nothing in it is a place.
 BARE = (
-    "view check", "view files", "block check", "block export", "block import", "note rm",
-    "settings", "doctor", "source list", "export", "pull", "setup", "set", "source add",
+    "view data", "view check", "view files", "block check", "block export", "block import",
+    "note rm", "settings", "doctor", "source list", "export", "pull", "setup", "set", "source add",
     "source rm", "reindex", "rm", "mv", "gc", "mcp install", "serve", "guide",
 )  # fmt: skip
 # the page methods' kinds: trees (a view's blocks) with places under any key, so the generic walk

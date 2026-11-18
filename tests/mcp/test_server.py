@@ -189,7 +189,7 @@ def test_tools_more_describes_a_family(project: Path) -> None:
 
     views, unknown, empty = session(project, work)
     lines = views.content[0].text.splitlines()
-    assert not views.is_error and len(lines) == 8
+    assert not views.is_error and len(lines) == 9
     assert "view_new(group: string, from?: " in lines[0] and lines[0].endswith(".")
     assert "view_show(group?: string, version?: string): " in views.content[0].text
     for result in (unknown, empty):

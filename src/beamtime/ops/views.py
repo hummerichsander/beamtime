@@ -110,9 +110,81 @@ def write_draft_files(
         "file": str(file),
         "lines": [
             f"wrote {file} from {origin}",
-            f"data files go in {folder / 'data'} (data_table: {{file: data/<name>.csv}})",
+            f"data files: `beamtime view data {name} <file>` copies one from the project into "
+            f"{folder / 'data'} and shows its columns (data_table: {{file: data/<name>.csv}})",
             f"next: edit it, then `beamtime view validate {name}` and `view render {name}`",
         ],
+        "meta": {},
+    }
+
+
+def add_data(ctx: Context, p: r.ViewDataParams) -> dict[str, Any]:
+    """Copy a data file from the project into a draft's ``data/`` and describe it.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The reference, columns, row count, first rows and the lines to paste."""
+    from beamtime.query.files import FORMATS, MAX_BYTES, WARN_BYTES, read_table
+    from beamtime.query.models import QueryError
+
+    d = store.draft(ctx, p.draft)
+    source = (ctx.root / p.file).expanduser().resolve()
+    if ctx.root not in source.parents:
+        raise OpError(
+            f"{p.file} is outside the project; ask the user to copy it in: cp {p.file} {ctx.root}/",
+            code=2,
+        )
+    if not source.is_file():
+        raise OpError(f"no file {p.file} in the project", code=4)
+    if source.suffix.lower() not in FORMATS:
+        raise OpError(
+            f"{source.name}: a data file is {', '.join(f.lstrip('.') for f in FORMATS)}; "
+            "write a table with df.to_csv(path, index=False)",
+            code=2,
+        )
+    if (size := source.stat().st_size) > MAX_BYTES:
+        raise OpError(
+            f"{source.name} is {size >> 20} MB, over the {MAX_BYTES >> 20} MB limit of a view's "
+            "data; aggregate or downsample it to what the view shows",
+            code=2,
+        )
+    name = p.name or source.name
+    if not re.fullmatch(r"[\w.-]{1,120}", name) or Path(name).suffix.lower() not in FORMATS:
+        raise OpError(
+            f"{name!r} is no file name for data/: use letters, digits, . _ - and a suffix"
+        )
+    try:
+        columns, rows = read_table(source)
+    except (QueryError, ValueError, UnicodeDecodeError) as e:
+        raise OpError(str(e), code=2) from None
+    content = source.read_bytes()
+    target = d.dir / "data" / name
+    if target.exists() and target.read_bytes() != content:
+        raise OpError(
+            f"data/{name} in draft {p.draft} holds other content; choose another with --name",
+            code=1,
+        )
+    if not target.exists():
+        write_created(target, content)
+    ref, listed = f"data/{name}", ", ".join(columns)
+    cols = f"[{listed}]"
+    stem = re.sub(r"\W", "_", Path(name).stem)
+    lines = [
+        f"copied {p.file} to {p.draft}/{ref}: {len(rows)} rows, columns {listed}",
+        f"data_table: {{file: {ref}, columns: {cols}}}",
+        f"custom queries: {stem}: {{file: {{path: {ref}, columns: {cols}}}}}",
+        "record where it came from in a note (note_add, type observation)",
+    ]
+    if size > WARN_BYTES:
+        lines.insert(1, f"{size >> 20} MB: the page loads the whole file; keep it to what it shows")
+    return {
+        "kind": "view data",
+        "draft": p.draft,
+        "ref": ref,
+        "columns": columns,
+        "rows": len(rows),
+        "head": rows[:3],
+        "lines": lines,
         "meta": {},
     }
 

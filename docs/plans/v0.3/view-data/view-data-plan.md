@@ -197,7 +197,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
 
 ## L. Getting a file into a draft, and the findings
 
-### L61. `view data`: copy a file into a draft and describe it (sonnet + review) — code
+### L61. `view data`: copy a file into a draft and describe it (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/ops/registry.py` (new `ViewDataParams` after `ViewNewParams` 280–288, new `Op` after
   `view new` 1001–1009), `src/beamtime/ops/views.py` (new `add_data` after `write_draft_files`; the `lines` of
