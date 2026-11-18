@@ -1317,6 +1317,15 @@ METHODS = [
         summary="Empty the trash and remove ended runs without metrics (with --yes).",
     ),
     Op(
+        name="ps",
+        kind="ps",
+        render=f"{F}:render_ps",
+        params=NoParams,
+        impl="beamtime.ops.procs:ps",
+        user_only=True,
+        summary="Every Beamtime process here: serves, index daemons, remotes, MCP servers.",
+    ),
+    Op(
         name="source add",
         kind="source add",
         params=SourceAddParams,

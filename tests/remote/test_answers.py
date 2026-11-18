@@ -362,7 +362,7 @@ def test_a_source_that_cut_shows_at_the_top() -> None:
     assert "cut" not in flagged({"meta": {"sources": states[:1]}})["meta"]
 
 
-NOT_ANSWERS = {"auto", "manual", "local", "remote", "event", "checkpoint", "copied"}
+NOT_ANSWERS = {"auto", "manual", "local", "remote", "ssh", "event", "checkpoint", "copied"}
 
 
 def emitted() -> set[str]:

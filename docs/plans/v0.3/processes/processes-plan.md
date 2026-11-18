@@ -257,7 +257,7 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
 3. `remote.answer`: before the local shortcut (line 71), `if memory_reads(...) and (found := via_serve.call(...))
    is not None: return upgraded(found)`; import `via_serve` lazily as today.
 
-### J53. `beamtime ps` (sonnet + review) — code
+### J53. `beamtime ps` (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/ops/procs.py` (`ps`, `serves`, `used_here`), `src/beamtime/ops/registry.py`
   (new `PsParams` after `GcParams` 625; `Op` after `gc` 1281), `src/beamtime/ops/answers.py` (`BARE` 601–605:

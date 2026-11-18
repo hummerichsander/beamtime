@@ -738,3 +738,13 @@ Remove a remote from wherever it is configured.
 ```sh
 beamtime source rm <name>
 ```
+
+## Processes
+
+### `beamtime ps` *(you)*
+
+Every Beamtime process here: serves, index daemons, remotes, MCP servers.
+
+```sh
+beamtime ps
+```

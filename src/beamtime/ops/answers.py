@@ -601,7 +601,7 @@ GROUPED = (
 BARE = (
     "view data", "view check", "view files", "block check", "block export", "block import",
     "note rm", "settings", "doctor", "source list", "export", "pull", "setup", "set", "source add",
-    "source rm", "reindex", "rm", "mv", "gc", "mcp install", "serve", "guide",
+    "source rm", "reindex", "rm", "mv", "gc", "ps", "mcp install", "serve", "guide",
 )  # fmt: skip
 # the page methods' kinds: trees (a view's blocks) with places under any key, so the generic walk
 # serves them on purpose; a remote's page answers pass through ``placed`` with it.

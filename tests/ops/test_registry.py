@@ -26,7 +26,7 @@ def test_every_impl_imports() -> None:
 def test_instructions_name_every_user_only_op() -> None:
     """The MCP instructions list the user-only operations from the registry, and no tool is one."""
     user_only = sorted(op.name for op in OPS if op.user_only)
-    assert len(user_only) == 18
+    assert len(user_only) == 19
     assert f"({', '.join(user_only)})" in INSTRUCTIONS
     assert not {op.tool for op in OPS if op.user_only} & set(BY_TOOL)
 

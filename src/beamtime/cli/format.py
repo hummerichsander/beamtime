@@ -655,6 +655,51 @@ def render_status(answer: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def render_ps(answer: dict[str, Any]) -> str:
+    """Render ``ps``: the processes by kind, then the stale ones that were removed.
+
+    :param answer: The answer.
+    :return: The text."""
+    from beamtime.index.index import format_age
+
+    def head(x: dict[str, Any]) -> str:
+        where = x.get("host") or x.get("root") or x.get("logdir") or "-"
+        pid = f"  pid {x['pid']}" if x.get("pid") else ""
+        up = f"  up {format_age(x['uptime_s'])}" if x.get("uptime_s") is not None else ""
+        return f"  {where}{pid}{up}"
+
+    lines: list[str] = []
+    for kind, rows in answer["groups"].items():
+        if not rows:
+            continue
+        lines.append(kind)
+        for x in rows:
+            lines.append(head(x))
+            if x.get("url"):
+                lines.append(f"    url        {x['url']}")
+            if x.get("logdir") and x.get("root") and not x["logdir"].startswith(x["root"]):
+                lines.append(f"    log dir    {x['logdir']}")
+            if x.get("cache"):
+                lines.append(
+                    f"    cache      {x['cache_kind']} {x['cache']}".replace(
+                        "memory " + x["cache"], "memory"
+                    )
+                )
+            if x.get("sources"):
+                lines.append(f"    remotes    {', '.join(x['sources'])}")
+            if x.get("client"):
+                lines.append(f"    client     {x['client']}")
+            if x.get("used_here", "-") != "-":
+                lines.append(f"    used here  {x['used_here']}")
+            if x.get("end"):
+                lines.append(f"    end it     {x['end']}")
+    if answer["stale"]:
+        lines.append("stale (removed)")
+        lines += [f"{head(x)}  ({x['kind']})" for x in answer["stale"]]
+    lines += answer["lines"]
+    return "\n".join(lines)
+
+
 def result_text(result: str | None, provisional: bool | None = None) -> str:
     """Write a check result, marked when the plan is not complete.
 

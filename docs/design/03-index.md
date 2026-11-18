@@ -245,7 +245,7 @@ whose lock can be taken is **stale** (the process was killed). `ps` prints stale
 | `client` | the MCP client's name, or the ssh peer from `SSH_CONNECTION` for `remote`; else `null` |
 
 `ps` also scans `<disk cache root>/*/serve.json` and `runtime_base()/*/serve.json` for serves without a
-record (an older Beamtime still running) and removes a `serve.json` whose `serve.lock` is free. The token
+record (an older Beamtime still running; its row is made from `serve.json`, with `schema` 0, and a serve with both is listed once) and removes a `serve.json` whose `serve.lock` is free. The token
 stays: it outlives restarts by design. `ssh` rows come from the Beamtime-marked blocks in `~/.ssh/config`,
 checked with `ssh -O check <host>`; `ps` names `ssh -O exit <host>` to end one, because Beamtime does not
 stop them.
@@ -259,7 +259,7 @@ of this context's log dir it also says whether this directory's CLI and MCP call
 | `live index` | `--no-ui` serve on a disk cache |
 | `all reads` | UI serve with a `memory` cache: reads go through it |
 | `no: memory, no UI` | `--no-ui` with a `memory` cache: nothing to share |
-| `no: this shell's cache is <path> (<source>)` | the shell's cache setting differs from the serve's |
+| `no: this shell's cache is <path> (<source>)` | the shell's cache setting differs from the serve's (`<path>` is `memory` for a memory cache) |
 | `-` | other kinds and other log dirs |
 
 `beamtime stop [<root>|<pid>] [--all]` stops serves only: a root or log dir path matches a serve's `root`

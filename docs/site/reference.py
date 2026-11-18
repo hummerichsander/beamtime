@@ -21,6 +21,7 @@ AREAS = {
     "beamtime.ops.views": "Pages and views",
     "beamtime.ops.blocks": "Library blocks",
     "beamtime.ops.admin": "Setup and housekeeping",
+    "beamtime.ops.procs": "Processes",
 }
 INTRO = """# Command reference
 
