@@ -5,14 +5,19 @@ import yaml
 
 from beamtime.ops import call
 from beamtime.ops.context import Context, OpError
+from beamtime.ops.views import bundle
 from beamtime.serve.api import view as page_view
 from beamtime.views import code
 from beamtime.views import model as m
 from beamtime.views.compile import compile_view
+from beamtime.views import store
 from beamtime.views.store import code_text
+from beamtime.views.validate import static
 
 SWEEP = "scaling/lr-sweep"
-GOOD = "export default function render(root) { bt.preact.render(bt.preact.html`<p>hi</p>`, root); }\n"
+GOOD = (
+    "export default function render(root) { bt.preact.render(bt.preact.html`<p>hi</p>`, root); }\n"
+)
 
 
 def walk(t: dict) -> list[dict]:
@@ -25,7 +30,8 @@ def walk(t: dict) -> list[dict]:
 
 def test_custom_queries_compile_to_calls() -> None:
     """Declared queries become API calls over the page, with filters and placeholders kept."""
-    view = m.parse(yaml.safe_load("""
+    view = m.parse(
+        yaml.safe_load("""
 filters: {run.status: finished}
 body:
   - custom:
@@ -38,7 +44,9 @@ body:
         detail: {series: {from: $run, y: [val/acc]}}
         sub: {runs: {from: ./sub, where: {config.lr: 0.1}}}
         table: {file: {path: data/t.csv}}
-"""), source="test")
+"""),
+        source="test",
+    )
     tree = compile_view(view, path=SWEEP, draft="d")
     node = next(n for n in walk(tree) if n["id"] == "c")
     assert node["props"]["code"] == {"view": SWEEP, "path": "code/c.js", "draft": "d"}
@@ -82,7 +90,11 @@ def test_placeholders_and_fill() -> None:
     """Placeholders are whole strings; fill replaces the known ones."""
     q = {"from": "$run", "y": ["$metric", "val/acc"], "x": "cost $5"}
     assert code.placeholders(q) == {"run", "metric"}
-    assert code.fill(q, {"run": "r1"}) == {"from": "r1", "y": ["$metric", "val/acc"], "x": "cost $5"}
+    assert code.fill(q, {"run": "r1"}) == {
+        "from": "r1",
+        "y": ["$metric", "val/acc"],
+        "x": "cost $5",
+    }
 
 
 def test_custom_example_saves_code_under_its_hash(ctx: Context, project: Path) -> None:
@@ -130,3 +142,89 @@ def test_code_stays_in_code_folders(ctx: Context, project: Path) -> None:
     for path in ("view.yaml", "code/../view.yaml", "../../beamtime.yaml", "code/none.js"):
         with pytest.raises(OpError):
             code_text(ctx, {"view": SWEEP, "path": path, "draft": "pm"})
+
+
+FILE_VIEW = """schema: 1
+finding: x
+body:
+  - data_table: {id: dt, file: data/fit.csv}
+  - custom:
+      id: c
+      code: code/c.js
+      queries:
+        t: {file: {path: data/fit.csv}}
+        u: {file: {path: $name}}
+"""
+
+
+def draft_with_file(ctx: Context, project: Path, name: str, text: str = FILE_VIEW) -> Path:
+    """Make a draft with a custom block, a data file and the given view.
+
+    :param ctx: The operation context.
+    :param project: The project root.
+    :param name: The draft's name.
+    :param text: The view's YAML.
+    :return: The draft's folder."""
+    call("view new", {"group": SWEEP, "name": name}, ctx)
+    folder = project / ".beamtime" / "drafts" / name
+    (folder / "code").mkdir()
+    (folder / "code" / "c.js").write_text(GOOD)
+    (folder / "data" / "fit.csv").write_text("lr,acc\n0.1,0.5\n")
+    (folder / "view.yaml").write_text(text)
+    return folder
+
+
+def test_custom_file_query_survives_save(ctx: Context, project: Path) -> None:
+    """A custom block's file query is copied on save, so the saved page and a new draft have it."""
+    draft_with_file(
+        ctx, project, "fit", FILE_VIEW.replace("  - data_table: {id: dt, file: data/fit.csv}\n", "")
+    )
+    assert call("view validate", {"draft": "fit", "render": False}, ctx)["ok"]
+    call("view save", {"draft": "fit"}, ctx)
+    node = next(n for n in walk(page_view(ctx, SWEEP)["view"]) if n["id"] == "c")
+    ref = node["data"]["t"]["params"]["path"]
+    assert ref.startswith("data/") and ref.endswith("-fit.csv")
+    assert (ctx.logdir / SWEEP / "view" / ref).is_file()
+    saved = list((ctx.logdir / SWEEP / "view").glob("*.yaml"))
+    assert ref in max(saved).read_text()
+    data = yaml.safe_load(max(saved).read_text())
+    _, findings = static(ctx, SWEEP, data, source="saved")
+    assert not [f for f in findings if f.level == "error"], findings
+    call("view new", {"group": SWEEP, "name": "fit2"}, ctx)
+    assert (project / ".beamtime" / "drafts" / "fit2" / ref).is_file()
+
+
+def test_shared_data_file_is_stored_once(ctx: Context, project: Path) -> None:
+    """The same file in data_table and a custom query is stored once; both refs point at it."""
+    draft_with_file(ctx, project, "twice")
+    call("view save", {"draft": "twice"}, ctx)
+    stored = list((ctx.logdir / SWEEP / "view" / "data").iterdir())
+    assert len(stored) == 1
+    text = max((ctx.logdir / SWEEP / "view").glob("*.yaml")).read_text()
+    assert text.count(f"data/{stored[0].name}") == 2
+
+
+def test_file_placeholder_is_not_copied(ctx: Context, project: Path) -> None:
+    """A $placeholder as a file path is not a file: nothing is copied for it and it stays."""
+    text = FILE_VIEW.replace("  - data_table: {id: dt, file: data/fit.csv}\n", "")
+    text = text.replace("t: {file: {path: data/fit.csv}}\n", "")
+    folder = draft_with_file(ctx, project, "ph", text)
+    (folder / "data" / "fit.csv").unlink()
+    call("view save", {"draft": "ph"}, ctx)
+    assert not (ctx.logdir / SWEEP / "view" / "data").exists()
+    assert "path: $name" in max((ctx.logdir / SWEEP / "view").glob("*.yaml")).read_text()
+
+
+def test_file_refs_skip_library_blocks_and_placeholders() -> None:
+    """Only data tables, custom code and custom file queries name files, in document order."""
+    body = yaml.safe_load(FILE_VIEW)["body"] + [
+        {"section": {"children": [{"my-block": {"file": "data/x.csv"}}]}}
+    ]
+    assert m.file_refs(body) == ["data/fit.csv", "code/c.js"]
+
+
+def test_bundle_carries_custom_file_query(ctx: Context, project: Path) -> None:
+    """A draft's bundle for a remote holds the files its custom blocks query."""
+    draft_with_file(ctx, project, "bun")
+    files = bundle(ctx, store.draft(ctx, "bun"))["files"]
+    assert {"data/fit.csv", "code/c.js"} <= set(files)

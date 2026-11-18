@@ -146,8 +146,9 @@ uses:                                    # written by view_save
   against the placeholder's type. This covers clicking into a run, step-window sliders and
   selections.
 - **Data files** stored with the view (`view/data/<sha8>-<name>.parquet`) are read through the `file`
-  query ([layer 3](03-index.md#query-kinds)). They describe the group that defines the view. Their
-  provenance (the script that made them) is recorded in a note.
+  query ([layer 3](03-index.md#query-kinds)), by `data_table` (`file`) or a custom block's declared
+  query; saving copies each under its content hash. They describe the group that defines the view.
+  Their provenance (the script that made them) is recorded in a note.
 - There is no free query API: code cannot read files, call the network or query anything it hasn't
   declared.
 

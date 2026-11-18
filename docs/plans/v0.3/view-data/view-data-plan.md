@@ -129,7 +129,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
 
 ## J. The file query and data refs
 
-### J61. Every data reference is copied: save, view new, bundles (sonnet + review) — reproduced
+### J61. Every data reference is copied: save, view new, bundles (sonnet + review) — reproduced — **done**
 
 - **Touches:** `src/beamtime/views/model.py` (new `file_refs`, next to `yaml_walk`), `src/beamtime/ops/views.py`
   (`data_refs` 118–135, `write_version` 548–580, `bundle` 248–259 unchanged but now complete);

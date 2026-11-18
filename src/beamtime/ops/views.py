@@ -119,19 +119,13 @@ def data_refs(text: str) -> list[str]:
     """Find the data and code files a view's YAML refers to.
 
     :param text: The YAML.
-    :return: The ``data/...`` and ``code/...`` references."""
+    :return: The ``data/...`` and ``code/...`` references, including custom file queries."""
     import yaml
 
-    from beamtime.views.model import yaml_walk
+    from beamtime.views.model import file_refs
 
     try:
-        body = (yaml.safe_load(text) or {}).get("body") or []
-        files = {"data_table": "file", "custom": "code"}
-        return [
-            props[files[b]]
-            for b, props in yaml_walk(body)
-            if b in files and isinstance(props.get(files[b]), str)
-        ]
+        return file_refs((yaml.safe_load(text) or {}).get("body") or [])
     except (yaml.YAMLError, AttributeError, ValueError):
         return []
 
@@ -571,11 +565,27 @@ def write_version(
     used = sorted({n.name for n in m.walk(view.body) if isinstance(n, m.Use)})
     view.uses = {name: view.uses.get(name) or library.newest(name) or "" for name in used}
     folder = store.view_dir(ctx, group)
-    for n in m.walk(view.body):
-        if isinstance(n, m.DataTable) and n.file is not None and data_dir is not None:
-            n.file = copy_data(data_dir / n.file, folder)
-        if isinstance(n, m.Custom) and data_dir is not None:
-            n.code = copy_data(data_dir / n.code, folder, "code")
+    if data_dir is not None:
+        copied: dict[str, str] = {}
+
+        def store_data(ref: str) -> str:
+            if ref not in copied:
+                copied[ref] = copy_data(data_dir / ref, folder)
+            return copied[ref]
+
+        for n in m.walk(view.body):
+            if isinstance(n, m.DataTable) and n.file is not None:
+                n.file = store_data(n.file)
+            if isinstance(n, m.Custom):
+                n.code = copy_data(data_dir / n.code, folder, "code")
+                for q in n.queries.values():
+                    file = q.get("file")
+                    if (
+                        isinstance(file, dict)
+                        and isinstance(path := file.get("path"), str)
+                        and not path.startswith("$")
+                    ):
+                        file["path"] = store_data(path)
     return save(folder, ".yaml", m.dump(m.to_yaml_form(view)))
 
 
