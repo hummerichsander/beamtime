@@ -173,12 +173,11 @@ def add_data(ctx: Context, p: r.ViewDataParams) -> dict[str, Any]:
     if not target.exists():
         write_created(target, content)
     ref, listed = f"data/{name}", ", ".join(columns)
-    # a name with `: `, `#`, `,` or `[` would break the pasted flow list.
-    cols = (
-        "["
-        + ", ".join(c if re.fullmatch(r"\w[\w./-]*", c) else json.dumps(c) for c in columns)
-        + "]"
-    )
+    import yaml
+
+    # a name with `: `, `#` or `[` breaks the pasted flow list; `2020` or `true` reads as no string.
+    plain = {c for c in columns if re.fullmatch(r"\w[\w./-]*", c) and yaml.safe_load(c) == c}
+    cols = "[" + ", ".join(c if c in plain else json.dumps(c) for c in columns) + "]"
     stem = re.sub(r"\W", "_", Path(name).stem)
     lines = [
         f"copied {p.file} to {p.draft}/{ref}: {len(rows)} rows, columns {listed}",

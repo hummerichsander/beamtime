@@ -11,7 +11,7 @@ query write the CSV with `to: x.csv` (`guide analysis`) instead of copying numbe
 
 1. Write the table tidy: one row per observation, a header row, units in the names (`lr`, `time_s`),
    comma-separated, inside the project: `df.to_csv("results/fit.csv", index=False)`.
-2. `view_new <group> --from sweep --name fit`: a draft to edit.
+2. `view_new <group> --name fit`: a draft of the page's current view, to add to.
 3. `view_data fit results/fit.csv` copies it to `fit/data/fit.csv` and answers the columns, the row
    count, the first rows and the two lines to paste. A file outside the project is refused with the
    `cp` command for the user to run.

@@ -1076,3 +1076,13 @@ def test_placeholder_file_path_is_left_to_the_query_run(ctx: Context, tmp_path: 
     (tmp_path / "code/c.js").write_text("export default function render(root) { bt.useData('t'); }\n")
     findings = lint(ctx, CUSTOM_FILE.format(ref="$name"), data_dir=tmp_path, draft="d")
     assert not [f for f in findings if f.level == "error"], findings
+
+
+def test_view_data_quotes_names_yaml_reads_as_other_types(ctx: Context, project: Path) -> None:
+    """Column names YAML would read as numbers, booleans or null stay strings in the lines to paste."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
+    (project / "y.csv").write_text("x,2020,1e-3,true,null,on\n1,2,3,4,5,6\n")
+    lines = call("view data", {"draft": "d", "file": "y.csv"}, ctx)["lines"]
+    line = next(s for s in lines if s.startswith("data_table:"))
+    flow = yaml.safe_load(line)["data_table"]["columns"]
+    assert flow == ["x", "2020", "1e-3", "true", "null", "on"]

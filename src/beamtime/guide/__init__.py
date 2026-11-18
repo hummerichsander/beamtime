@@ -177,8 +177,9 @@ def defaults(agent: AgentSettings) -> str:
     out = [head, ""]
     out += [f"- {text} ({origin(agent, keys)})" for text, keys in lines]
     out += [
-        "- Data the queries can't express goes into a data file in the draft's `data/`, shown with "
-        "`data_table: {file: data/<name>.csv}`; record the script that made it in a note. (fixed)",
+        "- Data the queries can't express goes into a CSV in the project, copied into the draft "
+        "with `view_data` and shown with `data_table`; record the script that made it in a note "
+        "(`guide data-files`). (fixed)",
         "- Never run user commands; hand the user the exact command. (fixed)",
     ]
     return "\n".join(out)

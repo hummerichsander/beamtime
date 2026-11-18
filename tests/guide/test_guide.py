@@ -275,6 +275,12 @@ def test_data_files_topic_is_short_and_linked() -> None:
         assert "data-files" in TEXTS[name], name
 
 
+def test_defaults_point_to_data_files(ctx: Context) -> None:
+    """The defaults line on data files names `view_data` and the topic."""
+    (line,) = [s for s in defaults_of(ctx) if "data_table" in s]
+    assert "view_data" in line and "(`guide data-files`)" in line
+
+
 def test_data_files_recipe(ctx: Context, project: Path) -> None:
     """The recipe's commands run in order with the topic's own snippets and save a valid view."""
     text = TEXTS["data-files"]
@@ -286,7 +292,7 @@ def test_data_files_recipe(ctx: Context, project: Path) -> None:
     source = project / "results" / "fit.csv"
     source.parent.mkdir()
     source.write_text("lr,pred_acc\n0.0001,0.52\n0.001,0.71\n0.01,0.64\n")
-    call("view new", {"group": SWEEP, "from": "sweep", "name": "fit"}, ctx)
+    call("view new", {"group": SWEEP, "name": "fit"}, ctx)
     answer = call("view data", {"draft": "fit", "file": "results/fit.csv", "name": "fit.csv"}, ctx)
     assert answer["ref"] == "data/fit.csv" and answer["columns"] == ["lr", "pred_acc"]
 
