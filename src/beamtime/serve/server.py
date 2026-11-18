@@ -102,6 +102,7 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
             guarded, log_level="warning", lifespan="on", timeout_graceful_shutdown=1
         )
         server = server_class()(config, hub=hub)
+        app.state.stop = lambda: server.handle_exit(signal.SIGTERM, None)
         if p.watch:
             threading.Thread(target=watch_code, args=(server, restart), daemon=True).start()
             say("--watch: restarts when Beamtime's code changes.")

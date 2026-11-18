@@ -3,12 +3,15 @@
 Agents never run these; they hand the user the command."""
 
 import json
+import os
 import re
+import signal
 import subprocess
 import time
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from beamtime.index.cache import (
     SERVE_JSON,
@@ -20,7 +23,7 @@ from beamtime.index.cache import (
 )
 from beamtime.index.procs import listed
 from beamtime.ops import registry as r
-from beamtime.ops.context import Context
+from beamtime.ops.context import Context, OpError
 from beamtime.settings import expand_path
 
 KINDS = ("serve", "index", "remote", "mcp", "ssh")
@@ -45,6 +48,122 @@ def ps(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         "lines": [] if rows or stale else ["no Beamtime process runs"],
         "meta": {},
     }
+
+
+def stop(ctx: Context, p: r.StopParams) -> dict[str, Any]:
+    """Stop serves: this directory's, the one a root, log dir or pid names, or all.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: What was stopped, with a line each."""
+    if p.all and p.target:
+        raise OpError("pass a root, log dir or pid, or --all, not both", code=2)
+    rows = serves(ctx)
+    if p.all:
+        chosen, name = rows, "any serve"
+    elif p.target:
+        chosen, name = match(ctx, rows, p.target), p.target
+    else:
+        here = ctx.logdir.resolve()
+        chosen = [x for x in rows if x.get("logdir") and Path(x["logdir"]).resolve() == here]
+        name = str(ctx.root)
+    if not chosen:
+        return {"kind": "stop", "stopped": [], "lines": [f"no serve runs for {name}"]}
+    lines, stuck = [], []
+    for x in chosen:
+        where = x.get("root") or x.get("logdir")
+        match stop_serve(x):
+            case "running":
+                stuck.append(
+                    f"still stopping {where} (pid {x['pid']}); `kill -9 {x['pid']}` ends it now"
+                )
+            case how:
+                via = "through the token" if how == "token" else "with SIGTERM"
+                lines.append(f"stopped {where} (pid {x['pid']}) {via}")
+    if stuck:
+        raise OpError("\n".join(lines + stuck))
+    return {"kind": "stop", "stopped": [x["pid"] for x in chosen], "lines": lines}
+
+
+def match(ctx: Context, rows: list[dict[str, Any]], target: str) -> list[dict[str, Any]]:
+    """Pick the serves a target names.
+
+    :param ctx: The operation context.
+    :param rows: The running serves.
+    :param target: A pid as ``ps`` prints it, or a path matching a serve's root or log dir.
+    :return: The serves; none when nothing matches.
+    :raises OpError: With code 2 when the pid belongs to a process that is listed, never stopped."""
+    if not target.isdigit():
+        path = Path(target).expanduser().resolve()
+        paths = ("root", "logdir")
+        return [x for x in rows if any(x.get(k) and Path(x[k]).resolve() == path for k in paths)]
+    pid = int(target)
+    if found := [x for x in rows if x["pid"] == pid]:
+        return found
+    live, _ = scan(ctx)
+    now = time.time()
+    others = [row(ctx, record, now) for record in live] + ssh_rows()
+    for x in others:
+        if x["pid"] == pid:
+            owner = x.get("client") or x.get("host") or x["kind"]
+            raise OpError(
+                f"listed, not stopped: pid {pid} is a {x['kind']} process that belongs to {owner}",
+                code=2,
+            )
+    return []
+
+
+def stop_serve(x: dict[str, Any], wait_s: float = 10.0) -> Literal["token", "sigterm", "running"]:
+    """Stop one serve through its token, else with SIGTERM, and wait for its lock.
+
+    :param x: The serve's row.
+    :param wait_s: How long to wait for the lock after each attempt.
+    :return: How it stopped, or ``running`` when it still holds its lock; SIGKILL is never sent."""
+    lock = FileLock(path=Path(x["cache"]) / SERVE_LOCK)
+    if x.get("port") and shutdown_request(x):
+        if wait_free(lock, wait_s):
+            return "token"
+    if x.get("pid"):
+        try:
+            os.kill(x["pid"], signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        if wait_free(lock, wait_s):
+            return "sigterm"
+    return "running"
+
+
+def shutdown_request(x: dict[str, Any]) -> bool:
+    """Ask a serve to stop with ``POST /api/shutdown``.
+
+    :param x: The serve's row.
+    :return: Whether the serve accepted."""
+    try:
+        token = (Path(x["cache"]) / TOKEN_FILE).read_text().strip()
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{x['port']}/api/shutdown",
+            data=b"{}",
+            headers={"authorization": f"Bearer {token}", "content-type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=SSH_CHECK_S):
+            return True
+    except (OSError, ValueError):
+        return False
+
+
+def wait_free(lock: FileLock, wait_s: float) -> bool:
+    """Wait until nobody holds a lock.
+
+    :param lock: The lock.
+    :param wait_s: The longest wait in seconds.
+    :return: Whether it is free."""
+    deadline = time.monotonic() + wait_s
+    while lock.held_elsewhere():
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.1)
+    return True
 
 
 def serves(ctx: Context) -> list[dict[str, Any]]:

@@ -1,3 +1,4 @@
+import json
 import os
 import signal
 import subprocess
@@ -6,13 +7,16 @@ import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
+from urllib.request import Request, urlopen
 
 import pytest
 
 pytest.importorskip("starlette")
 
 import beamtime
-from beamtime.index.procs import listed
+from beamtime.index.cache import FileLock
+from beamtime.index.procs import listed, register
+from beamtime.ops import procs
 from beamtime.serve.app import STATIC
 
 SERVE = [sys.executable, "-m", "beamtime.cli", "serve"]
@@ -150,3 +154,153 @@ def test_killed_process_leaves_a_stale_record(project: Path, start) -> None:
     proc.wait(15)
     live, stale = listed()
     assert live == [] and [r["pid"] for r in stale] == [record["pid"]]
+
+
+def run_stop(*args: str, cwd: Path) -> subprocess.CompletedProcess:
+    """Run ``beamtime stop`` in a folder.
+
+    :param args: Its arguments.
+    :param cwd: The working directory.
+    :return: The finished process, with text output."""
+    return subprocess.run(
+        [sys.executable, "-m", "beamtime.cli", "stop", *args],
+        cwd=cwd, capture_output=True, text=True, timeout=60,
+    )  # fmt: skip
+
+
+def other_project(tmp_path: Path) -> Path:
+    """A second project with an empty log dir.
+
+    :param tmp_path: Pytest's temporary directory.
+    :return: Its root."""
+    root = tmp_path / "other"
+    (root / "beamtime").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    return root
+
+
+def test_stop_uses_the_token(project: Path, start) -> None:
+    """``stop`` ends a UI serve through ``/api/shutdown``; its files are gone."""
+    if not (STATIC / "app.js").is_file():
+        pytest.skip("the frontend is not built")
+    proc = start("--port", "0")
+    [record] = records("serve")
+    began = time.monotonic()
+    done = run_stop(cwd=project)
+    assert done.returncode == 0 and "through the token" in done.stdout, done.stderr
+    proc.wait(5)
+    assert time.monotonic() - began < 5
+    assert listed() == ([], []) and not (Path(record["cache"]) / "serve.json").exists()
+
+
+def test_stop_no_ui_by_sigterm(project: Path, start) -> None:
+    """A serve without a port has no token route: ``stop`` sends SIGTERM."""
+    proc = start("--no-ui")
+    [record] = records("index")
+    done = run_stop(cwd=project)
+    assert done.returncode == 0 and "with SIGTERM" in done.stdout, done.stderr
+    proc.wait(5)
+    assert listed() == ([], []) and not (Path(record["cache"]) / "serve.json").exists()
+
+
+def test_stop_all_stops_two_projects(project: Path, start, tmp_path: Path) -> None:
+    """``--all`` stops the serves of every project, from any folder."""
+    other = other_project(tmp_path)
+    first = start("--no-ui")
+    second = start("--no-ui", cwd=other)
+    deadline = time.monotonic() + 30
+    while len(listed()[0]) < 2 and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert len(listed()[0]) == 2
+    done = run_stop("--all", cwd=tmp_path)
+    assert done.returncode == 0, done.stderr
+    first.wait(5)
+    second.wait(5)
+    assert listed() == ([], [])
+
+
+def test_stop_by_root_and_pid_only_touches_that_serve(project: Path, start, tmp_path: Path) -> None:
+    """A root names one serve, a pid another; the third stays."""
+    other = other_project(tmp_path)
+    a = start("--no-ui")
+    b = start("--no-ui", cwd=other)
+    deadline = time.monotonic() + 30
+    while len(listed()[0]) < 2 and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert run_stop(str(project), cwd=tmp_path).returncode == 0
+    a.wait(5)
+    assert b.poll() is None
+    assert run_stop(str(b.pid), cwd=tmp_path).returncode == 0
+    b.wait(5)
+
+
+def test_stop_refuses_an_mcp_pid(project: Path, tmp_path: Path) -> None:
+    """The pid of a process that is only listed exits 2 with ``listed, not stopped``."""
+    registration = register("mcp", root=str(project), client="some-agent")
+    try:
+        done = run_stop(str(os.getpid()), cwd=tmp_path)
+    finally:
+        registration.close()
+    assert done.returncode == 2 and "listed, not stopped" in done.stderr + done.stdout
+    assert "some-agent" in done.stderr + done.stdout
+
+
+def test_stop_with_nothing_to_stop(project: Path) -> None:
+    """No serve for this project: a line, exit 0."""
+    done = run_stop(cwd=project)
+    assert done.returncode == 0 and f"no serve runs for {project}" in done.stdout
+
+
+def test_shutdown_needs_token(project: Path, start) -> None:
+    """Without the token, or with a wrong one, ``/api/shutdown`` is 401 and the serve runs on."""
+    if not (STATIC / "app.js").is_file():
+        pytest.skip("the frontend is not built")
+    proc = start("--port", "0")
+    [record] = records("serve")
+    url = f"http://127.0.0.1:{record['port']}/api/shutdown"
+    for headers in ({}, {"authorization": "Bearer wrong"}):
+        with pytest.raises(OSError, match="401"):
+            urlopen(Request(url, data=b"{}", headers=headers, method="POST"), timeout=5)
+    assert proc.poll() is None
+
+
+def test_shutdown_replies_first(project: Path, start) -> None:
+    """The client receives the answer, then the serve exits."""
+    if not (STATIC / "app.js").is_file():
+        pytest.skip("the frontend is not built")
+    proc = start("--port", "0")
+    [record] = records("serve")
+    token = (Path(record["cache"]) / "serve.token").read_text().strip()
+    request = Request(
+        f"http://127.0.0.1:{record['port']}/api/shutdown",
+        data=b"{}", headers={"authorization": f"Bearer {token}"}, method="POST",
+    )  # fmt: skip
+    with urlopen(request, timeout=10) as reply:
+        assert json.load(reply) == {"kind": "stop", "pid": proc.pid}
+    assert proc.wait(15) == 0
+
+
+def test_stop_falls_back_to_sigterm(project: Path, start, monkeypatch) -> None:
+    """A serve that takes the request and stays is ended by SIGTERM after the wait."""
+    if not (STATIC / "app.js").is_file():
+        pytest.skip("the frontend is not built")
+    proc = start("--port", "0")
+    [record] = records("serve")
+    monkeypatch.setattr(procs, "shutdown_request", lambda x: True)
+    assert procs.stop_serve(record, wait_s=1.0) == "sigterm"
+    proc.wait(10)
+
+
+def test_stop_reports_a_serve_that_keeps_its_lock(tmp_path: Path) -> None:
+    """A holder that survives SIGTERM is reported as running; nothing sends SIGKILL."""
+    sleeper = subprocess.Popen(["sleep", "30"])
+    lock = FileLock(path=tmp_path / "serve.lock")
+    assert lock.acquire()
+    try:
+        row = {"pid": sleeper.pid, "cache": str(tmp_path), "port": None}
+        assert procs.stop_serve(row, wait_s=0.5) == "running"
+        assert sleeper.wait(5) == -signal.SIGTERM
+    finally:
+        lock.release()
+        if sleeper.poll() is None:
+            sleeper.kill()

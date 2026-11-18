@@ -2,6 +2,7 @@
 
 import dataclasses
 import mimetypes
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 import msgspec
 from starlette.applications import Starlette
+from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import (
@@ -61,6 +63,12 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
         if isinstance(answer, bytes):
             return Response(answer, media_type="application/pdf")
         return reply(answer)
+
+    async def shutdown(request: Request) -> Response:
+        response = reply({"kind": "stop", "pid": os.getpid()})
+        # after the reply is sent: the client gets its answer before the server exits.
+        response.background = BackgroundTask(request.app.state.stop)
+        return response
 
     async def subscribe(request: Request) -> Response:
         hub.bind()
@@ -122,10 +130,11 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
         hub.bind()
         yield
 
-    return Starlette(
+    app = Starlette(
         routes=[
             Route("/", home),
             Route("/api/subscribe", subscribe),
+            Route("/api/shutdown", shutdown, methods=["POST"]),
             Route("/api/file/{run}/{path:path}", run_file),
             Route("/api/{method}", api, methods=["POST"]),
             Mount("/static", StaticFiles(directory=static, check_dir=False), name="static"),
@@ -140,6 +149,8 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
         ],
         lifespan=lifespan,
     )
+    app.state.stop = lambda: None
+    return app
 
 
 def reply(answer: Any, status: int = 200) -> Response:

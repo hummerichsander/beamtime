@@ -748,3 +748,15 @@ Every Beamtime process here: serves, index daemons, remotes, MCP servers.
 ```sh
 beamtime ps
 ```
+
+### `beamtime stop` *(you)*
+
+Stop this directory's serve, or the one for a root, log dir or pid (or all).
+
+```sh
+beamtime stop [target]
+```
+
+| Option | Default | |
+|---|---|---|
+| `--all` | `False` | stop every serve of this user |

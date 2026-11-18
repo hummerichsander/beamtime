@@ -697,6 +697,16 @@ class ServeParams(Params, kw_only=True):
     ] = None
 
 
+class StopParams(Params, kw_only=True):
+    """Parameters of ``stop``."""
+
+    target: Annotated[
+        str | None,
+        msgspec.Meta(description="a root, a log dir or a pid, as `beamtime ps` shows them"),
+    ] = None
+    all: Annotated[bool, msgspec.Meta(description="stop every serve of this user")] = False
+
+
 class DemoParams(Params, kw_only=True):
     """Parameters of ``demo``."""
 
@@ -1324,6 +1334,15 @@ METHODS = [
         impl="beamtime.ops.procs:ps",
         user_only=True,
         summary="Every Beamtime process here: serves, index daemons, remotes, MCP servers.",
+    ),
+    Op(
+        name="stop",
+        kind="stop",
+        params=StopParams,
+        impl="beamtime.ops.procs:stop",
+        positional=("target",),
+        user_only=True,
+        summary="Stop this directory's serve, or the one for a root, log dir or pid (or all).",
     ),
     Op(
         name="source add",

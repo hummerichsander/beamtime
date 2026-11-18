@@ -306,7 +306,7 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
    the hosts' order; add `test_ssh_check_timeout`, `test_ssh_checks_parallel`, `test_unmarked_hosts_ignored` and
    a test without `ssh` on `PATH` (`test_ssh_logins` exists).
 
-### J55. `beamtime stop` (sonnet + review) — code
+### J55. `beamtime stop` (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/serve/app.py` (`build` 34–142: `/api/shutdown`), `src/beamtime/serve/server.py`
   (`serve` 93–97: `app.state.stop`), `src/beamtime/ops/procs.py` (new `stop`, `stop_serve`),
