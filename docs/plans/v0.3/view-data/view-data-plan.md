@@ -384,8 +384,8 @@ Runs before J61, so the delta in U63 is this plan's effect. Don't change the gui
 
 ## Z. Close
 
-- **Touches:** `CHANGELOG.md` (0.3.0 section), `docs/design/08-cli-mcp.md` (the `view data` row next to `file`,
-  l. 42), `CLAUDE.md` (Layout: `src/beamtime/query/files.py` reads data files with the limits; `guide/` gains the `data`
+- **Touches:** `CHANGELOG.md` (0.3.0 section), ~~`docs/design/08-cli-mcp.md` (the `view data` row)~~ (row added in
+  the "Spec: add view data" commit; do not add it again), `CLAUDE.md` (Layout: `src/beamtime/query/files.py` reads data files with the limits; `guide/` gains the `data`
   example), this plan's Not verified.
 - **Check:** `git status docs/design/08-cli-mcp.md` is clean before editing it (else stop and report);
   `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`.
