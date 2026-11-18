@@ -1186,3 +1186,46 @@ def test_the_run_lifecycle_is_shown(lifecycle: dict[str, str], server: str, page
     page.goto(f"{base}/f/local/scaling/long-context?token={token}")
     page.wait_for_selector(".chart canvas")
     page.locator(".chart-frame", has_text="resumed at").first.wait_for()
+
+
+@pytest.fixture
+def hidden_run(project: Path, roles: dict) -> dict[str, str]:
+    """A project with one hidden run, indexed.
+
+    :param project: The project root.
+    :param roles: The generator's runs by role.
+    :return: The run's id and its group."""
+    from tests.conftest import index_fully
+
+    run_id = roles["realistic_killed"]
+    path = next((project / "beamtime").glob(f"**/{run_id}/_run.json"))
+    info = json.loads(path.read_text())
+    path.write_text(json.dumps(info | {"hidden": True}))
+    index_fully(project / "beamtime")
+    return {"id": run_id, "group": path.parent.parent.relative_to(project / "beamtime").as_posix()}
+
+
+def test_a_hidden_run_is_listed_on_demand_and_promoted(hidden_run: dict[str, str], server: str, page) -> None:
+    """A group says how many runs it hides and lists them at ``?hidden``; the run's own page carries the
+    mark; promoting there brings the run into the group's counts."""
+    base = server.split("/f/local")[0]
+    token = server.split("token=")[1]
+    run_id, group = hidden_run["id"], hidden_run["group"]
+
+    page.goto(f"{base}/f/local/{group}?token={token}")
+    link = page.locator(".facts a:has-text('hidden')")
+    link.wait_for()
+    assert link.inner_text().strip().startswith("1")
+    assert page.locator("button:has-text('Promote')").count() == 0
+    link.click()
+    page.wait_for_selector("table.runs button:has-text('Promote')")
+    assert page.locator(f"table.runs a[href$='{run_id}']").count() == 1
+
+    page.goto(f"{base}/r/{run_id}?token={token}")
+    page.locator(".page h1 .sym:has-text('Hidden')").wait_for()
+    page.locator(".facts button[aria-label^='Promote']").click()
+    page.wait_for_selector(".page h1 .sym:has-text('Hidden')", state="detached")
+
+    page.goto(f"{base}/f/local/{group}?token={token}")
+    page.wait_for_selector(".facts")
+    page.wait_for_selector(".facts a:has-text('hidden')", state="detached")

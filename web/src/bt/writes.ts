@@ -2,6 +2,7 @@
 // the old one, an edited memory or proposal a new version. The author is the local account.
 
 import { type Call, invalidate, post } from "../api.ts";
+import { sourcedRun } from "../router.ts";
 import { Store } from "../state.ts";
 
 // a group's answers that a write below or at `group` makes stale.
@@ -62,6 +63,12 @@ export async function deleteNote(note: any): Promise<void> {
 export async function renameRun(run: string, scope: string, name: string): Promise<void> {
   await post("name", { run, name });
   refresh(scope, ["card", "runs", "groups", "summary", "series"]);
+}
+
+// a hidden run counts like any run from now on: a new visibility version, so every answer that left it out changes.
+export async function promoteRun(run: string, scope: string): Promise<void> {
+  await post("run_promote", { runs: [sourcedRun(run, scope)] });
+  refresh(scope, ["card", "runs", "groups", "summary", "series", "keys", "check", "proposal_show", "status"]);
 }
 
 // a text panel of the page's view: added (id null), edited, or removed (empty text); each a version.

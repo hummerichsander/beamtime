@@ -14,6 +14,8 @@ export type Route =
       version: string | null;
       draft: string | null;
       history: boolean;
+      // the group's hidden runs listed above its view.
+      hiddenRuns: boolean;
     }
   | { page: "run"; id: string }
   | { page: "settings"; section: string }
@@ -41,6 +43,7 @@ export function parse(pathname: string, search: string): Route {
       version: q.get("v"),
       draft: q.get("draft"),
       history: q.has("history"),
+      hiddenRuns: q.has("hidden"),
     };
   }
   if (parts[0] === "f") return parse("/f/local", search);
@@ -53,13 +56,14 @@ export function parse(pathname: string, search: string): Route {
 
 export function groupUrl(
   path: string,
-  opts: { run?: string | null; drawer?: boolean; version?: string | null; history?: boolean } = {},
+  opts: { run?: string | null; drawer?: boolean; version?: string | null; history?: boolean; hidden?: boolean } = {},
 ): string {
   const [source, ...rest] = path.startsWith("@") ? path.split("/") : ["local", ...(path === "." || path === "" ? [] : path.split("/"))];
   const tail = rest.length ? `/${rest.map(encodeURIComponent).join("/")}` : "";
   const q = new URLSearchParams();
   if (opts.version) q.set("v", opts.version);
   if (opts.history) q.set("history", "");
+  if (opts.hidden) q.set("hidden", "");
   if (opts.run) q.set("run", opts.run);
   else if (opts.drawer) q.set("drawer", "1");
   const qs = q.toString().replace(/=(?=&|$)/g, "");

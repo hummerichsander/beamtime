@@ -98,7 +98,7 @@ test("no stylesheet sets a font size or uses an old variable", async () => {
 test("URLs round-trip", () => {
   assert.deepEqual(parse("/f/local/scaling/lr-sweep", "?run=20261020-080300-aaaaaaaa"), {
     page: "group", source: "local", path: "scaling/lr-sweep", run: "20261020-080300-aaaaaaaa", drawer: true,
-    version: null, draft: null, history: false,
+    version: null, draft: null, history: false, hiddenRuns: false,
   });
   const old = parse("/f/local/g", "?v=20261028-215111-36js&history");
   assert.equal((old as any).version, "20261028-215111-36js");

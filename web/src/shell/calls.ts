@@ -29,6 +29,12 @@ export const runIds = (path: string): Call => ({
   params: { from: path, select: ["run.name", "run.status"], limit: 10000 },
   scope: path,
 });
+// the group's hidden runs, which no other call includes.
+export const hiddenRuns = (path: string): Call => ({
+  method: "runs",
+  params: { from: path, hidden: true, where: { "run.hidden": true }, select: ["run.name", "run.status", "run.created_at"], limit: 200 },
+  scope: path,
+});
 export const notes = (path: string): Call => ({ method: "notes", params: { from: path, limit: 20, full: true, current: true }, scope: path });
 export const timeline = (path: string): Call => ({ method: "timeline", params: { from: path, limit: 30 }, scope: path });
 export const status = (): Call => ({ method: "status", params: {}, scope: "." });

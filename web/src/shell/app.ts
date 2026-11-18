@@ -36,8 +36,8 @@ export function App() {
   let page;
   switch (r.page) {
     case "group":
-      page = html`<${GroupPage} key=${`${r.path} ${r.version} ${r.draft} ${r.history}`} path=${r.path} version=${r.version}
-        draft=${r.draft} history=${r.history} />`;
+      page = html`<${GroupPage} key=${`${r.path} ${r.version} ${r.draft} ${r.history} ${r.hiddenRuns}`} path=${r.path} version=${r.version}
+        draft=${r.draft} history=${r.history} hiddenRuns=${r.hiddenRuns} />`;
       break;
     case "run":
       page = html`<${RunRedirect} id=${r.id} />`;

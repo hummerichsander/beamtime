@@ -12,11 +12,11 @@ import { Section } from "../ui/primitives.ts";
 import * as calls from "./calls.ts";
 import { holdPlace, useCallKept } from "./kept.ts";
 import { usePageTitle } from "./favicon.ts";
-import { Header, ProposalSection } from "./header.ts";
+import { Header, HiddenRuns, ProposalSection } from "./header.ts";
 import { History, ViewBody, ViewSource } from "./views.ts";
 import { meta, SHORTCUTS } from "./ui.ts";
 
-export function GroupPage(props: { path: string; version?: string | null; draft?: string | null; history?: boolean }) {
+export function GroupPage(props: { path: string; version?: string | null; draft?: string | null; history?: boolean; hiddenRuns?: boolean }) {
   usePageTitle(props.path);
   if (props.history) {
     return html`<div class="page"><div class="sections">
@@ -25,11 +25,11 @@ export function GroupPage(props: { path: string; version?: string | null; draft?
     </div></div>`;
   }
   return html`<div class="page">
-    <${ViewPage} path=${props.path} version=${props.version ?? null} draft=${props.draft ?? null} />
+    <${ViewPage} path=${props.path} version=${props.version ?? null} draft=${props.draft ?? null} hiddenRuns=${props.hiddenRuns ?? false} />
   </div>`;
 }
 
-function ViewPage(props: { path: string; version: string | null; draft: string | null }) {
+function ViewPage(props: { path: string; version: string | null; draft: string | null; hiddenRuns: boolean }) {
   const main = usePrefs(props.path).main;
   const view = useCallKept(calls.view(props.path, props.version, props.draft, main), `${props.path}|${props.version}|${props.draft}`);
   useEffect(() => {
@@ -47,7 +47,9 @@ function ViewPage(props: { path: string; version: string | null; draft: string |
       <${Header} path=${props.path} finding=${view.data?.finding} />
       ${view.data ? html`<${ViewSource} path=${props.path} view=${view.data} />` : null}
     <//>
-    ${isRunId(props.path.split("/").pop() ?? "") ? null : html`<${ProposalSection} path=${props.path} />`}`;
+    ${isRunId(props.path.split("/").pop() ?? "")
+      ? null
+      : html`${props.hiddenRuns ? html`<${HiddenRuns} path=${props.path} />` : null}<${ProposalSection} path=${props.path} />`}`;
   if (view.status === "error") {
     return html`<div class="sections">${before}
       <${Section} label="view">

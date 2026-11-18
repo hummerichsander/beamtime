@@ -5,22 +5,25 @@ import type { ComponentChildren } from "preact";
 import { html } from "htm/preact";
 
 import { useCall } from "../api.ts";
+import { useStore } from "../state.ts";
 import { progressText } from "../blocks/context.ts";
 import { describe } from "../blocks/predictions.ts";
 import { rows } from "../blocks/common.ts";
 import { usePrefs } from "../bt/prefs.ts";
 import { ago, duration, label, silence, step, value, versionTime } from "../bt/fmt.ts";
-import { groupUrl, isRoot, isRunId, navigate, rootOf, runUrl } from "../router.ts";
+import { groupUrl, isRoot, isRunId, navigate, rootOf, route, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { Editable } from "../ui/editable.ts";
-import { IconButton, Popover, Section } from "../ui/primitives.ts";
-import { editStatement, renameRun } from "../bt/writes.ts";
-import { runSymbol, symbolFor } from "../ui/symbols.ts";
+import { Button, IconButton, Popover, Section } from "../ui/primitives.ts";
+import { editStatement, promoteRun, renameRun } from "../bt/writes.ts";
+import { runSymbol, symbolFor, type SymbolSpec } from "../ui/symbols.ts";
 import * as calls from "./calls.ts";
 import { useCallKept } from "./kept.ts";
 import { DiffViewer, lifecycleRows } from "./lifecycle.ts";
 
 const ENDED = ["failed", "killed", "lost"];
+const HIDDEN: SymbolSpec = { icon: "eye-off", tone: "muted", label: "Hidden" };
+const HIDDEN_TIP = "Hidden: left out of tables, counts and checks until promoted";
 
 export function Header(props: { path: string; finding?: string | null }) {
   // the crumbs start at the source's root: local, or a remote such as @box.
@@ -46,6 +49,8 @@ function GroupHeader({ path }: { path: string }) {
   if (!row) {
     return html`<h1 class="page-title title" tabindex="-1">${name}</h1><div class="skeleton late" style="block-size: 24px"></div>`;
   }
+  const shown = useStore(route);
+  const listed = shown.page === "group" && shown.hiddenRuns;
   const codes = Object.entries(useCall({ method: "keys", params: { from: path }, scope: path }).data?.codes ?? {});
   const ended = ENDED.reduce((n, k) => n + (row[k] ?? 0), 0);
   return html`
@@ -62,9 +67,30 @@ function GroupHeader({ path }: { path: string }) {
         ? html`<span data-tip=${codes.map(([code, n]) => `${code}: ${n} run${n === 1 ? "" : "s"}`).join(", ")}>
             <${Icon} name="git-commit" size=${15} /> <b>${codes.length}</b> code versions</span>`
         : null}
+      ${row.hidden
+        ? html`<span><a href=${groupUrl(path, { hidden: !listed })} data-tip=${listed ? "Close the list of hidden runs" : "List the hidden runs"}>
+            <${Icon} name="eye-off" size=${15} /> <b>${row.hidden}</b> hidden</a></span>`
+        : null}
       ${row.notes ? html`<span><b>${row.notes}</b> note${row.notes === 1 ? "" : "s"}</span>` : null}
       <${Best} path=${path} />
     </p>`;
+}
+
+// the group's hidden runs, left out of every table and count until promoted.
+export function HiddenRuns({ path }: { path: string }) {
+  const found = rows(useCall(calls.hiddenRuns(path)).data);
+  if (!found.length) return null;
+  return html`<${Section} label="hidden runs">
+    <table class="runs">
+      <thead><tr class="small"><th>run</th><th>status</th><th>created</th><th></th></tr></thead>
+      <tbody>${found.map((r) => html`<tr key=${r["run.id"]}>
+        <td><a href=${runUrl(r["run.id"], path)}>${r["run.name"] ?? r["run.id"]}</a></td>
+        <td><${Sym} spec=${runSymbol(r["run.status"], null)} word /></td>
+        <td class="muted" data-tip=${r["run.created_at"]}>${ago(r["run.created_at"])}</td>
+        <td><${Button} icon="eye" kind="quiet" onClick=${() => promoteRun(r["run.id"], path)}>Promote<//></td>
+      </tr>`)}</tbody>
+    </table>
+  <//>`;
 }
 
 // the hypothesis of a group, its checks and its verdict: the first thing after the header.
@@ -126,10 +152,12 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
   if (!card) return html`<h1 class="page-title title" tabindex="-1">${id}</h1><div class="skeleton late" style="block-size: 24px"></div>`;
   const r = card.run;
   const copy = () => void navigator.clipboard?.writeText(r.id);
+  const promote = () => void promoteRun(r.id, scope);
   return html`
     <h1 class="page-title title" tabindex="-1"><${Editable} value=${r.name ?? r.id} label="the run's name" class="title-edit"
         onSave=${(next: string) => renameRun(r.id, scope, next.trim())} />
-      <${Sym} spec=${runSymbol(r.status, r.exit)} word tip=${silence(r)} /></h1>
+      <${Sym} spec=${runSymbol(r.status, r.exit)} word tip=${silence(r)} />
+      ${r.hidden ? html`<${Sym} spec=${HIDDEN} word tip=${HIDDEN_TIP} />` : null}</h1>
     ${r.error ? html`<p class="bad-text" data-tip=${r.error}>${r.error.split("\n")[0].slice(0, 160)}</p>` : null}
     <div class="facts">
       <span><b>${step(r.steps)}</b> steps</span>
@@ -137,6 +165,7 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
       ${card.progress ? html`<${EpochFact} run=${r} progress=${card.progress} />` : null}
       <span data-tip=${r.created_at}>${ago(r.created_at)}</span>
       <${Best} path=${scope} />
+      ${r.hidden ? html`<${IconButton} icon="eye" label="Promote: count this run in tables, charts and checks" onClick=${promote} />` : null}
       <${IconButton} icon="copy" label=${`Copy the run id ${r.id}`} onClick=${copy} />
       <${Popover} icon="ellipsis" label="Details" title="Run details" class="run-details">
         <table class="kv small">${[...details(r), ...lifecycleRows(card)].map(([k, v]) => html`<tr><td class="muted">${k}</td><td>${v}</td></tr>`)}</table>
@@ -144,6 +173,7 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
         <div class="menu-list">
           <button type="button" onClick=${() => navigate(groupUrl(scope, { run: r.id }), { replace: true })}>
             <${Icon} name="panel-right" size=${15} /> Open in the side panel</button>
+          ${r.hidden ? html`<button type="button" onClick=${promote}><${Icon} name="eye" size=${15} /> Promote</button>` : null}
           <button type="button" onClick=${copy}><${Icon} name="copy" size=${15} /> Copy the run id</button>
           ${r.git?.commit ? html`<button type="button" onClick=${() => navigator.clipboard?.writeText(r.git.commit)}>
             <${Icon} name="git-commit" size=${15} /> Copy the commit</button>` : null}

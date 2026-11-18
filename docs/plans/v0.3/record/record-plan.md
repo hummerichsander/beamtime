@@ -305,7 +305,7 @@ Write the design before code (CLAUDE.md: a deviation is decided and written back
 5. `status`: `hidden = {"count": n, "old": [ids with created_at older than HIDDEN_OLD_S = 7 * 86400, newest
    first, at most 5]}`; `render_status` prints the line of decision 6 only when `count`.
 
-### U45. Hidden runs in the web UI (sonnet) — code
+### U45. Hidden runs in the web UI (sonnet) — code — **done**
 
 - **Touches:** `web/src/router.ts` (`Route` 6–21, `parse` 29–52, `groupUrl` 54–67), `web/src/shell/calls.ts` (new
   `hiddenRuns`), `web/src/bt/writes.ts` (new `promoteRun` after `renameRun` 62–65), `web/src/shell/header.ts`
