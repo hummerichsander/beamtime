@@ -128,7 +128,7 @@ def add_data(ctx: Context, p: r.ViewDataParams) -> dict[str, Any]:
     from beamtime.query.models import QueryError
 
     d = store.draft(ctx, p.draft)
-    source = (ctx.root / p.file).expanduser().resolve()
+    source = (ctx.root / Path(p.file).expanduser()).resolve()
     if ctx.root not in source.parents:
         raise OpError(
             f"{p.file} is outside the project; ask the user to copy it in: cp {p.file} {ctx.root}/",
@@ -149,9 +149,14 @@ def add_data(ctx: Context, p: r.ViewDataParams) -> dict[str, Any]:
             code=2,
         )
     name = p.name or source.name
-    if not re.fullmatch(r"[\w.-]{1,120}", name) or Path(name).suffix.lower() not in FORMATS:
+    if (
+        not re.fullmatch(r"[\w.-]{1,120}", name)
+        or Path(name).suffix.lower() != source.suffix.lower()
+    ):
         raise OpError(
-            f"{name!r} is no file name for data/: use letters, digits, . _ - and a suffix"
+            f"{name!r} is no file name for data/: use letters, digits, . _ - "
+            f"and the suffix {source.suffix}",
+            code=2,
         )
     try:
         columns, rows = read_table(source)

@@ -256,7 +256,7 @@ def test_view_data_refuses_outside_files(ctx: Context, project: Path) -> None:
     call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
     outside = project.parent / "x.csv"
     outside.write_text("a\n1\n")
-    for file in ("/etc/hosts", "../x.csv", str(outside)):
+    for file in ("/etc/hosts", "../x.csv", str(outside), "~/x.csv"):
         with pytest.raises(OpError, match="outside the project"):
             call("view data", {"draft": "d", "file": file}, ctx)
     with pytest.raises(OpError, match=f"cp ../x.csv {project}/"):
@@ -282,6 +282,20 @@ def test_view_data_names(ctx: Context, project: Path) -> None:
     assert copy.read_bytes() == one.read_bytes()
     answer = call("view data", {"draft": "d", "file": "two.csv"}, ctx)
     assert answer["ref"] == "data/two.csv"
+
+
+def test_view_data_refuses_other_shapes(ctx: Context, project: Path) -> None:
+    """A JSON file that is no table and a ``--name`` with another suffix are usage errors."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
+    (project / "n.json").write_text("[1, 2, 3]")
+    with pytest.raises(OpError, match="no table") as e:
+        call("view data", {"draft": "d", "file": "n.json"}, ctx)
+    assert e.value.code == 2
+    (project / "t.csv").write_text("a,b\n1,2\n")
+    with pytest.raises(OpError, match="suffix .csv") as e:
+        call("view data", {"draft": "d", "file": "t.csv", "name": "t.json"}, ctx)
+    assert e.value.code == 2
+    assert not any((project / ".beamtime" / "drafts" / "d" / "data").iterdir())
 
 
 def test_view_data_checks_format_and_size(

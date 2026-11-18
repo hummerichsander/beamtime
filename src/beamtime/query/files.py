@@ -76,12 +76,17 @@ def read_table(path: Path) -> tuple[list[str], list[list[Any]]]:
             data = json.loads(path.read_text())
             if isinstance(data, dict) and "columns" in data and isinstance(data["columns"], dict):
                 data = data["columns"]
-            if isinstance(data, dict):
+            if isinstance(data, dict) and all(isinstance(v, list) for v in data.values()):
                 columns = list(data)
                 rows = [list(r) for r in zip(*data.values(), strict=False)]
-            else:
+            elif isinstance(data, list) and all(isinstance(r, dict) for r in data):
                 columns = list(dict.fromkeys(k for r in data for k in r))
                 rows = [[r.get(k) for k in columns] for r in data]
+            else:
+                raise QueryError(
+                    f"{path.name} is no table; a JSON table is a list of records or "
+                    "{column: [values]}: df.to_json(path, orient='records')"
+                )
         case ".parquet":
             try:
                 import pyarrow.parquet as pq
