@@ -131,9 +131,16 @@ def test_hidden_plan_point(ctx: Context) -> None:
 
 
 def test_hidden_run_own_proposal(ctx: Context) -> None:
-    """A hidden run named by id still answers for its own proposal."""
+    """A hidden run named by id still answers for its own proposal, which freezes only once the
+    run is promoted."""
     run_dir = runs_of(ctx.logdir, TOKENIZER)[0]
-    call("proposal set", {"group": run_dir.name, "proposal": NEW}, ctx)
     set_hidden(run_dir, True)
+    call("proposal set", {"group": run_dir.name, "proposal": NEW}, ctx)
     shown = call("proposal show", {"group": run_dir.name}, ctx)
-    assert shown["status"] != "open" and shown["versions"][0]["frozen"] is True
+    assert shown["status"] != "open" and shown["versions"][0]["frozen"] is False
+    call("proposal set", {"group": run_dir.name, "proposal": NEW}, ctx)
+    set_hidden(run_dir, False)
+    shown = call("proposal show", {"group": run_dir.name}, ctx)
+    assert shown["versions"][0]["frozen"] is True
+    with pytest.raises(OpError, match="frozen"):
+        call("proposal set", {"group": run_dir.name, "proposal": NEW}, ctx)

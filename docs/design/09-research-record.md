@@ -75,7 +75,7 @@ user: ada
   needs no clock, and survives moving a run: a moved run keeps its membership, and the UI notes that it
   was recorded under another group.
 - **Freezing.** A version is frozen once any *visible* run has recorded it. A run's own proposal is
-  frozen from the run's start, hidden or not: a run named by id always answers for itself.
+  frozen from the run's start, unless the run is hidden: then it freezes when the run is promoted.
   Frozen versions never change; the index refuses to treat an edited frozen file as valid and shows the
   hash mismatch.
 - **Before freezing**, a version can be replaced freely by saving a new one.
@@ -373,7 +373,8 @@ Decided while building the research record (milestone M4):
 - **Edits of frozen versions** are detected with `proposal_hashes` in `_run.json`
   ([layer 1](01-storage.md#_runjson)): the SDK records the hash of every proposal file it records.
   A version whose file no longer matches, or is gone, checks as `invalid` with the mismatch, and no
-  prediction is evaluated. A run's own proposal counts as frozen from its start.
+  prediction is evaluated. A run's own proposal counts as frozen from its start (a hidden run's from
+  its promotion).
 - **t quantiles** are computed in pure Python (Newton steps on the upper tail via the regularized
   incomplete beta function); they match SciPy to 1e-9, also for the fractional degrees of freedom of
   Welch's interval.

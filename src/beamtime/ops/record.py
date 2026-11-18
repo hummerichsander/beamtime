@@ -106,7 +106,7 @@ def proposal_show(ctx: Context, p: r.GroupParams) -> dict[str, Any]:
                     "version": version,
                     "statement": statement,
                     "runs": len(members),
-                    "frozen": bool(members) or target.run_id is not None,
+                    "frozen": bool(members) or target.visible_run,
                     "check": check,
                     "supersedes": supersedes.version if supersedes else None,
                     "reason": supersedes.reason if supersedes else None,
@@ -297,7 +297,7 @@ def superseding(target: Target, proposal: Proposal, latest: str | None) -> list[
     if latest is None:
         return []
     n = len(target.members(latest))
-    if n or target.run_id is not None:
+    if n or target.visible_run:
         raise RecordError(
             f"the current version {latest} is frozen ({n} run(s) recorded it); say why it is "
             f"replaced: --reason '...' or supersedes: {{version: {latest}, reason: ...}}"

@@ -338,11 +338,21 @@ class Target:
             else [self.rel, *earlier(self.index.logdir, self.rel, self.rel)]
         )
 
+    @property
+    def visible_run(self) -> bool:
+        """Whether the target is a visible run: its own proposal is frozen from its start."""
+        if self.run_id is None:
+            return False
+        row = self.index.store.db.execute(
+            "SELECT hidden FROM runs WHERE id = ?", [self.run_id]
+        ).fetchone()
+        return row is not None and not row[0]
+
     def membership(self, version: str) -> tuple[str, list[Any]]:
         """Build the SQL condition selecting the runs that recorded a version.
 
-        A group's members leave out hidden runs, so a test run never freezes a proposal or
-        counts in a check; a run named by id answers for its own proposal either way.
+        Members leave out hidden runs, so a test run never freezes a proposal or counts in a
+        check, its own proposal included, until it is promoted.
 
         :param version: The version id.
         :return: The condition and its parameters."""
@@ -355,7 +365,7 @@ class Target:
             + ")"
         )
         if self.run_id is not None:
-            return f"runs.id = ? AND {cond}", [self.run_id, version]
+            return f"runs.id = ? AND {cond} AND runs.hidden = 0", [self.run_id, version]
         return f"{cond} AND runs.hidden = 0", [version] * len(keys)
 
     def members(self, version: str) -> list[dict[str, Any]]:
