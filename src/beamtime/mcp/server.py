@@ -2,6 +2,7 @@
 
 import json
 import mimetypes
+import sys
 from pathlib import Path
 from typing import Any, get_args
 
@@ -450,7 +451,10 @@ def build(root: str | Path | None = None, registration: Registration | None = No
         arguments = params.arguments or {}
         if registration is not None and registration.fields.get("client") is None:
             if (client := ctx.session.client_params) is not None:
-                registration.update(client=client.client_info.name)
+                try:
+                    registration.update(client=client.client_info.name)
+                except OSError as e:
+                    print(f"beamtime: not listed in the process registry ({e})", file=sys.stderr)
         if params.name == "tools_more":
             if (name := arguments.get("tool")) is None:
                 if (family := arguments.get("family")) not in FAMILIES:

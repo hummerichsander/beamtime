@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -483,6 +484,30 @@ def test_mcp_runs_without_a_registry(
             async with stdio_client(params, errlog=errfile) as (read, write):
                 async with ClientSession(read, write) as s:
                     await s.initialize()
+                    return await s.call_tool("runs", {"from": "scaling/lr-sweep", "limit": 1})
+
+    result = anyio.run(main)
+    assert not result.is_error
+    assert "not listed in the process registry" in errlog.read_text()
+
+
+def test_mcp_call_survives_a_failed_registry_update(
+    project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A registry that vanishes after start costs the client's name, not the tool call."""
+    runtime = tmp_path / "rt"
+    monkeypatch.setenv("BEAMTIME_RUNTIME", str(runtime))
+    errlog = tmp_path / "err.txt"
+
+    async def main():
+        params = StdioServerParameters(
+            command=str(BEAMTIME), args=["mcp"], cwd=str(project), env=dict(os.environ)
+        )
+        with errlog.open("w") as errfile:
+            async with stdio_client(params, errlog=errfile) as (read, write):
+                async with ClientSession(read, write) as s:
+                    await s.initialize()
+                    shutil.rmtree(runtime / "procs")
                     return await s.call_tool("runs", {"from": "scaling/lr-sweep", "limit": 1})
 
     result = anyio.run(main)

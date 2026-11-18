@@ -20,13 +20,13 @@ def serve(root: str | Path | None = None) -> int:
         )
         return 1
     from beamtime.index.cache import resolve_cache
-    from beamtime.index.procs import register
+    from beamtime.index.procs import Registration, register
     from beamtime.ops.context import Context
 
     # outside a project Context.make falls back to the working directory, as every tool call does.
     ctx = Context.make(root=root, caller="mcp")
     cache = resolve_cache(ctx.logdir, ctx.settings)
-    registration = None
+    registration: Registration | None = None
     try:
         registration = register(
             "mcp",
