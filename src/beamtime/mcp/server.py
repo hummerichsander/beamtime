@@ -12,6 +12,7 @@ from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
 
 from beamtime import remote
+from beamtime.index.procs import Registration
 from beamtime.ops.context import Context, OpError
 from beamtime.ops.registry import BY_TOOL, OPS, Author, Op
 from beamtime.query.models import ExportTo, Group, Where
@@ -419,10 +420,11 @@ def prompts() -> list[types.Prompt]:
     ]
 
 
-def build(root: str | Path | None = None) -> Server:
+def build(root: str | Path | None = None, registration: Registration | None = None) -> Server:
     """Build the server for a project.
 
     :param root: The project root, or ``None`` to find it from the working directory.
+    :param registration: The process registry entry; gets the client's name on the first call.
     :return: The server."""
     from importlib.metadata import version
 
@@ -446,6 +448,9 @@ def build(root: str | Path | None = None) -> Server:
 
     async def call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
         arguments = params.arguments or {}
+        if registration is not None and registration.fields.get("client") is None:
+            if (client := ctx.session.client_params) is not None:
+                registration.update(client=client.client_info.name)
         if params.name == "tools_more":
             if (name := arguments.get("tool")) is None:
                 if (family := arguments.get("family")) not in FAMILIES:
@@ -513,10 +518,11 @@ def error(message: str) -> types.CallToolResult:
     return types.CallToolResult(content=[types.TextContent(text=message)], is_error=True)
 
 
-async def run(root: str | Path | None = None) -> None:
+async def run(root: str | Path | None = None, registration: Registration | None = None) -> None:
     """Serve over stdio until the client disconnects.
 
-    :param root: The project root, or ``None``."""
-    server = build(root)
+    :param root: The project root, or ``None``.
+    :param registration: The process registry entry, or ``None``."""
+    server = build(root, registration)
     async with stdio_server() as (read, write):
         await server.run(read, write, server.create_initialization_options())

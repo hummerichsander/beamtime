@@ -46,6 +46,7 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
         ) from None
     from beamtime.index.cache import daemon_status
     from beamtime.index.daemon import Daemon
+    from beamtime.index.procs import Registration, register
 
     hub = Hub()
     restart = threading.Event()
@@ -72,7 +73,19 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
             f"beamtime serve already runs for {ctx.logdir} (pid {running.get('pid')}){where}; "
             "open that one, or stop it first"
         )
+    registration: Registration | None = None
     try:
+        # uvicorn re-raises the signal that stopped it; SIGTERM must still clean up.
+        signal.signal(signal.SIGTERM, stop)
+        registration = register(
+            "index" if sock is None else "serve",
+            root=str(ctx.root),
+            logdir=str(ctx.logdir),
+            cache=str(cache),
+            cache_kind="memory" if daemon.memory else "disk",
+            port=daemon.port,
+            sources=sorted(sources.clients) if sources else [],
+        )
         if sock is None:
             say(f"Beamtime indexes {ctx.logdir} (no UI); Ctrl-C stops.")
             while daemon.thread.is_alive():
@@ -88,8 +101,6 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
         config = uvicorn.Config(
             guarded, log_level="warning", lifespan="on", timeout_graceful_shutdown=1
         )
-        # uvicorn re-raises the signal that stopped it; SIGTERM must still clean up.
-        signal.signal(signal.SIGTERM, stop)
         server = server_class()(config, hub=hub)
         if p.watch:
             threading.Thread(target=watch_code, args=(server, restart), daemon=True).start()
@@ -99,6 +110,8 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
     except (KeyboardInterrupt, SystemExit):
         return {"kind": "serve", "lines": ["stopped"]}
     finally:
+        if registration is not None:
+            registration.close()
         daemon.stop()
         if sources is not None:
             sources.close()

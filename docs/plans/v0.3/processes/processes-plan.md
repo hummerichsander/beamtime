@@ -200,7 +200,7 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
 3. `listed() -> tuple[list[dict], list[dict]]`: live records (lock held elsewhere) and stale ones (lock free;
    their files removed, `OSError` ignored for Windows' open files), sorted by `kind`, then `started`.
 
-### J52. serve, serve --stdio and mcp register themselves (sonnet + review) — code
+### J52. serve, serve --stdio and mcp register themselves (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/serve/server.py` (`serve` 26–110; SIGTERM handler before the no-UI branch 76),
   `src/beamtime/serve/stdio.py` (`run` 121–155), `src/beamtime/mcp/__init__.py` (`serve` 7–23),

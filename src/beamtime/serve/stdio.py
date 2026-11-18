@@ -20,6 +20,7 @@ from typing import IO, Any
 import msgspec
 
 from beamtime.index.cache import resolve_cache
+from beamtime.index.procs import Registration, register
 from beamtime.ops.context import Context, OpError
 from beamtime.settings import expand_path
 
@@ -145,11 +146,22 @@ def run(*, logdir: str, cache: str | None = None) -> int:
         print(f"beamtime: the cache is on {refused}; using a temporary one", file=sys.stderr)
     # stdout carries the protocol: everything else an operation prints goes to stderr.
     out, sys.stdout = sys.stdout, sys.stderr
+    registration: Registration | None = None
     try:
+        registration = register(
+            "remote",
+            root=str(ctx.root),
+            logdir=str(path),
+            cache=str(resolved.path),
+            cache_kind="temporary" if own else resolved.kind,
+            client=os.environ.get("SSH_CONNECTION", "").split(" ")[0] or None,
+        )
         ctx = dataclasses.replace(ctx, logdir=path)
         Remote(ctx=ctx, out=out).serve(sys.stdin)
     finally:
         sys.stdout = out
+        if registration is not None:
+            registration.close()
         if own is not None:
             shutil.rmtree(own, ignore_errors=True)
     return 0

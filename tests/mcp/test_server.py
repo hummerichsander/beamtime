@@ -434,3 +434,53 @@ def test_arguments_sent_as_json_text_are_decoded_once() -> None:
         "body": '"quoted"',
         "group": "[1]",
     }
+
+
+def test_mcp_registers_with_its_client_after_a_call(
+    project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The MCP server is listed as ``mcp`` with its root, the client's name after one tool call,
+    and not at all after it exits."""
+    from mcp_types import Implementation
+
+    from beamtime.index.procs import listed
+
+    monkeypatch.setenv("BEAMTIME_RUNTIME", str(tmp_path / "rt"))
+
+    async def main():
+        params = StdioServerParameters(
+            command=str(BEAMTIME), args=["mcp"], cwd=str(project), env=dict(os.environ)
+        )
+        async with stdio_client(params) as (read, write):
+            info = Implementation(name="probe-client", version="1")
+            async with ClientSession(read, write, client_info=info) as s:
+                await s.initialize()
+                before = listed()[0]
+                await s.call_tool("runs", {"from": "scaling/lr-sweep", "limit": 1})
+                return before, listed()[0]
+
+    before, after = anyio.run(main)
+    assert [r["kind"] for r in after] == ["mcp"] and before[0]["client"] is None
+    assert after[0]["root"] == str(project.resolve()) and after[0]["client"] == "probe-client"
+    assert listed() == ([], [])
+
+
+def test_mcp_without_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Outside a project the server still starts and registers, with the working directory as root."""
+    from beamtime.index.procs import listed
+
+    monkeypatch.setenv("BEAMTIME_RUNTIME", str(tmp_path / "rt"))
+    where = tmp_path / "nowhere"
+    where.mkdir()
+
+    async def main():
+        params = StdioServerParameters(
+            command=str(BEAMTIME), args=["mcp"], cwd=str(where), env=dict(os.environ)
+        )
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as s:
+                await s.initialize()
+                return listed()[0]
+
+    [record] = anyio.run(main)
+    assert record["kind"] == "mcp" and record["root"] == str(where.resolve())

@@ -19,5 +19,25 @@ def serve(root: str | Path | None = None) -> int:
             file=sys.stderr,
         )
         return 1
-    anyio.run(run, root)
+    from beamtime.index.cache import resolve_cache
+    from beamtime.index.procs import register
+    from beamtime.ops.context import Context, OpError
+
+    fields: dict[str, str] = {}
+    try:
+        ctx = Context.make(root=root, caller="mcp")
+        cache = resolve_cache(ctx.logdir, ctx.settings)
+        fields = {
+            "root": str(ctx.root),
+            "logdir": str(ctx.logdir),
+            "cache": str(cache.path),
+            "cache_kind": cache.kind,
+        }
+    except OpError:
+        pass
+    registration = register("mcp", **fields)
+    try:
+        anyio.run(run, root, registration)
+    finally:
+        registration.close()
     return 0
