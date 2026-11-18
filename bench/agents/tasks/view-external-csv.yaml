@@ -15,6 +15,12 @@ facts:
     (about 0.93). By the mean over seeds, hers is also best at 3e-4, while ours is a hair higher at 1e-3
     (about 0.92) because a killed 3e-4 run (0.858) pulls that mean down. A finding that names the best
     lr correctly for either statistic is true; naming 1e-3 as best in ours by the mean is not wrong.
+    Per learning rate, the final val/acc as best run / mean over seeds. Ours (17 runs; three seeds
+    each at 3e-5, 1e-4, 1e-3 and 3e-3, four at 3e-4 with the killed one, a single failed run at
+    0.01): 3e-5 0.871 / 0.864; 1e-4 0.918 / 0.914; 3e-4 0.931 / 0.910 (0.928 over the three finished
+    runs); 1e-3 0.920 / 0.920; 3e-3 0.894 / 0.889; 0.01 0.796 / 0.796. Hers (JAX, three seeds each,
+    no 3e-5): 1e-4 0.908 / 0.902; 3e-4 0.938 / 0.932; 1e-3 0.921 / 0.917; 3e-3 0.902 / 0.893; 0.01
+    0.818 / 0.800.
   overclaims: ["lr 0.01 is best", "the differences are statistically significant"]
 checklist:
   - There is a table with her JAX results, with the columns lr, seed and val_acc.

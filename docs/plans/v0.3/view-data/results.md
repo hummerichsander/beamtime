@@ -175,3 +175,12 @@ without saying by which statistic (best run or mean over seeds) where the truth'
 sweep. One run (sonnet-0) wrote no provenance note. The checklist item "no empty charts" fails in four of the five
 scored runs on a lazily rendered built-in chart, as in the other task. No guide change follows from the held-out
 run.
+
+### After U63: truth completed, one guide line (not measured)
+
+Four runs failed on the best learning rate: two called a best-run figure a mean (an agent error), two failed
+because the judge counted claims the truth does not mention (held-out sonnet-2 "similar values per lr", csv
+haiku-0 "1e-3 is second") as overclaims. Afterwards the facts of `view-external-csv` and `view-external-chart`
+were completed with the best run and the mean over seeds per learning rate for both sweeps (computed from the
+seed-7 synth log dir and `fixtures/jax-sweep.csv`), the judge's rule left unchanged, and the `data-files` topic got
+one line telling findings to name the statistic. Neither change has been run through the bench.
