@@ -443,3 +443,19 @@ def test_upgrade_grouped() -> None:
     assert out == grouped | {"y": grouped["mean"]}
     banded = grouped | {"lo": [None, None], "hi": [None, None]}
     assert upgrade_curve(banded)["lo"] == [None, None]
+
+
+def test_merged_keys_find_the_seed_key_again() -> None:
+    """Merged keys name the one seed of the merged varying keys, not the first source's."""
+
+    def keys(varying: list[str], seed: str | None) -> dict[str, Any]:
+        config = {"columns": ["key", "runs", "values"], "rows": [], "varying": varying}
+        return {"kind": "keys", "runs": 1, "config": config | {"aliases": {}, "seed": seed}}
+
+    answer = merged(
+        "keys",
+        [("local", keys([], None)), ("a", keys(["config.trainer.seed"], "config.trainer.seed"))],
+        {},
+        "cli",
+    )
+    assert answer["config"]["seed"] == "config.trainer.seed"

@@ -9,6 +9,7 @@ from typing import Any, ClassVar
 
 from beamtime.format.place import Place
 from beamtime.ops import budget
+from beamtime.query.distinguish import seed_key
 
 PATH_KEYS = ("group", "from", "scope", "folder")
 # what users wrote or logged: its keys may be called group or path, and it is never a place.
@@ -518,6 +519,7 @@ class Keys(Bare):
                     aliases.update(t.get("aliases") or {})
                 first[table]["varying"] = sorted(varying)
                 first[table]["aliases"] = aliases
+                first[table]["seed"] = seed_key(varying)
         return first
 
 
