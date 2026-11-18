@@ -53,7 +53,7 @@ def runs_kind(ctx: Context, q: m.Runs) -> dict[str, Any]:
     :param q: The query.
     :return: ``{columns, rows, meta}``."""
     by = list(q.by or [])
-    select = q.select or [f for f in default_columns(ctx) if not (by and f == "run.name")]
+    select = q.select or [f for f in default_columns(ctx, q.hidden) if not (by and f == "run.name")]
     select = [*by, *[s for s in select if s not in by]]
     sort = q.sort or ([] if q.seeds or by else ["-run.created_at"])
     sorted_by = [s.lstrip("-") for s in sort]
@@ -90,12 +90,13 @@ def runs_kind(ctx: Context, q: m.Runs) -> dict[str, Any]:
     }
 
 
-def default_columns(ctx: Context) -> list[str]:
+def default_columns(ctx: Context, hidden: bool = False) -> list[str]:
     """Pick the default run table columns: name, status, steps and common metrics.
 
     :param ctx: The query context.
+    :param hidden: Whether hidden runs count.
     :return: The fields."""
-    cond, params = scope_condition(ctx)
+    cond, params = scope_condition(ctx, hidden=hidden)
     common = ctx.index.store.db.execute(
         "SELECT j.key, count(*) AS n FROM runs, json_each(card, '$.metrics') j "
         f"WHERE {cond} GROUP BY j.key ORDER BY n DESC, j.key LIMIT 3",
@@ -227,7 +228,7 @@ def series_kind(ctx: Context, q: m.Series) -> dict[str, Any]:
         raise QueryError("series: steps is [first, last], e.g. [0, 5000]")
     window = (q.steps[0], q.steps[1]) if q.steps else (None, None)
     if q.x not in ("_step", TIME_KEY, "_elapsed"):
-        check_known(ctx, [parse_field(f"metric.{q.x}.last")])
+        check_known(ctx, [parse_field(f"metric.{q.x}.last")], q.hidden)
     if q.by or q.seeds:
         groups = (
             [(cfg, rs) for cfg, rs in seed_groups(runs, q.seeds)]
@@ -665,11 +666,11 @@ def groups_kind(ctx: Context, q: m.Groups) -> dict[str, Any]:
     base = 0 if ctx.scope in (".", "") else ctx.scope.count("/") + 1
     run_paths = {r[0] for r in db.execute("SELECT path FROM runs")}
     statuses = [
-        (r[0], derived_status(r[1], r[2], ctx.now))
-        for r in db.execute("SELECT folder, status, heartbeat FROM runs")
+        (r[0], derived_status(r[1], r[2], ctx.now), bool(r[3]))
+        for r in db.execute("SELECT folder, status, heartbeat, hidden FROM runs")
     ]
     columns = ["path", "proposal", "status", "check", "progress", "verdict", "runs", "direct"]
-    columns += ["running", "finished", "failed", "killed", "lost", "view", "notes"]
+    columns += ["running", "finished", "failed", "killed", "lost", "view", "notes", "hidden"]
     rows = []
     for path in sorted(paths):
         depth = 0 if path in (".", "") else path.count("/") + 1
@@ -680,11 +681,12 @@ def groups_kind(ctx: Context, q: m.Groups) -> dict[str, Any]:
         if not matches(q.where, values):
             continue
         below = [
-            s
-            for folder, s in statuses
+            (s, h)
+            for folder, s, h in statuses
             if path == "." or folder == path or folder.startswith(f"{path}/")
         ]
-        counts = Counter(below)
+        counted = [s for s, h in below if q.hidden or not h]
+        counts = Counter(counted)
         view = newest(ctx.index.folder_path(path) / c.VIEW)
         notes = db.execute("SELECT count(*) FROM notes WHERE folder = ?", (path,)).fetchone()[0]
         check = status["check"]
@@ -698,8 +700,8 @@ def groups_kind(ctx: Context, q: m.Groups) -> dict[str, Any]:
                 check,
                 status["progress_text"],
                 status["verdict"],
-                len(below),
-                sum(1 for folder, _ in statuses if folder == path),
+                len(counted),
+                sum(1 for folder, _, h in statuses if folder == path and (q.hidden or not h)),
                 counts["running"],
                 counts["finished"],
                 counts["failed"],
@@ -707,6 +709,7 @@ def groups_kind(ctx: Context, q: m.Groups) -> dict[str, Any]:
                 counts["lost"],
                 view.stem if view else None,
                 notes,
+                sum(1 for _, h in below if h),
             ]
         )
     return {

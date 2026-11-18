@@ -426,13 +426,13 @@ def test_last_logged_tracks_appends(index: Index, logdir: Path) -> None:
 
 
 def test_old_schema_rebuilds_on_open(logdir: Path, tmp_path: Path) -> None:
-    """A cache of schema 2 is dropped and built again when the index opens."""
+    """A cache of schema 3 is dropped and built again when the index opens."""
     first = Index(logdir=logdir, cache=tmp_path / "cache")
     first.catch_up(".", budget_s=float("inf"))
-    first.store.db.execute("UPDATE meta SET value = '2' WHERE key = 'schema'")
+    first.store.db.execute("UPDATE meta SET value = '3' WHERE key = 'schema'")
     first.close()
     second = Index(logdir=logdir, cache=tmp_path / "cache")
-    assert second.store.version() == SCHEMA_VERSION == 3 and second.store.rebuilt
+    assert second.store.version() == SCHEMA_VERSION == 4 and second.store.rebuilt
     second.close()
 
 
@@ -466,3 +466,30 @@ def test_rebuild_clears_columns_before_the_new_schema_shows(
     got = columns(second, run.name)
     assert want and all(same(got[k], want[k]) for k in want)
     second.close()
+
+
+def test_hidden_flag_is_indexed(index: Index, logdir: Path) -> None:
+    """``runs.hidden`` follows the run's flag."""
+    run = next(iter_runs(logdir / "scaling" / "lr-sweep"))
+    info = json.loads((run / "_run.json").read_text())
+    (run / "_run.json").write_text(json.dumps(info | {"hidden": True}))
+    index.catch_up(".", budget_s=float("inf"))
+    assert index.store.run(run.name)["hidden"] == 1
+    assert index.store.db.execute("SELECT count(*) FROM runs WHERE hidden = 1").fetchone()[0] == 1
+
+
+def test_promotion_is_ingested(index: Index, logdir: Path) -> None:
+    """A ``visibility/`` file flips ``runs.hidden`` on the next catch-up, without a reindex."""
+    run = next(iter_runs(logdir / "scaling" / "lr-sweep"))
+    info = json.loads((run / "_run.json").read_text())
+    (run / "_run.json").write_text(json.dumps(info | {"hidden": True}))
+    index.catch_up(".", budget_s=float("inf"))
+    assert index.store.run(run.name)["hidden"] == 1
+    time.sleep(0.01)
+    folder = run / "visibility"
+    folder.mkdir()
+    (folder / "20261101-100000-aaaa.yaml").write_text(
+        "schema: 1\nhidden: false\nauthor: a\nuser: u\n"
+    )
+    index.catch_up(".", budget_s=float("inf"))
+    assert index.store.run(run.name)["hidden"] == 0

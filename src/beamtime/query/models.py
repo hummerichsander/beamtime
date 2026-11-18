@@ -105,6 +105,7 @@ class Selection(Struct, kw_only=True):
     from_: Group = msgspec.field(default=".", name="from")
     depth: Literal["all"] | int = "all"
     where: Where = msgspec.field(default_factory=dict)
+    hidden: Annotated[bool, msgspec.Meta(description="include hidden (test) runs")] = False
 
 
 class Keys(Selection, kw_only=True):

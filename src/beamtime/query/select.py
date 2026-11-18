@@ -86,13 +86,16 @@ class Columns:
             col.close()
 
 
-def known_keys(ctx: Context, what: Literal["metrics", "values", "config"]) -> set[str]:
+def known_keys(
+    ctx: Context, what: Literal["metrics", "values", "config"], hidden: bool = False
+) -> set[str]:
     """List the metric, value or top-level config keys in scope.
 
     :param ctx: The query context.
     :param what: Which keys.
+    :param hidden: Whether hidden runs count.
     :return: The keys."""
-    cond, params = scope_condition(ctx)
+    cond, params = scope_condition(ctx, hidden=hidden)
     source = {"metrics": "card, '$.metrics'", "values": "card, '$.values'"}.get(what, "config")
     rows = ctx.index.store.db.execute(
         f"SELECT DISTINCT j.key FROM runs, json_each({source}) j WHERE {cond}", params
@@ -100,11 +103,14 @@ def known_keys(ctx: Context, what: Literal["metrics", "values", "config"]) -> se
     return {r[0] for r in rows}
 
 
-def scope_condition(ctx: Context, depth: Any = "all") -> tuple[str, list[Any]]:
+def scope_condition(
+    ctx: Context, depth: Any = "all", hidden: bool = False
+) -> tuple[str, list[Any]]:
     """Build the SQL condition selecting the runs in scope.
 
     :param ctx: The query context.
     :param depth: ``all`` or how many levels below the scope to include.
+    :param hidden: Whether hidden runs are in scope; a run named by id always is.
     :return: The condition and its parameters."""
     if ctx.run_id is not None:
         return "runs.id = ?", [ctx.run_id]
@@ -116,19 +122,22 @@ def scope_condition(ctx: Context, depth: Any = "all") -> tuple[str, list[Any]]:
             "length(runs.folder) - length(replace(runs.folder, '/', '')) + 1 END) < ?"
         )
         params.append(base + int(depth))
+    if not hidden:
+        cond += " AND runs.hidden = 0"
     return cond, params
 
 
-def check_known(ctx: Context, fields: list[Field]) -> None:
+def check_known(ctx: Context, fields: list[Field], hidden: bool = False) -> None:
     """Refuse fields naming keys that no run in scope has, with the closest matches.
 
     :param ctx: The query context.
-    :param fields: The fields of the query."""
+    :param fields: The fields of the query.
+    :param hidden: Whether hidden runs count."""
     for f in fields:
         what = {"metric": "metrics", "value": "values", "config": "config"}.get(f.ns)
         if what is None:
             continue
-        cond, params = scope_condition(ctx)
+        cond, params = scope_condition(ctx, hidden=hidden)
         source = {"metrics": "card, '$.metrics'", "values": "card, '$.values'"}.get(what, "config")
         # one hit is enough; the full key list is only needed for suggestions.
         hit = ctx.index.store.db.execute(
@@ -137,7 +146,7 @@ def check_known(ctx: Context, fields: list[Field]) -> None:
         ).fetchone()
         if hit:
             continue
-        if known := known_keys(ctx, what):
+        if known := known_keys(ctx, what, hidden):
             raise QueryError(
                 f"{f.text!r}: no run in {ctx.scope!r} has {f.ns} key {f.key!r}."
                 f"{closest(f.key, sorted(known))} See `beamtime keys {ctx.scope}`.",
@@ -208,11 +217,11 @@ def select_runs(
     fields = [parse_field(t) for t in texts]
     # the steps a window refers to are fetched like fields but not part of the answer.
     steps = [r for f in fields if (r := f.ref) is not None and r not in fields]
-    check_known(ctx, [*fields, *steps])
+    check_known(ctx, [*fields, *steps], sel.hidden)
     exprs = [(f, e) for f in [*fields, *steps] if (e := sql(f)) is not None]
     whole = "config" if config else "NULL"
     cols = ", ".join(["id", "path", "status", "heartbeat", whole, *[e for _, e in exprs]])
-    cond, params = scope_condition(ctx, sel.depth)
+    cond, params = scope_condition(ctx, sel.depth, sel.hidden)
     if restrict is not None:
         cond, params = f"{cond} AND {restrict[0]}", [*params, *restrict[1]]
     pre, pre_params = prefilter(sel.where, dict(exprs))

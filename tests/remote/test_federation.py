@@ -537,3 +537,11 @@ def test_down_source_paging(ctx: Context, small_pages: None) -> None:
     rows, pages = paged_groups(ctx, local, down, up)
     assert pages > 1 and rows == [*local, *up.rows]
     assert all(down.whole + up.whole)
+
+
+def test_hidden_is_sent_only_when_true() -> None:
+    """A remote that predates ``hidden`` never sees it set to false."""
+    from beamtime.remote.route import strip
+
+    assert strip({"from": ".", "hidden": False}, "a") == {"from": "."}
+    assert strip({"from": ".", "hidden": True}, "a") == {"from": ".", "hidden": True}

@@ -53,6 +53,7 @@ def run_facts(
     depth: Literal["all"] | int = "all",
     config: bool = False,
     metrics: bool = False,
+    hidden: bool = False,
 ) -> list[RunFacts]:
     """List the runs of a scope that meet a condition, with their facts, without reading run files.
 
@@ -66,11 +67,12 @@ def run_facts(
     :param depth: How many group levels below the scope to look into.
     :param config: Whether to include each run's flattened config.
     :param metrics: Whether to include each run's card statistics by metric.
+    :param hidden: Whether to include hidden runs.
     :return: One ``RunFacts`` per run.
     :raises QueryError: As the query language does, e.g. for an unknown field in ``where``."""
     index.catch_up(scope)
     ctx = Context(index=index, caller="cli", scope=scope, run_id=run_id, now=now)
-    sel = m.Selection(from_=scope, depth=depth, where=where or {})
+    sel = m.Selection(from_=scope, depth=depth, where=where or {}, hidden=hidden)
     rows, _ = select_runs(ctx, sel, FIELDS, config=config)
     return [
         RunFacts(

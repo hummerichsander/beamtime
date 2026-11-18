@@ -221,7 +221,7 @@ Write the design before code (CLAUDE.md: a deviation is decided and written back
 5. Lightning (`src/beamtime/lightning.py:26`) passes `**kwargs` to `init`, so nothing changes there; mention
    `hidden` in its docstring only if it lists `init`'s arguments.
 
-### U42. Hidden in the index and every selection (sonnet + review) — code
+### U42. Hidden in the index and every selection (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/index/store.py` (`SCHEMA_VERSION` 10, `runs` table 14–36),
   `src/beamtime/index/ingest.py` (`ingest_meta` 104–133, `authored_mtime` 284–293), `src/beamtime/query/fields.py`

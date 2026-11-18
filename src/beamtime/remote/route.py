@@ -165,11 +165,11 @@ def source_of(params: dict[str, Any]) -> str | None:
 
 
 def strip(params: dict[str, Any], source: str | None) -> dict[str, Any]:
-    """Take the source's prefix off every target.
+    """Take the source's prefix off every target, and leave out ``hidden`` unless it is true.
 
     :param params: The parameters.
     :param source: The source's name, or ``None`` to take an explicit ``@local`` off.
-    :return: The parameters as the remote reads them."""
+    :return: The parameters as the remote reads them; an older remote doesn't know ``hidden``."""
 
     def bare(v: Any) -> Any:
         if isinstance(v, list):
@@ -178,7 +178,7 @@ def strip(params: dict[str, Any], source: str | None) -> dict[str, Any]:
             return v
         return place.path
 
-    out = {k: bare(v) if k in TARGETS else v for k, v in params.items()}
+    out = {k: bare(v) if k in TARGETS else v for k, v in params.items() if k != "hidden" or v}
     if isinstance(query := out.get("query"), dict):
         out["query"] = {
             k: {**v, "from": bare(v.get("from"))} if isinstance(v, dict) else v

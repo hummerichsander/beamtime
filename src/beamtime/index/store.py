@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
@@ -20,6 +20,7 @@ CREATE TABLE runs (
     created_at TEXT,
     ended_at TEXT,
     heartbeat REAL,
+    hidden INTEGER NOT NULL DEFAULT 0,
     tags TEXT,
     info TEXT,
     config TEXT,

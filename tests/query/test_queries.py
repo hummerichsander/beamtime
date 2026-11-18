@@ -1008,3 +1008,110 @@ def test_behind_counts_only_runs_the_answer_did_not_read(behind, roles) -> None:
     index.ingester.ingest_streams = lambda d: calls.append(d) or original(d)
     second = run(q, logdir=index.logdir, index=index, budget_s=0.0)
     assert calls == [] and second["curves"] == first["curves"]
+
+
+@pytest.fixture
+def hide(tmp_path: Path, fresh_logdir):
+    """A fresh log dir with one run of ``scaling/lr-sweep`` hidden by its flag.
+
+    :param tmp_path: Pytest's temporary directory.
+    :param fresh_logdir: Writes a generated log dir.
+    :return: The log dir, the hidden run's directory and an ``ask`` function."""
+    logdir = tmp_path / "beamtime"
+    fresh_logdir(logdir, 1)
+    run_dir = next(
+        r for r in sorted((logdir / "scaling" / "lr-sweep").iterdir()) if (r / "_run.json").exists()
+    )
+    info = json.loads((run_dir / "_run.json").read_text())
+    (run_dir / "_run.json").write_text(json.dumps(info | {"hidden": True}))
+    config = json.loads((run_dir / "_config.json").read_text())
+    (run_dir / "_config.json").write_text(json.dumps(config | {"hidden_only": 1}))
+    index = Index(logdir=logdir, cache=tmp_path / "cache")
+    index.catch_up(".", budget_s=float("inf"))
+
+    def answer(query: dict) -> dict:
+        return run(query, logdir=logdir, index=index)
+
+    yield logdir, run_dir, answer
+    index.close()
+
+
+def test_hidden_runs_are_left_out(hide) -> None:
+    """Every kind leaves a hidden run out, and ``hidden: true`` brings it back."""
+    _, run_dir, ask = hide
+    group = "scaling/lr-sweep"
+    visible = table(ask({"runs": {"from": group}}))
+    shown = table(ask({"runs": {"from": group, "hidden": True}}))
+    assert run_dir.name not in {r["run.id"] for r in visible}
+    assert run_dir.name in {r["run.id"] for r in shown}
+    n = len(visible)
+    assert len(shown) == n + 1
+    flags = table(ask({"runs": {"from": group, "hidden": True, "select": ["run.hidden"]}}))
+    assert [r["run.hidden"] for r in flags].count(True) == 1
+    only = table(ask({"runs": {"from": group, "hidden": True, "where": {"run.hidden": True}}}))
+    assert len(only) == 1
+    keys = ask({"keys": {"from": group}})
+    assert "config.hidden_only" not in {r[0] for r in keys["config"]["rows"]}
+    keys = ask({"keys": {"from": group, "hidden": True}})
+    assert "config.hidden_only" in {r[0] for r in keys["config"]["rows"]}
+    series = ask({"series": {"from": group, "y": ["train/loss"], "points": 5}})
+    assert len(series["curves"]) == n
+    series = ask({"series": {"from": group, "y": ["train/loss"], "points": 5, "hidden": True}})
+    assert len(series["curves"]) == n + 1
+    rows = {r["path"]: r for r in table(ask({"groups": {"from": "."}}))}
+    total = rows["."]["runs"]
+    assert rows[group]["runs"] == n and rows[group]["hidden"] == 1 and rows[group]["direct"] == n
+    assert rows["."]["hidden"] == 1
+    rows = {r["path"]: r for r in table(ask({"groups": {"from": ".", "hidden": True}}))}
+    assert rows[group]["runs"] == n + 1 and rows[group]["direct"] == n + 1
+    assert rows["."]["runs"] == total + 1
+
+
+def test_hidden_run_named_by_id_shows(hide) -> None:
+    """A run named in ``from`` counts although it is hidden."""
+    _, run_dir, ask = hide
+    one = table(ask({"runs": {"from": run_dir.name, "select": ["run.hidden"]}}))
+    assert len(one) == 1 and one[0]["run.hidden"] is True
+
+
+def test_hidden_only_key(hide) -> None:
+    """A key only hidden runs have is unknown by default and known with ``hidden``."""
+    _, _, ask = hide
+    query = {"from": "scaling/lr-sweep", "where": {"config.hidden_only": 1}}
+    with pytest.raises(QueryError, match="hidden_only"):
+        ask({"runs": query})
+    assert len(table(ask({"runs": query | {"hidden": True}}))) == 1
+
+
+def test_hidden_with_depth(hide) -> None:
+    """Depth and visibility both narrow the selection."""
+    _, _, ask = hide
+    assert len(table(ask({"runs": {"from": "scaling", "depth": 1}}))) == 0
+    deep = table(ask({"runs": {"from": "scaling", "depth": 2, "select": ["run.hidden"]}}))
+    assert deep and not any(r["run.hidden"] for r in deep)
+    deep = table(ask({"runs": {"from": "scaling", "depth": 2, "hidden": True}}))
+    assert len(deep) == len(table(ask({"runs": {"from": "scaling", "depth": 2}}))) + 1
+
+
+def test_hidden_group_tools_and_timeline(hide) -> None:
+    """The group tools and the timeline see visible runs only unless asked."""
+    from beamtime.query.facts import run_facts
+
+    logdir, run_dir, ask = hide
+    n = len(table(ask({"runs": {"from": "scaling/lr-sweep"}})))
+    with Index(logdir=logdir, cache=logdir.parent / "cache") as index:
+        kwargs = dict(scope="scaling/lr-sweep", run_id=None, now=datetime.now().timestamp())
+        assert len(run_facts(index, **kwargs)) == n
+        facts = run_facts(index, **kwargs, hidden=True)
+        assert len(facts) == n + 1 and run_dir.name in {f.id for f in facts}
+        assert [f.id for f in run_facts(index, **{**kwargs, "run_id": run_dir.name})] == [
+            run_dir.name
+        ]
+
+
+def test_hidden_events_in_timeline(hide) -> None:
+    """A hidden run's events stay out of the timeline unless asked."""
+    _, run_dir, ask = hide
+    query = {"from": "scaling/lr-sweep", "full": True, "limit": 10000}
+    assert run_dir.name not in json.dumps(ask({"timeline": query}))
+    assert run_dir.name in json.dumps(ask({"timeline": query | {"hidden": True}}))

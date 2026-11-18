@@ -28,6 +28,7 @@ beamtime keys [from]
 |---|---|---|
 | `--depth` | `all` | all, a number |
 | `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
+| `--hidden` | `False` | include hidden (test) runs |
 
 ### `beamtime groups`
 
@@ -41,6 +42,7 @@ beamtime groups [from]
 |---|---|---|
 | `--depth` | `all` | all, a number |
 | `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
+| `--hidden` | `False` | include hidden (test) runs |
 
 ### `beamtime runs`
 
@@ -54,6 +56,7 @@ beamtime runs [from]
 |---|---|---|
 | `--depth` | `all` | all, a number |
 | `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
+| `--hidden` | `False` | include hidden (test) runs |
 | `--select` |  | fields such as run.name, config.lr, metric.val/acc.max |
 | `--sort` |  | fields; a leading - sorts descending |
 | `--limit` |  | a number |
@@ -81,6 +84,7 @@ beamtime series [from]
 |---|---|---|
 | `--depth` | `all` | all, a number |
 | `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
+| `--hidden` | `False` | include hidden (test) runs |
 | `--y` | required | metric keys, e.g. train/loss |
 | `--x` | `_step` | _step, _t, _elapsed or a metric key |
 | `--steps` |  | [first, last] step window |
@@ -103,6 +107,7 @@ beamtime data [from] <key>
 |---|---|---|
 | `--depth` | `all` | all, a number |
 | `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
+| `--hidden` | `False` | include hidden (test) runs |
 | `--step` | `last` | last, all, a number |
 | `--limit` |  | a number |
 
@@ -145,6 +150,7 @@ beamtime logs [from]
 |---|---|---|
 | `--depth` | `all` | all, a number |
 | `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
+| `--hidden` | `False` | include hidden (test) runs |
 | `--grep` |  | regular expression; show its matches |
 | `--tail` | `10` | lines (with grep: matches) per run |
 | `--context` | `0` | lines around each match |
@@ -162,6 +168,7 @@ beamtime wait [from]
 |---|---|---|
 | `--depth` | `all` | all, a number |
 | `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
+| `--hidden` | `False` | include hidden (test) runs |
 | `--until` | `finished` | finished: no run is running; or a condition such as 'metric.val/acc.max>0.9' that one run meets |
 | `--timeout` | `300.0` | seconds; over MCP at most 45, then call again |
 
@@ -177,6 +184,7 @@ beamtime diagnose [from]
 |---|---|---|
 | `--depth` | `all` | all, a number |
 | `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
+| `--hidden` | `False` | include hidden (test) runs |
 | `--metrics` |  | metrics a run must have; default: those most runs have |
 
 ### `beamtime resume`
@@ -211,6 +219,7 @@ beamtime timeline [from]
 |---|---|---|
 | `--depth` | `all` | all, a number |
 | `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
+| `--hidden` | `False` | include hidden (test) runs |
 | `--types` |  |  |
 | `--since` |  |  |
 | `--limit` |  | a number |

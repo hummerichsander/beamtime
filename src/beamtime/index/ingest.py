@@ -12,6 +12,7 @@ from beamtime.format import constants as c
 from beamtime.format.authored import note_links, read_markdown_doc, versions
 from beamtime.format.ids import id_time
 from beamtime.format.io import read_json, read_jsonl
+from beamtime.format.run import run_hidden
 from beamtime.format.schema import SchemaError, schema_of
 from beamtime.index.columns import TIME_KEY, ColumnWriter
 from beamtime.index.store import Store
@@ -118,6 +119,7 @@ class Ingester:
             "tags": info.get("tags") or [],
             "info": info,
             "heartbeat": mtime(run_dir / c.RUN),
+            "hidden": int(run_hidden(run_dir, info)),
             "run_mtime": mtime(run_dir / c.RUN),
         }
         if (t := mtime(run_dir / c.CONFIG)) is not None:
@@ -282,12 +284,15 @@ class Ingester:
 
 
 def authored_mtime(run_dir: str) -> float | None:
-    """Tell when a run's authored files last changed: its notes, or the name given to it.
+    """Tell when a run's authored files last changed: its notes, name or visibility.
 
     :param run_dir: The run directory.
-    :return: The newest modification time of ``notes/`` and ``name/``, or ``None``."""
+    :return: The newest modification time of ``notes/``, ``name/`` and
+        ``visibility/``, or ``None``."""
     times = [
-        t for t in (mtime(os.path.join(run_dir, f)) for f in (c.NOTES, c.NAME)) if t is not None
+        t
+        for t in (mtime(os.path.join(run_dir, f)) for f in (c.NOTES, c.NAME, c.VISIBILITY))
+        if t is not None
     ]
     return max(times) if times else None
 

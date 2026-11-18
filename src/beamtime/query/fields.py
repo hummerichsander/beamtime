@@ -38,6 +38,7 @@ RUN_COLUMNS = {
     "created_at": "created_at",
     "ended_at": "ended_at",
     "path": "path",
+    "hidden": "hidden",
     "group": "folder",
     "tags": "tags",
     "last_logged": "metrics_mtime",
@@ -304,7 +305,7 @@ def decode_cell(field: Field, value: Any) -> Any:
     :return: The value."""
     if field.ns == "run" and field.key == "tags":
         return json.loads(value) if value else []
-    if field.ns == "run" and field.key == "dirty":
+    if field.ns == "run" and field.key in ("dirty", "hidden"):
         return bool(value) if value is not None else None
     if isinstance(value, str) and value[:1] in "[{" and field.ns in ("config", "value"):
         try:

@@ -84,7 +84,8 @@ def schema(op: Op) -> dict[str, Any]:
     """Build a tool's input schema from its parameter struct.
 
     Shared texts become pointers to the instructions, and defaults an absent key reads anyway are
-    dropped, so the listing stays small.
+    dropped, so the listing stays small. ``hidden`` is accepted but not listed: it would cost
+    the tool budget on every selection tool, and agents inspect a hidden run by naming its id.
 
     :param op: The operation.
     :return: A JSON schema with ``type: object`` at the root."""
@@ -96,6 +97,7 @@ def schema(op: Op) -> dict[str, Any]:
     if defs:
         root["$defs"] = defs
     root = slim(root)
+    root.get("properties", {}).pop("hidden", None)
     for key, node in root.get("properties", {}).items():
         if (text := node.get("description")) in POINTERS:
             node.pop("description")

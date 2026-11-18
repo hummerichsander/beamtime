@@ -157,6 +157,14 @@ def test_reading_operations_wrap_queries(ctx: Context) -> None:
     assert q["kind"] == "groups"
 
 
+def test_status_counts_visible_runs(ctx: Context, project: Path) -> None:
+    """``status`` leaves hidden runs out of its counts."""
+    before = sum(call("status", {}, ctx)["runs"].values())
+    run = next((project / "beamtime" / "scaling" / "lr-sweep").glob("*/_run.json"))
+    run.write_text(json.dumps(json.loads(run.read_text()) | {"hidden": True}))
+    assert sum(call("status", {}, ctx)["runs"].values()) == before - 1
+
+
 def test_errors_carry_exit_codes(ctx: Context) -> None:
     """Invalid queries exit 2, missing things 4."""
     with pytest.raises(OpError) as e:

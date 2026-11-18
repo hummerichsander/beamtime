@@ -202,6 +202,7 @@ def run_members(
     *,
     config: bool = False,
     metrics: bool = False,
+    hidden: bool = False,
 ) -> list[RunFacts]:
     """List the runs of a group or the one run a target names, with their facts from the index.
 
@@ -211,6 +212,7 @@ def run_members(
     :param depth: How many group levels below the target to look into.
     :param config: Whether to include each run's flattened config.
     :param metrics: Whether to include each run's card statistics by metric.
+    :param hidden: Whether to include hidden runs.
     :return: One ``RunFacts`` per run."""
     if not ctx.logdir.is_dir():
         raise OpError(
@@ -230,6 +232,7 @@ def run_members(
                 depth=depth,
                 config=config,
                 metrics=metrics,
+                hidden=hidden,
             )
     except QueryError as e:
         raise OpError(str(e), code=4 if e.code == "not_found" else 2) from None
@@ -505,7 +508,7 @@ def logs(ctx: Context, p: r.LogsParams) -> dict[str, Any]:
         except re.error as e:
             raise OpError(f"grep: {p.grep!r} is not a regular expression: {e}", code=2) from None
     entries, crashes = [], {}
-    runs_ = run_members(ctx, p.from_, p.where, p.depth)
+    runs_ = run_members(ctx, p.from_, p.where, p.depth, hidden=p.hidden)
     for f in runs_:
         lines = [
             collapse(line)[:LOG_WIDTH] for line in read_output(f.dir, rank=p.rank).splitlines()
@@ -572,23 +575,23 @@ def wait(ctx: Context, p: r.WaitParams) -> dict[str, Any]:
         condition = None if p.until == "finished" else parse_where([p.until], flag="until")
     except ValueError as e:
         raise OpError(str(e), code=2) from None
-    before = {f.id: f.status for f in run_members(ctx, p.from_, p.where, p.depth)}
+    before = {f.id: f.status for f in run_members(ctx, p.from_, p.where, p.depth, hidden=p.hidden)}
     start = time.monotonic()
     while True:
         if condition is None:
-            now = run_members(ctx, p.from_, p.where, p.depth)
+            now = run_members(ctx, p.from_, p.where, p.depth, hidden=p.hidden)
             hits = []
             met = not any(f.status == "running" for f in now)
         else:
             both = conjunction(p.where, condition)
-            hits = [f.id for f in run_members(ctx, p.from_, both, p.depth)]
+            hits = [f.id for f in run_members(ctx, p.from_, both, p.depth, hidden=p.hidden)]
             met = bool(hits)
         waited = time.monotonic() - start
         if met or waited >= limit:
             break
         time.sleep(min(WAIT_POLL_S, limit - waited))
     if condition is not None:
-        now = run_members(ctx, p.from_, p.where, p.depth)
+        now = run_members(ctx, p.from_, p.where, p.depth, hidden=p.hidden)
     changed = [
         {"run": f.id, "name": f.name, "from": before.get(f.id), "to": f.status}
         for f in now
@@ -625,7 +628,7 @@ def diagnose(ctx: Context, p: r.DiagnoseParams) -> dict[str, Any]:
     :param ctx: The operation context.
     :param p: The parameters.
     :return: Per flagged run its ``flags``, and in ``meta`` how many runs each flag hit."""
-    runs_ = run_members(ctx, p.from_, p.where, p.depth, metrics=True)
+    runs_ = run_members(ctx, p.from_, p.where, p.depth, metrics=True, hidden=p.hidden)
     peers: dict[str, list[RunFacts]] = {}
     for f in runs_:
         peers.setdefault(f.group, []).append(f)
@@ -1106,7 +1109,9 @@ def status(ctx: Context, p: r.NoParams) -> dict[str, Any]:
         now = time.time()
         counts = Counter(
             derived_status(status, heartbeat, now)
-            for status, heartbeat in index.store.db.execute("SELECT status, heartbeat FROM runs")
+            for status, heartbeat in index.store.db.execute(
+                "SELECT status, heartbeat FROM runs WHERE hidden = 0"
+            )
         )
         cache = index.cache
         memory = project_memory(index) if ctx.logdir.is_dir() else None
