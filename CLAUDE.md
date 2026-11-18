@@ -256,7 +256,9 @@ sync.
   (`tests/test_boundaries.py`)
 - `src/beamtime/sdk/`: the SDK; tests that call `init` run scripts in subprocesses (`script` fixture in
   `tests/sdk/conftest.py`), so hooks and fd capture never touch pytest
-- `src/beamtime/index/`: the cache (SQLite + column files), ingest, discovery, locks, the daemon loop
+- `src/beamtime/index/`: the cache (SQLite + column files), ingest, discovery, locks, the daemon loop;
+  `procs.py` the process registry (`runtime_base()/procs/`: a held lock per process, a JSON record, standard
+  library only)
 - `src/beamtime/query/`: the query language; `beamtime.query.run(query, logdir=...)` answers any kind
   (`kinds.py`); `select.py` resolves scopes and selects runs, `aggregate.py` groups and summarizes,
   `files.py` reads view data files (CSV, JSON, Parquet; 16 MB, CSV dialect and column checks); `read.py` is the one read path every number goes through;
@@ -270,7 +272,8 @@ sync.
 - `src/beamtime/ops/`: the operation set; `registry.py` lists every method as one `Op` (CLI path, msgspec
   params, summary, user-only flag, answer kind; page methods have no params) and is the single source
   for CLI flags, MCP tools and the serve API; `answers.py` holds one `Answer` per answer kind: how a
-  remote's answer is placed on its source, how listings merge and how a merged answer is paged
+  remote's answer is placed on its source, how listings merge and how a merged answer is paged;
+  `procs.py` holds `ps`, `stop` and the shared `serves()`/`stop_serve()` (loaded only when they run)
 - `src/beamtime/cli/` (argparse, text format) and `src/beamtime/mcp/` (stdio
   server, prompts; needs the `serve` extra)
 - `src/beamtime/settings.py`: built-in, user and project settings with provenance
@@ -322,7 +325,9 @@ sync.
   into `site/`; `docs/design/` is the spec and not on the site
 - Keep the CLI path light: no module-level imports of PyYAML, NumPy or `importlib.metadata` in
   modules a plain `beamtime runs` loads (`tests/test_budgets.py`)
-- Tests never touch `~/.cache`: `tests/conftest.py` points `BEAMTIME_CACHE` at a temporary directory
+- Tests never touch `~/.cache`: `tests/conftest.py` points `BEAMTIME_CACHE` at a temporary directory and
+  `BEAMTIME_RUNTIME` (the runtime base: process registry and `serve` runtime folders) at another; a test that
+  starts or stops serves sets its own `BEAMTIME_RUNTIME` and touches only the processes it started
 - `examples/`: toy training script and SLURM job for checking the SDK by hand
 - `tests/golden/schema1/`: frozen, byte-exact reader fixtures; never regenerate or reformat them
 - `.github/workflows/ci.yml`: lint, tests on 3.11–3.13 and macOS, SDK tests on 3.10 and Windows, budgets,

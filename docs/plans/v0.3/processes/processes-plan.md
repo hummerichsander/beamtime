@@ -375,7 +375,7 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
 
 ## Close
 
-### J58. Close (sonnet) — code
+### J58. Close (sonnet) — code — **done**
 
 - **Touches:** `CHANGELOG.md` (0.3.0 section), `CLAUDE.md` (Layout: `index/procs.py`, `ops/procs.py`;
   `BEAMTIME_RUNTIME` in the tests line), `docs/design/03-index.md` (Implementation notes 471).

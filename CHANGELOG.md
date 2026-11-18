@@ -2,6 +2,26 @@
 
 ## 0.3.0 (unreleased)
 
+- **Added** `beamtime ps` (user-only): lists every Beamtime process of this user on this machine by kind: `serve`
+  (web UI), `index` (`serve --no-ui`), `remote` (`serve --stdio`), `mcp` (with its client's name) and `ssh` (logins
+  kept open for the remotes `beamtime setup` configured). Each row shows root or log dir, pid, URL (with token),
+  cache, uptime and, for serves, whether this directory's CLI and MCP calls use it. Records of processes that died
+  are printed once as stale and removed. Every long-running process registers itself under a held lock in the
+  runtime base (`<tmp>/beamtime-<uid>/procs/`), so liveness never relies on the pid; `BEAMTIME_RUNTIME` moves the
+  runtime base (tests and shared machines). `ps --json` gives the same rows.
+- **Added** `beamtime stop [<root>|<log dir>|<pid>|--all]` (user-only): stops serves only, through the token with
+  SIGTERM as the fallback, and never sends SIGKILL (it prints the `kill -9` command when a serve keeps running).
+  MCP, remote and ssh processes are listed by `ps`, never stopped. A pid no Beamtime process has exits 4; a root
+  without a serve says so and exits 0.
+- **Added** `beamtime serve --replace`: stops the running serve of the root like `beamtime stop`, then starts as
+  usual, trying the old port first.
+- **Changed** `beamtime serve` for a root that already has a serve prints "Beamtime already serves <log dir>
+  (pid N) at <URL>" and exits 0 instead of failing (`--open` opens that URL); it exits 1 with a hint to `--replace`
+  when the running serve cannot give what was asked (a UI from an `index` serve, other explicit sources). Scripts
+  that relied on the failure check `beamtime ps --json`.
+- **Changed** `serve --no-ui` stops cleanly on SIGTERM instead of being killed without cleanup.
+- **Fixed** with `cache: memory`, a CLI or MCP call while a serve runs answered from an empty index: reads now go
+  through the running UI serve, and a memory index never skips its catch-up because a daemon runs.
 - **Fixed** a query on a log dir the index had not caught up with (a first call within the 200 ms budget) answered
   from the runs it had indexed and left the others out: `series` missed curves and windowed fields were empty.
   A query now ingests the streams of every run it reads, whatever the budget; "N runs not yet indexed" counts
