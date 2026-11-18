@@ -111,10 +111,10 @@ is marked done in the ticket's own commit.
 ```
 Q31 ─ D31 ─ D33 ─ T31                   Python (D31, D33 share defaults.py; T31 edits guide parts and 05-views.md)
 W35 after Q31; then one at a time (shared bundle):
-W31 ─ W32 ─ W33 ─ W34 ─ W35 ─ D32 ─ D34 ─ L31 ─ L32 ─ Z31
+W31 ─ W32 ─ W33 ─ W34 ─ W35 ─ W36 ─ D32 ─ D34 ─ L31 ─ L32 ─ Z31
 ```
 
-What's left runs in this order: Q31 D31 D33 T31 W31 W32 W33 W34 W35 D32 D34 L31 L32 Z31
+What's left runs in this order: Q31 D31 D33 T31 W31 W32 W33 W34 W35 W36 D32 D34 L31 L32 Z31
 
 ## Decisions taken; say if you want otherwise
 
@@ -411,6 +411,42 @@ asks `series {y: [live/new]}` and fails today.
 1. `reshape` keeps `answer.meta?.running ?? 0` as `Curves.running`.
 2. `empty = curves && !curves.curves.some((c) => c.y.some((v) => v !== null && Number.isFinite(v)))`; the
    notice picks its text by `curves.running`.
+
+### W36. A data table says when rows are hidden, and the screenshot draws every chart (sonnet) — code
+
+- **Touches:** `web/src/blocks/data.ts` (`DataTable` 15–52: the wrap and the `more-rows` line), `web/src/styles/blocks.css`
+  (`.table-wrap` 58, `.more-rows` 74), `web/src/bt/index.ts` (`useVisible` 94–113), `web/src/router.ts` (`rendering`,
+  `recording` 167–169), `src/beamtime/views/render.py` (`render_draft` 60, `render_page` 86, `settle` 144–159),
+  `web/test/`, `tests/serve/test_browser.py`, `tests/serve/test_render.py`, `design/components/Table.md`,
+  `docs/design/07-web-ui.md` (Lazy rendering l. 200, Screenshots l. 247–256).
+- **Read:** `design/README.md` and `design/components/Table.md`, `Notice.md` (values only from `design/tokens.json`;
+  `scripts/check-design`); `docs/plans/v0.3/view-data/results.md` (the baseline table, l. 52–53, 152) and
+  `bench/agents/MISTAKES.md`; `src/beamtime/views/export.py` 54, 101 (exports open pages with `record=1`).
+- **Check:** `cd web && npm test`; `uv run pytest -q tests/serve/test_browser.py -k "table or rows"`;
+  `uv run pytest -q tests/serve/test_render.py -k "below or tall or rows"`; then build and the full checks.
+- **Done:** a `data_table` of 15 rows (the block clips at `max-block-size` 560 px after about 13) says that rows are
+  hidden, in a place a screenshot shows (a muted count line such as "13 of 15 rows shown, scroll for the rest", or an
+  edge shadow); a table that fits shows no hint; the rows stay scrollable. `view_render` of a page whose charts lie
+  below the first screen draws every chart: no blank chart in the page shot, and `settle` still ends within
+  `TIME_LIMIT_S`. After this the view-data bench's checklist items "the table has all its rows" and "no empty charts"
+  can be judged on the screenshot again (say so in this ticket's commit; the bench itself is not changed here).
+- **Risks:** the hint must not double `more-rows` for a table cut by `limit` (one line, one wording); `record=1`
+  also opens folded sections, so a fix that reuses it changes what a page shot shows, which is not wanted: the saved
+  view's folds stay as saved; a page of many charts costs more render time and requests → time the render of the
+  40-chart page in `test_a_tall_page_is_capped_and_names_what_fell_below`; the shell stays under 120 KB compressed.
+- **Stop if:** forcing every block visible makes the render exceed `TIME_LIMIT_S` on that 40-chart page (then
+  scroll in steps and wait for `__btBusy`, and say so).
+
+1. `DataTable`: know whether `.table-wrap` overflows (a ref and its scroll and client heights, re-measured on resize
+   and when `rows` change) and, if it does, show one muted line under the table in the `more-rows` style, merged with
+   the existing "`limit` of N rows shown" so that line says both at most once. Describe it in `Table.md`.
+2. Rendering: under `?render=1` charts and custom blocks mount without waiting for the viewport (`useVisible`
+   starts `true` when `rendering`, as it does when `recording`), or the renderer scrolls the page once before the
+   shot; take the first unless it breaks the live browser path (the browser never sets `render`). Folds stay as saved.
+3. Tests: a browser test of a 15-row `data_table` (fixture file in the project) that the hint is present and that a
+   3-row table has none; a render test of a long page whose lower charts are not blank (the render's blank-block
+   check, or the shot's pixels, over the 40-chart page) and one that a folded section stays folded.
+4. `07-web-ui.md`: Lazy rendering names the exception (renders and screenshots mount every block); Table.md gets the hint.
 
 ## L. The mark
 
