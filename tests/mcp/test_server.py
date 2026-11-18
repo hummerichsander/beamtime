@@ -163,6 +163,12 @@ def test_instructions_name_the_where_ops() -> None:
     assert where["description"] == "see instructions: where"
 
 
+def test_instructions_name_hidden_once() -> None:
+    """``hidden`` is explained in the instructions and left out of every tool schema."""
+    assert "hidden: true includes hidden runs" in INSTRUCTIONS
+    assert all("hidden" not in schema(op).get("properties", {}) for op in BY_TOOL.values())
+
+
 def test_defaults_an_absent_key_reads_are_dropped() -> None:
     """No schema lists the ``"."`` default of ``from`` or ``group``; the operation reads it anyway."""
     for op in BY_TOOL.values():

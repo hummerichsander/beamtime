@@ -68,7 +68,8 @@ def instructions(mcp_tools: str = "core") -> str:
         f"({', '.join(sorted(op.name for op in OPS if op.user_only))}) "
         "are not tools: give the user the command. "
         "from and group: a group below the log dir or a run id; depth: levels below it, "
-        "default all. where: field -> value or {op: value}; ops eq ne lt le gt ge in nin has "
+        "default all. hidden: true includes hidden runs, left out by default. "
+        "where: field -> value or {op: value}; ops eq ne lt le gt ge in nin has "
         "exists glob; also any: [...], not: {...}. fields: run.status, config.lr, "
         "metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc, "
         "metric.a.nonfinite_step, metric.a.rise_step:3, metric.a[b.min_step]. to: write all of the "
@@ -85,7 +86,7 @@ def schema(op: Op) -> dict[str, Any]:
 
     Shared texts become pointers to the instructions, and defaults an absent key reads anyway are
     dropped, so the listing stays small. ``hidden`` is accepted but not listed: it would cost
-    the tool budget on every selection tool, and agents inspect a hidden run by naming its id.
+    the tool budget on every selection tool, so the instructions name it once.
 
     :param op: The operation.
     :return: A JSON schema with ``type: object`` at the root."""
