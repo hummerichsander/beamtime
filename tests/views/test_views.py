@@ -12,7 +12,7 @@ from beamtime.ops.context import Context, OpError
 from beamtime.serve.api import view as page_view
 from beamtime.views import model as m
 from beamtime.views.compile import compile_view
-from beamtime.views.defaults import default_view
+from beamtime.views.defaults import default_view, lower_is_better
 from beamtime.views.prefs import apply_prefs
 
 SWEEP = "scaling/lr-sweep"
@@ -872,9 +872,7 @@ def test_system_charts_are_not_averaged_over_seeds() -> None:
     assert seeds == {"val/acc": "config.seed", "val/loss": "config.seed", "sys/cpu": None}
 
 
-def lint(
-    ctx: Context, body: str, data_dir: Path | None = None, draft: str | None = None
-) -> list:
+def lint(ctx: Context, body: str, data_dir: Path | None = None, draft: str | None = None) -> list:
     """Validate a view body and return its findings.
 
     :param ctx: The operation context.
@@ -1007,14 +1005,56 @@ def plain(name: str, text: str = "a,b\n1,2\n") -> Callable[[Path], None]:
 
 
 DATA_FILE_CASES = [
-    ("../x.csv", None, "error", "'../x.csv' is outside the draft", "`view_data d ../x.csv` copies it in as data/x.csv"),
-    ("/etc/hosts", None, "error", "'/etc/hosts' is outside the draft", "`view_data d /etc/hosts` copies it in as data/hosts"),
+    (
+        "../x.csv",
+        None,
+        "error",
+        "'../x.csv' is outside the draft",
+        "`view_data d ../x.csv` copies it in as data/x.csv",
+    ),
+    (
+        "/etc/hosts",
+        None,
+        "error",
+        "'/etc/hosts' is outside the draft",
+        "`view_data d /etc/hosts` copies it in as data/hosts",
+    ),
     ("fit.csv", plain("fit.csv"), "error", "no file 'fit.csv'", "write file: data/fit.csv"),
-    ("data/none.csv", plain("nine.csv"), "error", "no data file 'data/none.csv'; closest: nine.csv", "view_data d <file>"),
-    ("data/fit.xlsx", plain("fit.xlsx"), "error", "data/fit.xlsx: Beamtime reads .csv, .json and .parquet", "df.to_csv(path, index=False)"),
-    ("data/p.parquet", plain("p.parquet"), "warning", "data/p.parquet: reading Parquet needs PyArrow", "write CSV instead"),
-    ("data/big.csv", sized("big.csv", 3 << 20), "warning", "data/big.csv is 3.0 MB; the page loads the whole file", "aggregate or downsample"),
-    ("data/huge.csv", sized("huge.csv", 17 << 20), "error", "data/huge.csv is 17.0 MB; the page loads the whole file", "aggregate or downsample"),
+    (
+        "data/none.csv",
+        plain("nine.csv"),
+        "error",
+        "no data file 'data/none.csv'; closest: nine.csv",
+        "view_data d <file>",
+    ),
+    (
+        "data/fit.xlsx",
+        plain("fit.xlsx"),
+        "error",
+        "data/fit.xlsx: Beamtime reads .csv, .json and .parquet",
+        "df.to_csv(path, index=False)",
+    ),
+    (
+        "data/p.parquet",
+        plain("p.parquet"),
+        "warning",
+        "data/p.parquet: reading Parquet needs PyArrow",
+        "write CSV instead",
+    ),
+    (
+        "data/big.csv",
+        sized("big.csv", 3 << 20),
+        "warning",
+        "data/big.csv is 3.0 MB; the page loads the whole file",
+        "aggregate or downsample",
+    ),
+    (
+        "data/huge.csv",
+        sized("huge.csv", 17 << 20),
+        "error",
+        "data/huge.csv is 17.0 MB; the page loads the whole file",
+        "aggregate or downsample",
+    ),
 ]
 CUSTOM_FILE = """
 - custom:
@@ -1041,7 +1081,9 @@ def test_data_file_findings(
     monkeypatch.setattr("importlib.util.find_spec", lambda name: None)
     (tmp_path / "data").mkdir()
     (tmp_path / "code").mkdir()
-    (tmp_path / "code/c.js").write_text("export default function render(root) { bt.useData('t'); }\n")
+    (tmp_path / "code/c.js").write_text(
+        "export default function render(root) { bt.useData('t'); }\n"
+    )
     if setup:
         setup(tmp_path)
     body = (
@@ -1067,7 +1109,7 @@ def test_data_table_columns_need_a_file(ctx: Context) -> None:
 
 def test_saved_view_with_missing_file(ctx: Context) -> None:
     """Without a draft folder the static file checks are skipped; the query run reports the file."""
-    body = '[{custom: {id: c, code: code/c.js, queries: {t: {file: {path: data/none.csv}}}}}]'
+    body = "[{custom: {id: c, code: code/c.js, queries: {t: {file: {path: data/none.csv}}}}}]"
     findings = lint(ctx, body)
     assert any("no file 'data/none.csv'" in f.message for f in findings), findings
 
@@ -1075,7 +1117,9 @@ def test_saved_view_with_missing_file(ctx: Context) -> None:
 def test_placeholder_file_path_is_left_to_the_query_run(ctx: Context, tmp_path: Path) -> None:
     """A ``$name`` path is filled by the page; the static check neither fails nor crashes."""
     (tmp_path / "code").mkdir()
-    (tmp_path / "code/c.js").write_text("export default function render(root) { bt.useData('t'); }\n")
+    (tmp_path / "code/c.js").write_text(
+        "export default function render(root) { bt.useData('t'); }\n"
+    )
     findings = lint(ctx, CUSTOM_FILE.format(ref="$name"), data_dir=tmp_path, draft="d")
     assert not [f for f in findings if f.level == "error"], findings
 
@@ -1114,3 +1158,28 @@ def test_default_view_merges_on_the_groups_seed_key(ctx: Context) -> None:
     ]
     assert {n.seeds for n in lines("nested")} == {"config.trainer.seed"}
     assert {n.seeds for n in lines("two")} == {None}
+
+
+@pytest.mark.parametrize(
+    ("metric", "lower"),
+    [
+        ("val/loss", True),
+        ("train_loss_ema", True),
+        ("valLoss", True),
+        ("NLLLoss", True),
+        ("rmse", True),
+        ("error_rate", True),
+        ("wer", True),
+        ("power", False),
+        ("answer_acc", False),
+        ("lower_bound", False),
+        ("tower_score", False),
+        ("acc", False),
+    ],
+)
+def test_direction_comes_from_whole_name_tokens(metric: str, lower: bool) -> None:
+    """A metric is lower-is-better when a whole word of its name says so, not a substring.
+
+    :param metric: The metric key.
+    :param lower: The expected direction."""
+    assert lower_is_better(metric) is lower

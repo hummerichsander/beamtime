@@ -2,6 +2,7 @@
 // runs, and added and removed charts. "Save as view" writes them into the view as block props.
 
 import { Store, stored, store, useStore } from "../state.ts";
+import { lowerIsBetter } from "./fmt.ts";
 
 export type Scale = "linear" | "log" | "symlog";
 
@@ -28,9 +29,8 @@ export type Span = 1 | 2 | "full";
 // a main metric the viewer pinned, and which way is better.
 export type Pin = { y: string; higher: boolean };
 
-// the direction a metric's name suggests; the same words as views/defaults.py, for a new pin.
-const LOWER_IS_BETTER = ["loss", "err", "ppl", "perplexity", "nll", "mse", "mae", "wer", "cer"];
-export const higherIsBetter = (y: string): boolean => !LOWER_IS_BETTER.some((w) => (y.split("/").pop() ?? y).toLowerCase().includes(w));
+// the direction a metric's name suggests, for a new pin.
+export const higherIsBetter = (y: string): boolean => !lowerIsBetter(y);
 
 // the grid the default view puts the pinned charts in; its order is the pins' order.
 export const MAIN_GRID = "main-curves";

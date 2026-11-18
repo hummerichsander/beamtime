@@ -1,5 +1,7 @@
 // Compact, readable numbers, steps, durations and labels; full values go in tooltips.
 
+import { LOWER_IS_BETTER } from "./chart-defaults.ts";
+
 export function value(v: unknown): string {
   if (v === null || v === undefined) return "–";
   if (typeof v === "boolean") return v ? "true" : "false";
@@ -118,11 +120,14 @@ function trim(s: string): string {
   return s.includes(".") && !s.includes("e") ? s.replace(/\.?0+$/, "") : s;
 }
 
-const LOWER_IS_BETTER = ["loss", "err", "ppl", "perplexity", "nll", "mse", "mae", "wer", "cer"];
-
-// a guess from the metric's name, matching the server's default view (views/defaults.py).
+// a guess from whole words of the metric's name, matching the server's default view (views/defaults.py).
 export function lowerIsBetter(field: string): boolean {
   const m = /^metric\.(.+)\.[a-z_]+$/.exec(field);
-  const leaf = (m ? m[1] : field).split("/").pop()!.toLowerCase();
-  return LOWER_IS_BETTER.some((w) => leaf.includes(w));
+  const leaf = (m ? m[1] : field)
+    .split("/")
+    .pop()!
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+    .toLowerCase();
+  return leaf.split(/[_.-]+/).some((w) => (LOWER_IS_BETTER as readonly string[]).includes(w));
 }

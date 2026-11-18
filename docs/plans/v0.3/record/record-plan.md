@@ -348,7 +348,7 @@ Write the design before code (CLAUDE.md: a deviation is decided and written back
 
 ## N. Detection rules from the audit
 
-### N41. Direction from whole tokens (sonnet) — code
+### N41. Direction from whole tokens (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/views/defaults.py` (`LOWER_IS_BETTER` 18, `lower_is_better` 309–315),
   `src/beamtime/views/settings.py` (`generated_ts` 107–118), `web/src/bt/chart-defaults.ts` (generated),

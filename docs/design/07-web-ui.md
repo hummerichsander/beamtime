@@ -487,7 +487,7 @@ Decided while building the shell (milestone M5):
   stored settings survive.
   **Main metrics are the viewer's choice**, never guessed from names: a chart's settings offer
   "Pin as main metric" (and "Unpin"), and a pinned chart shows a ↑/↓ button, "Higher is better" /
-  "Lower is better", which starts from the name (`loss`, `err`, ...) and can be turned. Pins
+  "Lower is better", which starts from the whole words of the name (`loss`, `error`, `val_loss`, `valLoss`, ...; `power` is not `wer`) and can be turned. Pins
   are kept per page like the other chart choices; without a choice of the viewer's the proposal's
   predicted metrics that the page logs are pinned (a run page takes its group's), and unpinning
   them all leaves none (`null` and `[]` stay apart). Pinned metrics are charted a second time in

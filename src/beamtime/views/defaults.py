@@ -1,6 +1,7 @@
 """The built-in default view: an ``m.View`` made from what a group or run logged, compiled like any
 authored view, and written out as one when a draft starts from it."""
 
+import re
 from collections import Counter
 from typing import Any
 
@@ -8,14 +9,13 @@ from beamtime.format.ids import is_run_id
 from beamtime.ops import call
 from beamtime.ops.context import Context
 from beamtime.views import model as m
-from beamtime.views.settings import SEEDS_FIELD
+from beamtime.views.settings import LOWER_IS_BETTER, SEEDS_FIELD
 
 OPEN_SECTIONS = 2
 SEED_GROUPING_ABOVE = 8
 TABLE_LIMIT = 100
 RECENT = 10
 NOTES = 3
-LOWER_IS_BETTER = ("loss", "err", "ppl", "perplexity", "nll", "mse", "mae", "wer", "cer")
 EVAL_PREFIXES = ("val", "valid", "eval", "test", "validation")
 TRAIN_PREFIXES = ("train", "training")
 # the SDK's system metrics: their own collapsed section, last.
@@ -309,12 +309,14 @@ def varying_config(keys: dict[str, Any]) -> list[str]:
 
 
 def lower_is_better(metric: str) -> bool:
-    """Guess a metric's direction from its name.
+    """Guess a metric's direction from the whole words of its name.
 
     :param metric: The metric key.
     :return: Whether lower values are better."""
-    leaf = metric.rsplit("/", 1)[-1].lower()
-    return any(word in leaf for word in LOWER_IS_BETTER)
+    leaf = metric.rsplit("/", 1)[-1]
+    leaf = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", leaf)
+    leaf = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", leaf)
+    return any(word in LOWER_IS_BETTER for word in re.split(r"[_.\-/]+", leaf.lower()))
 
 
 def prefix(metric: str) -> str:

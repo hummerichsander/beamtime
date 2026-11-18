@@ -40,6 +40,22 @@ test("metric direction from the name", async () => {
   assert.equal(lowerIsBetter("metric.train/loss.last"), true);
   assert.equal(lowerIsBetter("metric.val/acc.max"), false);
   assert.equal(lowerIsBetter("val/ppl"), true);
+  assert.equal(lowerIsBetter("metric.val/loss.min"), true);
+  const cases: [string, boolean][] = [
+    ["val/loss", true],
+    ["train_loss_ema", true],
+    ["valLoss", true],
+    ["NLLLoss", true],
+    ["rmse", true],
+    ["error_rate", true],
+    ["wer", true],
+    ["power", false],
+    ["answer_acc", false],
+    ["lower_bound", false],
+    ["tower_score", false],
+    ["acc", false],
+  ];
+  for (const [name, lower] of cases) assert.equal(lowerIsBetter(name), lower, name);
 });
 
 test("nested values are summarized, never [object Object]", () => {

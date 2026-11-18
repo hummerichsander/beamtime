@@ -10,6 +10,21 @@ from beamtime.format.schema import SchemaError
 from beamtime.views import model as m
 
 SEEDS_FIELD = "config.seed"
+LOWER_IS_BETTER = (
+    "loss",
+    "losses",
+    "err",
+    "error",
+    "errors",
+    "ppl",
+    "perplexity",
+    "nll",
+    "mse",
+    "rmse",
+    "mae",
+    "wer",
+    "cer",
+)
 
 # seeds folds into by; the axis titles are authored, not settings.
 AUTHORED = ("seeds", "xlabel", "ylabel")
@@ -113,5 +128,6 @@ def generated_ts() -> str:
         "// Beamtime: generated from views/settings.py by scripts/build-chart-defaults. "
         "Do not edit by hand.\n"
         f"export const SEEDS_FIELD = {json.dumps(SEEDS_FIELD)};\n"
+        f"export const LOWER_IS_BETTER = {json.dumps(list(LOWER_IS_BETTER))};\n"
         f"export const DEFAULTS = {{\n  line: {{\n{line},\n  }},\n}} as const;\n"
     )
