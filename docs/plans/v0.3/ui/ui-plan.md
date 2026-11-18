@@ -25,7 +25,9 @@ The outcome this plan commits to, checked against at the end and in every review
   which type class to use for each kind of text in custom blocks and views, and `view_validate` rejects
   font literals (`font-size`, `font-family`, the `font` shorthand, `line-height`) in custom code. Logged
   images can be stepped through every logging, by step or by a clock such as epoch, and open in a large
-  dialog that zooms, pans and downloads the original file.
+  dialog that zooms, pans and downloads the original file. Every screen, the agent guide and the spec follow the modern design
+  system (decisions 17 and 18): section labels above the content, sans titles, panels and hover rows, drawn
+  controls, and serif only for what people and agents wrote.
 - **Confirmed by:** `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`;
   `cd web && npm ci && npm test && npm run build` with the bundle committed; the tests named in each
   ticket (failing first where the evidence is **code**); `uv run pytest -q tests/serve/test_browser.py`
@@ -55,6 +57,7 @@ table are short: `blocks/`, `bt/`, `shell/`, `styles/` sit under `web/src/`, `qu
 | 10 | Seeds merge only above 8 runs | `many = … and direct > SEED_GROUPING_ABOVE` (defaults.py 14, 87) | code | D33 |
 | 11 | Favicon shows a dot when live; the top bar has no mark | `shell/favicon.ts` 16–52, `shell/bars.ts` 28; `design/favicon.svg` is three rotated rects | code | L31, L32 |
 | 12 | Agents hard-code fonts in custom blocks: 10 `font-size="12"` on SVG text in 2 of 8 custom-code files of the bench runs (`bench/agents/runs/20261031-144758/sweep-heatmap-*`) | no guide part says which type class fits which text (the guide names no class at all); `views/code.py` checks color literals only (`COLOR` 39, `problems` 41–76), though `05-views.md` 790 marks "colors, fonts or sizes in custom code" as detected | real data / code | T31 |
+| 14 | The design system moved on (2026-11-18): cool neutrals, Section labels above the content, `heading` in the sans, panels and rounded hover rows, `radius` 12px, drawn native controls, and a strict font rule (serif only for written text, sans for the interface, mono as its accent); `design/` and the shell's main screens follow it, but the agent guide, the spec documents and some tests still describe the margin column, and the other screens were never looked at | the change landed in `design/` with a working pass over `web/` (labels in collapse toggles, note rows, controls); `guide/parts/kit.md` 113–120, `views.md` 60–63 and `checklist.md` 13 teach "the left column"; `docs/design/05-views.md` 508, 675, 712, 989 and `07-web-ui.md` 45–47, 558 describe the notebook look; `tests/guide/test_guide.py` 135–139 asserts "left column" | code | S31, T31 |
 | 13 | Logged images show only the latest step: 144 px thumbnails, no way to see earlier loggings, no zoom, no download, no expand | the default view asks `data` with `step: "last"` (`views/defaults.py` 141–142, `m.Images.step` `views/model.py` 164–168, compiled at `compile.py` 214–216); the `data` answer doesn't say which steps exist (`query/kinds.py` `data_kind` 476–528); `Images` (`blocks/logged.ts` 13–29) is a bare `Panel` with fixed `<img>` tiles (`styles/blocks.css` 96–99), not a `ChartFrame` (`bt/frame.ts` 66–110), so it gets none of the chart tools; `05-views.md` 206 already lists a `slider` as wave 2 | code | Q32, W37 |
 
 ## Brief
@@ -87,6 +90,10 @@ What the tickets build together, so a session doesn't rediscover the design:
   steps, through `read.x_values`); entries stay those of the asked step, so a page loads one step's files at a time.
   The `images` block becomes a `ChartFrame` with a step scrubber under the images, the chart tools (download,
   expand) and, in the expanded dialog, zoom and pan.
+- **The modern design system** (S31): `design/` is the spec and already changed (`design/README.md` § Look,
+  § Differences from the export); the app's main screens follow it. S31 brings the rest along: the guide's section
+  titles become "the section label" (mono, above the block, or in its collapse toggle), the spec documents lose
+  the margin column and the warm notebook look, and every remaining screen is checked in both themes.
 - **Type for agents** (T31): a guide topic `type` (`src/beamtime/guide/parts/type.md`) maps each kind of text in
   custom code and in views to a type class; `views/code.py` gains `FONT`, checked in `problems` like `COLOR`.
 
@@ -120,10 +127,12 @@ is marked done in the ticket's own commit.
 Q31 ─ Q32 ─ D31 ─ D33 ─ T31             Python (Q31, Q32 share kinds.py and answers.py; D31, D33 share defaults.py;
                                         T31 edits guide parts and 05-views.md)
 W35 after Q31, W37 after Q32 and D32; then one at a time (shared bundle):
-W31 ─ W32 ─ W33 ─ W34 ─ W35 ─ W36 ─ D32 ─ W37 ─ D34 ─ L31 ─ L32 ─ Z31
+S31 ─ W31 ─ W32 ─ W33 ─ W34 ─ W35 ─ W36 ─ D32 ─ W37 ─ D34 ─ L31 ─ L32 ─ Z31
 ```
 
-What's left runs in this order: Q31 Q32 D31 D33 T31 W31 W32 W33 W34 W35 W36 D32 W37 D34 L31 L32 Z31
+S31 runs before T31: T31's `type` part describes the type and labels S31 makes true.
+
+What's left runs in this order: Q31 Q32 D31 D33 S31 T31 W31 W32 W33 W34 W35 W36 D32 W37 D34 L31 L32 Z31
 
 ## Decisions taken; say if you want otherwise
 
@@ -194,6 +203,21 @@ What's left runs in this order: Q31 Q32 D31 D33 T31 W31 W32 W33 W34 W35 W36 D32 
     pointer, drag pans, double-click or the reset button fits it again, `+`/`−` buttons and keys, the scrubber
     below, and ‹ › to the previous or next run's image. No new library: zoom and pan are a CSS transform (the
     shell stays under 120 KB). Exports and screenshots show the starting step without the scrubber (`recording`).
+
+17. **The modern design system** (your decision 2026-11-18): cool neutral grays at the old contrast targets;
+    a centered content column of at most 1120 px; Section labels in mono above the content, folded into a
+    collapsible block's toggle when its title repeats the label; `heading` in IBM Plex Sans 17 px 600; sub-groups
+    and stats on `surface` panels; runs and notes as rows without lines and with a rounded hover tint; `radius`
+    12 px; buttons fill on hover instead of drawing an edge; checkboxes, ranges, selects and number fields drawn
+    by the system. Four directions were compared on a snapshot of a group page (current, airy, dense,
+    editorial); you chose the current one. The `margin` token stays, unused by the app, because custom blocks
+    may use it.
+18. **Fonts say who wrote the text** (your decision 2026-11-18): serif (XCharter: `statement`, `prose`,
+    `caption`) only for what a person or an agent wrote; sans (IBM Plex Sans: `title`, `heading`, `body`,
+    `small`, `number`) for everything Beamtime names, labels, counts or states, names chosen by people
+    included (groups, runs, metrics, block and chart titles), and status and verdict words; mono (IBM Plex
+    Mono: `code`) as an accent of the interface: section labels, ids, code, logs, keys, never running text.
+    Written into `design/README.md` § Type; agents learn it from T31's `guide type`.
 
 ## Q. Queries
 
@@ -591,6 +615,58 @@ asks `series {y: [live/new]}` and fails today.
 2. `setIcon(live)`: `link.type = "image/svg+xml"`, `link.href = live ? LIVE : PLAIN`; the canvas code goes.
 3. 07-web-ui.md: top bar "mark · project", the favicon paragraph rewritten for the two files.
 
+## S. The design system
+
+### S31. Adopt the modern design system everywhere (sonnet + review) — code
+
+The design system (`design/`) and a first pass over the app landed together before this ticket: tokens, the
+Section, Table, Stat, Note, Button, IconButton and Field components, the collapse toggles that carry the
+section label (`.toggle-label` in `web/src/blocks/common.ts` `Collapsible` and `web/src/blocks/layout.ts`), the
+note rows (`web/src/blocks/context.ts` `NoteItem`, `web/src/styles/shell.css` `.note`), the native controls, and
+the bundle. Decisions 17 and 18 say what the look is; this ticket makes everything else agree.
+
+- **Touches:** `src/beamtime/guide/parts/kit.md` (§ Titles go in the left column, 113–120), `views.md` (60–63),
+  `checklist.md` (13), `src/beamtime/guide/examples/sweep.yaml` (4), `tests/guide/test_guide.py` (41, 135–144),
+  `web/src/ui/primitives.ts` (28, comment), `web/src/bt/labels.ts` (1, comment), `docs/design/05-views.md`
+  (482, 508, 675, 712, 989), `docs/design/07-web-ui.md` (45–47, 558, and any other mention of the margin),
+  `tests/serve/test_browser.py` (464: the `config` section's label is now in its toggle), `web/src/styles/*.css`
+  and `web/src/shell/*.ts` only where a screen below breaks a rule of `design/README.md`; the skills generated
+  by `scripts/build-plugin` if they carry the changed parts; `src/beamtime/serve/static/` (rebuilt).
+- **Read:** `design/README.md` (all, especially § Look and § Differences from the export); `design/components/Section.md`,
+  `Table.md`, `Note.md`, `Field.md`; decisions 17 and 18; `git show` of the commit that landed the design system.
+- **Check:** `python3 scripts/build-tokens --check && scripts/check-design && uv run pytest -q -n0 tests/test_design.py tests/guide/test_guide.py`;
+  `cd web && npm test && npm run build`; `uv run pytest -q tests/serve/test_browser.py`; then the full checks;
+  by hand: `beamtime serve` on a synth log dir (`beamtime.synth.generate`), every screen below in light and dark.
+- **Done:** no guide part, example, spec document or code comment mentions a margin column, a left column or the
+  warm notebook look; the guide says a one- or two-word title becomes the section's label, in mono above the
+  block or in its collapse toggle; `test_vocabulary_table_and_title_rule_are_in_the_parts` asserts the new
+  wording; each screen below follows `design/README.md` in both themes (labels above, one header line per
+  collapsible block, no hairline rows in lists, fonts by decision 18, drawn controls, 12 px radius) or its fix is
+  in this commit; the browser tests pass.
+- **Risks:** custom blocks of existing views may lay themselves out against the old margin (`var(--margin)`) →
+  the token stays (decision 17), grep `guide/examples/code/` for it; the shell stays under 120 KB compressed;
+  the exported HTML (`beamtime export --html`) and the headless renderer use the same CSS but are easy to forget →
+  export one page and render one view by hand; dialogs and popovers on `surface` with the new 12 px radius may clip
+  their content → by hand.
+- **Stop if:** a screen needs a look the design system doesn't describe (then extend `design/` first, as
+  `design/README.md` § Not in the design system says, and say so in the commit).
+
+1. Guide: rename kit.md's heading to "Titles become section labels" and say: a top-level `section` (or custom
+   block) titled with one or two words shows that title as the section's label, in mono above the block (in its
+   collapse toggle when the block collapses); longer titles, nested sections, Markdown `##` and `bt.ui.Section`
+   render as a sans `heading` inside the block. Same meaning in one bullet of views.md, checklist item 9 ("Does
+   every top-level section have a one- or two-word title for its label?") and the comment in `sweep.yaml`;
+   rename "margin label" to "section label" in `test_guide.py` and assert "section label" in the three parts.
+2. Spec: 05-views.md 482 notes that `margin` is unused by the app and kept for custom code; 508 names mono for
+   code and section labels; 675 and 712 say "section label"; 989 drops "notebook look". 07-web-ui.md 45–47
+   describes the page as decision 17 does; 558 drops "warm paper, a serif for titles".
+3. Screens, in light and dark, against `design/README.md`: group page, run page (config, output, images), the
+   drawer (run details, notes), the timeline, settings, view history and diff, the command palette and help, chart
+   settings, the add-chart menu, a custom block (`guide/examples/code/`), an exported page, the headless render.
+   Fix what breaks a rule (for example a hairline list, a serif name, a browser-default control, a 6 px corner
+   hard-coded somewhere); list what you checked in the commit message.
+4. Browser test 464: find the config block by its toggle (`.collapse-toggle:has(.toggle-label:text-is('config'))`).
+
 ## T. Type
 
 ### T31. Font instructions for agents, and a font check (sonnet + review) — real data
@@ -604,12 +680,12 @@ Lines below are at `274fc44`, not the plan's base commit; refresh them if Q31–
   `COLOR` 39, `problems` 41–76), `tests/views/test_custom.py` (`test_code_checks` 55–72),
   `tests/views/test_views.py` (`test_chart_frames_and_live_data_pass_the_code_lints` 778–787),
   `tests/guide/test_guide.py` (new test), `docs/design/05-views.md` (guide table 696–708, anti-patterns 790).
-- **Read:** `design/README.md` § Look (Type) and § Components; `design/tokens.css` 20–31 (the type styles);
+- **Read:** `design/README.md` § Look (Type: the family rule) and § Components; decision 18; `design/tokens.css` 20–31 (the type styles);
   `src/beamtime/guide/parts/kit.md` (all); `web/src/blocks/common.ts` 35–45 (captions), `web/src/blocks/layout.ts`
   25–40 (section titles), `web/src/bt/md.ts` (what Markdown renders), `web/src/kit/snapshot.ts` 18.
 - **Check:** `uv run pytest -q -n0 tests/views/test_custom.py tests/views/test_views.py tests/guide/test_guide.py`;
   `uv run beamtime guide type | wc -w` (under 900 words); then the full checks.
-- **Done:** `beamtime guide type` prints the part; the overview, `kit`, `kit-api`, `anti-patterns` and `checklist`
+- **Done:** `beamtime guide type` prints the part, which opens with the family rule of decision 18; the overview, `kit`, `kit-api`, `anti-patterns` and `checklist`
   each point to it in one line; `code.problems` reports `font literal 'font-size'` with its fix for each of
   `font-size="12"` on SVG text, `.attr("font-size", 12)`, `.style("font-family", "serif")`, `style="font: 12px x"`,
   `fontSize: 12` and `line-height: 1.2`, and nothing for `class="small"`, `ctx.font = bt.theme.tokens.font`,
@@ -617,24 +693,33 @@ Lines below are at `274fc44`, not the plan's base commit; refresh them if Q31–
 - **Risks:** a word in a caption string ("font size") must not match → a test with `'pick a font size'`;
   `{font: bt.theme.tokens.font}` in a uPlot option must pass → test; the guide part must only name classes and
   `bt` names that exist (`test_kit_names_exist_in_the_frontend` extended to `type`, and a new test that every
-  class the part names is a selector in `design/tokens.css` or `design/components.css`).
+  class the part names is a selector in `design/tokens.css` or `design/components.css`); the part must give each
+  class the family `design/tokens.json` gives it (`heading` is sans since decision 17) → the test reads the
+  families from `tokens.json`.
 - **Stop if:** a field the part describes renders differently from what step 2 says (then write what the code
   does and say so in the commit); `bt.theme.tokens.font` is not the chart font string in the frame.
 
-1. `type.md`, about 60 lines, imperative, no prose beyond one line per rule. **Custom code**: never set a font
+1. `type.md`, about 60 lines, imperative, no prose beyond one line per rule. It opens with decision 18's rule,
+   the one that decides every other line: **the family says who wrote the text**. Serif (`prose`, `caption`;
+   `statement` never in blocks) only for sentences a person or an agent wrote, such as an explanation or a note
+   shown in a block; sans (`body`, `small`, `number`, `heading`) for everything the block names, labels, counts
+   or states: axis titles, ticks, legends, run, group and metric names, status and verdict words, numbers; mono
+   (`code`) as an accent for keys, ids, paths and values as logged, never for a sentence. A name stays sans even
+   when a person chose it. **Custom code**: never set a font
    family, size, the `font` shorthand or line height, in inline styles, d3 `.attr`/`.style`, SVG attributes or a
    `<style>`; put a type class on the element, the frame loads the app's stylesheet. A table, class → font →
-   use: `body` (sans 15, the frame's default: controls, cells, facts); `small` (sans 12.5: axis ticks and labels,
+   use: `body` (sans 15, the frame's default: controls, cells, facts); `heading` (sans 17 at 600: titles inside a block, only
+   through `bt.ui.Section`); `small` (sans 12.5: axis ticks and labels,
    legends, table headers, meta, status words); `num` (tabular figures, no size: every number in a column or
    on an axis, with `small` or `body`); `number` (sans 24 bold: one headline value; prefer `bt.ui.Stat`); `prose`
    (serif 15.5: sentences inside a block); `caption` (serif italic 14: prefer the block's `caption`); `code`
-   (mono 13: run ids, metric and config keys, paths, values as logged); `heading` only through `bt.ui.Section`;
+   (mono 13: run ids, metric and config keys, paths, values as logged);
    `title` and `statement` never in blocks. SVG text: `class="small num"` for ticks, `class="small"` for axis
    titles, `fill="var(--muted)"`; downloads keep it (`snapshot.ts` copies the computed font). Canvas:
    `ctx.font = bt.theme.tokens.font`, the only font string code uses. Emphasis: bold (`<b>`) only for the one
    value that matters; no italic of your own (italic means proposed or live), no uppercase, no letter-spacing.
-2. **Views**: `title` is plain text (one or two lowercase words go to the margin in mono, longer ones are a
-   `heading`); `caption` is plain text in the serif italic, a sentence, keys as logged without backticks;
+2. **Views**: `title` is plain text (one or two lowercase words become the section's label, in mono above the
+   block or in its collapse toggle; longer ones are a sans `heading`); `caption` is plain text in the serif italic, a sentence, keys as logged without backticks;
    Markdown fields (`markdown` blocks, notes, memory) render `prose`: keys, ids and values in backticks
    (`code`), math as `$…$` (KaTeX), `##` at most, raw HTML shows as text. Verify each claim against the files in
    Read before writing it.
@@ -672,6 +757,8 @@ Lines below are at `274fc44`, not the plan's base commit; refresh them if Q31–
 | `data` query and meta | — | `clock` param; meta `steps`, `clocks` | additive |
 | `images` block | latest step, small tiles, no tools | a scrubber over every logged step, chart tools, an expand dialog with zoom | none; `step:` in a view is now where the scrubber starts |
 | Favicon | mark with a dot when live | `///`, gathered when live | none |
+| Page layout | Section labels in a left margin column | labels above the content, centered column, panels, rounded hover rows | custom blocks keep `var(--margin)` (unused by the app) |
+| Look | warm paper, serif block titles, 6 px corners | cool neutrals, sans titles, 12 px corners, drawn controls | none; themes recolor through the same tokens |
 | Custom code with font literals | saved | `view_validate` error `font literal …` | a type class (`guide type`); canvas `bt.theme.tokens.font` |
 
 ## Not verified
@@ -689,6 +776,9 @@ Lines below are at `274fc44`, not the plan's base commit; refresh them if Q31–
 - Custom blocks in an exported page: the inline frame strips `@font-face` (`web/src/blocks/custom.ts` 217–218) and
   `--font-serif` is `XCharter` with no fallback, so serif classes there may render in the browser's default font.
   Out of scope for T31; see the question below.
+
+- That the generated skills (`scripts/build-plugin`) are committed anywhere that S31 must regenerate.
+- That exported pages and the headless renderer show the new look without changes (S31 checks by hand).
 
 ## Questions
 
