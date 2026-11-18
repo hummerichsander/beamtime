@@ -199,6 +199,7 @@ How views look and behave is [layer 5](05-views.md). For storage:
   proposal/                 # the run's own proposal versions            [authored]
   notes/                    # notes on this run                          [authored]
   view/                     # the run's own view                         [authored]
+  visibility/               # promotions of a hidden run                  [authored]
 ```
 
 ### `_run.json`
@@ -234,7 +235,8 @@ How views look and behave is [layer 5](05-views.md). For storage:
   "command": ["python", "train.py", "--lr", "3e-4"],
   "cwd": "/home/ada/proj",
   "beamtime_version": "0.1.0",
-  "copied_from": {"id": "20261020-090000-z1a2b3c4", "path": "scaling/lr-sweep", "at": "2026-10-24T10:20:00Z"}
+  "copied_from": {"id": "20261020-090000-z1a2b3c4", "path": "scaling/lr-sweep", "at": "2026-10-24T10:20:00Z"},
+  "hidden": true
 }
 ```
 
@@ -263,6 +265,13 @@ How views look and behave is [layer 5](05-views.md). For storage:
   data is from the original run; `proposals` and `proposal_hashes` keep only the run's own entry
   (`.`) and gain the destination's ancestors, as a new run would. `key` goes and `job_key` becomes
   `null`: the copy is no launch's run, and resuming the source's key must never continue the copy.
+- **`hidden`** (optional, `true` only) is set by the SDK when the run starts as a test run
+  (`init(hidden=True)` or `BEAMTIME_HIDDEN=1`, [layer 2](02-sdk.md#init)); it is never written as `false`.
+  A hidden run is recorded like any run but left out of listings, counts and the research record until
+  someone promotes it ([layer 3](03-index.md#selecting-runs),
+  [layer 9](09-research-record.md#hidden-runs)). Readers treat a missing field as visible, so every earlier
+  `_run.json` reads as before, and the `schema` stays 1. The SDK owns `_run.json` and never writes the
+  `visibility/` folder; operations write `visibility/` and never `_run.json`.
 - **`imported_from`** (optional) is set by an import in `beamtime setup` ([setup](10-setup.md#past-work))
   and records where the run came from:
 
@@ -483,6 +492,13 @@ log or a note must be removable.
 - **A run's display name** can be changed after the run: `beamtime name <run> <name>` writes a new
   version in the run's `name/` folder (`{schema, name, author, user}`), which listings show instead of
   the name in `_run.json`. The run id never changes.
+- **Promoting a hidden run**: `beamtime run promote <run>` writes a new version in the run's
+  `visibility/` folder (`{schema: 1, hidden: false, reason?, author, user}`, one file per version, the
+  newest valid one counts) that overrides `hidden` in `_run.json`. The run then counts like any run and
+  joins the proposal versions it recorded. A later version with `hidden: true` would hide it again; no
+  operation writes one yet. A run is hidden when the newest valid `visibility/` version says so, else when
+  `_run.json` says so (`format/run.py` `run_hidden`, the one reader). Deleting a hidden run is `beamtime rm`
+  like any run, and stays a user command.
 - **Deleting by hand** is supported too. The index notices vanished folders and forgets them
   ([layer 3](03-index.md#discovery)).
 
@@ -501,5 +517,7 @@ log or a note must be removable.
 - Resumed runs append new attempts; the newer attempt wins from its resume step on.
 - Runs record data, views present it: scalars, tables, images and text; histograms are tables.
 - `_output.log` is always captured, with a head and a rotating tail.
+- A hidden run is a flag in `_run.json` written by the SDK; promotion is a file in `visibility/` written
+  by an operation, so every file keeps one writer.
 - Deleting goes through `_trash/` and `beamtime gc`, or by hand; the index copes.
 - Beamtime records experiments and never runs them.

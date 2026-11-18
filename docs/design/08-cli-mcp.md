@@ -30,7 +30,7 @@ wherever a group does.
 
 | CLI | MCP | Does |
 |---|---|---|
-| `beamtime status` | `status` | daemon, indexer, sources and remotes, freshness, the web UI's URL, and the root memory (`memory: {version, notes_since, text}`; `text` is `null` when the file does not parse, `memory` is `null` without one); the CLI prints the text below the table, so one call starts a work session |
+| `beamtime status` | `status` | daemon, indexer, sources and remotes, freshness, the web UI's URL, and the root memory (`memory: {version, notes_since, text}`; `text` is `null` when the file does not parse, `memory` is `null` without one); the CLI prints the text below the table, so one call starts a work session; it counts visible runs and adds a `hidden` line when hidden runs exist, with a hint when some are older than 7 days (`hidden    N runs (K older than 7 days: promote with beamtime run promote <id>, or the user deletes them with beamtime rm <id>)`, up to 5 ids) |
 | `beamtime guide [part] [group]` | `guide` | the agent guide ([layer 5](05-views.md#the-agent-guide)) |
 | `beamtime memory show <group>` | `memory_show` | the memory of the group and every group above it, with a staleness hint |
 | `beamtime keys <group>` | `keys` | metrics, config keys, data keys and tags |
@@ -62,6 +62,7 @@ wherever a group does.
 | `beamtime note add <group>` | `note_add` | a note: `--type`, `--description`, `--resolves`, `--supersedes`, `--completes`, `--evidence`; for verdicts `--proposal <version>`, `--verdict <prediction>=<verdict>`, `--overall`; the check snapshot is added automatically; body from stdin |
 | `beamtime name <run> <name>` | `name` | gives a run a display name (a new version in its `name/` folder) |
 | `beamtime cp <run or group> <dest-group>` | `cp` | copies it under a new run id (or ids); `--name`, `--with-checkpoints`, `--with-record`; never modifies the source ([layer 1](01-storage.md#_artifactsjsonl)); on one remote (`@au/a @au/b`), across sources refused ([layer 4](04-remotes.md#routing-and-merging)) |
+| `beamtime run promote <run>...` | `run_promote` | makes hidden runs count like any run: writes a new version in each run's `visibility/` folder (`--reason`); several runs, never a group; a run that is not hidden is reported, not an error; warns when a recorded proposal version's file no longer matches the run's hash ([layer 1](01-storage.md#deleting-and-cleaning-up), [layer 9](09-research-record.md#hidden-runs)). There is no hide operation |
 | `beamtime note rm <id>` | – | user only: moves a note and the versions it replaced to the trash |
 | `beamtime proposal set <group> <file>` | `proposal_set` | saves a new proposal version; superseding a frozen version requires `--reason`; warns beyond the project's `agent.proposal_words` ([setup](10-setup.md#agent-settings)) |
 | `beamtime memory update <group> <file>` | `memory_update` | saves a new memory version; warns beyond the size budget |
@@ -118,6 +119,10 @@ MCP server, started by an agent client). Both register in the process registry, 
 ### Shared conventions
 
 - **Global flags**: `--root` (another project), `--json` (the canonical answer), `--quiet`.
+- **Hidden runs** (started with `init(hidden=True)` or `BEAMTIME_HIDDEN=1`) are left out of every read
+  operation, count and check; `--hidden` (the `hidden` argument of the MCP tools, `hidden: true` in a
+  query) includes them. A run named by id (`card`, `output`, `resume`, `from: <run id>`) is always shown, so
+  it can be inspected before it is promoted ([layer 3](03-index.md#selecting-runs)).
 - **Writes take `--author`** (a person or model id; default: the local account) and record `user`, the
   local account ([research record](09-research-record.md#fields)).
 - **Tool schemas are slimmed** (`mcp/server.py:slim`): `null` and empty defaults, the `null` member of a
@@ -357,5 +362,7 @@ Decided while building the CLI and MCP server (milestone M3):
 - MCP over stdio (`beamtime mcp`, also over ssh), with 19 core tools plus `tools_more` for the rest, nine prompts, and token
   budgets with cursors.
 - `beamtime setup`, `demo`, `doctor` and `mcp install` cover onboarding.
+- Hidden runs are excluded from reads unless `--hidden`; `run promote` is the one agent write that brings
+  them back, and deleting them stays a user command.
 - `beamtime ps` lists the user's Beamtime processes and `beamtime stop` stops serves only; a second
   `serve` for a served root attaches, `--replace` takes over.

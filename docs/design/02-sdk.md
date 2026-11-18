@@ -76,6 +76,12 @@ shape, or a path to such a YAML file, so an agent can write the proposal before 
 `BEAMTIME_PROPOSAL` can point to that file for jobs launched by scripts. `None` writes a blank
 proposal. A run's own proposal is frozen from the start, since the run references it at `init`.
 
+`init(hidden=True)` (or `BEAMTIME_HIDDEN` set to `1`, `true` or `yes`, in any case; an explicit argument
+wins over the variable, so `hidden=False` overrides it) starts a hidden run: it writes `"hidden": true` into
+`_run.json` and is otherwise recorded as usual. Hidden runs are left out of listings, counts and the
+research record until promoted ([layer 1](01-storage.md#_runjson), [layer 9](09-research-record.md#hidden-runs));
+the SDK never writes the promotion, which is the `visibility/` folder of the run.
+
 The config's top-level key `schema` is reserved (it marks `_config.json`'s version); `init` refuses
 it. Config values that aren't JSON types are stored as strings.
 
@@ -208,6 +214,9 @@ first can never raise, since starting the experiment must never be at the mercy 
    keeps its own recency window, on the heartbeat rather than `created_at`, since a requeued rank 0
    continues a run created hours before.
 4. **New** (nothing above matched): a fresh id.
+
+A continued run keeps its visibility: `hidden` is read from its `_run.json` and a `hidden` argument that
+differs is ignored with a `hidden` warning event. A requeued hidden job stays hidden.
 
 A broken `_run.json` elsewhere in the folder, a run found by key or requeue that can't be reopened
 (say, a newer schema), or any other error while looking, is swallowed with a warning and falls back
@@ -384,6 +393,8 @@ libraries are imported inside the functions that need them.
   `sys.stdout` and must finish explicitly.
 - The heartbeat is the modification time of `_run.json`; card and preview are written every 3
   minutes.
+- A hidden run is a flag the SDK writes at `init` (`hidden=True` or `BEAMTIME_HIDDEN`); a continued run keeps
+  its visibility.
 - Rank 0 writes the run; other ranks capture their output into `_output.rank<N>.log`.
 - PyTorch Lightning is supported natively through `BeamtimeLogger`.
 - The SDK logs data, never charts.

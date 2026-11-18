@@ -315,6 +315,14 @@ it back. Files are never changed ([layer 1](01-storage.md)), so every edit is a 
 | a note's title or body | a new note that `supersedes` it, with its typed fields carried over (what it resolves, completes, cites and judges); a verdict takes a fresh check snapshot, as every note records the check at the time it is written |
 | the memory | a new memory version |
 | a proposal's statement | a new proposal version, but only while no run has recorded it; a frozen statement is locked and says how to supersede it |
+| the Promote button of a hidden run | a new `visibility/` version of the run (`beamtime run promote`); the run then counts like any run |
+
+**Hidden runs** ([layer 9](09-research-record.md#hidden-runs)) are shown on demand. Charts, tables and
+the tree of a view never include them. A group that has some says "N hidden" in its header, linking to
+`?hidden`, which lists them above the view (name, status, age) with a Promote button each; a hidden run's
+page carries a muted "Hidden" mark (`eye-off`) and a Promote button. A view may opt in with `hidden: true`
+in a query. There is no page-wide toggle that rewrites the queries of a view, and the UI offers no
+deletion of hidden runs (`beamtime rm` stays a user command).
 
 Every page shows the same Notes block, whatever its view (a view that includes `notes` or `memory`
 places them itself) (the notes at or below it; a note from a subgroup or run

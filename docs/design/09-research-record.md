@@ -71,10 +71,11 @@ user: ada
 
 - **Membership.** At `init`, every run records in its own `_run.json` the current proposal version of
   each ancestor group and its own ([layer 1](01-storage.md#_runjson)). A proposal version is evaluated
-  against exactly the runs that recorded it. This is explicit, needs no clock, and survives moving a
+  against exactly the runs that recorded it that are visible
+  ([hidden runs](#hidden-runs)). This is explicit, needs no clock, and survives moving a
   run: a moved run keeps its membership, and the UI notes that it was recorded under another group.
-- **Freezing.** A version is frozen once any run has recorded it. A run's own proposal is frozen from
-  the run's start. Frozen versions never change; the index refuses to treat an edited frozen file as
+- **Freezing.** A version is frozen once any *visible* run has recorded it. A run's own proposal is
+  frozen from the run's start, unless the run is hidden: then it freezes when the run is promoted. Frozen versions never change; the index refuses to treat an edited frozen file as
   valid and shows the hash mismatch.
 - **Before freezing**, a version can be replaced freely by saving a new one.
 - **After freezing**, a new version must say what it supersedes and why:
@@ -87,6 +88,23 @@ user: ada
   new version was saved record the new one. Readers see what was predicted before and after the
   amendment.
 - **`confidence`** is optional: the author's belief before any data, for checking calibration later.
+
+### Hidden runs
+
+A run started with `init(hidden=True)` or `BEAMTIME_HIDDEN=1` (a smoke test, a debugging run) is recorded
+like any run but does not count in the record until someone promotes it
+([layer 1](01-storage.md#_runjson)). Membership is always the visible runs: members, `select`, every
+prediction and check, plan progress, `plan missing`, group status and freezing see a hidden run as
+absent. A hidden run in a `compare` group leaves the check `insufficient`, and a version only hidden runs
+recorded stays unfrozen, so an agent's smoke test never forces a `--reason` supersede.
+
+- A `ref: {run: <id>}` that points at a hidden run reads as a missing run until it is promoted.
+- **Promoting** (`beamtime run promote`, [layer 8](08-cli-mcp.md#writing-cli-and-mcp)) makes the run count like any run.
+  It joins the proposal versions it recorded in `_run.json`, which freezes them from then on; the
+  promotion warns when a recorded version's file no longer matches the run's recorded hash. The
+  proposal is never rewritten on promotion.
+- The `groups` counts and the group status are of visible runs; a hidden run does not move a group from
+  `proposed` to `running`.
 
 ### Plans
 
@@ -170,6 +188,8 @@ result is marked provisional**, and the check shows the plan's progress.
 
 The check is a proposal of its own. The verdict of record is written by a person or agent, who can
 disagree with the check and say why.
+
+Hidden runs are not members and never enter the check ([hidden runs](#hidden-runs)).
 
 The check also names it when a version's members didn't all run on the same code
 ([layer 3](03-index.md#fields)`run.code`): a note next to the result, not a verdict of its own,
@@ -268,8 +288,8 @@ and the sidebar ([layer 7](07-web-ui.md#shell)):
 | Status | When |
 |---|---|
 | `open` | no proposal |
-| `proposed` | a proposal, but no run has recorded its current version |
-| `running` | runs of the current version exist; the plan is not complete |
+| `proposed` | a proposal, but no visible run has recorded its current version |
+| `running` | visible runs of the current version exist; the plan is not complete |
 | `evaluable` | the plan is complete; the check is final |
 | `concluded` | a verdict exists for the current version |
 
@@ -392,8 +412,8 @@ Decided while building the research record (milestone M4):
 
 ## Decisions
 
-- Proposals are versioned; runs record their membership in `_run.json`; a version is frozen once a run
-  records it; frozen versions are superseded with a reason, never edited.
+- Proposals are versioned; runs record their membership in `_run.json`; a version is frozen once a
+  visible run records it; hidden runs are never members until promoted; frozen versions are superseded with a reason, never edited.
 - Plans are optional (`runs`, `grid`, `children`); without one, checks stay provisional until a
   decision note completes the group.
 - Predictions are named, automatic or manual; v1 has `each` and `compare`, with `trend` and `best` in

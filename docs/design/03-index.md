@@ -295,11 +295,15 @@ Every value a query can filter, sort or show is a **field**, a dotted path with 
 
 | Namespace | Example | Source |
 |---|---|---|
-| `run.` | `run.id`, `run.name`, `run.status`, `run.created_at`, `run.duration_s`, `run.steps`, `run.tags`, `run.path`, `run.commit`, `run.branch`, `run.dirty`, `run.code`, `run.epoch`, `run.progress`, `run.attempts`, `run.last_logged` | `_run.json`, run card |
+| `run.` | `run.id`, `run.name`, `run.status`, `run.created_at`, `run.duration_s`, `run.steps`, `run.tags`, `run.path`, `run.commit`, `run.branch`, `run.dirty`, `run.code`, `run.epoch`, `run.progress`, `run.attempts`, `run.last_logged`, `run.hidden` | `_run.json`, run card |
 | `config.` | `config.optimizer.lr` | `_config.json` |
 | `metric.` | `metric.val/acc.max`, `metric.train/loss.ema_last` | run card statistics |
 | `value.` | `value.test/acc` | explicit run card values |
 | `proposal.` | `proposal.status`, `proposal.check`, `proposal.progress`, `proposal.verdict` | the check and the notes ([research record](09-research-record.md#the-check)) |
+
+`run.hidden` is true for a hidden run: `_run.json` says `hidden`, unless the newest valid version in the
+run's `visibility/` folder says otherwise ([layer 1](01-storage.md#_runjson); the index stores the one
+answer of `run_hidden`, and the run's authored files are watched like the others).
 
 For `metric.`, the last segment is the statistic when it names one and everything before it is the
 metric key, so keys containing dots (`metric.layer.0.grad.max`) stay unambiguous. A bare
@@ -385,6 +389,7 @@ for all kinds:
 ```yaml
 from: .                        # a group; a run id also works
 depth: all                     # all (default) | 1: only direct children
+hidden: false                  # false (default): leave hidden runs out | true: include them
 where:
   config.lr: {lt: 1.0e-3}
   run.status: finished
@@ -399,6 +404,13 @@ where:
   suffix matches by chance, so it is read as a group). One resolver (`query/resolve.py`) answers for
   queries, notes and proposals: it follows moved groups, refuses reserved names and paths leaving
   the log dir, and lists the siblings and top-level groups for an unknown group.
+- **Hidden runs.** `hidden: false` (the default) leaves hidden runs out of every kind: listings, curves,
+  aggregates, seeds, `keys` and `groups` counts, and the research record's membership
+  ([layer 9](09-research-record.md#hidden-runs)). `hidden: true` (`--hidden` on the CLI) includes them, and
+  `run.hidden` is a field a query can show or filter on. A run named in `from` (id, unique suffix or name)
+  always counts, so a hidden run can be inspected before it is promoted; a group named in `from` does not
+  bring its hidden runs back. A view's queries never include hidden runs unless the query opts in with
+  `hidden: true`.
 - **Paths.** In a view, `from` is relative to the viewed group (`.`, `..`, `lr-sweep`). In the CLI
   and MCP, it is relative to the log dir; `.` covers the local log dir and all connected remotes, and
   `@cluster/scaling` names a remote group ([layer 4](04-remotes.md#naming-remote-groups)).
@@ -526,7 +538,7 @@ groups: {from: ., depth: 2}
 ```
 
 Returns each group with its research status, proposal statement, check, plan progress, current
-verdict and run counts by status.
+verdict and run counts by status. The counts are of visible runs; a `hidden` column counts the hidden ones.
 
 **`importance`**: how strongly config fields relate to a target metric.
 
@@ -673,6 +685,7 @@ Decided while building the index and the queries (milestone M2):
 - The validator converts numeric strings on numeric fields to numbers, because PyYAML reads `1e-3`
   as a string.
 - Across sources, listings are merged and aggregates are computed per source.
+- Selection leaves hidden runs out by default; a run named by id always shows, `hidden: true` includes them.
 
 ## Later
 

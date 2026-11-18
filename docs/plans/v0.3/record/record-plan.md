@@ -156,7 +156,7 @@ What's left runs in this order: U40 U41 U42 U43 U44 N44 N42 N41 N43 N45 U45 U46 
 
 ## U. Hidden runs
 
-### U40. Spec: hidden runs (sonnet + review) — code
+### U40. Spec: hidden runs (sonnet + review) — code — **done**
 
 - **Touches:** `docs/design/01-storage.md` (§ Directory l. 179, § `_run.json` l. 204–280, § Deleting and cleaning up
   l. 461–487, § Decisions), `docs/design/02-sdk.md` (§ `init` l. 56–80, § Resume l. 188), `docs/design/03-index.md`
