@@ -72,7 +72,9 @@ def call(ctx: Context, tool: str, params: dict[str, Any]) -> dict[str, Any] | No
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=180) as response:
+        # a wait blocks for its own timeout; a shorter one would make the caller wait again here.
+        timeout = 180 + float(params.get("timeout") or 0)
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read())
     except urllib.error.HTTPError as e:
         body = json.loads(e.read() or b"{}")

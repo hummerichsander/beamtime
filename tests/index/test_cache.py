@@ -259,6 +259,31 @@ def test_memory_reads_go_through_the_running_serve(clean: Path, tmp_path: Path) 
         server.shutdown()
 
 
+def test_routed_wait_outlasts_its_own_timeout(
+    clean: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A wait sent to the serve keeps the connection open past its own timeout, so it never
+    times out midway and waits again locally."""
+    settings = configured("memory")
+    daemon = Daemon(logdir=clean, settings=settings, port=1, poll_s=0.05)
+    assert daemon.start()
+    timeouts = []
+
+    def urlopen(request, timeout: float):
+        """Record the timeout and fail like a timed-out read."""
+        timeouts.append(timeout)
+        raise TimeoutError
+
+    monkeypatch.setattr(via_serve.urllib.request, "urlopen", urlopen)
+    try:
+        (daemon.cache / TOKEN_FILE).write_text("secret\n")
+        ctx = Context(root=tmp_path, root_reason="test", settings=settings, logdir=clean, caller="cli")
+        assert via_serve.call(ctx, "wait", {"timeout": 300.0}) is None
+        assert timeouts[0] > 300.0
+    finally:
+        daemon.stop()
+
+
 def test_invalid_cache_setting_is_reported(tmp_path: Path) -> None:
     """A cache that is not a string is ignored with a problem."""
     path = tmp_path / "beamtime.yaml"
