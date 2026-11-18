@@ -366,6 +366,8 @@ class Compiler:
                 raise SchemaError(
                     f"{n.id}: a file query takes path and columns, not {', '.join(sorted(extra))}"
                 )
+            if "path" not in params:
+                raise SchemaError(f"{n.id}: a file query needs a path, e.g. data/fit.csv")
             draft = {"draft": self.draft} if self.draft else {}
             return api("file", {"view": self.path} | params | draft, self.path)
         sel = self.selection(n)

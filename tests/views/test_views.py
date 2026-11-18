@@ -247,6 +247,8 @@ def test_file_columns_compile() -> None:
     assert params["columns"] == ["a"]
     with pytest.raises(SchemaError, match="a file query takes path and columns"):
         compile_view(parse(custom.replace("columns: [a]", "limit: 3")), path="g")
+    with pytest.raises(SchemaError, match="a file query needs a path"):
+        compile_view(parse(custom.replace("path: data/f.csv, ", "")), path="g")
 
 
 def test_scorecard_is_one_runs_query_and_predictions_is_the_proposal() -> None:

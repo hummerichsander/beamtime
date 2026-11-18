@@ -66,11 +66,12 @@ def read_table(path: Path) -> tuple[list[str], list[list[Any]]]:
                 dup = next(c for c in columns if columns.count(c) > 1)
                 raise QueryError(f"{path.name} has the column name {dup!r} twice")
             for i, row in enumerate(body, start=2):
-                if len(row) != len(columns):
+                if row and len(row) != len(columns):
                     raise QueryError(
                         f"{path.name} line {i}: {len(row)} cells, the header has {len(columns)}"
                     )
-            rows = [[number_or_text(v) for v in row] for row in body]
+            # a blank line is no row, as in pandas; editors often leave one at the end.
+            rows = [[number_or_text(v) for v in row] for row in body if row]
         case ".json":
             data = json.loads(path.read_text())
             if isinstance(data, dict) and "columns" in data and isinstance(data["columns"], dict):

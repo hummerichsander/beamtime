@@ -652,6 +652,13 @@ def test_ragged_csv_row(tmp_path: Path) -> None:
         read_table(file)
 
 
+def test_csv_blank_lines(tmp_path: Path) -> None:
+    """A blank line, often left at the end by an editor, is no row and no error."""
+    file = tmp_path / "t.csv"
+    file.write_text("a,b\n1,2\n\n3,4\n\n")
+    assert read_table(file) == (["a", "b"], [[1, 2], [3, 4]])
+
+
 def test_csv_bom(tmp_path: Path) -> None:
     """The byte order mark Excel writes does not end up in the first column name."""
     file = tmp_path / "t.csv"
