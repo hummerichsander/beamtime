@@ -94,10 +94,12 @@ def write_draft_files(
             "or start another with --name",
             code=1,
         )
+    from beamtime.views.validate import inside
+
     (folder / "data").mkdir(parents=True)
     (folder / store.VIEW_FILE).write_text(text)
     for ref in data_refs(text):
-        if (content := fetch(ref)) is not None:
+        if inside(folder, ref) and (content := fetch(ref)) is not None:
             write_created(folder / ref, content)
     store.write_draft_meta(folder, group=path, origin=p.from_ or "current")
     file = folder / store.VIEW_FILE
@@ -248,8 +250,11 @@ def bundle(ctx: Context, d: store.Draft) -> dict[str, Any]:
     :param ctx: The operation context.
     :param d: The draft.
     :return: ``{draft, yaml, files, blocks}``; files are base64 by their path in the draft."""
+    from beamtime.views.validate import inside
+
     text = d.file.read_text()
-    files = packed(d.dir, [ref for ref in data_refs(text) if (d.dir / ref).is_file()])
+    refs = [ref for ref in data_refs(text) if inside(d.dir, ref) and (d.dir / ref).is_file()]
+    files = packed(d.dir, refs)
     return {"draft": d.name, "yaml": text, "files": files, "blocks": bundle_blocks(ctx, d.blocks)}
 
 

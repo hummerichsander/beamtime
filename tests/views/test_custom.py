@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import pytest
 import yaml
@@ -9,8 +10,8 @@ from beamtime.ops.views import bundle
 from beamtime.serve.api import view as page_view
 from beamtime.views import code
 from beamtime.views import model as m
-from beamtime.views.compile import compile_view
 from beamtime.views import store
+from beamtime.views.compile import compile_view
 from beamtime.views.store import code_text
 from beamtime.views.validate import static
 
@@ -228,3 +229,33 @@ def test_bundle_carries_custom_file_query(ctx: Context, project: Path) -> None:
     draft_with_file(ctx, project, "bun")
     files = bundle(ctx, store.draft(ctx, "bun"))["files"]
     assert {"data/fit.csv", "code/c.js"} <= set(files)
+
+
+@pytest.mark.parametrize("outside", ["../secret.csv", "ABSOLUTE"])
+def test_file_query_outside_the_draft_is_not_bundled_or_saved(
+    ctx: Context, project: Path, tmp_path: Path, outside: str
+) -> None:
+    """A custom file query that leaves the draft is neither packed for a remote nor saved."""
+    secret = tmp_path / "secret.csv"
+    secret.write_text("k,v\n1,2\n")
+    ref = str(secret) if outside == "ABSOLUTE" else outside
+    text = FILE_VIEW.replace("  - data_table: {id: dt, file: data/fit.csv}\n", "")
+    folder = draft_with_file(ctx, project, "esc", text.replace("path: data/fit.csv", f"path: {ref}"))
+    (folder.parent / "secret.csv").write_text("k,v\n1,2\n")
+    assert set(bundle(ctx, store.draft(ctx, "esc"))["files"]) == {"code/c.js"}
+    with pytest.raises(OpError):
+        call("view save", {"draft": "esc"}, ctx)
+    assert not (ctx.logdir / SWEEP / "view" / "data").exists()
+
+
+def test_view_new_writes_no_file_outside_the_draft(ctx: Context, project: Path) -> None:
+    """A saved view whose file query leaves its folder starts a draft without that file."""
+    draft_with_file(ctx, project, "fit")
+    call("view save", {"draft": "fit"}, ctx)
+    saved = max((ctx.logdir / SWEEP / "view").glob("*.yaml"))
+    (ctx.logdir / SWEEP / "secret.csv").write_text("k,v\n1,2\n")
+    text = re.sub(r"path: data/[^}]*", "path: ../secret.csv", saved.read_text())
+    saved.chmod(0o644)
+    saved.write_text(text)
+    call("view new", {"group": SWEEP, "name": "fit2"}, ctx)
+    assert not (project / ".beamtime" / "drafts" / "secret.csv").exists()
