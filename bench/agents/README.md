@@ -50,6 +50,8 @@ heldout: true                    # not looked at while refining (see below)
 page: scaling/lr-sweep           # the group the work happens in; run:<role> for a generated run
 prompt: >                        # in a researcher's words; {run:<role>} becomes that run's id
   Which learning rate in scaling/lr-sweep gives the best final val/acc?
+files:                           # files the project starts with: project path -> fixtures/<name>
+  external/jax-sweep.csv: jax-sweep.csv
 facts: ...                       # the truth, by kind
 ```
 
@@ -58,9 +60,15 @@ facts: ...                       # the truth, by kind
 | `proposal` | `metrics`, `test`, `plan`, `window` | a new proposal has falsifiable predictions (operator and a value, reference or margin) on the metric, with the test, a plan and a window where asked |
 | `verdict` | `verdicts`, `overall`, `overclaims` | a new verdict note matches the planted truth per prediction, cites evidence and matches none of the overclaim patterns |
 | `notes` | `type`, `supersedes` | exactly one new note of the type; a correction supersedes the note it names |
-| `view` | `metrics`, `runs`, `finding`, `overclaims`, `checklist` | saved, valid, its queries ask for the metrics and select the runs, and the finding is judged true |
+| `view` | `metrics`, `runs`, `file`, `finding`, `overclaims`, `checklist` | saved, valid, its queries ask for the metrics and select the runs, a `file` query answers with the columns and row count of `file: {columns, rows}`, and the finding is judged true |
 | `analysis` | `answer`, `overclaims`, `tools` | the answer matches every pattern and no overclaim, a listed tool was used, no raw file was read |
 | `lifecycle` | `tool`, `run`, `dest` | the tool succeeded on the run (and the copy exists; for `resume`, the answer names the run) |
+
+A view task with `files:` copies fixtures from `fixtures/` into the project (outside the log dir, so
+reading them is no raw read) and usually sets `robust: false`: on other pages the saved file does not
+exist. `facts.file` scores the saved view only: it compiles it, runs each `file` query against the
+saved data file and is true when one answer has the columns and the rows. `provenance` (a new note in
+the group names the file) is reported, not scored.
 
 A view task with `remote: box` also generates a second log dir that the project reaches as the remote
 `box` over the command transport; the agent works on `@box/<group>`, and the saved view is scored on

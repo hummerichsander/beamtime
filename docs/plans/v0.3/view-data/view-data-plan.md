@@ -327,7 +327,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
 
 ## U. Measuring it
 
-### U61. Bench: tasks bring files, scores check the file query (sonnet) — code
+### U61. Bench: tasks bring files, scores check the file query (sonnet) — code — **done**
 
 - **Touches:** `bench/agents/run.py` (`Task` 38–57, `project` 106–139), `bench/agents/score.py` (`score_view`
   269–308, new `covered_file`), new `bench/agents/fixtures/jax-sweep.csv`, new

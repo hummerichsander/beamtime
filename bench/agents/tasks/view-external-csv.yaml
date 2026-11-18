@@ -1,0 +1,20 @@
+category: external
+smoke: true
+page: scaling/lr-sweep
+files:
+  external/jax-sweep.csv: jax-sweep.csv
+robust: false
+prompt: >
+  My colleague ran the lr sweep in JAX; her results are in external/jax-sweep.csv. Put them on the
+  scaling/lr-sweep page as a table next to our runs, and save the page.
+facts:
+  metrics: [val/acc]
+  file: {columns: [lr, val_acc], rows: 15}
+  finding: "Our runs and her JAX runs are shown together; lr 3e-4 gives the best val/acc in both (about 0.93)."
+  overclaims: ["lr 0.01 is best", "the differences are statistically significant"]
+checklist:
+  - There is a table with her JAX results, with the columns lr, seed and val_acc.
+  - The table has all 15 of her rows.
+  - Our own runs of scaling/lr-sweep are on the page too (a table or a chart), next to hers.
+  - The page says that the table is her JAX sweep, not ours (a title, caption or finding).
+  - The page has no error messages or empty charts.
