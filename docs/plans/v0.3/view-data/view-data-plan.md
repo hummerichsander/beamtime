@@ -367,7 +367,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
 
 Runs before J61, so the delta in U63 is this plan's effect. Don't change the guide or the code here.
 
-### U63. Measure again, refine once, run the held-out task (sonnet + review) — code
+### U63. Measure again, refine once, run the held-out task (sonnet + review) — code — **done**
 
 - **Touches:** new `docs/plans/v0.3/view-data/results.md` (from U62), `bench/agents/MISTAKES.md`, at most
   `src/beamtime/guide/parts/data-files.md` and the messages of `src/beamtime/views/validate.py`, `src/beamtime/query/files.py` and `add_data`.

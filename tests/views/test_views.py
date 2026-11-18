@@ -1061,6 +1061,8 @@ def test_data_table_columns_need_a_file(ctx: Context) -> None:
     assert any("columns narrows a data file" in f.message and f.fix for f in findings), findings
     plain_table = lint(ctx, "[{data_table: {id: t, key: val/acc}}]")
     assert not any("columns" in f.message for f in plain_table)
+    saved = lint(ctx, "[{data_table: {id: t, file: data/f.csv, columns: [a]}}]")
+    assert not any("columns narrows" in f.message for f in saved), saved
 
 
 def test_saved_view_with_missing_file(ctx: Context) -> None:

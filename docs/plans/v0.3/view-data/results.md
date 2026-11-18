@@ -89,3 +89,87 @@ The baseline stamp `20261118-085528` was scored with the old harness and is not 
   scorecard shows means. The truth now states both statistics and accepts a finding that is right for the statistic
   it names; the task prompts are unchanged. This is what failed `sonnet-0`; with the fix that run's finding
   would count as true.
+
+## U63: after the plan, one refinement, the held-out task
+
+Code at U63's start: the guide topic `data-files`, `view_data`, the file query, `data_table` with `columns` and
+the validator's data checks (J61 to N62), plus the bench changes above. `rounds` counts `tools_more` calls and
+`violations` only the run's log dir from here on, so those two columns do not compare with the baseline (stamp
+`20261118-085528`); `correct`, tokens, turns, the `file` fact and what the agents did do.
+
+### Stamp `20261118-125017`: first run, scored twice
+
+First scoring: 0 of 6 correct, all six `valid` false with `columns narrows a data file; a logged table has none`.
+The saved views have `data_table: {file: data/..., columns: [lr, seed, val_acc]}`, which is valid; the validator
+only skipped the key-table branch when a draft folder was given. The scorer (`static` without a data folder) and
+`view upgrade` reach the second branch, which fired on any `columns`. That is a **validator** bug of L62, found
+here and fixed (guard `n.file is None`, test in `test_data_table_columns_need_a_file`); the six runs were scored
+again with the fixed validator (the agents had used `view_validate` with the draft, which was `ok`).
+
+Second scoring: 2 of 6 correct (haiku-1, haiku-2). `valid`, `file` and `provenance` true in all six. The four
+failures were `finding.true` false: sonnet-0, -1 and -2 saved with `finding: null` (the validator and the save
+both say `no finding`, the agents ignored the warning after reading the recipe, which ended at `view_save`
+without a finding), haiku-0 named the best lr by the wrong statistic (a best-run figure called a mean).
+
+### Refinement (one)
+
+Guide class: step 6 of the `data-files` recipe now says to set `finding:` and a caption per chart before
+rendering and saving. Nothing else changed.
+
+### Stamp `20261118-125909`: after the refinement
+
+| task | model | rep | correct | rounds | errors | tokens | turns | seconds |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| view-external-csv | haiku | 0 | False | 4 | 0 | 497793 | 25 | 53.1 |
+| view-external-csv | haiku | 1 | True | 4 | 1 | 530898 | 26 | 58.6 |
+| view-external-csv | haiku | 2 | True | 8 | 2 | 1033005 | 33 | 95.5 |
+| view-external-csv | sonnet | 0 | True | 5 | 0 | 439286 | 21 | 54.3 |
+| view-external-csv | sonnet | 1 | True | 4 | 0 | 466879 | 21 | 52.3 |
+| view-external-csv | sonnet | 2 | True | 2 | 1 | 319715 | 17 | 37.2 |
+
+`report.py --base 20261118-085528 --new 20261118-125909` (rounds and violations not comparable, see above):
+
+| model | n | correct (base to new) | tool errors | tokens | turns |
+| --- | --- | --- | --- | --- | --- |
+| haiku | 3/3 | 1.00 to 0.67 | 1.33 to 1.00 | 559700 to 687232 | 25.7 to 28.0 |
+| sonnet | 3/3 | 0.67 to 1.00 | 1.33 to 0.33 | 358213 to 408627 | 20.0 to 19.7 |
+
+What changed in behaviour, from the transcripts:
+
+- **No retyped file**: 0 of 6 runs wrote the CSV with Write (baseline 6 of 6; the Writes left are the draft's
+  `view.yaml`); all six called `view_data` once (haiku-1, -2 and sonnet-2 twice) and used the answer's snippet.
+  No source grep, no `Bash` attempt, no invented tool for the file.
+- `file` true in 6 of 6 (baseline 6 of 6), `provenance` (a note) true in 6 of 6 (baseline 1 of 6).
+- **Tokens and turns went up, not down** for haiku (+23 percent) and sonnet (+14 percent tokens, same turns): the
+  agents now read the topic, render and validate more (rounds 3.7 to 5.3 against transcripts that validated
+  about once before) and write a note. The saving the plan hoped for is not in these numbers; the gain is the
+  copied file, the provenance note and the checks.
+- The one failure, haiku-0: a finding that gives our 3e-4 sweep as 0.928 "over seeds" and calls it best; the
+  judge reads that as the wrong statistic. Not a data-file mistake; a task-side judgment on the statistic.
+- Checklist: "whole sweep" now passes in 5 of 6 (the judge no longer holds the clipping against the page except
+  in sonnet-1), "no empty charts" fails in 4 of 6 on the sweep example's lazily rendered chart below the fold
+  (known from the baseline, unrelated to files). The `data_table` clipping is a separate UI ticket.
+
+Result against the Done line: `view-external-csv` correct in 5 of 6 runs (2 of 3 haiku before the refinement,
+5 of 6 after); the failure is named above.
+
+### Held-out: stamp `20261118-130312`, `view-external-chart`, 3 reps on each model, run once
+
+| model | rep | correct | rounds | errors | tokens | turns | seconds |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| haiku | 0 | False | 3 | 1 | 628800 | 26 | 76.3 |
+| haiku | 1 | False | 6 | 2 | 1058221 | 32 | 91.0 |
+| haiku | 2 | True | 3 | 0 | 1024628 | 32 | 95.7 |
+| sonnet | 0 | True | 8 | 1 | 626913 | 34 | 93.1 |
+| sonnet | 1 | True | 9 | 0 | 653428 | 33 | 97.3 |
+| sonnet | 2 | False | 7 | 0 | 880620 | 38 | 109.0 |
+
+3 of 6 correct. Five of six saved a valid view with `file` true and the chart items (from the file, in a custom
+block) true; haiku-0 did not save: its custom `bt.chart.Scatter` drew an empty plot and it stopped after the two
+render rounds the harness allows (its last message says so). That is the one failure on the file-to-chart path;
+its cause (the block's code or the kit) was not diagnosed, since the held-out task is not read for refinement: a
+candidate for a task of its own. The other three failures are `finding.true` false: the finding names the best lr
+without saying by which statistic (best run or mean over seeds) where the truth's two statistics disagree for our
+sweep. One run (sonnet-0) wrote no provenance note. The checklist item "no empty charts" fails in four of the five
+scored runs on a lazily rendered built-in chart, as in the other task. No guide change follows from the held-out
+run.

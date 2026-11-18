@@ -54,7 +54,8 @@ export default function render(root) {
 }
 ```
 
-6. `view_validate fit`, then `view_render fit` and look; `view_save fit --message "..."`.
+6. Set `finding:` to the page's result in one sentence (and a `caption` per chart): the draft starts without
+   one, and `view_validate fit` warns until it has. Then `view_render fit` and look; `view_save fit --message "..."`.
 7. `note_add` an `observation` naming the file and the script or person it came from; the view holds
    the snapshot, the note holds its provenance.
 

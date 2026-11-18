@@ -143,7 +143,7 @@ def structure(view: m.View, data_dir: Path | None, *, draft: str | None = None) 
                 out.append(Finding(level="error", **at, message="give either key or file"))
             case m.DataTable() if n.file is not None and data_dir is not None:
                 out += data_file_checks(n.file, at, data_dir, draft=draft)
-            case m.DataTable() if n.columns is not None:
+            case m.DataTable() if n.file is None and n.columns is not None:
                 out.append(
                     Finding(
                         level="error",
