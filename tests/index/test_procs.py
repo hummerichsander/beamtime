@@ -138,3 +138,15 @@ def test_update_and_modes(runtime: Path) -> None:
         assert reg.record.stat().st_mode & 0o777 == 0o600
         assert (runtime / "procs").stat().st_mode & 0o777 == 0o700
         assert FileLock(path=reg.lock.path).held_elsewhere()
+
+
+def test_failed_open_releases_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A record that cannot be written leaves no held lock and no files behind."""
+
+    def fail(*args: object, **kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(json, "dump", fail)
+    with pytest.raises(OSError, match="disk full"):
+        register("mcp")
+    assert list(procs_dir().iterdir()) == []

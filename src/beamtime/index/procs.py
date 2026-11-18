@@ -47,7 +47,11 @@ class Registration:
         if not self.lock.acquire():
             raise OSError(f"cannot lock {self.lock.path}")
         self.record = folder / f"{stem}.json"
-        self.write()
+        try:
+            self.write()
+        except BaseException:
+            self.close()
+            raise
         return self
 
     def update(self, **fields: Any) -> None:
@@ -63,9 +67,13 @@ class Registration:
         tmp = self.record.with_suffix(".tmp")
         data = {"schema": SCHEMA, "kind": self.kind, **self.fields}
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as f:
-            json.dump(data, f)
-        os.replace(tmp, self.record)
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f)
+            os.replace(tmp, self.record)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
 
     def close(self) -> None:
         """Remove the record, then release and remove the lock."""
