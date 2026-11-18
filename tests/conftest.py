@@ -19,6 +19,8 @@ from beamtime.synth import Manifest, generate
 
 # the index cache of every test lives in a temporary directory, never in ~/.cache.
 os.environ["BEAMTIME_CACHE"] = tempfile.mkdtemp(prefix="beamtime-cache-")
+# the process registry and memory-cache serves live in a temporary runtime base for the same reason.
+os.environ["BEAMTIME_RUNTIME"] = tempfile.mkdtemp(prefix="beamtime-runtime-")
 
 GOLDEN = Path(__file__).parent / "golden" / "schema1" / "beamtime"
 NOW = datetime(2026, 10, 26, 12, 0, 0, tzinfo=timezone.utc)

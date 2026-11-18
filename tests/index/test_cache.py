@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from beamtime.index import cache as cache_module
-from beamtime.index.cache import Cache, cache_dir, daemon_status, resolve_cache, runtime_dir
+from beamtime.index.cache import Cache, cache_dir, daemon_status, resolve_cache, runtime_base, runtime_dir
 from beamtime.index.daemon import Daemon
 from beamtime.index.index import Index
 from beamtime.ops.context import Context
@@ -34,6 +34,7 @@ def clean(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     :param monkeypatch: Pytest's monkeypatch.
     :return: A folder for the test's logdirs."""
     monkeypatch.delenv("BEAMTIME_CACHE", raising=False)
+    monkeypatch.delenv("BEAMTIME_RUNTIME", raising=False)
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
     (tmp_path / "tmp").mkdir()
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "tmp"))
@@ -112,6 +113,7 @@ def test_runtime_dir_is_private(clean: Path, tmp_path: Path) -> None:
     """The memory cache's serve files live in <tmp>/beamtime-<uid>/<hash>, mode 0700."""
     path = runtime_dir(clean)
     assert path.parent.parent == tmp_path / "tmp"
+    assert path.parent == runtime_base()
     assert path.name == cache_module.log_hash(clean)
     assert path.stat().st_mode & 0o777 == 0o700 and path.parent.stat().st_mode & 0o777 == 0o700
 
@@ -263,3 +265,11 @@ def test_known_reads_only(tmp_path: Path) -> None:
     root = tmp_path / "missing"
     assert known_logdirs(root) == []
     assert not root.exists()
+
+
+def test_runtime_base_honors_environment(clean: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """BEAMTIME_RUNTIME replaces <tmp>/beamtime-<uid>, and runtime_dir moves with it."""
+    monkeypatch.setenv("BEAMTIME_RUNTIME", str(tmp_path / "rt"))
+    assert runtime_base() == tmp_path / "rt"
+    assert runtime_dir(clean) == tmp_path / "rt" / cache_module.log_hash(clean)
+    assert (tmp_path / "rt").stat().st_mode & 0o777 == 0o700

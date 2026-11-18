@@ -22,19 +22,29 @@ MOUNTS = Path("/proc/mounts")
 NETWORK_FS = ("nfs", "nfs4", "lustre", "gpfs", "cifs", "smbfs", "smb3", "beegfs", "fuse.sshfs")
 
 
+def runtime_base() -> Path:
+    """Locate the folder of everything a user's Beamtime processes share on this machine.
+
+    :return: ``BEAMTIME_RUNTIME`` when set, else ``<tmp>/beamtime-<uid>``, mode 0700."""
+    if (override := os.environ.get("BEAMTIME_RUNTIME")) is not None:
+        base = Path(expand_path(override))
+    else:
+        import getpass
+        import tempfile
+
+        uid = os.getuid() if hasattr(os, "getuid") else getpass.getuser()
+        base = Path(tempfile.gettempdir()) / f"beamtime-{uid}"
+    base.mkdir(mode=0o700, parents=True, exist_ok=True)
+    base.chmod(0o700)
+    return base
+
+
 def runtime_dir(logdir: Path) -> Path:
     """Locate where a memory cache publishes ``serve.lock``, ``serve.json`` and the token.
 
     :param logdir: The log dir.
-    :return: ``<tmp>/beamtime-<uid>/<hash of the log dir>``, created with mode 0700."""
-    import getpass
-    import tempfile
-
-    uid = os.getuid() if hasattr(os, "getuid") else getpass.getuser()
-    base = Path(tempfile.gettempdir()) / f"beamtime-{uid}"
-    base.mkdir(mode=0o700, exist_ok=True)
-    base.chmod(0o700)
-    path = base / log_hash(logdir)
+    :return: ``<runtime base>/<hash of the log dir>``, created with mode 0700."""
+    path = runtime_base() / log_hash(logdir)
     path.mkdir(mode=0o700, exist_ok=True)
     return path
 

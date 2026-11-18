@@ -175,7 +175,7 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
 3. Policy line: agents that find no daemon still hand the user `beamtime serve --no-ui`; to see what runs, they
    hand `beamtime ps`.
 
-### J51. The process registry (sonnet + review) — code
+### J51. The process registry (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/index/procs.py`, `src/beamtime/index/cache.py` (`runtime_dir` 25–41: new
   `runtime_base`), `tests/conftest.py` (21: `BEAMTIME_RUNTIME`), `tests/index/test_cache.py` (the `clean`
