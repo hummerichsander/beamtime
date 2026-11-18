@@ -127,7 +127,9 @@ rendering and saving. Nothing else changed.
 | view-external-csv | sonnet | 1 | True | 4 | 0 | 466879 | 21 | 52.3 |
 | view-external-csv | sonnet | 2 | True | 2 | 1 | 319715 | 17 | 37.2 |
 
-`report.py --base 20261118-085528 --new 20261118-125909` (rounds and violations not comparable, see above):
+`report.py --base 20261118-085528 --new 20261118-125909` (rounds and violations not comparable, see above;
+the baseline was scored with the old truth, under which sonnet-0 failed: read against today's truth (not rescored) the
+baseline is 6 of 6, so `correct` did not go up):
 
 | model | n | correct (base to new) | tool errors | tokens | turns |
 | --- | --- | --- | --- | --- | --- |
@@ -150,8 +152,8 @@ What changed in behaviour, from the transcripts:
   in sonnet-1), "no empty charts" fails in 4 of 6 on the sweep example's lazily rendered chart below the fold
   (known from the baseline, unrelated to files). The `data_table` clipping is a separate UI ticket.
 
-Result against the Done line: `view-external-csv` correct in 5 of 6 runs (2 of 3 haiku before the refinement,
-5 of 6 after); the failure is named above.
+Result against the Done line: `view-external-csv` correct in 5 of 6 runs after the refinement (2 of 6
+before it, both haiku); the failure is named above.
 
 ### Held-out: stamp `20261118-130312`, `view-external-chart`, 3 reps on each model, run once
 
