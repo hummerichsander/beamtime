@@ -382,7 +382,7 @@ Runs before J61, so the delta in U63 is this plan's effect. Don't change the gui
   held-out one); a fix in the guide for what a message should say (README's loop: fix the earliest class).
 - **Stop if:** a failure needs a product change bigger than a message; report it instead.
 
-## Z. Close
+## Z. Close — **done**
 
 - **Touches:** `CHANGELOG.md` (0.3.0 section), ~~`docs/design/08-cli-mcp.md` (the `view data` row)~~ (row added in
   the "Spec: add view data" commit; do not add it again), `CLAUDE.md` (Layout: `src/beamtime/query/files.py` reads data files with the limits; `guide/` gains the `data`
@@ -402,11 +402,15 @@ Runs before J61, so the delta in U63 is this plan's effect. Don't change the gui
 
 ## Not verified
 
-- That the headless renderer serves a draft's custom `file` query (the compiled call carries `draft`; seen in
-  `compile.py` 361–363 and `reading.file`, not rendered). N61's render test checks it.
-- That `bt.chart.Scatter` draws a `file` answer whose columns are not fields (`shapes.points` indexes `columns`,
-  read, not rendered); its empty message speaks of runs ("Fewer than two runs log ..."), which may confuse. N61.
-- That an agent over MCP can write into `.beamtime/drafts/` with its own Write tool in the bench (the existing view
-  tasks do this for `view.yaml`). U62.
 - How `remote` saves (`view_put`) treat the new custom file refs: covered by `data_refs` through the bundle, not run
   over ssh. J61's bundle test checks the bundle only.
+- Why the held-out run's haiku-0 drew an empty `bt.chart.Scatter` from a file (cause not diagnosed: the block's code
+  or the kit); `test_data_example_renders` draws the example's two Scatters from a draft's `file` query and from
+  runs, with no blank block. Kit charts given data that is not a `bt.useData` result now show an error (11acf05).
+- The two changes after U63 (the completed task truth, the guide line naming the statistic) have not been run
+  through the bench; `view-external-csv` was correct in 5 of 6 runs and the held-out `view-external-chart` in 3 of 6
+  before them (`results.md`), and Sonnet and Haiku differ by task, so the Goal's pass condition rests on that run.
+- The `data_table` clipping after about 13 rows and charts below the fold that stay empty in a screenshot are a UI
+  matter (ticket W36 in `docs/plans/v0.3/ui/ui-plan.md`, `web/` was out of scope here).
+- That an agent over MCP can write into `.beamtime/drafts/` with its own Write tool: seen in the bench runs (the
+  draft's `view.yaml`), not tried on a client other than `claude -p`.
