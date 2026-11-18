@@ -63,3 +63,29 @@ Classes in the loop's order: product, validator, error message, guide, task.
   table's rows, which depend on the `data_table` clipping above.
 - The held-out `view-external-chart` has not been run (U63).
 - Not rescored: none of the 6 runs is unscored (no judge usage limit hit).
+
+### Bench changes after the baseline (before U63)
+
+Four changes to the bench, made so U63's rerun compares like with like; none touches the product or the guide.
+The baseline stamp `20261118-085528` was scored with the old harness and is not rescored.
+
+- **`rounds` counts `tools_more` calls.** `run.py` names a call through `tools_more` by the tool it calls
+  (`view_validate`, `view_render`, ...), so validations and renders are counted on the `core` surface too. The
+  baseline's `rounds` of 0 is therefore not comparable to U63's: read the baseline's real rounds from the transcripts
+  (all six validated at least once). The same rename lets the `tools` check and the user-only count see those calls.
+- **`violations` match only the run's log dir.** `LOGDIR` in `score.py` matched `beamtime/` after any `/`, including
+  the repository checkout the runs sit in; it now matches a relative `beamtime/...` path and `.../proj/beamtime/`.
+  The baseline's 4 to 11 violations were almost all this artifact; U63's numbers start near 0 and are not a
+  regression or an improvement against them.
+- **Checklist item on the rows reworded** in `view-external-csv`: "the table has all 15 rows" failed in all six
+  baseline runs because the `data_table` block clips after about 13 rows with no scroll hint (a UI defect, handled
+  outside this plan), and the judge sees only a screenshot. The item now asks that the table is her whole sweep
+  (all five learning rates, several seeds each, not a filtered part) and says a cut-off bottom edge is not the
+  agent's fault; the 15 rows are scored by `facts.file` (the saved view's `file` query), which was true in all
+  six. Expect this checklist item to pass in U63 only if the clipping is not what decides it.
+- **Task truth made fair** in `view-external-csv` and the held-out `view-external-chart` (same wording, so the
+  held-out run is not harder): the truth said 3e-4 is best in both sweeps, which holds by best run but not by the
+  mean over seeds of our runs (the killed 3e-4 run pulls its mean to 0.913, below 1e-3 at 0.924), and the page's
+  scorecard shows means. The truth now states both statistics and accepts a finding that is right for the statistic
+  it names; the task prompts are unchanged. This is what failed `sonnet-0`; with the fix that run's finding
+  would count as true.

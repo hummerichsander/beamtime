@@ -19,7 +19,8 @@ from typing import Any
 import yaml
 from run import HERE, Task
 
-LOGDIR = re.compile(r"(?<![.\w])beamtime/")
+# the run's log dir is `proj/beamtime/`; the repository checkout around the runs is also named beamtime.
+LOGDIR = re.compile(r"(?:(?<![\w./-])|(?<=/proj/)|(?<=[\"\s]\./))beamtime/")
 JUDGE = "sonnet"
 JUDGE_LIMIT_S = 300
 USAGE_LIMIT = re.compile(r"hit your .{0,40}limit|usage limit|limit reached", re.I)

@@ -220,8 +220,8 @@ def summary(transcript: Path) -> dict[str, Any]:
     """Count what the agent did from its stream-json transcript.
 
     :param transcript: The transcript.
-    :return: Tool calls in order (name, input, whether it failed), validation and render rounds,
-        turns, tokens and cost."""
+    :return: Tool calls in order (name, input, whether it failed; a call through ``tools_more`` is
+        named by the tool it calls), validation and render rounds, turns, tokens and cost."""
     calls: list[dict[str, Any]] = []
     result: dict[str, Any] = {}
     for line in transcript.read_text().splitlines():
@@ -235,7 +235,11 @@ def summary(transcript: Path) -> dict[str, Any]:
         for part in content:
             if part.get("type") == "tool_use":
                 name = part["name"].removeprefix("mcp__beamtime__")
-                calls.append({"id": part["id"], "name": name, "input": part.get("input") or {}})
+                args = part.get("input") or {}
+                # the `core` tool surface calls the view and block tools through `tools_more`.
+                if name == "tools_more" and isinstance(tool := args.get("tool"), str):
+                    name = tool.removeprefix("mcp__beamtime__")
+                calls.append({"id": part["id"], "name": name, "input": args})
             elif part.get("type") == "tool_result":
                 for c in calls:
                     if c["id"] == part.get("tool_use_id"):

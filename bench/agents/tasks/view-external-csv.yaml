@@ -10,11 +10,15 @@ prompt: >
 facts:
   metrics: [val/acc]
   file: {columns: [lr, val_acc], rows: 15}
-  finding: "Our runs and her JAX runs are shown together; lr 3e-4 gives the best val/acc in both (about 0.93)."
+  finding: >-
+    Our runs and her JAX runs are shown together. By best run, lr 3e-4 gives the best val/acc in both
+    (about 0.93). By the mean over seeds, hers is also best at 3e-4, while ours is a hair higher at 1e-3
+    (about 0.92) because a killed 3e-4 run (0.858) pulls that mean down. A finding that names the best
+    lr correctly for either statistic is true; naming 1e-3 as best in ours by the mean is not wrong.
   overclaims: ["lr 0.01 is best", "the differences are statistically significant"]
 checklist:
   - There is a table with her JAX results, with the columns lr, seed and val_acc.
-  - The table has all 15 of her rows.
+  - The table is her whole sweep, not a selection or a filtered part, with rows for all five learning rates from 1e-4 up to 0.01 and several seeds each. A table cut off at the bottom edge of the block is not a fault of the page's author; the row count itself is scored from the saved view's file query.
   - Our own runs of scaling/lr-sweep are on the page too (a table or a chart), next to hers.
   - The page says that the table is her JAX sweep, not ours (a title, caption or finding).
   - The page has no error messages or empty charts.
