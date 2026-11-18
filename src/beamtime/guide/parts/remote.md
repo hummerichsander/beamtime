@@ -22,7 +22,8 @@ A cluster's log dir can appear next to the local one. Its groups are named `@<na
 ## Not for agents
 
 Adding sources, pulling and settings are the user's commands: `beamtime source add <name>
-<host>:<path>`, `beamtime pull <source>:<group>`. Hand the user the exact command.
+<host>:<path>`, `beamtime pull <source>:<group>`. Hand the user the exact command. When data looks stale or a serve seems
+missing, hand the user `beamtime ps`, which lists the running serves and their caches.
 
 ## Habits
 

@@ -361,16 +361,17 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
 
 ## K. Docs
 
-### J57. User docs (haiku) — code
+### J57. User docs (haiku) — code — **done**
 
 - **Touches:** `docs/guides/settings.md` (the cache section: where a memory serve publishes, `beamtime ps`),
   `docs/guides/agents.md` (38: the user-only list gains `beamtime ps`, `beamtime stop`), `docs/guides/remotes.md`
   (47–54: `serve` again prints the running URL; `stop`), `docs/quickstart.md` (42: one line on `ps`/`stop`),
-  `src/beamtime/guide/parts/` (the part that names `beamtime serve --no-ui`: add `beamtime ps`).
+  `src/beamtime/guide/parts/remote.md` (its "Not for agents" section, the list of commands agents hand to the
+  user: one line that a stale or missing serve gets `beamtime ps`).
 - **Read:** `docs/design/08-cli-mcp.md` § User-only commands; CLAUDE.md § Layout (docs bullet).
 - **Check:** `uv run pytest -q tests/test_docs.py tests/guide`; `cd web && npm run docs`.
-- **Done:** each named page mentions `ps` and `stop` in one or two lines; the guide's live-data default names
-  `beamtime ps`; the docs site builds.
+- **Done:** each named page mentions `ps` and `stop` in one or two lines; the guide's "Not for agents" section
+  names `beamtime ps` for a stale or missing serve; the docs site builds.
 
 ## Close
 
