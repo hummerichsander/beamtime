@@ -29,6 +29,7 @@ from beamtime.settings import expand_path
 KINDS = ("serve", "index", "remote", "mcp", "ssh")
 TOKEN_FILE = "serve.token"
 SSH_CHECK_S = 3
+SHUTDOWN_S = 3
 
 
 def ps(ctx: Context, p: r.NoParams) -> dict[str, Any]:
@@ -62,7 +63,7 @@ def stop(ctx: Context, p: r.StopParams) -> dict[str, Any]:
     if p.all:
         chosen, name = rows, "any serve"
     elif p.target:
-        chosen, name = match(ctx, rows, p.target), p.target
+        chosen, name = named(ctx, rows, p.target), p.target
     else:
         here = ctx.logdir.resolve()
         chosen = [x for x in rows if x.get("logdir") and Path(x["logdir"]).resolve() == here]
@@ -85,14 +86,15 @@ def stop(ctx: Context, p: r.StopParams) -> dict[str, Any]:
     return {"kind": "stop", "stopped": [x["pid"] for x in chosen], "lines": lines}
 
 
-def match(ctx: Context, rows: list[dict[str, Any]], target: str) -> list[dict[str, Any]]:
+def named(ctx: Context, rows: list[dict[str, Any]], target: str) -> list[dict[str, Any]]:
     """Pick the serves a target names.
 
     :param ctx: The operation context.
     :param rows: The running serves.
     :param target: A pid as ``ps`` prints it, or a path matching a serve's root or log dir.
-    :return: The serves; none when nothing matches.
-    :raises OpError: With code 2 when the pid belongs to a process that is listed, never stopped."""
+    :return: The serves; none when no serve has that root or log dir.
+    :raises OpError: With code 2 when the pid belongs to a process that is listed, never stopped,
+        and code 4 when no Beamtime process has it."""
     if not target.isdigit():
         path = Path(target).expanduser().resolve()
         paths = ("root", "logdir")
@@ -110,7 +112,7 @@ def match(ctx: Context, rows: list[dict[str, Any]], target: str) -> list[dict[st
                 f"listed, not stopped: pid {pid} is a {x['kind']} process that belongs to {owner}",
                 code=2,
             )
-    return []
+    raise OpError(f"no Beamtime process has pid {pid}; `beamtime ps` lists them", code=4)
 
 
 def stop_serve(x: dict[str, Any], wait_s: float = 10.0) -> Literal["token", "sigterm", "running"]:
@@ -146,7 +148,7 @@ def shutdown_request(x: dict[str, Any]) -> bool:
             headers={"authorization": f"Bearer {token}", "content-type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=SSH_CHECK_S):
+        with urllib.request.urlopen(request, timeout=SHUTDOWN_S):
             return True
     except (OSError, ValueError):
         return False

@@ -157,6 +157,10 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
     and `render_ps` prints them; `test_ssh_logins` covers the fixture config and fake `ssh`. It checks hosts one
     after another. J54 keeps its Done line and finishes this function instead of adding a second one: parallel
     checks, its three Risk tests and the no-`ssh`-on-`PATH` test.
+15. **`stop` with a pid that no Beamtime process has exits 4** (review of J55): it names something that does not
+    exist, as a missing run does. A root or log dir without a serve stays "no serve runs for <path>" with exit 0,
+    so `stop` twice is no error. Under `--all`, a serve that keeps its lock doesn't stop the others: they are
+    stopped first, then one exit-1 error lists the stuck ones (decision 7).
 
 ## J. Processes and the memory fix
 

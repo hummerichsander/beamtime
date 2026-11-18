@@ -304,3 +304,10 @@ def test_stop_reports_a_serve_that_keeps_its_lock(tmp_path: Path) -> None:
         lock.release()
         if sleeper.poll() is None:
             sleeper.kill()
+
+
+def test_stop_an_unknown_pid_is_not_found(project: Path, tmp_path: Path) -> None:
+    """A pid no Beamtime process has exits 4; a root without a serve stays a quiet exit 0."""
+    done = run_stop(str(os.getpid()), cwd=tmp_path)
+    assert done.returncode == 4 and f"no Beamtime process has pid {os.getpid()}" in done.stderr
+    assert run_stop(str(project), cwd=tmp_path).returncode == 0
