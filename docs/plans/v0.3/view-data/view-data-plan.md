@@ -353,7 +353,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
    Put them on the scaling/lr-sweep page as a table next to our runs, and save the page." `view-external-chart`
    (`heldout: true`): the same, asking for a chart of her val_acc over lr against ours. Checklists of 4–5 items each.
 
-### U62. Baseline on today's code (sonnet) — code
+### U62. Baseline on today's code (sonnet) — code — **done**
 
 - **Touches:** new `docs/plans/v0.3/view-data/results.md`.
 - **Read:** `bench/agents/README.md` § Run it, § The loop.
