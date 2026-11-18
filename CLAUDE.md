@@ -211,6 +211,9 @@ sync.
   records them, optional plans, named predictions (`each`, `compare`) checked with t-intervals,
   immutable typed notes with per-prediction verdicts, a derived group status, and a versioned
   compressed memory.
+- **Hidden runs** (`docs/design/09-research-record.md`): a test run (`init(hidden=True)`) is recorded but counts
+  nowhere (no listing, check, proposal freeze or group status) until `beamtime run promote` writes its
+  `visibility/` file; the SDK writes the flag in `_run.json`, ops never touch that file.
 - **The index** (`docs/design/03-index.md`): SQLite for metadata plus raw column files, one pure-Python
   read path with `math.fsum` everywhere, discovery by walking only the queried subtree, one
   `beamtime serve` per root. Keep NumPy and other heavy imports off the CLI path; the import time is

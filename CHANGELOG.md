@@ -166,6 +166,36 @@
   three-character suffixes matched runs by chance and are no longer accepted), and a page URL
   naming a reserved folder (`proposal`, `notes`, ...) is refused. A run page opens by unique id
   suffix, and an unknown group on a page lists the top-level groups.
+- **Added** hidden runs for test runs that should not count: `beamtime.init(hidden=True)` or `BEAMTIME_HIDDEN=1`
+  records the run as usual, but `runs`, `keys`, `series`, `groups`, `status`, the group tools, the web UI's tables,
+  charts and tree, and every prediction, check, plan progress, proposal freeze and `ref` leave it out. A run named
+  by id is always shown, so `card`, `output` and the run page still work for it. `--hidden` on a listing (and
+  `hidden: true` in a query) shows hidden runs too.
+- **Added** `beamtime run promote <run>...` (MCP `run_promote`): makes hidden runs count like any run from then on,
+  and writes a `visibility/` file next to the run. It takes runs, never a group; runs that were not hidden are
+  reported, not an error. The web UI has the same as a Promote button on a hidden run and on `?hidden`, which lists
+  the group's hidden runs; the group header says "N hidden".
+- **Changed** `status` counts visible runs and adds a `hidden` line with the number of hidden runs; when some are
+  older than 7 days it lists up to five ids with the command to promote them. A hidden run that was started
+  again keeps its visibility.
+- **Added** `heartbeat_age_s` on the card of a lost run: the CLI says `lost (no heartbeat for 7 min)`, the run
+  header and drawer say the same.
+- **Added** one seed rule: `keys.config.seed` names the seed key a group varies, as the default view, the viewer's
+  "mean over seeds" and validation find it. A config field named `seed`, `random_seed` or `rng_seed` counts,
+  nested ones included.
+- **Changed** a metric's direction (lower is better) comes from whole name tokens (`loss`, `error`, `rmse`, ...),
+  not from substrings: `power` is higher-is-better now.
+- **Changed** failure signatures ignore paths and quoted strings and read a bare exception line (`ValueError:`
+  alone) with the line before it, so the same failure groups together in `logs`.
+- **Breaking:** the index cache is schema 4 and rebuilds itself on first open; the `groups` columns end with `hidden`
+  (read them by name).
+- **Breaking:** `status` run counts are visible runs only; hidden runs appear in their own `hidden` entry.
+- **Breaking:** a metric whose name contains a lower-is-better word only as a substring is now higher-is-better.
+  Set `metrics: {power: {higher_is_better: false}}` in a view to keep the old direction.
+- **Breaking:** the default view and "mean over seeds" use the one seed key of the group (`seed`, `random_seed`,
+  `rng_seed` or the config field `seed`) instead of `config.seed` only; name `seeds:` in a view to pin it.
+- **Breaking:** failure signatures replace paths with `<path>` and quoted strings with `<str>`, so a signature no
+  longer matches one written by 0.2.
 
 ## 0.2.2
 

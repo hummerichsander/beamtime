@@ -459,7 +459,7 @@ ticket changes only *which key*, not *when*; whichever lands second rebases onto
 
 ## Close
 
-### U47. Changelog and project notes (haiku) — code
+### U47. Changelog and project notes (haiku) — code — **done**
 
 - **Touches:** `CHANGELOG.md` (§ 0.3.0), `CLAUDE.md` (§ Decisions so far: one bullet on hidden runs).
 - **Read:** this plan's Goal and Breaking changes.
