@@ -229,7 +229,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
    from in a note (note_add, type observation)`.
 5. Spec: the agent-loop table gets the `view_data` row; the `08-cli-mcp.md` row is Z's.
 
-### L62. One check per data reference, with a fix for each mistake (sonnet) — reproduced
+### L62. One check per data reference, with a fix for each mistake (sonnet) — reproduced — **done**
 
 - **Touches:** `src/beamtime/views/validate.py` (`structure` 139–151, `custom_checks` 230–296, new
   `data_file_checks`); `tests/views/test_views.py`; `docs/design/05-views.md` § Validation (l. 652–690).

@@ -4,6 +4,8 @@ Running the declared queries checks that they parse, that fields and keys exist 
 layer's suggestions) and that blocks get data, with the same code the page uses."""
 
 import dataclasses
+import difflib
+import importlib.util
 from collections import Counter
 from pathlib import Path
 from typing import Any, Literal
@@ -64,7 +66,7 @@ def static(
     except SchemaError as e:
         return None, [Finding(level="error", message=str(e), fix="see `beamtime guide blocks`")]
     library = Library(ctx=ctx, path=path, drafts=blocks)
-    findings = structure(view, data_dir) + uses(view, library)
+    findings = structure(view, data_dir, draft=draft) + uses(view, library)
     if any(f.level == "error" for f in findings):
         return view, findings
     ctx = dataclasses.replace(ctx, caller="view")
@@ -86,11 +88,12 @@ def inside(folder: Path, ref: str) -> bool:
     return folder.resolve() in (folder / ref).resolve().parents
 
 
-def structure(view: m.View, data_dir: Path | None) -> list[Finding]:
+def structure(view: m.View, data_dir: Path | None, *, draft: str | None = None) -> list[Finding]:
     """Check what the schema can't: unique ids, captions, data files, custom blocks.
 
     :param view: The view.
     :param data_dir: Where its data files are.
+    :param draft: The draft's name, for the fix of a file that has to be copied in.
     :return: The findings."""
     out = []
     if not view.finding or "TODO" in view.finding:
@@ -139,21 +142,96 @@ def structure(view: m.View, data_dir: Path | None) -> list[Finding]:
             case m.DataTable() if (n.key is None) == (n.file is None):
                 out.append(Finding(level="error", **at, message="give either key or file"))
             case m.DataTable() if n.file is not None and data_dir is not None:
-                if not inside(data_dir, n.file):
-                    out.append(Finding(level="error", **at, message=f"{n.file!r} leaves the draft"))
-                elif not (data_dir / n.file).is_file():
-                    out.append(
-                        Finding(
-                            level="error",
-                            **at,
-                            message=f"no data file {n.file!r}",
-                            fix=f"put it in {data_dir}",
-                        )
+                out += data_file_checks(n.file, at, data_dir, draft=draft)
+            case m.DataTable() if n.columns is not None:
+                out.append(
+                    Finding(
+                        level="error",
+                        **at,
+                        message="columns narrows a data file; a logged table has none",
+                        fix="remove columns, or read a file: file: data/<name>.csv",
                     )
+                )
             case m.Custom():
-                out += custom_checks(n, at, data_dir, top=id(n) in top)
+                out += custom_checks(n, at, data_dir, draft=draft, top=id(n) in top)
             case m.Line() if n.by and n.seeds:
                 out.append(Finding(level="error", **at, message="use by or seeds, not both"))
+    return out
+
+
+def data_file_checks(
+    ref: str, at: dict[str, Any], data_dir: Path, *, draft: str | None = None
+) -> list[Finding]:
+    """Check one reference to a data file: where it points, that it exists, its format and size.
+
+    :param ref: The path, relative to the draft.
+    :param at: The node's id and block, for findings.
+    :param data_dir: The draft's folder.
+    :param draft: The draft's name, for the fix of a file that has to be copied in.
+    :return: The findings."""
+    from beamtime.query.files import FORMATS, MAX_BYTES, WARN_BYTES
+
+    draft = draft or "<draft>"
+    name = Path(ref).name
+    if ref.startswith("$"):
+        return []
+    if not inside(data_dir, ref):
+        return [
+            Finding(
+                level="error",
+                **at,
+                message=f"{ref!r} is outside the draft; a view reads only files stored with it",
+                fix=f"`view_data {draft} {ref}` copies it in as data/{name}",
+            )
+        ]
+    if not (path := data_dir / ref).is_file():
+        if (data_dir / "data" / ref).is_file():
+            return [
+                Finding(
+                    level="error",
+                    **at,
+                    message=f"no file {ref!r}",
+                    fix=f"write file: data/{ref}",
+                )
+            ]
+        have = [p.name for p in (data_dir / "data").glob("*") if p.is_file()]
+        near = difflib.get_close_matches(name, have, n=3, cutoff=0.5)
+        return [
+            Finding(
+                level="error",
+                **at,
+                message=f"no data file {ref!r}" + (f"; closest: {', '.join(near)}" if near else ""),
+                fix=f"write it to {data_dir / ref}, or `view_data {draft} <file>`",
+            )
+        ]
+    if path.suffix.lower() not in FORMATS:
+        return [
+            Finding(
+                level="error",
+                **at,
+                message=f"{ref}: Beamtime reads .csv, .json and .parquet",
+                fix="save it as CSV: df.to_csv(path, index=False)",
+            )
+        ]
+    out = []
+    if path.suffix.lower() == ".parquet" and importlib.util.find_spec("pyarrow") is None:
+        out.append(
+            Finding(
+                level="warning",
+                **at,
+                message=f"{ref}: reading Parquet needs PyArrow where the page is served",
+                fix="write CSV instead",
+            )
+        )
+    if (size := path.stat().st_size) > WARN_BYTES:
+        out.append(
+            Finding(
+                level="error" if size > MAX_BYTES else "warning",
+                **at,
+                message=f"{ref} is {size / (1 << 20):.1f} MB; the page loads the whole file",
+                fix="aggregate or downsample to the rows the view shows",
+            )
+        )
     return out
 
 
@@ -228,13 +306,19 @@ def uses(view: m.View, library: Any) -> list[Finding]:
 
 
 def custom_checks(
-    n: m.Custom, at: dict[str, Any], data_dir: Path | None, *, top: bool = False
+    n: m.Custom,
+    at: dict[str, Any],
+    data_dir: Path | None,
+    *,
+    draft: str | None = None,
+    top: bool = False,
 ) -> list[Finding]:
     """Check a custom block: its kit, libraries, declared queries and code.
 
     :param n: The node.
     :param at: Its id and block, for findings.
-    :param data_dir: Where its code file is, if known.
+    :param data_dir: Where its code and data files are, if known.
+    :param draft: The draft's name, for the fix of a file that has to be copied in.
     :param top: Whether it sits at the top level of the view.
     :return: The findings."""
     from beamtime.views import code
@@ -273,6 +357,10 @@ def custom_checks(
         )
     if data_dir is None:
         return out
+    for q in n.queries.values():
+        if isinstance(q, dict) and isinstance(spec := q.get("file"), dict):
+            if isinstance(ref := spec.get("path"), str):
+                out += data_file_checks(ref, at, data_dir, draft=draft)
     if not inside(data_dir, n.code):
         return [*out, Finding(level="error", **at, message=f"{n.code!r} leaves the draft")]
     if not (file := data_dir / n.code).is_file():

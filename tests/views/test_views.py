@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 
@@ -820,17 +821,20 @@ def test_system_charts_are_not_averaged_over_seeds() -> None:
     assert seeds == {"val/acc": "config.seed", "val/loss": "config.seed", "sys/cpu": None}
 
 
-def lint(ctx: Context, body: str, data_dir: Path | None = None) -> list:
+def lint(
+    ctx: Context, body: str, data_dir: Path | None = None, draft: str | None = None
+) -> list:
     """Validate a view body and return its findings.
 
     :param ctx: The operation context.
     :param body: The view's ``body`` as YAML.
     :param data_dir: Where the view's code files are.
+    :param draft: The draft's name.
     :return: The findings."""
     from beamtime.views import validate
 
     data = {"title": "t", "finding": "a result", "body": yaml.safe_load(body)}
-    return validate.static(ctx, SWEEP, data, source="test", data_dir=data_dir)[1]
+    return validate.static(ctx, SWEEP, data, source="test", draft=draft, data_dir=data_dir)[1]
 
 
 @pytest.mark.parametrize(
@@ -925,3 +929,99 @@ def test_save_leaves_out_line_settings_at_their_default(ctx: Context, project: P
     saved = yaml.safe_load(call("view show", {"group": SWEEP}, ctx)["yaml"])
     props = next(p for b, p in yaml_walk(saved["body"]) if b == "line" and p["id"] == line["id"])
     assert "smooth" not in props and "band" not in props and props["scale"] == "linear"
+
+
+def sized(name: str, size: int) -> Callable[[Path], None]:
+    """Make a setup step that writes a CSV-looking file of a given size.
+
+    :param name: The file name below ``data/``.
+    :param size: Its size in bytes.
+    :return: The step, called with the draft's folder."""
+
+    def write(folder: Path) -> None:
+        with (folder / "data" / name).open("wb") as f:
+            f.write(b"a,b\n")
+            f.truncate(size)
+
+    return write
+
+
+def plain(name: str, text: str = "a,b\n1,2\n") -> Callable[[Path], None]:
+    """Make a setup step that writes a small file.
+
+    :param name: The file name below ``data/``.
+    :param text: Its content.
+    :return: The step, called with the draft's folder."""
+    return lambda folder: (folder / "data" / name).write_text(text)
+
+
+DATA_FILE_CASES = [
+    ("../x.csv", None, "error", "'../x.csv' is outside the draft", "`view_data d ../x.csv` copies it in as data/x.csv"),
+    ("/etc/hosts", None, "error", "'/etc/hosts' is outside the draft", "`view_data d /etc/hosts` copies it in as data/hosts"),
+    ("fit.csv", plain("fit.csv"), "error", "no file 'fit.csv'", "write file: data/fit.csv"),
+    ("data/none.csv", plain("nine.csv"), "error", "no data file 'data/none.csv'; closest: nine.csv", "view_data d <file>"),
+    ("data/fit.xlsx", plain("fit.xlsx"), "error", "data/fit.xlsx: Beamtime reads .csv, .json and .parquet", "df.to_csv(path, index=False)"),
+    ("data/p.parquet", plain("p.parquet"), "warning", "data/p.parquet: reading Parquet needs PyArrow", "write CSV instead"),
+    ("data/big.csv", sized("big.csv", 3 << 20), "warning", "data/big.csv is 3.0 MB; the page loads the whole file", "aggregate or downsample"),
+    ("data/huge.csv", sized("huge.csv", 17 << 20), "error", "data/huge.csv is 17.0 MB; the page loads the whole file", "aggregate or downsample"),
+]
+CUSTOM_FILE = """
+- custom:
+    id: c
+    code: code/c.js
+    queries: {{t: {{file: {{path: "{ref}"}}}}}}
+"""
+
+
+@pytest.mark.parametrize("block", ["data_table", "custom"])
+@pytest.mark.parametrize(("ref", "setup", "level", "message", "fix"), DATA_FILE_CASES)
+def test_data_file_findings(
+    ctx: Context,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    block: str,
+    ref: str,
+    setup: Callable[[Path], None] | None,
+    level: str,
+    message: str,
+    fix: str,
+) -> None:
+    """Each mistake with a data file is one finding with its fix, for a table and a custom block."""
+    monkeypatch.setattr("importlib.util.find_spec", lambda name: None)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "code").mkdir()
+    (tmp_path / "code/c.js").write_text("export default function render(root) { bt.useData('t'); }\n")
+    if setup:
+        setup(tmp_path)
+    body = (
+        f'[{{data_table: {{id: t, file: "{ref}"}}}}]'
+        if block == "data_table"
+        else CUSTOM_FILE.format(ref=ref)
+    )
+    findings = lint(ctx, body, data_dir=tmp_path, draft="d")
+    found = [f for f in findings if message in f.message]
+    assert len(found) == 1, findings
+    assert found[0].level == level and fix in (found[0].fix or "")
+
+
+def test_data_table_columns_need_a_file(ctx: Context) -> None:
+    """``columns`` narrows a file; on a logged table it would be ignored, so it is an error."""
+    findings = lint(ctx, "[{data_table: {id: t, key: val/acc, columns: [a]}}]")
+    assert any("columns narrows a data file" in f.message and f.fix for f in findings), findings
+    plain_table = lint(ctx, "[{data_table: {id: t, key: val/acc}}]")
+    assert not any("columns" in f.message for f in plain_table)
+
+
+def test_saved_view_with_missing_file(ctx: Context) -> None:
+    """Without a draft folder the static file checks are skipped; the query run reports the file."""
+    body = '[{custom: {id: c, code: code/c.js, queries: {t: {file: {path: data/none.csv}}}}}]'
+    findings = lint(ctx, body)
+    assert any("no file 'data/none.csv'" in f.message for f in findings), findings
+
+
+def test_placeholder_file_path_is_left_to_the_query_run(ctx: Context, tmp_path: Path) -> None:
+    """A ``$name`` path is filled by the page; the static check neither fails nor crashes."""
+    (tmp_path / "code").mkdir()
+    (tmp_path / "code/c.js").write_text("export default function render(root) { bt.useData('t'); }\n")
+    findings = lint(ctx, CUSTOM_FILE.format(ref="$name"), data_dir=tmp_path, draft="d")
+    assert not [f for f in findings if f.level == "error"], findings
