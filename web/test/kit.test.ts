@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { fill, placeholders, READS, ResizeGuard } from "../src/kit/protocol.ts";
-import { shape } from "../src/kit/shape.ts";
+import { dataProblem, shape } from "../src/kit/shape.ts";
 
 test("placeholders are whole strings, found anywhere in the params", () => {
   const params = { from: "$run", y: ["$metric", "val/acc"], where: { x: "$5 off" } };
@@ -43,4 +43,17 @@ test("results as blocks see them", () => {
   assert.deepEqual(curves.curves[2], { run: "b", key: "loss", group: null, x: [0], y: [2], lo: [1], hi: [3], n: [4], min: [1], max: [3], last: [2], count: [4] });
   const loading = shape({ status: "loading", data: null, error: null, refreshing: false }, null);
   assert.deepEqual([loading.rows, loading.curves, loading.columns], [[], [], []]);
+});
+
+test("a kit component takes a bt.useData result as its data, nothing hand-built", () => {
+  const call = { method: "runs", params: {}, scope: "g" };
+  const result = shape({ status: "ready", data: { columns: ["run.id"], rows: [["a"]] }, error: null, refreshing: false }, call);
+  assert.equal(dataProblem(result), null);
+  assert.equal(dataProblem(undefined), null);
+  const merged = { status: "ready", columns: ["x", "y"], rows: [{ x: 1, y: 2 }] };
+  assert.equal(dataProblem(merged), "data must be a bt.useData result");
+  assert.equal(dataProblem({ ...result, call: undefined }), "data must be a bt.useData result");
+  assert.equal(dataProblem([{ x: 1, y: 2 }]), "data must be a bt.useData result");
+  const failed = shape({ status: "error", data: null, error: "no query 'x' is declared", refreshing: false }, null);
+  assert.equal(dataProblem(failed), "no query 'x' is declared");
 });
