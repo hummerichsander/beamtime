@@ -23,6 +23,11 @@ FIELDS = [
     "run.last_logged",
 ]
 
+BARE_TYPE = re.compile(r"[A-Za-z_][\w.]*:?")
+QUOTED = re.compile(r"(?<!\w)(?:'[^'\n]*'|\"[^\"\n]*\")")
+PATH = re.compile(r"(?<![\w.])(?:[A-Za-z]:\\|~/|\.{1,2}/|/)[^\s'\",;:)]+")
+NUMBER = re.compile(r"0x[0-9a-f]+|\d+(\.\d+)?")
+
 
 @dataclass(frozen=True)
 class RunFacts:
@@ -114,13 +119,23 @@ def failure_key(error: str | None, traceback: list[str] | None) -> str:
     :return: The signature; empty without either."""
     if error:
         return failure_signature(error)
-    return failure_signature(traceback[-1]) if traceback else ""
+    return failure_signature("\n".join(traceback)) if traceback else ""
 
 
 def failure_signature(text: str | None) -> str:
-    """Reduce an error to what runs of one failure share: its last line without numbers.
+    """Reduce an error to what runs of one failure share: its normalized last line.
+
+    A last line that is a bare exception type carries the line before it, so different failures
+    re-raised without a message stay apart.
 
     :param text: An error message or traceback, or ``None``.
     :return: The signature; empty without an error."""
     lines = [line.strip() for line in (text or "").splitlines() if line.strip()]
-    return re.sub(r"0x[0-9a-f]+|\d+(\.\d+)?", "#", lines[-1])[:120] if lines else ""
+    if not lines:
+        return ""
+    last = lines[-1]
+    if BARE_TYPE.fullmatch(last) and len(lines) > 1:
+        last = f"{last.rstrip(':')} (after: {lines[-2]})"
+    last = QUOTED.sub("<str>", last)
+    last = PATH.sub("<path>", last)
+    return NUMBER.sub("#", last)[:120]

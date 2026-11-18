@@ -418,7 +418,7 @@ ticket changes only *which key*, not *when*; whichever lands second rebases onto
    when `prefs.by === "seeds"`.
 2. `line.ts` reads the seed from the shared `keys` call; `line-settings.ts` filters `keys.config.seed`.
 
-### N44. A failure signature that ignores paths and quotes (sonnet) — code
+### N44. A failure signature that ignores paths and quotes (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/query/facts.py` (`failure_key` 107–115, `failure_signature` 118–124),
   `docs/design/03-index.md` (l. 255), `tests/query/test_facts.py` (`test_failure_key` 149–159).

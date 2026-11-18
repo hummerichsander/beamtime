@@ -368,7 +368,10 @@ need to know about runs: `run_facts` selects them with the same machinery as `ru
 (status judged at `now`, `attempts`, `last_logged`, and the flattened config and the card's metric
 statistics only when asked), after one catch-up. Only a run's output text is still read from its file.
 `failure_key(error, traceback)` is the one failure-signature rule: the signature of the error the card
-recorded, else of the output traceback's exception line. Signatures are grouping labels, not identifiers.
+recorded, else of the output traceback (its lines joined). The signature is the last line with quoted
+strings (`<str>`), paths (`<path>`), numbers and hex (`#`) normalized, cut at 120 characters; a last
+line that is a bare exception type reads `KeyError (after: <the line before>)`, so different failures
+re-raised without a message stay apart. Signatures are grouping labels, not identifiers.
 `compare`, `digest`, `diagnose`, `logs` and `wait` take their runs from `run_members` (`compare` and `digest`
 ask for config and metrics, `digest` for the failures by `failure_key(error, None)`), so a pulled snapshot
 answers them at its own time like any other read. `last_logged` can lag behind the file

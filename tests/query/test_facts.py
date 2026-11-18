@@ -159,6 +159,41 @@ def test_failure_key() -> None:
     assert failure_key("a\nValueError: x 0x1f", None) == "ValueError: x #"
 
 
+def test_failure_signature_ignores_paths_and_quotes() -> None:
+    """Runs of one failure share a signature whatever paths and quotes their message holds."""
+    quoted = "FileNotFoundError: [Errno 2] No such file or directory: '/scratch/a/run{}.pt'"
+    assert failure_key(quoted.format(1), None) == failure_key(quoted.format(2), None)
+    assert failure_key("No such file: /scratch/a/run1.pt", None) == failure_key(
+        "No such file: /scratch/b/run2.pt", None
+    )
+    assert failure_key('KeyError: "a"', None) == failure_key("KeyError: 'b'", None)
+    assert failure_key("Missing C:\\data\\x.csv or ~/y or ../z", None) == (
+        "Missing <path> or <path> or <path>"
+    )
+
+
+def test_failure_signature_sees_through_a_bare_exception() -> None:
+    """A bare type on the last line carries the line before it."""
+    trace = ["Traceback (most recent call last):", '  File "x.py", line 3, in f', "KeyError"]
+    assert failure_key(None, trace) == "KeyError (after: File <str>, line #, in f)"
+    other = [*trace[:1], '  File "x.py", line 9, in g', "KeyError"]
+    assert failure_key(None, other) != failure_key(None, trace)
+    assert failure_key("KeyError", None) == "KeyError"
+
+
+def test_metric_names_are_no_paths() -> None:
+    """A metric name without a leading slash stays as it is."""
+    assert failure_key("RuntimeError: val/loss is nan", None) == "RuntimeError: val/loss is nan"
+
+
+def test_apostrophe() -> None:
+    """An apostrophe in prose does not eat the line."""
+    assert failure_key("RuntimeError: can't find 3 files", None) == (
+        "RuntimeError: can't find # files"
+    )
+    assert failure_key("Error: can't find 'x' in 3", None) == "Error: can't find <str> in #"
+
+
 def test_logdir_is_untouched_by_facts(index: Index, ctx: Context) -> None:
     """Reading facts writes nothing under the log dir."""
     before = sorted(p for p in Path(ctx.logdir).rglob("*") if p.is_file())
