@@ -261,7 +261,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
 
 ## N. Example and guide
 
-### N61. The `data` example: a data file in a table, a chart and a custom block (sonnet) — code
+### N61. The `data` example: a data file in a table, a chart and a custom block (sonnet) — code — **done**
 
 - **Touches:** new `src/beamtime/guide/examples/data.yaml`, new `src/beamtime/guide/examples/data/reference.csv`,
   new `src/beamtime/guide/examples/code/reference-chart.js`, `src/beamtime/guide/__init__.py` (`EXAMPLES` 32),

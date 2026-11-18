@@ -109,6 +109,14 @@ body:
     assert {"level": "error", "id": "empty", "block": "custom", "message": "the custom block draws nothing"} in findings
 
 
+def test_data_example_renders(browser_ok, ctx: Context, project: Path) -> None:
+    """The data example draws its table and both charts: no blank blocks, no errors."""
+    call("view new", {"group": SWEEP, "from": "data", "name": "dx"}, ctx)
+    answer = call("view render", {"draft": "dx"}, ctx)
+    assert answer["rendered"], answer
+    assert answer["findings"] == [], answer["findings"]
+
+
 def test_block_examples_render(browser_ok, ctx: Context, project: Path) -> None:
     """block validate renders a block draft's examples as uses in a view of its group."""
     from tests.views.test_library import GENERAL

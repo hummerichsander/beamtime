@@ -169,6 +169,7 @@ def data_file_checks(
     :param data_dir: The draft's folder.
     :param draft: The draft's name, for the fix of a file that has to be copied in.
     :return: The findings."""
+    from beamtime.guide import example_file
     from beamtime.query.files import FORMATS, MAX_BYTES, WARN_BYTES
 
     draft = draft or "<draft>"
@@ -230,6 +231,15 @@ def data_file_checks(
                 **at,
                 message=f"{ref} is {size / (1 << 20):.1f} MB; the page loads the whole file",
                 fix="aggregate or downsample to the rows the view shows",
+            )
+        )
+    if (shipped := example_file(ref)) is not None and path.read_bytes() == shipped:
+        out.append(
+            Finding(
+                level="warning",
+                **at,
+                message=f"{ref} is still the example's data",
+                fix=f"replace it: view_data {draft} <your file>",
             )
         )
     return out

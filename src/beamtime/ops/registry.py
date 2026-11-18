@@ -285,7 +285,7 @@ class ViewNewParams(Params, kw_only=True):
 
     group: Group
     from_: Annotated[
-        Literal["sweep", "ablation", "run", "direction", "custom"] | None,
+        Literal["sweep", "ablation", "run", "direction", "custom", "data"] | None,
         msgspec.Meta(description="an example to start from; default: the page's current view"),
     ] = msgspec.field(default=None, name="from")
     name: Annotated[str | None, msgspec.Meta(description="default: the group's name")] = None

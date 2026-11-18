@@ -765,7 +765,7 @@ Marked as defaults that the user's own instructions may override ([Agent instruc
 
 ### Examples
 
-Five complete example views ship with Beamtime, each with a commentary, and double as templates
+Six complete example views ship with Beamtime, each with a commentary, and double as templates
 (`beamtime view new --from <example>`):
 
 | Example | Shows |
@@ -775,6 +775,7 @@ Five complete example views ship with Beamtime, each with a commentary, and doub
 | `run` | a view of one run's page: its metrics, output tail, logged samples |
 | `direction` | a research direction: `groups` overview of its sweeps, `timeline` of decisions and verdicts, memory, proposal |
 | `custom` | a custom block with click-to-detail, theme colors and graceful degradation |
+| `data` | a data file (made-up reference values, `data/reference.csv`) in a `data_table` and, through the `file` query, in a custom block drawing two `bt.chart.Scatter`s beside the runs'; `validate` warns while the file is still the example's (`view_data` replaces it) |
 
 ### Screenshot checklist
 
@@ -988,6 +989,6 @@ Decided while building themes (milestone M5):
 - Run colors are stable by hash with collision resolution within a view.
 - Reusable blocks form a library in `blocks/`, used like widgets; views pin block versions and upgrade
   deliberately.
-- The guide is disclosed progressively, with five examples, a checklist and anti-patterns; users
+- The guide is disclosed progressively, with six examples, a checklist and anti-patterns; users
   override its defaults in their own instruction files.
 - An evaluation harness on synthetic log dirs with planted truth guards view quality.

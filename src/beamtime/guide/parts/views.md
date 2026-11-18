@@ -16,7 +16,7 @@ Tools are named as over MCP (`view_new`); on the command line the same operation
    come first:** write a custom block only once you have made sure that no built-in or library block
    can show it, or that it would look visibly worse (`guide kit`).
 3. `view_new <group>` starts a draft in `.beamtime/drafts/<name>/view.yaml`: from the page's
-   current view, or `--from sweep|ablation|run|direction|custom` (filled with the group's keys).
+   current view, or `--from sweep|ablation|run|direction|custom|data` (filled with the group's keys).
    Edit the file with your own tools.
 4. `view_validate <draft>` until no errors remain. It runs every block's queries, so field and key
    names are checked against the real data, with suggestions; where a browser is installed it

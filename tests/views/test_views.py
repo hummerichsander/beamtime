@@ -429,6 +429,39 @@ def test_examples_validate_on_synth(ctx: Context, name: str) -> None:
     assert result["ok"], result["findings"]
 
 
+def test_data_example_saves(ctx: Context, project: Path) -> None:
+    """The data example saves to a page whose two data references are hashed and answer."""
+    call("view new", {"group": SWEEP, "from": "data", "name": "dx"}, ctx)
+    file = project / ".beamtime" / "drafts" / "dx" / "view.yaml"
+    file.write_text(file.read_text().replace("TODO: the result in one sentence.", "x"))
+    call("view save", {"draft": "dx"}, ctx)
+    nodes = {n["id"]: n for n in walk(page_view(ctx, SWEEP)["view"])}
+    refs = [
+        nodes["reference-table"]["data"]["main"]["params"]["path"],
+        nodes["reference-chart"]["data"]["ref"]["params"]["path"],
+    ]
+    assert refs[0] == refs[1]
+    assert refs[0].startswith("data/") and refs[0].endswith("-reference.csv")
+    answer = call("file", {"view": SWEEP, "path": refs[0], "columns": ["x", "y"]}, ctx)
+    assert answer["columns"] == ["x", "y"] and len(answer["rows"]) == 8
+
+
+def test_a_data_file_that_is_still_the_examples_gets_a_warning(ctx: Context, project: Path) -> None:
+    """The example's file warns until the agent replaces it; a changed file does not."""
+    call("view new", {"group": SWEEP, "from": "data", "name": "dw"}, ctx)
+    file = project / ".beamtime" / "drafts" / "dw" / "data" / "reference.csv"
+
+    def warned() -> list[dict]:
+        result = call("view validate", {"draft": "dw", "render": False}, ctx)
+        return [f for f in result["findings"] if "still the example's data" in f["message"]]
+
+    found = warned()
+    assert {f["id"] for f in found} == {"reference-table", "reference-chart"}
+    assert all("view_data dw" in f["fix"] for f in found)
+    file.write_text(file.read_text() + "1,1,mine\n")
+    assert not warned()
+
+
 def test_save_page_from_the_ui(ctx: Context) -> None:
     """Save as view writes the default with the viewer's settings, title and finding."""
     from beamtime.ops.views import save_page

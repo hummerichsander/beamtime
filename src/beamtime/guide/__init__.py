@@ -1,4 +1,4 @@
-"""The agent guide: how to build views, disclosed in parts, with five examples.
+"""The agent guide: how to build views, disclosed in parts, with six examples.
 
 Examples are YAML templates with ``{{name}}`` placeholders, filled with a group's metrics and
 config; nodes whose data the group doesn't have are left out."""
@@ -31,7 +31,7 @@ TOPICS = (
     "analysis",
 )
 TOOLS_MORE = "Over MCP with the default tool set, call these through `tools_more`."
-EXAMPLES = ("sweep", "ablation", "run", "direction", "custom")
+EXAMPLES = ("sweep", "ablation", "run", "direction", "custom", "data")
 LAUNCH = {
     "never": "Never launch runs yourself.",
     "ask": "Ask before you launch a run.",
