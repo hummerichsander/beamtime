@@ -47,6 +47,7 @@ class RunInfo:
     beamtime_version: str | None = None
     copied_from: dict[str, Any] | None = None
     imported_from: dict[str, Any] | None = None
+    hidden: bool = False
 
 
 def read_run_info(run_dir: Path) -> RunInfo:
@@ -87,9 +88,31 @@ def read_run_info(run_dir: Path) -> RunInfo:
                 beamtime_version=d.get("beamtime_version"),
                 copied_from=d.get("copied_from"),
                 imported_from=d.get("imported_from"),
+                hidden=d.get("hidden") is True,
             )
         case v:
             raise SchemaError(f"{path}: no reader for run schema {v}.")
+
+
+def run_hidden(run_dir: Path, info: dict[str, Any] | RunInfo) -> bool:
+    """Tell whether a run is hidden: the newest ``visibility/`` version, else ``_run.json``'s flag.
+
+    :param run_dir: The run directory.
+    :param info: The run's ``_run.json`` as read, or its ``RunInfo``.
+    :return: ``True`` for a hidden run; a damaged version falls back to the flag."""
+    import yaml
+
+    from beamtime.format.authored import newest, read_yaml_doc
+
+    if (path := newest(run_dir / c.VISIBILITY)) is not None:
+        try:
+            if isinstance(
+                hidden := read_yaml_doc(path, kind="visibility").meta.get("hidden"), bool
+            ):
+                return hidden
+        except (SchemaError, ValueError, OSError, yaml.YAMLError):
+            pass
+    return info.hidden if isinstance(info, RunInfo) else info.get("hidden") is True
 
 
 def run_status(info: RunInfo, *, heartbeat: float, now: float) -> DerivedStatus:

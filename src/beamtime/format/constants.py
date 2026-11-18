@@ -26,6 +26,8 @@ MEMORY = "memory"
 BLOCKS = "blocks"
 # a run's display name, given after the run; inside runs only, so no group name is reserved.
 NAME = "name"
+# a run's visibility, overriding ``_run.json``'s flag; inside runs only, no group is reserved.
+VISIBILITY = "visibility"
 AUTHORED = frozenset({PROPOSAL, NOTES, VIEW, MEMORY, BLOCKS})
 RUN_ONLY = frozenset({"artifacts", "checkpoints"})
 

@@ -664,3 +664,48 @@ def test_run_json_heartbeat_file_is_valid_json(script: Script, logdir: Path) -> 
     for key in ("schema", "id", "name", "status", "created_at", "attempts", "proposals"):
         assert key in info
     assert json.dumps(info)
+
+
+def test_hidden_argument_and_env(script: Script, logdir: Path) -> None:
+    """``hidden=True`` and ``BEAMTIME_HIDDEN=1`` write the flag; a default run has no key."""
+    script("import beamtime\nbeamtime.init(dir='a', hidden=True).finish()")
+    script("import beamtime\nbeamtime.init(dir='b').finish()", env={"BEAMTIME_HIDDEN": "1"})
+    script("import beamtime\nbeamtime.init(dir='c').finish()")
+    script(
+        "import beamtime\nbeamtime.init(dir='d', hidden=False).finish()",
+        env={"BEAMTIME_HIDDEN": "1"},
+    )
+    flags = {p.parent.parent.name: read_json(p).get("hidden") for p in logdir.rglob("_run.json")}
+    assert flags == {"a": True, "b": True, "c": None, "d": None}
+
+
+def test_hidden_env_values(script: Script, logdir: Path) -> None:
+    """Only ``1``, ``true`` and ``yes`` in any case hide; ``0`` and ``false`` do not."""
+    values = {"1": True, "TRUE": True, " yes ": True, "0": False, "false": False, "": False}
+    for i, value in enumerate(values):
+        script(
+            f"import beamtime\nbeamtime.init(dir='r{i}').finish()", env={"BEAMTIME_HIDDEN": value}
+        )
+    found = [read_run_info(p.parent).hidden for p in sorted(logdir.rglob("_run.json"))]
+    assert found == list(values.values())
+
+
+def test_hidden_must_be_bool(script: Script, logdir: Path) -> None:
+    """A hidden that is not a bool raises ``ValueError`` and starts no run."""
+    proc = script("import beamtime\nbeamtime.init(hidden='yes')")
+    assert proc.returncode != 0 and b"ValueError: hidden must be a bool" in proc.stderr
+    assert not list(logdir.rglob("_run.json"))
+
+
+def test_resume_keeps_hidden(script: Script, logdir: Path) -> None:
+    """A continued run keeps its visibility; a differing argument warns once and is ignored."""
+    script("import beamtime\nrun = beamtime.init(key='h', hidden=True)\nrun.end('killed')")
+    proc = script("import beamtime\nrun = beamtime.init(key='h', hidden=False)\nrun.finish()")
+    assert proc.returncode == 0, proc.stderr.decode()
+    info = read_run_info(only_run(logdir))
+    assert info.hidden and info.status == "finished"
+    assert proc.stderr.decode().count("a continued run keeps its visibility") == 1
+    again = script("import beamtime\nrun = beamtime.init(key='h2', hidden=True)\nrun.end('killed')")
+    assert again.returncode == 0
+    same = script("import beamtime\nrun = beamtime.init(key='h2', hidden=True)\nrun.finish()")
+    assert b"keeps its visibility" not in same.stderr

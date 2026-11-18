@@ -197,6 +197,14 @@ def job_key(env: Mapping[str, str]) -> str | None:
     return None
 
 
+def hidden(env: Mapping[str, str]) -> bool:
+    """Read whether ``BEAMTIME_HIDDEN`` asks for a hidden run.
+
+    :param env: The environment.
+    :return: ``True`` for ``1``, ``true`` or ``yes`` in any case."""
+    return env.get("BEAMTIME_HIDDEN", "").strip().lower() in ("1", "true", "yes")
+
+
 def rank(env: Mapping[str, str]) -> int:
     """Find this process's rank; it is 0 iff every rank variable it sees is 0 or unset.
 

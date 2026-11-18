@@ -1026,6 +1026,7 @@ def init(
     resume: str | None = None,
     key: str | None = None,
     system_metrics: bool = True,
+    hidden: bool | None = None,
 ) -> Run | NullRun:
     """Start recording a run, or continue one.
 
@@ -1043,6 +1044,9 @@ def init(
         continues the newest unfinished run recorded under it. Defaults to
         ``BEAMTIME_RUN_KEY``.
     :param system_metrics: Sample CPU, memory and GPUs every 30 s as ``sys/*`` metrics.
+    :param hidden: Record the run hidden: left out of listings, counts and the research
+        record until someone promotes it. ``None`` reads ``BEAMTIME_HIDDEN``. A continued
+        run keeps its visibility.
     :return: The run; a ``NullRun`` on ranks other than 0."""
     global _current
     location = locate(dir)
@@ -1052,6 +1056,8 @@ def init(
         return NullRun(rank=rank, capture=capture)
     if tags is not None and not all(isinstance(t, str) for t in tags):
         raise ValueError("tags must be a list of strings")
+    if hidden is not None and not isinstance(hidden, bool):
+        raise ValueError("hidden must be a bool")
     cfg = to_config(config)
     resume = resume or environ.get("BEAMTIME_RESUME") or None
     key = key or environ.get("BEAMTIME_RUN_KEY")
@@ -1069,12 +1075,22 @@ def init(
                 raise
             warning = f"could not continue {resolved}: {e}; starting a new run"
     if run is None:
-        run = new_run(location, name, tags or [], cfg, to_proposal(proposal), key)
+        run = new_run(
+            location,
+            name,
+            tags or [],
+            cfg,
+            to_proposal(proposal),
+            key,
+            hidden=env.hidden(environ) if hidden is None else hidden,
+        )
     notebook = in_notebook()
     run.capture = Capture(files=LogFiles(run_dir=run.dir), mode="stream" if notebook else "fd")
     run.capture.start()
     if warning:
         run.warn("resume", warning)
+    if run.resuming and hidden is not None and hidden != (run.info.get("hidden") is True):
+        run.warn("hidden", "a continued run keeps its visibility")
     for message in location.warnings:
         run.warn("root", message)
     if notebook:
@@ -1094,6 +1110,8 @@ def new_run(
     cfg: dict[str, Any],
     proposal: dict[str, Any],
     key: str | None = None,
+    *,
+    hidden: bool = False,
 ) -> Run:
     """Create the directory and first files of a new run.
 
@@ -1103,6 +1121,7 @@ def new_run(
     :param cfg: Its config.
     :param proposal: Its own proposal's fields.
     :param key: A name for this launch, so a later call can resume it by key.
+    :param hidden: Whether to record the run hidden.
     :return: The run, not yet started."""
     location.folder.mkdir(parents=True, exist_ok=True)
     for _ in range(10):
@@ -1153,6 +1172,8 @@ def new_run(
         info["scheduler"] = scheduler
     if key is not None:
         info["key"] = key
+    if hidden:
+        info["hidden"] = True
     info |= {
         "git": git,
         "command": env.command(),

@@ -19,6 +19,7 @@ SCHEMAS = {
     "block": 1,
     "moves": 1,
     "name": 1,
+    "visibility": 1,
     "settings": 1,
     "synth": 1,
 }

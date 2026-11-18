@@ -189,7 +189,7 @@ Write the design before code (CLAUDE.md: a deviation is decided and written back
    the `status` hint (decision 6).
 6. 07-web-ui § Writing from the UI: decision 9 in two or three sentences, and "Promote" in the edit table.
 
-### U41. The flag in the files and the SDK (sonnet + review) — code
+### U41. The flag in the files and the SDK (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/format/constants.py` (`NAME` 27–28: add `VISIBILITY = "visibility"`),
   `src/beamtime/format/schema.py` (`SCHEMAS` 6–24), `src/beamtime/format/run.py` (`RunInfo` 25–49,
