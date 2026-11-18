@@ -95,16 +95,16 @@ def read_run_info(run_dir: Path) -> RunInfo:
 
 
 def run_hidden(run_dir: Path, info: dict[str, Any] | RunInfo) -> bool:
-    """Tell whether a run is hidden: the newest ``visibility/`` version, else ``_run.json``'s flag.
+    """Tell whether a run is hidden: the newest valid ``visibility/`` version, else the flag.
 
     :param run_dir: The run directory.
     :param info: The run's ``_run.json`` as read, or its ``RunInfo``.
-    :return: ``True`` for a hidden run; a damaged version falls back to the flag."""
+    :return: ``True`` for a hidden run; damaged versions are skipped."""
     import yaml
 
-    from beamtime.format.authored import newest, read_yaml_doc
+    from beamtime.format.authored import read_yaml_doc, versions
 
-    if (path := newest(run_dir / c.VISIBILITY)) is not None:
+    for path in reversed(versions(run_dir / c.VISIBILITY)):
         try:
             if isinstance(
                 hidden := read_yaml_doc(path, kind="visibility").meta.get("hidden"), bool

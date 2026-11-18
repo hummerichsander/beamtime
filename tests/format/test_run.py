@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from beamtime.format.authored import file_hash
-from beamtime.format.tree import iter_runs
 from beamtime.format.run import (
     read_artifacts,
     read_card,
@@ -22,6 +21,7 @@ from beamtime.format.run import (
     run_hidden,
     run_status,
 )
+from beamtime.format.tree import iter_runs
 
 FINISHED = "scaling/lr-sweep/20261024-101532-k3m9xq2a"
 RESUMED = "scaling/lr-sweep/20261024-111500-r3s4m5d6"
@@ -201,3 +201,16 @@ def test_run_hidden_damaged_version(finished: Path, tmp_path: Path) -> None:
         (folder / "20261101-100000-aaaa.yaml").write_text(text)
         assert run_hidden(run, d)
         assert not run_hidden(run, {})
+
+
+def test_run_hidden_skips_damaged_newest(finished: Path, tmp_path: Path) -> None:
+    """A damaged newest version leaves the newest valid one in force, as the storage spec says."""
+    run = tmp_path / "run"
+    shutil.copytree(finished, run)
+    folder = run / "visibility"
+    folder.mkdir()
+    (folder / "20261101-100000-aaaa.yaml").write_text(
+        "schema: 1\nhidden: false\nauthor: a\nuser: u\n"
+    )
+    (folder / "20261101-110000-bbbb.yaml").write_text("{{ not yaml")
+    assert not run_hidden(run, {"hidden": True})
