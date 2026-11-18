@@ -23,7 +23,9 @@ The outcome this plan commits to, checked against at the end and in every review
   scale comes from the values, clocks from the leaf name, seed merging from the arms. The top bar and the
   favicon carry the `///` mark with its "gather left" motion. `beamtime guide type` tells agents exactly
   which type class to use for each kind of text in custom blocks and views, and `view_validate` rejects
-  font literals (`font-size`, `font-family`, the `font` shorthand, `line-height`) in custom code.
+  font literals (`font-size`, `font-family`, the `font` shorthand, `line-height`) in custom code. Logged
+  images can be stepped through every logging, by step or by a clock such as epoch, and open in a large
+  dialog that zooms, pans and downloads the original file.
 - **Confirmed by:** `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`;
   `cd web && npm ci && npm test && npm run build` with the bundle committed; the tests named in each
   ticket (failing first where the evidence is **code**); `uv run pytest -q tests/serve/test_browser.py`
@@ -53,6 +55,7 @@ table are short: `blocks/`, `bt/`, `shell/`, `styles/` sit under `web/src/`, `qu
 | 10 | Seeds merge only above 8 runs | `many = … and direct > SEED_GROUPING_ABOVE` (defaults.py 14, 87) | code | D33 |
 | 11 | Favicon shows a dot when live; the top bar has no mark | `shell/favicon.ts` 16–52, `shell/bars.ts` 28; `design/favicon.svg` is three rotated rects | code | L31, L32 |
 | 12 | Agents hard-code fonts in custom blocks: 10 `font-size="12"` on SVG text in 2 of 8 custom-code files of the bench runs (`bench/agents/runs/20261031-144758/sweep-heatmap-*`) | no guide part says which type class fits which text (the guide names no class at all); `views/code.py` checks color literals only (`COLOR` 39, `problems` 41–76), though `05-views.md` 790 marks "colors, fonts or sizes in custom code" as detected | real data / code | T31 |
+| 13 | Logged images show only the latest step: 144 px thumbnails, no way to see earlier loggings, no zoom, no download, no expand | the default view asks `data` with `step: "last"` (`views/defaults.py` 141–142, `m.Images.step` `views/model.py` 164–168, compiled at `compile.py` 214–216); the `data` answer doesn't say which steps exist (`query/kinds.py` `data_kind` 476–528); `Images` (`blocks/logged.ts` 13–29) is a bare `Panel` with fixed `<img>` tiles (`styles/blocks.css` 96–99), not a `ChartFrame` (`bt/frame.ts` 66–110), so it gets none of the chart tools; `05-views.md` 206 already lists a `slider` as wave 2 | code | Q32, W37 |
 
 ## Brief
 
@@ -79,6 +82,11 @@ What the tickets build together, so a session doesn't rediscover the design:
   `M8.5 19.5 L15.5 4.5`, `M14.5 19.5 L21.5 4.5`, stroke 2.6, `accent`; "gather left" moves the middle −2 and
   the right −4 in x over 420 ms. The component is `Mark` (`design/components/Mark.md`, `.mark` in
   `design/components.css`, `web/src/ui/mark.ts`).
+- **Images through their steps** (Q32, W37): the `data` answer's meta gains `steps` (every step at which a run in
+  scope logged the key, ascending) and, with `clock: <metric>`, `clocks` (that metric's value at each of those
+  steps, through `read.x_values`); entries stay those of the asked step, so a page loads one step's files at a time.
+  The `images` block becomes a `ChartFrame` with a step scrubber under the images, the chart tools (download,
+  expand) and, in the expanded dialog, zoom and pan.
 - **Type for agents** (T31): a guide topic `type` (`src/beamtime/guide/parts/type.md`) maps each kind of text in
   custom code and in views to a type class; `views/code.py` gains `FONT`, checked in `problems` like `COLOR`.
 
@@ -109,12 +117,13 @@ is marked done in the ticket's own commit.
 ## Order
 
 ```
-Q31 ─ D31 ─ D33 ─ T31                   Python (D31, D33 share defaults.py; T31 edits guide parts and 05-views.md)
-W35 after Q31; then one at a time (shared bundle):
-W31 ─ W32 ─ W33 ─ W34 ─ W35 ─ W36 ─ D32 ─ D34 ─ L31 ─ L32 ─ Z31
+Q31 ─ Q32 ─ D31 ─ D33 ─ T31             Python (Q31, Q32 share kinds.py and answers.py; D31, D33 share defaults.py;
+                                        T31 edits guide parts and 05-views.md)
+W35 after Q31, W37 after Q32 and D32; then one at a time (shared bundle):
+W31 ─ W32 ─ W33 ─ W34 ─ W35 ─ W36 ─ D32 ─ W37 ─ D34 ─ L31 ─ L32 ─ Z31
 ```
 
-What's left runs in this order: Q31 D31 D33 T31 W31 W32 W33 W34 W35 W36 D32 D34 L31 L32 Z31
+What's left runs in this order: Q31 Q32 D31 D33 T31 W31 W32 W33 W34 W35 W36 D32 W37 D34 L31 L32 Z31
 
 ## Decisions taken; say if you want otherwise
 
@@ -168,6 +177,23 @@ What's left runs in this order: Q31 D31 D33 T31 W31 W32 W33 W34 W35 W36 D32 D34 
     in strings too, comments masked, and is reported by `problems` (an error, like a color literal). Font
     *weight* stays allowed (`<b>`, `font-weight` for the one number that matters, as `design/README.md` says).
     Rejected: a warning in `lints`, because the spec already promises this as a ✓ check and colors are errors.
+15. **Image steps** (your request 2026-11-18; details **assumed**): one scrubber per `images` block, its stops
+    the logged steps (so it moves one logging interval at a time); ←/→ and Home/End when it has focus. It reads
+    "step 4 000" or, when the page has a clock (D32's `CLOCK_LEAVES`, `epoch` first), "epoch 12 · step 4 000",
+    and a "by step / by epoch" toggle in the block's tools spaces the stops by that value. On a group page every
+    run's figure shows the scrubbed step; a run that logged nothing at that step shows its latest earlier image,
+    labeled with its own step and muted. A view's `step: <n>` sets where the scrubber starts. While the scrubber
+    is at the last stop, live updates move it to each new logging; after the viewer moves it, it stays. The step
+    is kept per viewer like chart zoom (back and forward restore it), not in the URL. Rejected: loading every
+    step's entries at once (`step: "all"`, which the `entries` limit of 200 cuts on a long run); a play button
+    (not asked for).
+16. **Figure tools for images** (your request 2026-11-18; details **assumed**): the block uses `ChartFrame`, so it
+    has the chart head, download menu and expand button. Download gives the original file of each shown image
+    (`<run>-<key>-step<n>.<ext>`), not a re-encoded PNG. Clicking an image or Expand opens the dialog on that run:
+    the image as large as the dialog allows, pixelated when enlarged (as now), wheel or pinch zooms around the
+    pointer, drag pans, double-click or the reset button fits it again, `+`/`−` buttons and keys, the scrubber
+    below, and ‹ › to the previous or next run's image. No new library: zoom and pan are a CSS transform (the
+    shell stays under 120 KB). Exports and screenshots show the starting step without the scrubber (`recording`).
 
 ## Q. Queries
 
@@ -200,6 +226,33 @@ asks `series {y: [live/new]}` and fails today.
 3. `series_kind`: `meta(..., running=sum(r["run.status"] == "running" for r in runs))`; add `run.status` to
    the selected fields. `answers.merged`: `running` joins `matched`, `groups`, `means`.
 4. 03-index.md: one line under `series` (meta `running`) and one under Query language (live keys count as known).
+
+### Q32. The data answer lists its steps and their clock values (sonnet) — code
+
+- **Touches:** `src/beamtime/query/models.py` (`Data` 143–148: new `clock: str | None = None`),
+  `src/beamtime/query/kinds.py` (`data_kind` 476–528: meta `steps`, `clocks`), `src/beamtime/ops/answers.py`
+  (`merged` 665–690: `steps` as a sorted union, `clocks` merged by step), `tests/query/test_queries.py`,
+  `tests/remote/test_federation.py`, `docs/design/03-index.md` (§ Query kinds `data`, l. 517–523).
+- **Read:** `tests/query/test_queries.py` around 547 (images come as references); `src/beamtime/query/read.py`
+  `x_values` 302 and `value_at` 254; Q31's commit (the same meta merge).
+- **Check:** `uv run pytest -q -n0 tests/query/test_queries.py -k "data or images"`;
+  `uv run pytest -q tests/remote/test_federation.py -k data`; then the full checks.
+- **Done:** `data {key: samples, step: last}` on the synth lr sweep answers the last step's entries and
+  `meta.steps` with every logged step; `clock: epoch` adds `meta.clocks` with one value per step (`null` where no
+  run logged the clock at or before it); `step: <n>` still answers only that step's entries, with the same
+  `steps`; two sources' `steps` merge into one sorted list.
+- **Risks:** a key logged by many runs at different steps lists their union, not per run (the block needs one
+  axis) → `test_data_steps_union`; an unknown `clock` is a `QueryError` with suggestions, like an unknown metric
+  (`check_known`), not a silent `null` column → `test_data_unknown_clock`; the query stays one SQL read plus one
+  column read per run (no file reads): time it on scale M in the test's comment if it is close.
+- **Stop if:** clock values differ between runs at the same step in a way one value per step can't show (then
+  report: per-run `clocks` would be the alternative).
+
+1. `data_kind`: `steps = sorted({s for _, s, _ in rows})` before the step filter; `meta(..., steps=steps)`.
+2. With `q.clock`: `check_known` on `metric.<clock>.last`; for each run in `by_run`, `x_values(cols, q.clock,
+   steps)` from its columns; per step the first run's non-`null` value; `meta(..., clocks=values)`.
+3. `answers.merged`: `steps` → sorted union; `clocks` → by step, first non-`null`.
+4. `03-index.md` § `data`: the two meta fields and `clock`.
 
 ## D. The default view and the chart rules
 
@@ -448,6 +501,50 @@ asks `series {y: [live/new]}` and fails today.
    check, or the shot's pixels, over the 40-chart page) and one that a folded section stays folded.
 4. `07-web-ui.md`: Lazy rendering names the exception (renders and screenshots mount every block); Table.md gets the hint.
 
+### W37. Images: step through every logging, expand, zoom, download (sonnet + review) — code
+
+- **Touches:** `web/src/blocks/logged.ts` (`Images` 13–29), new `web/src/bt/zoom.ts` (pan and zoom of one element),
+  `web/src/bt/frame.ts` (`ChartFrame` 66–110, `Downloads` 23: a file download set), `web/src/shell/expanded.ts`
+  (the dialog's label for images), `web/src/styles/blocks.css` (`.images` 96–99), `src/beamtime/views/compile.py`
+  (214–216: `clock` on the images call when the page has one), `src/beamtime/views/defaults.py` (141–142),
+  `design/components/` (new `Images.md`; `components.css` for the scrubber if it isn't a plain `input[type=range]`
+  styled from tokens), `web/test/` (new `images.test.ts`), `tests/serve/test_browser.py`, `tests/views/test_views.py`,
+  `docs/design/05-views.md` (l. 206: `slider` is no longer wave 2), `docs/design/07-web-ui.md` (logged images, l. 464,
+  509; tools on hover 412), `src/beamtime/serve/static/` (rebuilt).
+- **Read:** decisions 15 and 16; Q32's and D32's commits; `design/README.md`, `design/components/Chart.md`;
+  `web/src/blocks/line.ts` 25–40 (how a chart block expands); `web/src/bt/host.ts` (download, expand);
+  `web/src/snapshot.ts` `fileUrl`; `docs/design/07-web-ui.md` 79 (back and forward restore zoom) and 232–237.
+- **Check:** `cd web && npm test`; `uv run pytest -q tests/views/test_views.py -k images`;
+  `uv run pytest -q tests/serve/test_browser.py -k images`; then build and the full checks.
+- **Done:** on the synth lr sweep's group page, the `samples` block shows every run's last image with a scrubber
+  under them; moving it (drag, ←/→, Home/End) shows each earlier logging, labeled "epoch e · step s" when the page
+  logs an epoch, and "by epoch" spaces the stops by epoch; Download saves the shown images' original files;
+  clicking an image opens the dialog on that run, where wheel and drag zoom and pan, double-click fits, ‹ › change
+  the run, and the scrubber works as inline; back and forward restore the scrubbed step; a running run's new image
+  appears and the scrubber follows it only when it was at the last stop; a key logged once shows no scrubber; an
+  export or page shot shows the starting step without the scrubber; the shell stays under 120 KB compressed.
+- **Risks:** fast scrubbing must not queue one request per stop (debounce the refetch, keep the old images until the
+  new ones load, so the block doesn't flash) → `images.test.ts`; images of different sizes keep one tile size inline
+  (`object-fit: contain`) → browser test; zoom must not scroll the page or close the dialog (wheel `preventDefault`
+  only inside the image) → browser test; a remote run's file comes through `fileUrl(sourcedRun(...))` as today; the
+  text block (`Text`) is not changed.
+- **Stop if:** `ChartFrame` can't hold a non-uPlot child without changing its line-chart callers (then wrap the
+  images in the same head and tools by hand and say so); Q32 or D32 is not done.
+
+1. `Images`: one `useData("main")` answer; keep the scrubbed step in viewer state (the same store and history entry
+   chart zoom uses); refetch with `step: <s>` when it changes. Each run's figure is that run's entry at `s`, else its
+   latest entry at or before `s` (Q32's answer has only the asked step: ask `step: [first, s]` with `limit` per run
+   if needed, or keep the last answer per run; pick the simpler and test it).
+2. Scrubber: an `input type=range` over the indices of `meta.steps` (by step) or the distinct `meta.clocks` (by
+   epoch); its label in the `small` type class with `step()` from `bt/fmt.ts`.
+3. Frame: `ChartFrame` with `downloads` that save each shown image's file (`host().download(fileUrl(...), name)`),
+   `onExpand` → `host().expand(node, view)` with the clicked run in the node's props.
+4. Expanded: the large image in `zoom.ts` (`transform: translate(...) scale(...)`, wheel around the pointer, drag,
+   double-click and a reset button to fit, `+`/`−`), ‹ › over the runs of the answer, the scrubber below.
+5. `compile.py`: the images call gains `clock` when the page's clocks (D32) include one, `epoch` first.
+6. Spec: `05-views.md` (the scrubber is part of `images`; `step` is the start), `07-web-ui.md` (logged images: the
+   scrubber, the dialog, downloads), `design/components/Images.md`.
+
 ## L. The mark
 
 ### L31. The `///` mark in the design system (sonnet + review) — code
@@ -572,12 +669,17 @@ Lines below are at `274fc44`, not the plan's base commit; refresh them if Q31–
 | Sweep charts | one color per run | colored by the swept key | Color by → none |
 | `keys` answer | `config.varying`, `aliases` | also `config.dropped` | additive |
 | `series` meta | — | `running` | additive |
+| `data` query and meta | — | `clock` param; meta `steps`, `clocks` | additive |
+| `images` block | latest step, small tiles, no tools | a scrubber over every logged step, chart tools, an expand dialog with zoom | none; `step:` in a view is now where the scrubber starts |
 | Favicon | mark with a dot when live | `///`, gathered when live | none |
 | Custom code with font literals | saved | `view_validate` error `font literal …` | a type class (`guide type`); canvas `bt.theme.tokens.font` |
 
 ## Not verified
 
-- That Chromium exists on the executing machine; browser-test steps are skipped otherwise (W31, W32, W35, L32).
+- That Chromium exists on the executing machine; browser-test steps are skipped otherwise (W31, W32, W35, W37, L32).
+- That `ChartFrame` takes a non-chart child without changes to its line-chart callers (W37 Stop if), and that the
+  viewer-state store of chart zoom can hold an images block's step (W37 reads it first).
+- That clock values agree across runs at the same step often enough for one `clocks` value per step (Q32 Stop if).
 - That uPlot calls the x scale's `range` again on `setData(…, true)` after a legend toggle (W32 checks first).
 - That Chrome renders an SVG favicon's CSS base state (the gathered pose) and not the first keyframe (L31, by hand).
 - Whether `npm ci` works offline on the executing machine.
