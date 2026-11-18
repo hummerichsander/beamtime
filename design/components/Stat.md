@@ -1,6 +1,6 @@
 # Stat
 
-One number with a small label, no box: a count, the best or the last value over a group's runs.
+One number with a small label on a light `surface` panel: a count, the best or the last value over a group's runs. A row of stats shares the width.
 
 - Label in `small` `muted`, value in `number`. Italic while a run is still changing it.
 - Compact numbers (`3e-4`, `12.4k`), the full value in the tooltip.

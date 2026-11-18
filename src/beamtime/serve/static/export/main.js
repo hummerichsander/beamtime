@@ -332,16 +332,16 @@ l0,-`+(a+144)+`c-2,-159.3,-10,-310.7,-24,-454c-53.3,-528,-210,-949.7,
     ${a?t.numbered?h`<p class="caption table-caption"><b></b> ${a}</p>`:h`<p class="caption">${a}</p>`:null}
   </section>`}function Ve(t){let e=t.kind??"info",a=e==="warning"?["triangle-alert","tone-warn"]:e==="error"?["circle-x","tone-bad"]:null;return h`<p class=${`notice body ${e}`}>
     ${a?h`<${ae} name=${a[0]} size=${15} class=${a[1]} />`:null}<span>${t.children}</span>
-  </p>`}function et(t){return t?t.rows.map(e=>Object.fromEntries(t.columns.map((a,r)=>[a,e[r]]))):[]}function c1(t,e){return e?Object.entries(e).every(([a,r])=>Array.isArray(r)?r.includes(t[a]):t[a]===r):!0}function ei(t){let e=`section.${t.id}`,a=d1(ze(fn),t.title)?null:t.title,[r,l]=te(()=>ll||La(e,t.open??!0)),o=()=>{ka(e,!r),l(!r)};return h`<section class=${`block collapsible ${t.class??""}`}>
+  </p>`}function et(t){return t?t.rows.map(e=>Object.fromEntries(t.columns.map((a,r)=>[a,e[r]]))):[]}function c1(t,e){return e?Object.entries(e).every(([a,r])=>Array.isArray(r)?r.includes(t[a]):t[a]===r):!0}function ei(t){let e=`section.${t.id}`,a=ze(fn),r=d1(a,t.title)?null:t.title,[l,o]=te(()=>ll||La(e,t.open??!0)),n=()=>{ka(e,!l),o(!l)};return h`<section class=${`block collapsible ${t.class??""}`}>
     <h3 class="block-title heading">
-      <button type="button" class="collapse-toggle" aria-expanded=${r} aria-label=${a?void 0:`${r?"Close":"Open"} ${t.title}`}
-          data-tip=${a?void 0:`${r?"Close":"Open"} ${t.title}`} onClick=${o}>
-        <${ae} name=${r?"chevron-down":"chevron-right"} size=${16} />${a}
+      <button type="button" class="collapse-toggle" aria-expanded=${l} aria-label=${r?void 0:`${l?"Close":"Open"} ${t.title}`}
+          data-tip=${r?void 0:`${l?"Close":"Open"} ${t.title}`} onClick=${n}>
+        <${ae} name=${l?"chevron-down":"chevron-right"} size=${16} />${r??h`<span class="toggle-label code">${a}</span>`}
         ${t.count?h`<span class="count small">${t.count}</span>`:null}
       </button>
       ${t.action?h`<span class="block-action body">${t.action}</span>`:null}
     </h3>
-    ${r?t.result?.status==="error"?h`<${Ve} kind="error">${t.result.error}<//>`:t.children:null}
+    ${l?t.result?.status==="error"?h`<${Ve} kind="error">${t.result.error}<//>`:t.children:null}
   </section>`}pa();yt();_e();function ot(t){return h`<button type="button" class=${`icon-button ${t.class??""}`} aria-label=${t.label}
       data-tip=${t.label} aria-pressed=${t.pressed} onClick=${t.onClick}
       popovertarget=${t.popovertarget}>
@@ -565,7 +565,7 @@ l0,-`+(a+144)+`c-2,-159.3,-10,-310.7,-24,-454c-53.3,-528,-210,-949.7,
       <button type="button" class="note-toggle" aria-expanded=${a} aria-label=${a?"Close the note":"Open the note"}>
         <${ae} name=${a?"chevron-down":"chevron-right"} size=${14} /></button>
       <${Eb} note=${e} />
-      <${to} value=${e.description} label="the note's title" class="note-title heading" render=${Ob}
+      <${to} value=${e.description} label="the note's title" class="note-title prose" render=${Ob}
         onSave=${u=>wu(e,{description:u})} />
       ${e.overall?h`<${ht} spec=${Xe("verdict",e.overall)} />`:null}
       ${e.state?h`<${Nl} tone="warn">${e.state}<//>`:null}
@@ -831,7 +831,7 @@ l0,-`+(a+144)+`c-2,-159.3,-10,-310.7,-24,-454c-53.3,-528,-210,-949.7,
     <button type="button" class="view-section-title heading" aria-expanded=${r} aria-label=${i?`${r?"Close":"Open"} ${t.props.title}`:void 0}
         data-tip=${i?`${r?"Close":"Open"} ${t.props.title}`:void 0}
         onClick=${o}>
-      <${ae} name=${r?"chevron-down":"chevron-right"} size=${16} />${i?null:t.props.title}
+      <${ae} name=${r?"chevron-down":"chevron-right"} size=${16} />${i?h`<span class="toggle-label code">${s}</span>`:t.props.title}
     </button>
     ${r?h`<div class="stack">${n}</div>`:null}
   </div>`}function I2({node:t}){let e=(t.children??[]).every(a=>a.block==="stat");return h`<div class=${e?"stats":"row"}>
@@ -908,7 +908,7 @@ l0,-`+(a+144)+`c-2,-159.3,-10,-310.7,-24,-454c-53.3,-528,-210,-949.7,
       <span></span>
       <button type="button" class="link small" disabled=${n} onClick=${()=>l({colormap:t.colormap??null})}>Use this colormap on all charts on this page</button>`},smooth:({prefs:t,set:e})=>h`
     <span class="field-label">EMA <b class="num">${t.smooth.toFixed(2)}</b></span>
-    <input type="range" min="0" max="0.99" step="0.01" value=${t.smooth}
+    <input type="range" min="0" max="0.99" step="0.01" value=${t.smooth} style=${`--fill: ${t.smooth/.99*100}%`}
       onInput=${a=>e({smooth:Number(a.target.value)})} />
     <span></span>
     <label class="tick"><input type="checkbox" checked=${t.raw} disabled=${!t.smooth}

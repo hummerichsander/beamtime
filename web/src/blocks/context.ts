@@ -236,7 +236,7 @@ export function NoteItem(props: { note: any; open?: boolean; scope?: string }) {
       <button type="button" class="note-toggle" aria-expanded=${open} aria-label=${open ? "Close the note" : "Open the note"}>
         <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${14} /></button>
       <${NoteType} note=${n} />
-      <${Editable} value=${n.description} label="the note's title" class="note-title heading" render=${inline}
+      <${Editable} value=${n.description} label="the note's title" class="note-title prose" render=${inline}
         onSave=${(description: string) => editNote(n, { description })} />
       ${n.overall ? html`<${Sym} spec=${symbolFor("verdict", n.overall)} />` : null}
       ${n.state ? html`<${Tag} tone="warn">${n.state}<//>` : null}

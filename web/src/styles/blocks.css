@@ -59,7 +59,7 @@ figure.chart { margin: 0; }
 table.runs {
   & th { position: sticky; inset-block-start: 0; z-index: 1; background: var(--paper); white-space: nowrap; cursor: pointer; user-select: none; &:hover { color: var(--ink); } }
   & tbody tr { cursor: pointer; }
-  & tbody tr.hovered { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+  & tbody tr.hovered td { background: color-mix(in srgb, var(--accent) 8%, var(--paper)); }
   & tr.hidden-run td { opacity: 0.45; }
   & td.name { max-inline-size: 420px; overflow: hidden; text-overflow: ellipsis; }
   & td.best { color: var(--ink); }
@@ -80,13 +80,12 @@ table.runs {
 a.check:hover { text-decoration: none; }
 
 /* groups below a group */
-.group-list { display: flex; flex-direction: column; }
+.group-list { display: flex; flex-direction: column; gap: var(--space-2); }
 .group-row {
   display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: baseline;
-  padding: calc(var(--space-2) + var(--space-1)) var(--space-2); margin-inline: calc(-1 * var(--space-2));
-  color: inherit; border-block-end: var(--stroke-rule) solid var(--line);
-  &:last-child { border-block-end: 0; }
-  &:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); text-decoration: none; }
+  padding: var(--space-3); border-radius: var(--radius); background: var(--surface);
+  color: inherit; transition: background 120ms;
+  &:hover { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); text-decoration: none; }
   & .gstatement { grid-column: 2 / -1; margin: 0; color: var(--muted); }
   & .gfacts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); color: var(--muted); }
 }
@@ -111,6 +110,10 @@ table.data td { white-space: nowrap; }
 }
 .view-section-title { margin-block-end: var(--space-2); }
 .collapsible .block-title { align-items: center; }
+.collapsible > .block-title:last-child, .view-section > .view-section-title:last-child { margin-block-end: 0; }
+/* a toggle whose title repeats the Section's label shows the label itself, in its place. */
+.toggle-label { color: var(--muted); }
+.section:has(.toggle-label) > .section-label { display: none; }
 .block-action { display: inline-flex; align-items: center; gap: var(--space-1); margin-inline-start: auto; }
 
 /* a chart's settings: sections of label and control, two columns */
@@ -124,8 +127,7 @@ table.data td { white-space: nowrap; }
   & .tick { display: flex; align-items: center; gap: var(--space-1); }
   & .segmented { justify-self: start; }
 }
-input[type="range"], input[type="checkbox"] { accent-color: var(--accent); }
-.chart-settings .reset { margin-block-start: var(--space-3); }
+.chart-settings :is(.pin, .reset) { display: inline-flex; align-items: center; gap: var(--space-1); margin: var(--space-3) var(--space-3) 0 0; }
 
 /* the metric picker: chosen metrics as chips, a search field, a filtered list */
 .multiselect { position: relative; min-inline-size: 0; }

@@ -73,7 +73,8 @@ export function Collapsible(props: {
   children?: ComponentChildren;
 }) {
   const key = `section.${props.id}`;
-  const shown = repeats(useContext(LabelCtx), props.title) ? null : props.title;
+  const label = useContext(LabelCtx);
+  const shown = repeats(label, props.title) ? null : props.title;
   const [open, setOpen] = useState<boolean>(() => recording || stored(key, props.open ?? true));
   const toggle = () => {
     store(key, !open);
@@ -83,7 +84,7 @@ export function Collapsible(props: {
     <h3 class="block-title heading">
       <button type="button" class="collapse-toggle" aria-expanded=${open} aria-label=${shown ? undefined : `${open ? "Close" : "Open"} ${props.title}`}
           data-tip=${shown ? undefined : `${open ? "Close" : "Open"} ${props.title}`} onClick=${toggle}>
-        <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${16} />${shown}
+        <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${16} />${shown ?? html`<span class="toggle-label code">${label}</span>`}
         ${props.count ? html`<span class="count small">${props.count}</span>` : null}
       </button>
       ${props.action ? html`<span class="block-action body">${props.action}</span>` : null}

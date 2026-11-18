@@ -3,7 +3,7 @@
 A square button that is only an icon (16px), explained by its tooltip and accessible name.
 
 - The consumer provides the icon and a label that says what happens ("Copy the run id"); the label is both `aria-label` and tooltip.
-- `muted` at rest; on hover `ink` with a `border` edge. Pressed toggles are `accent`.
+- `muted` at rest; on hover `ink` on a light `ink` tint. Pressed toggles are `accent`.
 
 ## Markup
 

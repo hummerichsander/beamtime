@@ -31,8 +31,8 @@ def test_default_pair_comes_from_the_tokens(root: Path) -> None:
     """The default theme is the design system's, in both modes."""
     p = pair("beamtime", root)
     assert p["problems"] == []
-    assert p["light"]["colors"]["paper"] == "#faf9f6"
-    assert p["dark"]["colors"]["paper"] == "#1e1e1c"
+    assert p["light"]["colors"]["paper"] == "#fcfcfd"
+    assert p["dark"]["colors"]["paper"] == "#16171a"
     assert p["light"]["dashes"][0] == [] and p["light"]["dashes"][1] == [6, 3]
     assert p["light"]["stroke"] == 1.6
     # uPlot only scales whole pixel sizes on HiDPI screens.
@@ -70,7 +70,7 @@ def test_problems_are_reported_and_ignored(root: Path) -> None:
         resolve("gone", root)
     p = pair("gone", root)
     assert "using the default theme" in p["problems"][0]
-    assert p["light"]["colors"]["paper"] == "#faf9f6"
+    assert p["light"]["colors"]["paper"] == "#fcfcfd"
 
 
 def test_ramps_are_the_built_in_defaults(root: Path) -> None:

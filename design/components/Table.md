@@ -1,6 +1,6 @@
 # Table
 
-Runs as rows: `line` hairlines between them, a light accent tint on hover, the selected run tinted stronger.
+Runs as rows, no lines between them: hovering tints the whole row as one rounded bar (`radius`), the selected run tinted stronger. Headers have no rule under them.
 
 - The first column is the run with its swatch: its color and its line style, as in the charts. Numbers right-aligned in tabular figures; the best value per column bold.
 - Headers in `small` `muted`, naming the metric (`val/loss`), not the aggregate.

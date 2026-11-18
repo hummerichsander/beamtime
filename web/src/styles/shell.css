@@ -43,7 +43,7 @@ a.source { border-radius: var(--radius); &:hover { color: var(--ink); text-decor
 /* sidebar */
 .sidebar {
   display: flex; flex-direction: column; min-block-size: 0; padding-block-start: var(--space-3);
-  background: var(--surface); color: var(--ink); border-inline-end: var(--stroke-rule) solid var(--line);
+  background: var(--paper); color: var(--ink); border-inline-end: var(--stroke-rule) solid var(--line);
 }
 .filter { margin: 0 var(--space-2) var(--space-3); }
 .tree { overflow: auto; padding: 0 var(--space-2) var(--space-3); }
@@ -62,7 +62,7 @@ a.source { border-radius: var(--radius); &:hover { color: var(--ink); text-decor
 /* status bar */
 .statusbar {
   display: flex; align-items: center; gap: var(--space-3); padding-inline: var(--space-3); overflow: hidden;
-  background: var(--surface); color: var(--muted); border-block-start: var(--stroke-rule) solid var(--line);
+  background: var(--paper); color: var(--muted); border-block-start: var(--stroke-rule) solid var(--line);
   & .spacer { flex: 1; }
   & button.status-item { border-radius: var(--radius); padding-inline: var(--space-2); }
   & button.status-item:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
@@ -73,12 +73,8 @@ a.source { border-radius: var(--radius); &:hover { color: var(--ink); text-decor
 .live-dot.wait { background: var(--warn); }
 .live-dot.paused { background: var(--muted); }
 
-/* the page: a column of Sections. With room, the content column is the centered one, the labels left
-   of it: an empty column on the right as wide as the label column on the left. */
-.page { max-inline-size: 1280px; margin-inline: auto; padding: var(--space-3) var(--space-3) var(--space-4); }
-@container main (width >= 860px) {
-  .page { padding-inline-end: calc(var(--space-3) + var(--margin) + var(--gutter)); }
-}
+/* the page: a centered column of Sections. */
+.page { max-inline-size: 1120px; margin-inline: auto; padding: var(--space-3) var(--space-4) var(--space-4); }
 @media (width < 640px) { .page { padding: var(--space-2) var(--space-3) var(--space-4); } }
 .section-body { min-inline-size: 0; container-type: inline-size; }
 .page-title { flex-wrap: wrap; &:focus { outline: none; } }
@@ -102,6 +98,9 @@ a.source { border-radius: var(--radius); &:hover { color: var(--ink); text-decor
 .note {
   & .note-line { cursor: pointer; flex-wrap: wrap; }
   & .note-toggle { display: inline-flex; color: var(--muted); }
+  /* the type icon in a fixed slot, as wide as its icon button, so titles line up; the body under the title. */
+  & .note-toggle + * { display: inline-flex; justify-content: center; inline-size: calc(var(--space-4) - var(--space-1)); }
+  & .note-body.editable { margin-inline-start: calc(14px + var(--space-4) - var(--space-1)); }
   & .note-title { flex: 1; min-inline-size: 0; }
   &:not(.open) .note-title:not(.editing) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   & .note-meta { white-space: nowrap; }

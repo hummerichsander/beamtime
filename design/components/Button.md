@@ -1,6 +1,6 @@
 # Button
 
-An action with an icon and a short label in `body` at 600, no fill: `accent` text, a thin edge in the text color on hover. `danger` is `bad` (inside a confirmation); `quiet` is `muted` for cancel and secondary actions.
+An action with an icon and a short label in `body` at 600, no fill at rest: `accent` text, a light fill of the text color on hover. `danger` is `bad` (inside a confirmation); `quiet` is `muted` for cancel and secondary actions.
 
 - The icon leads and says what kind of action it is; the label says what happens ("Save as view").
 - Where the icon alone is clear, use an IconButton with the label as tooltip instead.

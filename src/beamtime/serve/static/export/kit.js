@@ -393,7 +393,7 @@ l0,-`+(r+144)+`c-2,-159.3,-10,-310.7,-24,-454c-53.3,-528,-210,-949.7,
       <span></span>
       <button type="button" class="link small" disabled=${i} onClick=${()=>n({colormap:e.colormap??null})}>Use this colormap on all charts on this page</button>`},smooth:({prefs:e,set:t})=>X`
     <span class="field-label">EMA <b class="num">${e.smooth.toFixed(2)}</b></span>
-    <input type="range" min="0" max="0.99" step="0.01" value=${e.smooth}
+    <input type="range" min="0" max="0.99" step="0.01" value=${e.smooth} style=${`--fill: ${e.smooth/.99*100}%`}
       onInput=${r=>t({smooth:Number(r.target.value)})} />
     <span></span>
     <label class="tick"><input type="checkbox" checked=${e.raw} disabled=${!e.smooth}

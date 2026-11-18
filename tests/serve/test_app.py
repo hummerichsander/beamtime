@@ -135,7 +135,7 @@ def test_meta_has_the_theme_pair(api) -> None:
     meta = api("meta").json()
     assert meta["project"] == "proj"
     assert meta["theme"]["light"]["type"] == "light"
-    assert meta["theme"]["dark"]["colors"]["surface"] == "#252523"
+    assert meta["theme"]["dark"]["colors"]["surface"] == "#1e2024"
     assert "theory" in meta["note_types"] and "verdict" in meta["note_types"]
 
 

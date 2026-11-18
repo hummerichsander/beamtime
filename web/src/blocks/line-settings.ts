@@ -120,7 +120,7 @@ const FIELDS: Record<Field, (c: Context) => unknown> = {
 
   smooth: ({ prefs, set }) => html`
     <span class="field-label">EMA <b class="num">${prefs.smooth.toFixed(2)}</b></span>
-    <input type="range" min="0" max="0.99" step="0.01" value=${prefs.smooth}
+    <input type="range" min="0" max="0.99" step="0.01" value=${prefs.smooth} style=${`--fill: ${(prefs.smooth / 0.99) * 100}%`}
       onInput=${(e: Event) => set({ smooth: Number((e.target as HTMLInputElement).value) })} />
     <span></span>
     <label class="tick"><input type="checkbox" checked=${prefs.raw} disabled=${!prefs.smooth}

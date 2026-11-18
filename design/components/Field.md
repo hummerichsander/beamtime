@@ -4,6 +4,7 @@ A label in `small` `muted` above an input with a `border` edge; `accent` while f
 
 - Search fields lead with the search icon. Placeholders say what can be typed, not "Search…".
 - Errors say what is wrong, right under the field.
+- Native controls are drawn by the system, never the browser: checkboxes are rounded boxes that fill with `accent` and a `paper` check; a range is a slim pill track with a round `accent`-ringed thumb; a select carries its own chevron (outside an `.input` it gets the field's box); number fields have no spin buttons.
 
 ## Markup
 

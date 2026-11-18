@@ -33,7 +33,7 @@ export function Section({ node }: { node: Node }) {
     <button type="button" class="view-section-title heading" aria-expanded=${open} aria-label=${repeated ? `${open ? "Close" : "Open"} ${node.props.title}` : undefined}
         data-tip=${repeated ? `${open ? "Close" : "Open"} ${node.props.title}` : undefined}
         onClick=${toggle}>
-      <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${16} />${repeated ? null : node.props.title}
+      <${Icon} name=${open ? "chevron-down" : "chevron-right"} size=${16} />${repeated ? html`<span class="toggle-label code">${label}</span>` : node.props.title}
     </button>
     ${open ? html`<div class="stack">${children}</div>` : null}
   </div>`;
