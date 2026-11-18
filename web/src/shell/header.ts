@@ -9,7 +9,7 @@ import { progressText } from "../blocks/context.ts";
 import { describe } from "../blocks/predictions.ts";
 import { rows } from "../blocks/common.ts";
 import { usePrefs } from "../bt/prefs.ts";
-import { ago, duration, label, step, value, versionTime } from "../bt/fmt.ts";
+import { ago, duration, label, silence, step, value, versionTime } from "../bt/fmt.ts";
 import { groupUrl, isRoot, isRunId, navigate, rootOf, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { Editable } from "../ui/editable.ts";
@@ -129,7 +129,7 @@ function RunHeader({ id, scope }: { id: string; scope: string }) {
   return html`
     <h1 class="page-title title" tabindex="-1"><${Editable} value=${r.name ?? r.id} label="the run's name" class="title-edit"
         onSave=${(next: string) => renameRun(r.id, scope, next.trim())} />
-      <${Sym} spec=${runSymbol(r.status, r.exit)} word /></h1>
+      <${Sym} spec=${runSymbol(r.status, r.exit)} word tip=${silence(r)} /></h1>
     ${r.error ? html`<p class="bad-text" data-tip=${r.error}>${r.error.split("\n")[0].slice(0, 160)}</p>` : null}
     <div class="facts">
       <span><b>${step(r.steps)}</b> steps</span>

@@ -254,7 +254,9 @@ How views look and behave is [layer 5](05-views.md). For storage:
   `kubernetes`, …); the other fields are what it exposes, mapped to common names.
 - **Status** is `running`, `finished`, `failed` (exception) or `killed` (a signal: Ctrl-C, scheduler
   timeout, preemption). `exit` says how it ended: `{"code": 1}` or `{"signal": "SIGTERM"}`. **`lost`** is derived when reading: a `running` run whose heartbeat is older
-  than 5 minutes.
+  than 5 minutes. The card answer then carries `heartbeat_age_s`, the heartbeat's age (rounded seconds) at
+  the time the status is judged; `beamtime card` reads `lost (no heartbeat for 7 min)` and the UI's run header
+  and drawer say it on hover.
 - **Heartbeat.** The SDK updates the modification time of `_run.json` every 30 seconds (`os.utime`),
   which costs no rename on cluster filesystems. In a pulled snapshot, staleness is judged relative to
   the time of the snapshot.

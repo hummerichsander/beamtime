@@ -32,3 +32,18 @@ def stamp(now: datetime | None = None) -> str:
     :param now: The time; defaults to the current one.
     :return: E.g. ``20261024-101532``."""
     return (now or datetime.now(timezone.utc)).astimezone(timezone.utc).strftime("%Y%m%d-%H%M%S")
+
+
+def age_text(seconds: float) -> str:
+    """Say how long ago something was, roughly.
+
+    :param seconds: The age in seconds.
+    :return: ``N s`` below 90 seconds, ``N min`` below 90 minutes, ``N h`` below 36 hours, else
+        ``N d``; each rounded half up."""
+    if seconds < 90:
+        return f"{int(seconds + 0.5)} s"
+    if seconds < 90 * 60:
+        return f"{int(seconds / 60 + 0.5)} min"
+    if seconds < 36 * 3600:
+        return f"{int(seconds / 3600 + 0.5)} h"
+    return f"{int(seconds / 86400 + 0.5)} d"

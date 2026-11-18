@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { ago, duration, full, label, segments, shortLabels, step, value } from "../src/bt/fmt.ts";
+import { ago, duration, full, label, segments, shortLabels, silence, step, value } from "../src/bt/fmt.ts";
 
 test("values are compact", () => {
   assert.equal(value(3e-4), "3e-4");
@@ -25,6 +25,11 @@ test("steps, durations and times", () => {
   const now = Date.parse("2026-10-28T12:00:00Z");
   assert.equal(ago("2026-10-28T10:00:00Z", now), "2 h ago");
   assert.equal(ago("2026-09-01T10:00:00Z", now), "2026-09-01");
+});
+
+test("a lost run says how long its heartbeat has been silent", () => {
+  assert.equal(silence({ heartbeat_age_s: 420 }), "no heartbeat for 7m 0s");
+  assert.equal(silence({}), undefined);
 });
 
 test("labels drop prefixes", () => {

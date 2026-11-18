@@ -55,6 +55,12 @@ export function duration(seconds: number | null | undefined): string {
   return `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h`;
 }
 
+// what a lost run's status says on hover: how long its heartbeat has been silent.
+export function silence(run: { heartbeat_age_s?: number | null }): string | undefined {
+  const age = run.heartbeat_age_s;
+  return age === null || age === undefined ? undefined : `no heartbeat for ${duration(age)}`;
+}
+
 export function ago(iso: string | null | undefined, now: number = Date.now()): string {
   if (!iso) return "–";
   const t = Date.parse(iso);

@@ -437,7 +437,7 @@ ticket changes only *which key*, not *when*; whichever lands second rebases onto
 2. `PATH = r"(?:[A-Za-z]:\\|~/|\.{1,2}/|/)[^\s'\",;:)]+"` → `<path>`; then numbers and hex → `#`.
 3. Bare type rule of decision 13; `failure_key` passes `"\n".join(traceback)`.
 
-### N45. Lost runs show the heartbeat's age (sonnet) — code
+### N45. Lost runs show the heartbeat's age (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/format/times.py` (new `age_text`), `src/beamtime/ops/reading.py` (`card` 851–915),
   `src/beamtime/cli/format.py` (`render_card` 364–371), `web/src/shell/header.ts` (`RunHeader` 124–135),

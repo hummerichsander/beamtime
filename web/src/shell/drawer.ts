@@ -9,7 +9,7 @@ import { rows } from "../blocks/common.ts";
 import { runColors, useTheme } from "../bt/index.ts";
 import { swatch } from "../bt/theme.ts";
 import { varyingKeys } from "../bt/configtree.ts";
-import { ago, duration, step, value } from "../bt/fmt.ts";
+import { ago, duration, silence, step, value } from "../bt/fmt.ts";
 import { groupUrl, navigate, runUrl } from "../router.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { ConfigTree } from "../ui/config.ts";
@@ -46,7 +46,7 @@ function RunContext({ id, scope }: { id: string; scope: string }) {
     <h3 class="heading"><span class=${mark.class} style=${mark.style}></span>
       <a href=${runUrl(id)}>${r.name}</a></h3>
     <p class="facts small">
-      <${Sym} spec=${runSymbol(r.status, r.exit)} word />
+      <${Sym} spec=${runSymbol(r.status, r.exit)} word tip=${silence(r)} />
       <span><b>${step(r.steps)}</b> steps</span>
       <span><b>${duration(r.duration_s)}</b></span>
       <span data-tip=${r.created_at}>${ago(r.created_at)}</span>

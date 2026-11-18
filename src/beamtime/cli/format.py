@@ -373,9 +373,14 @@ def render_card(answer: dict[str, Any]) -> str:
 
     :param answer: The answer.
     :return: The text."""
+    from beamtime.format.times import age_text
+
     run = answer["run"]
+    status = run["status"]
+    if (age := run.get("heartbeat_age_s")) is not None:
+        status += f" (no heartbeat for {age_text(age)})"
     lines = [
-        f"{run['name']}  {run['id']}  {run['status']}" + ("  hidden" if run.get("hidden") else ""),
+        f"{run['name']}  {run['id']}  {status}" + ("  hidden" if run.get("hidden") else ""),
         f"path        {run['path']}",
     ]
     for key in (

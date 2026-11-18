@@ -935,7 +935,8 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
             freshness.drop(ingested)
             freshness.damaged += index.damaged
     heartbeat = (run_dir / c.RUN).stat().st_mtime
-    status = run_status(info, heartbeat=heartbeat, now=ctx.now or time.time())
+    now = ctx.now or time.time()
+    status = run_status(info, heartbeat=heartbeat, now=now)
     events = read_events(run_dir)
     return {
         "kind": "card",
@@ -945,6 +946,7 @@ def card(ctx: Context, p: r.CardParams) -> dict[str, Any]:
             "name": given_name(run_dir) or info.name,
             "path": run_dir.relative_to(ctx.logdir).as_posix(),
             "status": status,
+            **({"heartbeat_age_s": round(now - heartbeat)} if status == "lost" else {}),
             "hidden": run_hidden(run_dir, info),
             "created_at": info.created_at,
             "ended_at": info.ended_at,

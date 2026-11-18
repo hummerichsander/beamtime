@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -193,6 +194,32 @@ def test_card_output_status(ctx: Context, roles: dict[str, str]) -> None:
     assert len(grep["lines"]) == 1 and grep["lines"][0].split(":")[0].isdigit()
     s = call("status", {}, ctx)
     assert s["runs"]["lost"] == 1 and s["daemon"] is None
+
+
+def test_lost_card_says_how_long_the_heartbeat_is_silent(
+    ctx: Context, roles: dict[str, str]
+) -> None:
+    """A lost run's card has the heartbeat's age; a running run's has none."""
+    lost = next(p for p in ctx.logdir.rglob(roles["lost"]) if p.is_dir())
+    beat = time.time() - 420
+    os.utime(lost / "_run.json", (beat, beat))
+    answer = call("card", {"run": roles["lost"]}, ctx)
+    assert answer["run"]["status"] == "lost"
+    assert abs(answer["run"]["heartbeat_age_s"] - 420) <= 5
+    assert "lost (no heartbeat for 7 min)" in render(answer)
+    running = next(p for p in ctx.logdir.rglob("_run.json") if "running" in p.read_text())
+    os.utime(running, None)
+    fresh = call("card", {"run": running.parent.name}, ctx)
+    assert fresh["run"]["status"] == "running" and "heartbeat_age_s" not in fresh["run"]
+
+
+def test_lost_age_in_snapshot(ctx: Context, roles: dict[str, str]) -> None:
+    """A snapshot judges the heartbeat's age at its own time, not at wall time."""
+    lost = next(p for p in ctx.logdir.rglob(roles["lost"]) if p.is_dir())
+    beat = (lost / "_run.json").stat().st_mtime
+    snapshot = dataclasses.replace(ctx, now=beat + 700)
+    answer = call("card", {"run": roles["lost"]}, snapshot)
+    assert answer["run"]["heartbeat_age_s"] == 700
 
 
 def test_output_collapses_carriage_returns(ctx: Context, roles: dict[str, str]) -> None:

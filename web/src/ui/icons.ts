@@ -33,9 +33,9 @@ export function Icon(props: { name: string; size?: number; class?: string; label
 }
 
 // a state shown as icon in its tone; with `word`, the label follows the icon.
-export function Sym(props: { spec: SymbolSpec; word?: boolean; size?: number }) {
+export function Sym(props: { spec: SymbolSpec; word?: boolean; size?: number; tip?: string }) {
   const s = props.spec;
-  return html`<span class=${`sym tone-${s.tone}${s.pulse ? " pulse" : ""}`} data-tip=${props.word ? undefined : s.label}>
+  return html`<span class=${`sym tone-${s.tone}${s.pulse ? " pulse" : ""}`} data-tip=${props.tip ?? (props.word ? undefined : s.label)}>
     <${Icon} name=${s.icon} size=${props.size ?? 15} label=${props.word ? undefined : s.label} />
     ${props.word ? html`<span class="small">${s.label}</span>` : null}
   </span>`;
