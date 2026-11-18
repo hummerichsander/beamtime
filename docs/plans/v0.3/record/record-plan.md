@@ -255,7 +255,7 @@ Write the design before code (CLAUDE.md: a deviation is decided and written back
    column `hidden` counts the hidden runs below the path.
 7. `status`: count visible runs only (`WHERE hidden = 0`); the hint is U44's.
 
-### U43. Hidden runs never count in the record (sonnet + review) — code
+### U43. Hidden runs never count in the record (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/record/proposals.py` (`Target.membership` 332–347), `src/beamtime/record/check.py`
   (`reference` 325–343), new `tests/record/test_hidden.py`.

@@ -341,6 +341,9 @@ class Target:
     def membership(self, version: str) -> tuple[str, list[Any]]:
         """Build the SQL condition selecting the runs that recorded a version.
 
+        A group's members leave out hidden runs, so a test run never freezes a proposal or
+        counts in a check; a run named by id answers for its own proposal either way.
+
         :param version: The version id.
         :return: The condition and its parameters."""
         keys = self.keys
@@ -353,7 +356,7 @@ class Target:
         )
         if self.run_id is not None:
             return f"runs.id = ? AND {cond}", [self.run_id, version]
-        return cond, [version] * len(keys)
+        return f"{cond} AND runs.hidden = 0", [version] * len(keys)
 
     def members(self, version: str) -> list[dict[str, Any]]:
         """List the runs that recorded a version.

@@ -75,7 +75,7 @@ user: ada
   needs no clock, and survives moving a run: a moved run keeps its membership, and the UI notes that it
   was recorded under another group.
 - **Freezing.** A version is frozen once any *visible* run has recorded it. A run's own proposal is
-  frozen from the run's start, unless the run is hidden: then it freezes when the run is promoted.
+  frozen from the run's start, hidden or not: a run named by id always answers for itself.
   Frozen versions never change; the index refuses to treat an edited frozen file as valid and shows the
   hash mismatch.
 - **Before freezing**, a version can be replaced freely by saving a new one.
