@@ -39,7 +39,7 @@ a new file with the agent as its author; nothing is overwritten.
 
 Agents never **delete, move or set up** anything. For those, they tell you the command to run
 yourself: `beamtime setup`, `beamtime rm`, `beamtime mv`, `beamtime gc`, `beamtime serve`,
-`beamtime set`. When your setup is out of date, `beamtime status` and `beamtime setup --check` say so,
+`beamtime stop`, `beamtime ps`, `beamtime set`. When your setup is out of date, `beamtime status` and `beamtime setup --check` say so,
 and your agent hands you `beamtime setup`.
 
 ## How much agents do

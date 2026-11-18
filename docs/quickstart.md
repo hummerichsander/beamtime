@@ -47,7 +47,7 @@ beamtime serve --open
 ```
 
 Your browser opens with your experiments on the left. Click one to see its curves and runs. Pages
-update while runs are still going.
+update while runs are still going. `beamtime ps` lists your running Beamtime processes, and `beamtime stop` ends the serve.
 
 No runs yet? `beamtime demo --open` opens a sample project to look around in.
 

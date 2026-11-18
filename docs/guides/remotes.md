@@ -57,6 +57,9 @@ beamtime serve --open      # the sidebar gets an @cluster section
 beamtime runs @cluster     # from the command line
 ```
 
+A second `beamtime serve` for a root that already has one prints the running one's URL. `beamtime ps`
+lists the serves, `beamtime stop` ends one ([Running processes](settings.md#running-processes)).
+
 Remote groups are named `@cluster/...` everywhere, reads and writes alike: notes, proposals,
 memory, views and library blocks. A view draft still lives on your own machine; only
 validating and saving it reach the cluster. Lists of runs, groups and notes merge both machines.

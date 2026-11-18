@@ -43,6 +43,17 @@ are unsafe there; this includes the default when your home directory is on one. 
 the result and what decided it. `BEAMTIME_CACHE` overrides the setting for one session. See
 [Runs on a cluster](cluster.md).
 
+A `memory` serve publishes its address in Beamtime's runtime folder, `<tmp>/beamtime-<uid>/`, which
+`BEAMTIME_RUNTIME` can move. Beamtime sets that folder to owner-only (0700), also when it already exists.
+
+## Running processes
+
+`beamtime ps` lists the Beamtime processes of your user on this machine: serves, the index daemon,
+remote sessions, MCP servers and the ssh logins kept open for remotes. `beamtime stop` ends serves
+(`stop <root>`, `stop <pid>` or `stop --all`); it never stops MCP, remote or ssh processes. Exit
+codes: `stop` exits 0 when a root or log dir has no serve, so stopping twice is no error, and 4 when
+the pid matches no Beamtime process.
+
 ## Agent
 
 `agent` lives in the project's `beamtime.yaml` only: which agent you use is yours, how agents behave
@@ -152,6 +163,7 @@ remotes:
 |---|---|
 | `BEAMTIME_LOGDIR` | where runs go, for a script or a job (e.g. scratch space on a cluster) |
 | `BEAMTIME_CACHE` | where Beamtime keeps its index cache; default `~/.cache/beamtime/` |
+| `BEAMTIME_RUNTIME` | where Beamtime keeps its runtime files (process records, memory serves); default `<tmp>/beamtime-<uid>/`, set to owner-only (0700) |
 | `BEAMTIME_PROPOSAL` | a proposal for runs that don't pass one to `init()` |
 
 
