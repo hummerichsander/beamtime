@@ -93,6 +93,9 @@ class FileParams(Params, kw_only=True):
 
     view: str
     path: str
+    columns: Annotated[
+        list[str] | None, msgspec.Meta(description="which columns, in this order; default all")
+    ] = None
     draft: ReadDraft = None
 
 

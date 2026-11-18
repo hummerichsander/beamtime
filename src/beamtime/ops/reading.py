@@ -160,8 +160,8 @@ def file(ctx: Context, p: r.FileParams) -> dict[str, Any]:
     :param p: The parameters.
     :return: The answer."""
     if p.draft is None:
-        return ask(ctx, {"file": {"view": p.view, "path": p.path}})
-    from beamtime.query.files import read_table
+        return ask(ctx, {"file": {"view": p.view, "path": p.path, "columns": p.columns}})
+    from beamtime.query.files import pick_columns, read_table
     from beamtime.views.store import draft
 
     folder = draft(ctx, p.draft).dir.resolve()
@@ -169,7 +169,7 @@ def file(ctx: Context, p: r.FileParams) -> dict[str, Any]:
     if folder not in path.parents or not path.is_file():
         raise OpError(f"no file {p.path!r} in draft {p.draft!r}", code=4)
     try:
-        columns, rows = read_table(path)
+        columns, rows = pick_columns(*read_table(path), p.columns, p.path)
     except QueryError as e:
         raise OpError(str(e), code=2) from None
     return {"kind": "file", "draft": p.draft, "path": p.path, "columns": columns, "rows": rows,

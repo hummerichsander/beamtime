@@ -116,6 +116,7 @@ beamtime file <view> <path>
 
 | Option | Default | |
 |---|---|---|
+| `--columns` |  | which columns, in this order; default all |
 | `--draft` |  | read from this draft instead |
 
 ### `beamtime output`

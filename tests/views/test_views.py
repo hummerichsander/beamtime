@@ -235,6 +235,20 @@ def test_data_files_are_hashed_on_save(ctx: Context, project: Path) -> None:
     assert (project / ".beamtime" / "drafts" / "fit2" / ref).is_file()
 
 
+def test_file_columns_compile() -> None:
+    """``columns`` of a data table and of a custom file query reach the call."""
+    view = parse("body: [{data_table: {id: t, file: data/f.csv, columns: [b, a]}}]")
+    table = compile_view(view, path="g")["children"][0]
+    assert table["data"]["main"]["params"]["columns"] == ["b", "a"]
+    plain = parse("body: [{data_table: {id: t, file: data/f.csv}}]")
+    assert "columns" not in compile_view(plain, path="g")["children"][0]["data"]["main"]["params"]
+    custom = "body: [{custom: {id: c, code: code/c.js, queries: {f: {file: {path: data/f.csv, columns: [a]}}}}}]"
+    params = compile_view(parse(custom), path="g")["children"][0]["data"]["f"]["params"]
+    assert params["columns"] == ["a"]
+    with pytest.raises(SchemaError, match="a file query takes path and columns"):
+        compile_view(parse(custom.replace("columns: [a]", "limit: 3")), path="g")
+
+
 def test_scorecard_is_one_runs_query_and_predictions_is_the_proposal() -> None:
     """A scorecard asks for its row field, its metrics and the status once; the direction of each
     column comes along; ``predictions`` compiles to the proposal block."""

@@ -10,6 +10,7 @@ import pytest
 
 from beamtime.index.index import Index
 from beamtime.query import QueryError, run
+from beamtime.query.files import read_table
 from beamtime.query.fields import parse_field
 from beamtime.synth import generate
 from beamtime.synth.generate import SCALES, Generator
@@ -612,6 +613,50 @@ def test_file(ask) -> None:
     assert b["rows"] == [[1], [2]]
     with pytest.raises(QueryError):
         ask({"file": {"path": "../../_synth.json", "view": "scaling"}})
+
+
+def test_file_columns(ask) -> None:
+    """``columns`` narrows and orders the answer; a wrong name gets the closest one."""
+    a = ask({"file": {"path": "data/3f9a21c0-fit.csv", "view": "scaling", "columns": ["acc", "lr"]}})
+    assert a["columns"] == ["acc", "lr"] and a["rows"][1] == [0.85, 0.003]
+    with pytest.raises(QueryError, match=r"no column 'acc '.*columns: lr, acc\. Did you mean 'acc'"):
+        ask({"file": {"path": "data/3f9a21c0-fit.csv", "view": "scaling", "columns": ["acc "]}})
+
+
+def test_csv_dialect(tmp_path: Path) -> None:
+    """A semicolon CSV, an index column and a duplicate name are errors with the fix."""
+    for text, message in [
+        ("a;b\n1;2\n", r"semicolon|;-separated.*to_csv\(path, index=False\)"),
+        ("a\tb\n1\t2\n", r"tab-separated.*to_csv"),
+        (",a\n0,1\n", r"empty column name.*to_csv"),
+        ("a,a\n1,2\n", r"'a' twice"),
+    ]:
+        file = tmp_path / "t.csv"
+        file.write_text(text)
+        with pytest.raises(QueryError, match=message):
+            read_table(file)
+
+
+def test_semicolon_inside_quotes(tmp_path: Path) -> None:
+    """A quoted header cell containing a semicolon in a comma CSV is fine."""
+    file = tmp_path / "t.csv"
+    file.write_text('"a;b",c\n1,2\n')
+    assert read_table(file) == (["a;b", "c"], [[1, 2]])
+
+
+def test_ragged_csv_row(tmp_path: Path) -> None:
+    """A row with the wrong number of cells names its line."""
+    file = tmp_path / "t.csv"
+    file.write_text("a,b\n1,2\n3\n")
+    with pytest.raises(QueryError, match=r"t.csv line 3: 1 cells, the header has 2"):
+        read_table(file)
+
+
+def test_csv_bom(tmp_path: Path) -> None:
+    """The byte order mark Excel writes does not end up in the first column name."""
+    file = tmp_path / "t.csv"
+    file.write_bytes(b"\xef\xbb\xbfa,b\n1,\n")
+    assert read_table(file) == (["a", "b"], [[1, None]])
 
 
 @pytest.mark.parametrize(

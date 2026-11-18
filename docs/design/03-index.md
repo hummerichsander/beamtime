@@ -469,11 +469,18 @@ the number of runs. Without `fields`, every config key that varies in scope is u
 **`file`**: a data file stored with a view ([layer 1](01-storage.md#views-in-storage)).
 
 ```yaml
-file: {path: data/3f9a21c0-fit.parquet}
+file: {path: data/3f9a21c0-fit.parquet, columns: [lr, acc]}
 ```
 
 The path is relative to the `view/` folder of the view that declares the query, not to the viewed
-group. Returns the table as columns, labelled with the group it belongs to.
+group. Returns the table as columns, labelled with the group it belongs to. `columns` narrows and
+orders the answer; an unknown name is an error that lists the file's columns and names the closest.
+Formats are CSV, JSON (records, or `{columns: {...}}`) and Parquet (needs PyArrow); a file above 2 MB
+is a validator warning (the page loads all of it), above 16 MB an error (the remote bundle limit).
+A CSV is comma-separated with a header row (a UTF-8 byte order mark is ignored); a header cell that
+holds `;` or a tab, an empty or repeated column name, and a row with another number of cells than the
+header are errors that say how to write it (`df.to_csv(path, index=False)`). Numeric cells read as
+numbers, an empty cell as `null`, anything else as text.
 
 ### Answers
 

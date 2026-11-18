@@ -155,6 +155,9 @@ class DataTable(Node, tag="data_table"):
     key: str | None = None
     step: Step = "last"
     file: Annotated[str | None, msgspec.Meta(description="e.g. data/fit.csv")] = None
+    columns: Annotated[
+        list[str] | None, msgspec.Meta(description="file only: which columns, in order")
+    ] = None
     limit: int = 50
 
 

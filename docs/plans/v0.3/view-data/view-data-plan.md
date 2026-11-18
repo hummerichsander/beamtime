@@ -158,7 +158,7 @@ What's left runs in this order: U61 U62 J61 J62 L61 L62 N61 N62 U63 Z
 5. Spec: 05-views.md l. 148: "Data files ... read through the `file` query, by `data_table` (`file`) or a custom
    block's declared query; saving copies each under its content hash."
 
-### J62. The file query reads tables reliably and checks columns (sonnet + review) — reproduced
+### J62. The file query reads tables reliably and checks columns (sonnet + review) — reproduced — **done**
 
 - **Touches:** `src/beamtime/query/files.py` (`file_kind` 15–36, `read_table` 39–74, `number_or_text` 77–85, new
   `FORMATS`, `WARN_BYTES`, `MAX_BYTES`, `pick_columns`), `src/beamtime/query/models.py` (`File` 164–168),
