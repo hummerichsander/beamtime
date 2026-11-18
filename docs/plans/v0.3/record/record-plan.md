@@ -332,7 +332,7 @@ Write the design before code (CLAUDE.md: a deviation is decided and written back
 5. RunHeader: when `card.run.hidden`, a `Sym` `{icon: "eye-off", tone: "muted", label: "Hidden: left out of
    tables, counts and checks"}` with its word, and a "Promote" item in the details menu plus an `IconButton`.
 
-### U46. The guide and the user docs (haiku) — code
+### U46. The guide and the user docs (haiku) — code — **done**
 
 - **Touches:** `src/beamtime/guide/parts/proposals.md` (§ Write one before launching l. 7–26),
   `docs/guides/agents.md`, `docs/quickstart.md` (one line where `init` is shown), `tests/guide/test_guide.py` if it

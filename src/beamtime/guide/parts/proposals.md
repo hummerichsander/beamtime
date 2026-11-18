@@ -26,6 +26,16 @@ In proposals you draft, plan {{agent.seeds}} seeds per point and set `significan
 Keep a proposal near {{agent.proposal_words}} words (statement, rationale and prediction descriptions);
 `proposal set` warns beyond that and still writes.
 
+## Test runs
+
+A smoke test or a debugging run goes hidden: `BEAMTIME_HIDDEN=1 python train.py`, or `init(hidden=True)`.
+It is recorded like any run, but it never counts in checks, plans, status, tables or charts, and it never
+freezes a proposal. `beamtime run promote <run>` (MCP `run_promote`) makes a run count once it is a real
+result. Deleting a run is the user's (`beamtime rm`), not yours. `--hidden` (`hidden: true` in a query)
+includes hidden runs in reads; a run named by id always shows.
+
+{{agent.tools_more}}
+
 ## Plans
 
 A plan says when the experiment is complete, so a check is not final after two of fifteen runs.

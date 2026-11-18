@@ -38,7 +38,7 @@ for step in range(1000):
 
 Run your script as usual. Each run becomes a folder in `beamtime/dt-scan/`. Beamtime also records
 what your script prints, errors, and whether the run finished, crashed or was stopped. You don't
-need to call anything else.
+need to call anything else. A smoke test can start hidden with `BEAMTIME_HIDDEN=1`: it is recorded but counts nowhere until you run `beamtime run promote`.
 
 ## 3. Look at it
 

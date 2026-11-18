@@ -37,6 +37,9 @@ and `/beamtime:memory`.
 Agents read everything and **add**: notes, proposals, verdicts, memory and pages. Every addition is
 a new file with the agent as its author; nothing is overwritten.
 
+A smoke test or debugging run should start hidden (`BEAMTIME_HIDDEN=1`): it counts nowhere until someone
+promotes it with `beamtime run promote`.
+
 Agents never **delete, move or set up** anything. For those, they tell you the command to run
 yourself: `beamtime setup`, `beamtime rm`, `beamtime mv`, `beamtime gc`, `beamtime serve`,
 `beamtime stop`, `beamtime ps`, `beamtime set`. When your setup is out of date, `beamtime status` and `beamtime setup --check` say so,
