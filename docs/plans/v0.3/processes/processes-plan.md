@@ -233,7 +233,7 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
    registers `root: None`); try/finally around `anyio.run`; on the first `call_tool`, `update(client=...)` from
    the request context's connection `client_params.client_info.name` when present.
 
-### L51. A memory cache sees a running serve's runs (sonnet + review) — reproduced
+### L51. A memory cache sees a running serve's runs (sonnet + review) — reproduced — **done**
 
 - **Touches:** `src/beamtime/index/index.py` (`catch_up` 227), `src/beamtime/remote/__init__.py` (`answer`
   59–87), `src/beamtime/remote/via_serve.py` (`involves_remotes` 13–27, new `memory_reads`),

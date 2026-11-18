@@ -1,3 +1,4 @@
+import dataclasses
 import getpass
 import http.server
 import json
@@ -10,8 +11,9 @@ import pytest
 from beamtime.index import cache as cache_module
 from beamtime.index.cache import Cache, cache_dir, daemon_status, resolve_cache, runtime_base, runtime_dir
 from beamtime.index.daemon import Daemon
-from beamtime.index.index import Index
+from beamtime.index.index import Freshness, Index
 from beamtime.ops.context import Context
+from beamtime.ops.registry import BY_NAME
 from beamtime.remote import pull, via_serve
 from beamtime.serve.auth import TOKEN_FILE
 from beamtime.settings import Settings, expand_path, read_level
@@ -181,6 +183,77 @@ def test_serve_with_memory_is_found_by_via_serve(clean: Path, tmp_path: Path) ->
             root=tmp_path, root_reason="test", settings=settings, logdir=clean, caller="cli"
         )
         assert via_serve.call(ctx, "runs", {}) == {"auth": "Bearer secret"}
+    finally:
+        daemon.stop()
+        server.shutdown()
+
+
+def test_memory_index_catches_up_while_a_daemon_runs(clean: Path, synth) -> None:
+    """A disk cache's clients defer to the daemon; a memory Index has its own folder and indexes itself."""
+    logdir, manifest = synth
+    settings = configured("memory")
+    daemon = Daemon(logdir=logdir, settings=settings)
+    assert daemon.start()
+    try:
+        with Index(logdir=logdir, settings=settings) as index:
+            assert daemon_status(index.cache) is not None
+            assert index.catch_up(".", budget_s=float("inf")) != Freshness(daemon=True)
+            assert index.store.db.execute("SELECT count(*) FROM runs").fetchone()[0] == manifest.runs
+    finally:
+        daemon.stop()
+
+
+def test_disk_cache_defers_to_daemon(clean: Path, synth) -> None:
+    """With a disk cache, a running daemon keeps the short-circuit."""
+    logdir, _ = synth
+    daemon = Daemon(logdir=logdir, settings=configured(str(clean / "disk")))
+    assert daemon.start()
+    try:
+        with Index(logdir=logdir, settings=configured(str(clean / "disk"))) as index:
+            assert index.catch_up(".") == Freshness(daemon=True)
+    finally:
+        daemon.stop()
+
+
+def test_memory_reads_go_through_the_running_serve(clean: Path, tmp_path: Path) -> None:
+    """With a memory cache, reads are routed to the running serve; writes and user-only ops stay local."""
+    from beamtime.remote import answer
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        """Answers every post with the caller it was sent."""
+
+        def do_POST(self) -> None:  # noqa: N802
+            """Echo the caller header."""
+            self.rfile.read(int(self.headers.get("content-length", 0)))
+            body = json.dumps(
+                {"via": self.path, "caller": self.headers["x-beamtime-caller"]}
+            ).encode()
+            self.send_response(200)
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args) -> None:
+            """Stay quiet."""
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    settings = configured("memory")
+    daemon = Daemon(logdir=clean, settings=settings, port=server.server_port, poll_s=0.05)
+    assert daemon.start()
+    try:
+        (daemon.cache / TOKEN_FILE).write_text("secret\n")
+        ctx = Context(
+            root=tmp_path, root_reason="test", settings=settings, logdir=clean, caller="cli"
+        )
+        found = answer("runs", {}, ctx)
+        assert found["via"] == "/api/runs" and found["caller"] == "cli"
+        assert via_serve.memory_reads(ctx, BY_NAME["runs"])
+        for name in ("note add", "setup", "ps"):
+            if name in BY_NAME:
+                assert not via_serve.memory_reads(ctx, BY_NAME[name])
+        disk = dataclasses.replace(ctx, settings=configured(str(clean / "disk")))
+        assert not via_serve.memory_reads(disk, BY_NAME["runs"])
     finally:
         daemon.stop()
         server.shutdown()

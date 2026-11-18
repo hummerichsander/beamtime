@@ -238,7 +238,8 @@ class Index:
         :param daemon: Whether the caller is the daemon itself; only the daemon's
             ``Freshness.changed`` also lists folders with new authored files.
         :return: The freshness of the index for that folder."""
-        if not daemon and daemon_status(self.cache) is not None:
+        # a memory Index keeps its own scratch folder, which the daemon's indexing never fills.
+        if not daemon and self.scratch is None and daemon_status(self.cache) is not None:
             return Freshness(daemon=True)
         if not self.lock.acquire(timeout=budget_s):
             return Freshness(busy=True)

@@ -68,6 +68,15 @@ def reach(name: str, params: dict[str, Any], ctx: Any) -> dict[str, Any]:
     from beamtime.ops.registry import BY_NAME
 
     op = BY_NAME[name]
+    if not op.local and not targets(params):
+        from beamtime.ops.answers import upgraded
+        from beamtime.remote import via_serve
+
+        if (
+            via_serve.memory_reads(ctx, op)
+            and (found := via_serve.call(ctx, op.tool, params)) is not None
+        ):
+            return upgraded(found)
     if op.local or ctx.sources is None and not targets(params) and not ctx.settings.remotes:
         return call(name, params, ctx)
     if op.user_only:

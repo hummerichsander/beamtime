@@ -7,7 +7,7 @@ import urllib.request
 from typing import Any
 
 from beamtime.ops.context import Context, OpError
-from beamtime.ops.registry import BY_TOOL
+from beamtime.ops.registry import BY_TOOL, Op
 
 
 def involves_remotes(ctx: Context, tool: str, params: dict[str, Any]) -> bool:
@@ -25,6 +25,22 @@ def involves_remotes(ctx: Context, tool: str, params: dict[str, Any]) -> bool:
     everything = params.get("from", ".") in (".", "", None)
     op = BY_TOOL.get(tool)
     return bool(ctx.settings.remotes) and op is not None and op.listing and everything
+
+
+def memory_reads(ctx: Context, op: Op) -> bool:
+    """Tell whether a read must go through the running serve: with a memory cache only the serve
+    has indexed the runs.
+
+    :param ctx: The operation context.
+    :param op: The operation.
+    :return: Whether to ask the running serve."""
+    from beamtime.index.cache import resolve_cache
+
+    return (
+        resolve_cache(ctx.logdir, ctx.settings).kind == "memory"
+        and op.impl.startswith("beamtime.ops.reading:")
+        and not op.user_only
+    )
 
 
 def call(ctx: Context, tool: str, params: dict[str, Any]) -> dict[str, Any] | None:
