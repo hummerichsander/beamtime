@@ -167,15 +167,24 @@ process for that, `beamtime serve`:
 
 - **`beamtime serve`** runs the web UI, the indexer and the connections to remotes
   ([layer 4](04-remotes.md)) for one root. `beamtime serve --no-ui` runs it as a pure daemon.
-- **One daemon per root.** `serve` holds `serve.lock` in the cache; a second `serve` for the same root
-  refuses to start and points to the running one. CLI calls, MCP servers and the headless renderer
+- **One daemon per root.** `serve` holds `serve.lock` in the cache. A second `serve` for the same root
+  attaches instead of starting: it prints the running one's URL and exits 0 (`--open` opens that URL).
+  `--replace` stops the running one first, as `beamtime stop` does, and starts anew, trying the old port
+  first. When the running one cannot give what was asked (a UI asked of a `--no-ui` serve, other explicit
+  sources, an older version), `serve` exits 1 with the hint to `--replace`, except for an older version,
+  which exits 0 with the hint since the UI works. CLI calls, MCP servers and the headless renderer
   ([layer 7](07-web-ui.md#screenshots-and-the-headless-renderer)) are clients: they read the index and
   never start a daemon.
 - **While it runs**, it polls running runs for new lines (the modification time of `_metrics.jsonl`
   every few seconds, only for runs whose status is `running`) and indexes them. Finished runs are
   indexed once.
 - **The CLI and MCP never depend on it for correctness.** Without a running daemon, each call catches
-  up on the runs it queries within a time budget (default 200 ms), then answers. If the budget was
+  up on the runs it queries within a time budget (default 200 ms), then answers. With a `memory`
+  cache (the setup's `cache` setting, [setup](10-setup.md#the-cache)) the daemon's index is private to
+  its process, so a CLI or MCP call cannot read it and, with a daemon running, would skip its own
+  catch-up and see no runs. Instead such a call sends every operation that is not user-only through the
+  running UI serve (`via_serve.call`), and a memory index never skips its catch-up because a daemon runs.
+  Writes are not routed: paths and stdin are relative to the caller's working directory. If the budget was
   not enough, the answer says so: "3 runs are up to 4 min behind".
 - **A query reads every run it selects in full.** Before a query opens a run's column files
   (`Columns`, the one way a query reads a run's streams), `Index.ensure_streams` ingests that run's
@@ -201,6 +210,67 @@ process for that, `beamtime serve`:
   `catch-up only (daemon not running)`.
 - Agents check the status before working with live runs and, if the daemon isn't running, ask the
   user to start `beamtime serve --no-ui` ([layer 8](08-cli-mcp.md#policy)).
+- To see which Beamtime processes run (and which of them this directory's calls use), agents hand the
+  user `beamtime ps` ([Processes](#processes)).
+
+### Processes
+
+Besides the daemon, Beamtime starts a few long-running processes. `beamtime ps` lists every one of this
+user on this machine, grouped by kind:
+
+| Kind | Process | Started by |
+|---|---|---|
+| `serve` | `beamtime serve`, the web UI with the indexer | the user |
+| `index` | `beamtime serve --no-ui`, the pure daemon | the user |
+| `remote` | `beamtime serve --stdio`, the remote end of a laptop's ssh connection | a laptop's `serve` |
+| `mcp` | `beamtime mcp` | an agent client |
+| `ssh` | a login kept open for a remote that `beamtime setup` configured | ssh (`ControlMaster`) |
+
+**The registry** is the folder `procs/` in the runtime base: `<tempfile.gettempdir()>/beamtime-<uid>` (mode
+0700), or `BEAMTIME_RUNTIME` when set (tests, and `runtime_dir(logdir)` moves with it). It is local disk and
+the one place every process of a user agrees on, whatever its `cache` setting. A process registers on
+start with a lock file `<kind>-<pid>-<6 hex>.lock` it holds for its whole life, then a JSON record with
+the same stem, mode 0600, and removes the record before it releases the lock. `serve` and `index` register
+after the daemon has started, `remote` in `serve --stdio`, `mcp` in the MCP server. Liveness is the held
+lock, not the pid: a pid can be reused, and `os.kill(pid, 0)` terminates a process on Windows. A record
+whose lock can be taken is **stale** (the process was killed). `ps` prints stale records once under
+"stale (removed)" and deletes them.
+
+| Field (`schema: 1`) | Meaning |
+|---|---|
+| `kind`, `pid`, `ppid`, `version`, `started` | what and since when |
+| `root`, `logdir` | the project root (or `null`) and the log dir |
+| `cache`, `cache_kind` | the cache folder (with `serve.lock`, `serve.json`, `serve.token`) or the index folder; `disk`, `memory` or `temporary` |
+| `port`, `sources` | `serve` only: the port and the names of its remotes |
+| `client` | the MCP client's name, or the ssh peer from `SSH_CONNECTION` for `remote`; else `null` |
+
+`ps` also scans `<disk cache root>/*/serve.json` and `runtime_base()/*/serve.json` for serves without a
+record (an older Beamtime still running) and removes a `serve.json` whose `serve.lock` is free. The token
+stays: it outlives restarts by design. `ssh` rows come from the Beamtime-marked blocks in `~/.ssh/config`,
+checked with `ssh -O check <host>`; `ps` names `ssh -O exit <host>` to end one, because Beamtime does not
+stop them.
+
+A row shows root or log dir, pid, URL (with `?token=`, as `serve` prints it), cache and uptime. For a serve
+of this context's log dir it also says whether this directory's CLI and MCP calls use it:
+
+| Used here | Meaning |
+|---|---|
+| `live index, remote calls` | UI serve on the same cache: calls read its fresh index and reach its remotes |
+| `live index` | `--no-ui` serve on a disk cache |
+| `all reads` | UI serve with a `memory` cache: reads go through it |
+| `no: memory, no UI` | `--no-ui` with a `memory` cache: nothing to share |
+| `no: this shell's cache is <path> (<source>)` | the shell's cache setting differs from the serve's |
+| `-` | other kinds and other log dirs |
+
+`beamtime stop [<root>|<pid>] [--all]` stops serves only: a root or log dir path matches a serve's `root`
+or `logdir`, digits its pid as `ps` prints it, nothing means this context's serve, `--all` every listed
+serve. It sends `POST /api/shutdown` with the bearer token (handled before the registry dispatch, so it is
+no operation), or SIGTERM when the serve has no port (`index`) or the request fails, and waits for
+`serve.lock` to be free: 10 s after the token, 10 s more after SIGTERM, then it reports
+"still stopping (pid N); `kill -9 N` ends it now" and exits 1. It never sends SIGKILL. MCP, remote and ssh
+processes are listed, never stopped: a pid of one is refused with "listed, not stopped: it belongs to
+<client>". Experiment processes are not Beamtime's: it records runs, it never runs them. Processes on
+remote machines (`ps @cluster`) and the headless renderer are not listed.
 
 ## Query language
 
@@ -587,8 +657,11 @@ Decided while building the index and the queries (milestone M2):
 - Plain formats in v1: int64 steps and float64 values, no compression.
 - Resumed attempts truncate the columns at the resume step; steps stay sorted.
 - Discovery walks only the queried subtree, pruned by modification time; vanished runs are dropped.
-- One `beamtime serve` per root, guarded by a lock; everything else is a client. The CLI and MCP
-  catch up within a time budget when no daemon runs.
+- One `beamtime serve` per root, guarded by a lock; a second one attaches (prints the URL) or, with
+  `--replace`, takes over; everything else is a client. The CLI and MCP catch up within a time budget when
+  no daemon runs; with a `memory` cache they read through the running UI serve.
+- Every long-running process registers in `runtime_base()/procs/` under a held lock; liveness is the
+  lock, never the pid. `beamtime ps` lists them, `beamtime stop` stops serves only.
 - Queries are validated with msgspec structs, which also produce the JSON schema. Measured on the
   M3: Pydantic costs 65–81 ms to import plus about 2.5 ms per model; msgspec about 25 ms in total.
 - Views write conditions in the object form only. In a blind test (20 tasks, Sonnet and Haiku, two

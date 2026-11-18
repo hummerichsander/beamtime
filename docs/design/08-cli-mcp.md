@@ -99,7 +99,9 @@ the user the command ([Policy](#policy)).
 | `beamtime demo [dir]` | generates a sample log dir from the evaluation generator (once, in `beamtime-demo/`) and serves it |
 | `beamtime doctor` | checks root and log dir resolution, write access, Chromium, remote reachability and the remote's Beamtime version |
 | `beamtime settings` | the effective settings and the level each value comes from |
-| `beamtime serve [sources…]` | the web UI, indexer and remote connections (`cluster`, `cluster:group`, `host:/abs/path`); `--no-ui`, `--port` (default 8080, else the next free port), `--open`, `--watch` (restart on the same port when Beamtime's own code changes, for working on Beamtime), `--cache` (for the remotes); `--stdio` is what a laptop starts on a remote over ssh |
+| `beamtime serve [sources…]` | the web UI, indexer and remote connections (`cluster`, `cluster:group`, `host:/abs/path`); for a root that already has a serve it prints that one's URL instead; `--no-ui`, `--port` (default 8080, else the next free port), `--open`, `--replace` (stops the running serve first and takes over), `--watch` (restart on the same port when Beamtime's own code changes, for working on Beamtime), `--cache` (for the remotes); `--stdio` is what a laptop starts on a remote over ssh |
+| `beamtime ps` | every Beamtime process of this user on this machine, grouped by kind (`serve`, `index`, `remote`, `mcp`, `ssh`), with whether this directory's calls use each serve; stale records are removed ([index](03-index.md#processes)) |
+| `beamtime stop [<root>\|<pid>] [--all]` | stops serves: through the token, else SIGTERM; MCP, remote and ssh processes are never stopped |
 | `beamtime pull <source>:<group>` | a read-only offline snapshot; `--drop` removes it |
 | `beamtime source add <name> <host:/path>`, `beamtime source list`, `beamtime source rm <name>` | configure remotes in the user settings (`--project`: `beamtime.yaml`); `add` probes ssh for the command unless given `--command` ([layer 4](04-remotes.md#configuration)) |
 | `beamtime mv <run> <group>`, `beamtime mv <group> <new path>` | moves a run, or moves or renames a group (recorded in `_moves.jsonl`); refuses running runs |
@@ -111,7 +113,7 @@ the user the command ([Policy](#policy)).
 | `beamtime theme list`, `beamtime theme use <name>` | themes ([layer 5](05-views.md#theme)) |
 
 Internal entry points: `beamtime serve --stdio` (started by a laptop over ssh) and `beamtime mcp` (the
-MCP server, started by an agent client).
+MCP server, started by an agent client). Both register in the process registry, so `beamtime ps` lists them as `remote` and `mcp`.
 
 ### Shared conventions
 
@@ -269,7 +271,7 @@ The guide states these as defaults ([layer 5](05-views.md#defaults)):
   reason, never edited), memory versions, view and block versions, exports, run copies (`cp` only
   ever adds a new run; it never touches the source).
 - **Live data**: before working with running runs, agents check `status`; if no daemon runs, they ask
-  the user to start `beamtime serve --no-ui`.
+  the user to start `beamtime serve --no-ui`. To see what runs, they hand the user `beamtime ps`.
 
 ## Implementation notes
 
@@ -332,8 +334,11 @@ Decided while building the CLI and MCP server (milestone M3):
   `--instructions` writes the generated rules block into the client's rules file (`CLAUDE.md`,
   `GEMINI.md` or `AGENTS.md`).
 - **`gc` is a dry run** unless given `--yes`; `rm` and `mv` refuse runs whose heartbeat is fresh.
-- **`serve` and `demo`** (M5) are user-only operations in the registry. `serve` refuses to start
-  when another `serve` holds the root's lock and names its URL; Ctrl-C and SIGTERM stop it cleanly.
+- **`serve` and `demo`** (M5) are user-only operations in the registry. `serve` attaches
+  when another `serve` holds the root's lock: it prints that one's URL and exits 0, and `--replace` stops
+  it first ([layer 3](03-index.md#freshness-the-daemon)); Ctrl-C and SIGTERM stop it cleanly. `ps` and
+  `stop` are user-only operations too; `stop` reaches a serve through `POST /api/shutdown`, which is no
+  registry method ([layer 3](03-index.md#processes)).
   The API of the web UI is the registry's non-user-only operations under their MCP names, its page
   methods, and the two user-only operations the UI offers its user (`note rm`, `set`; flag `ui`)
   ([layer 7](07-web-ui.md#implementation-notes)).
@@ -352,3 +357,5 @@ Decided while building the CLI and MCP server (milestone M3):
 - MCP over stdio (`beamtime mcp`, also over ssh), with 19 core tools plus `tools_more` for the rest, nine prompts, and token
   budgets with cursors.
 - `beamtime setup`, `demo`, `doctor` and `mcp install` cover onboarding.
+- `beamtime ps` lists the user's Beamtime processes and `beamtime stop` stops serves only; a second
+  `serve` for a served root attaches, `--replace` takes over.

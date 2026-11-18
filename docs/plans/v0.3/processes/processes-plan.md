@@ -151,7 +151,7 @@ but not in the same checkout while a setup ticket session runs. L51 is independe
 
 ## J. Processes and the memory fix
 
-### J50. The spec: processes, `ps`, `stop` and attaching serves (sonnet) — code
+### J50. The spec: processes, `ps`, `stop` and attaching serves (sonnet) — code — **done**
 
 - **Touches:** `docs/design/03-index.md` (§ Freshness: the daemon 163–183, § Daemon status for agents 185–194,
   new § Processes after it, § Decisions 537), `docs/design/08-cli-mcp.md` (§ User-only commands table 93–110,

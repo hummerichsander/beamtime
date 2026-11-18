@@ -230,6 +230,9 @@ One API, two transports:
   requests can be in flight on one connection.
 - **HTTP** for browsers and forwarded servers: `POST /api/<method>` with the same JSON.
 
+`serve --stdio` registers itself as a `remote` process ([layer 3](03-index.md#processes)), so `beamtime ps` on
+the remote lists it.
+
 The API's methods are **the operations of [layer 8](08-cli-mcp.md#operations)**, one method per
 operation: every read (`keys`, `runs`, `series`, `card`, `notes`, `memory_show`, `check`, …), every
 write (`note_add`, `proposal_set`, `memory_update`, `view_save`, `block_save`, …) and every view tool
