@@ -706,12 +706,15 @@ def save_page(
     :param finding: The view's finding.
     :return: The new version."""
 
+    from beamtime.ops import call
     from beamtime.views.prefs import apply_pins, apply_prefs
+    from beamtime.views.settings import SEEDS_FIELD
 
     pins = prefs.get("main")
     data = page_yaml(ctx, path, pins)
     try:
-        data["body"] = apply_prefs(data.get("body") or [], prefs)
+        seed = call("keys", {"from": path}, ctx)["config"].get("seed") or SEEDS_FIELD
+        data["body"] = apply_prefs(data.get("body") or [], prefs, seed)
         if pins is not None:
             apply_pins(data, pins)
         data["title"], data["finding"] = title or None, finding or None

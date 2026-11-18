@@ -1,7 +1,12 @@
+import json
+
+from beamtime.format import constants as c
+from beamtime.format.io import write_replaced
 from beamtime.ops import call
 from beamtime.ops.context import Context
 from beamtime.query.aggregate import seed_groups
-from beamtime.query.distinguish import distinguishing
+from beamtime.query.distinguish import distinguishing, flatten, is_seed, seed_key
+from tests.query.test_code import make_run
 
 
 def test_grid_of_lr_and_depth_keeps_both() -> None:
@@ -77,3 +82,55 @@ def test_seed_means_keep_arms_apart_with_one_run_per_arm() -> None:
     runs = [{"_config": f'{{"arm": "{arm}", "seed": {i}}}'} for i, arm in enumerate("abc")]
     groups = seed_groups(runs, "config.seed")
     assert sorted(label["arm"] for label, _ in groups) == ["a", "b", "c"]
+
+
+def test_seed_leaves() -> None:
+    """``seed``, ``random_seed`` and ``rng_seed`` name a seed; ``data_seed`` does not."""
+    assert all(is_seed(k) for k in ("seed", "trainer.seed", "random_seed", "model.rng_seed"))
+    assert not any(is_seed(k) for k in ("data_seed", "seeds", "lr"))
+
+
+def test_seed_key_is_the_one_varying_seed() -> None:
+    """A nested seed is found; two seed-like keys, or none, give no key."""
+    assert seed_key(["config.arm", "config.trainer.seed"]) == "config.trainer.seed"
+    assert seed_key(["config.random_seed"]) == "config.random_seed"
+    assert seed_key(["config.seed", "config.rng_seed"]) is None
+    assert seed_key(["config.arm"]) is None
+
+
+def test_data_seed_is_no_seed() -> None:
+    """A varying ``data_seed`` stays a hyperparameter, so no key is found."""
+    per_run = [{"data_seed": i, "arm": "a"} for i in range(4)]
+    assert seed_key(distinguishing(per_run).varying) is None
+
+
+def test_constant_seed() -> None:
+    """A seed that never varies is not a seed key: nothing merges."""
+    per_run = [{"arm": a, "seed": 0} for a in "ab"]
+    assert seed_key(distinguishing(per_run).varying) is None
+
+
+def test_nested_seed_field() -> None:
+    """``seeds`` takes any config field, including a nested or a quoted one."""
+    arms = [(arm, i) for arm in "ab" for i in range(3)]
+    nested = [{"_config": json.dumps({"arm": a, "trainer": {"seed": i}})} for a, i in arms]
+    groups = seed_groups(nested, "config.trainer.seed")
+    assert sorted(label["arm"] for label, _ in groups) == ["a", "b"]
+    assert [len(rs) for _, rs in groups] == [3, 3]
+    quoted = [{"_config": json.dumps({"arm": a, "a.b": {"seed": i}})} for a, i in arms]
+    assert len(seed_groups(quoted, 'config["a.b"].seed')) == 2
+    assert list(flatten({"a.b": {"seed": 1}})) == ['["a.b"].seed']
+
+
+def test_keys_names_the_seed_and_a_nested_seed_aggregates(ctx: Context) -> None:
+    """``keys`` reports ``config.seed``; an aggregate over it merges the seeds of each arm."""
+    for arm in "ab":
+        for i in range(3):
+            run_dir = make_run(ctx.logdir, "nested", git={}, proposals={})
+            write_replaced(
+                run_dir / c.CONFIG, {"schema": 1, "arm": arm, "trainer": {"seed": i}}
+            )
+    keys = call("keys", {"from": "nested"}, ctx)
+    assert keys["config"]["seed"] == "config.trainer.seed"
+    answer = call("series", {"from": "nested", "y": ["x"], "seeds": "config.trainer.seed"}, ctx)
+    assert {curve["by"]["arm"] for curve in answer["curves"]} == {"a", "b"}

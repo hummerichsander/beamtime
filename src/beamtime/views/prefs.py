@@ -6,6 +6,7 @@ from typing import Any
 from beamtime.views import model as m
 from beamtime.views.defaults import lower_is_better
 from beamtime.views.model import yaml_walk
+from beamtime.views.settings import SEEDS_FIELD
 from beamtime.views.settings import settle as settings_settle
 
 
@@ -33,11 +34,14 @@ def apply_pins(data: dict[str, Any], pins: list[dict[str, Any]]) -> None:
         data.pop("metrics", None)
 
 
-def apply_prefs(body: list[dict[str, Any]], prefs: dict[str, Any]) -> list[dict[str, Any]]:
+def apply_prefs(
+    body: list[dict[str, Any]], prefs: dict[str, Any], seed: str = SEEDS_FIELD
+) -> list[dict[str, Any]]:
     """Fold a viewer's chart settings and added and removed charts into a view body.
 
     :param body: The body in YAML form; changed in place.
     :param prefs: ``{charts, added, removed, order, spans}`` as the web UI keeps them per page.
+    :param seed: The config key that holds the page's seed.
     :return: The body."""
     removed = set(prefs.get("removed") or [])
     body[:] = without(body, removed)
@@ -54,7 +58,7 @@ def apply_prefs(body: list[dict[str, Any]], prefs: dict[str, Any]) -> list[dict[
     lines = [props for b, props in yaml_walk(body) if b == "line"]
     for props in lines:
         settings = shared | clean(charts.get(props.get("id"), {}))
-        settle(props, settings)
+        settle(props, settings, seed)
     for b, props in yaml_walk(body):
         if b in ("scatter", "bar"):
             settle_colormap(props, shared | clean(charts.get(props.get("id"), {})))
@@ -68,7 +72,7 @@ def apply_prefs(body: list[dict[str, Any]], prefs: dict[str, Any]) -> list[dict[
         new = []
         for mt in added:
             props = {"id": f"added-{m.slug(mt)}", "y": mt}
-            settle(props, shared | clean(charts.get(f"added-{mt}", {})))
+            settle(props, shared | clean(charts.get(f"added-{mt}", {})), seed)
             new.append({"line": props})
         grid = next((p for b, p in yaml_walk(body) if b == "grid" and p.get("id") == "added"), None)
         if grid is not None:
@@ -122,12 +126,13 @@ def reorder(kids: list[dict[str, Any]], order: list[str]) -> list[dict[str, Any]
     return [k for _, k in sorted(ranked, key=lambda r: r[0])]
 
 
-def settle(props: dict[str, Any], settings: dict[str, Any]) -> None:
+def settle(props: dict[str, Any], settings: dict[str, Any], seed: str = SEEDS_FIELD) -> None:
     """Write chart settings into a ``line`` node's props.
 
     :param props: The node's props; changed in place.
-    :param settings: The settings, as the web UI names them."""
-    settings_settle(props, settings)
+    :param settings: The settings, as the web UI names them.
+    :param seed: The config key that holds the seed."""
+    settings_settle(props, settings, seed)
 
 
 def settle_colormap(props: dict[str, Any], settings: dict[str, Any]) -> None:

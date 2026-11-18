@@ -15,7 +15,7 @@ from beamtime.index.columns import TIME_KEY, open_columns
 from beamtime.index.store import in_scope
 from beamtime.query import models as m
 from beamtime.query.aggregate import aggregate, group_by, seed_groups, sort_rows, spread
-from beamtime.query.distinguish import distinguishing, flatten
+from beamtime.query.distinguish import distinguishing, flatten, seed_key
 from beamtime.query.fields import PROPOSAL as PROPOSAL_FIELDS
 from beamtime.query.fields import parse_field
 from beamtime.query.files import file_kind
@@ -160,6 +160,7 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
             "rows": [[f"config.{k}", len(v), summarize(v)] for k, v in sorted(config.items())],
             "varying": distinct.varying,
             "aliases": distinct.aliases,
+            "seed": seed_key(distinct.varying),
         },
         "data": {
             "columns": ["key", "kind", "runs", "entries"],

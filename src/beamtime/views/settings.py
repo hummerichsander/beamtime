@@ -35,11 +35,12 @@ def line_defaults() -> dict[str, Any]:
     }
 
 
-def settle(props: dict[str, Any], settings: dict[str, Any]) -> None:
+def settle(props: dict[str, Any], settings: dict[str, Any], seed: str = SEEDS_FIELD) -> None:
     """Write chart settings into a ``line`` node's props, leaving out what is at its default.
 
     :param props: The node's props in YAML form; changed in place.
     :param settings: The settings, as the web UI names them; unknown keys are dropped.
+    :param seed: The config key that holds the seed, for averaging over seeds.
     :raises SchemaError: When a value is not valid for the setting."""
     merged = dict(props)
     # an axis title written for the old x or metrics would be wrong for the new ones.
@@ -58,7 +59,7 @@ def settle(props: dict[str, Any], settings: dict[str, Any]) -> None:
                 merged.pop("seeds", None)
                 merged.pop("by", None)
                 if value == "seeds":
-                    merged["seeds"] = SEEDS_FIELD
+                    merged["seeds"] = seed
                 elif value:
                     merged["by"] = [value]
             case "color" | "colormap":

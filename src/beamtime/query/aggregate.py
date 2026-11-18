@@ -19,16 +19,17 @@ def seed_groups(
     path varies on its own and would otherwise put every run in its own group).
 
     :param runs: Selected runs with ``_config``.
-    :param seeds: The seed field, e.g. ``config.seed``.
+    :param seeds: The seed field, e.g. ``config.seed`` or ``config.trainer.seed``.
     :return: ``(distinguishing config apart from the seed, runs)`` per group."""
     seed = parse_field(seeds)
-    if seed.ns != "config" or len(seed.path) != 1:
-        raise QueryError(f"seeds: {seeds!r} must be a top-level config field like config.seed")
+    if seed.ns != "config" or not seed.path:
+        raise QueryError(f"seeds: {seeds!r} must be a config field like config.seed")
+    spelled = "config." + flat_spelling(seed.path)
     per_run = [flatten(json.loads(r["_config"] or "{}")) for r in runs]
     distinct = distinguishing(per_run)
-    canon = distinct.aliases.get(seeds, seeds)
+    canon = distinct.aliases.get(spelled, spelled)
     # with one run per arm the seed splits the runs exactly as the arm does; the arm stays then.
-    seed_like = canon == seeds or is_seed(canon.removeprefix("config."))
+    seed_like = canon == spelled or is_seed(canon.removeprefix("config."))
     by = [k.removeprefix("config.") for k in distinct.varying if not (seed_like and k == canon)]
     groups: dict[str, tuple[dict[str, Any], list]] = {}
     for r, cfg in zip(runs, per_run, strict=True):
@@ -36,6 +37,17 @@ def seed_groups(
         key = json.dumps(label, sort_keys=True)
         groups.setdefault(key, (label, []))[1].append(r)
     return list(groups.values())
+
+
+def flat_spelling(path: tuple[str, ...]) -> str:
+    """Spell a config path as ``flatten`` spells its keys.
+
+    :param path: The path's keys.
+    :return: E.g. ``trainer.seed`` or ``["a.b"].seed``."""
+    out = ""
+    for key in path:
+        out += f'["{key}"]' if "." in key else (f".{key}" if out else key)
+    return out
 
 
 def group_by(

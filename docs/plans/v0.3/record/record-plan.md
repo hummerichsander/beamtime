@@ -371,7 +371,7 @@ Write the design before code (CLAUDE.md: a deviation is decided and written back
 3. `generated_ts` also emits `export const LOWER_IS_BETTER = [...]`; `fmt.ts` imports it and tokenizes the same way;
    `prefs.ts` `higherIsBetter = (y) => !lowerIsBetter(y)` from `fmt.ts`.
 
-### N42. One seed rule on the server (sonnet + review) — code
+### N42. One seed rule on the server (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/query/distinguish.py` (`is_seed` 95–101, new `seed_key`), `src/beamtime/query/kinds.py`
   (`keys_kind` 112–170: `config.seed`), `src/beamtime/query/aggregate.py` (`seed_groups` ~20–40: the top-level

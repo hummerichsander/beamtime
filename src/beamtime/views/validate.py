@@ -474,7 +474,7 @@ def answer_checks(
                 rows = keys[scope]["config"]["rows"]
                 varying = {k for k, _, v in rows if isinstance(v, list) and len(v) > 1}
                 by = {n.by} if isinstance(n.by, str) else set(n.by)
-                other = sorted(varying - by - {SEEDS_FIELD})
+                other = sorted(varying - by - {keys[scope]["config"].get("seed") or SEEDS_FIELD})
                 if other:
                     out.append(
                         Finding(

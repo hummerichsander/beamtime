@@ -479,7 +479,7 @@ Decided while building the shell (milestone M5):
 - **The built-in default view** is built on the server as a view and compiled to a block tree
   (`{block, id, props, data, children}`, where `data` names API calls) like authored views. A
   group with runs of its own gets one chart per metric, in sections by metric prefix (averaged over
-  `config.seed` beyond eight runs, except the system metrics): `Main` (the pinned metrics, below),
+  the group's seed key (`keys` `config.seed`) beyond eight runs, except the system metrics): `Main` (the pinned metrics, below),
   evaluation (`val`, `test`, ...), training, the other prefixes alphabetically, `Other` (unprefixed metrics and prefixes of one metric)
   and `System` (`sys/*`). Titles carry the count (`validation (5)`); `Main` is open, so are the first
   two sections after it, the rest and `System` closed, and a group with a single section and no pins

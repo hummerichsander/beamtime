@@ -423,7 +423,13 @@ where:
 - **Seeds** (`seeds: config.seed`, a field of `runs` and `series` only; any other kind refuses it as an
   unknown field) merge runs that agree on every field that distinguishes them
   apart from that key (`config.varying` minus the seed and its aliases), exactly as in predictions.
-  Values then come as mean, standard deviation and count.
+  The key is any config field, nested ones too (`config.trainer.seed`). Values then come as mean,
+  standard deviation and count.
+- **The seed rule** is one function, `distinguish.seed_key(varying)`: the one varying config key whose
+  leaf is `seed`, `random_seed` or `rng_seed` (`data_seed` is a hyperparameter). With no such key, or
+  several, there is none. `keys` answers it as `config.seed` (a key, or `null`); the default view, the
+  chart's "seed mean" setting when a viewer's settings are saved, and validation use it, falling back to
+  `config.seed` where a key must be written, and the default view merges nothing without one.
 - **By** (`by: [config.lr]` on `runs`, as on `series`) makes one row per combination of the fields'
   values, aggregated like seeds (`runs` lists the run ids; `meta.groups` counts the rows). Without
   `select`, the default columns leave out the run name.

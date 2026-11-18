@@ -84,10 +84,11 @@ def group_body(ctx: Context, path: str, pins: list[dict[str, Any]]) -> list[m.Bl
         # curves show only the group's own runs; runs in subgroups belong to their groups.
         own = direct < runs
         own_keys = call("keys", {"from": path, "depth": 1}, ctx) if own else keys
-        many = SEEDS_FIELD in varying and direct > SEED_GROUPING_ABOVE
+        seed = keys["config"].get("seed")
+        many = seed is not None and direct > SEED_GROUPING_ABOVE
         metrics = ordered_metrics(own_keys)
         main = [p["y"] for p in pins if p["y"] in metrics]
-        body += curves(metrics, SEEDS_FIELD if many else None, own, main)
+        body += curves(metrics, seed if many else None, own, main)
         if varying:
             body.append(m.Config(id="hyperparameters", title="Hyperparameters"))
         code = ["run.code"] if keys.get("codes") else []
@@ -174,7 +175,8 @@ def summary(
         return None
     stat = "min" if lower else "max"
     field = f"metric.{main}.{stat}"
-    varying = [k for k in varying_config(keys) if k != SEEDS_FIELD][:3]
+    seed = keys["config"].get("seed") or SEEDS_FIELD
+    varying = [k for k in varying_config(keys) if k != seed][:3]
     query = {
         "from": scope,
         "select": ["run.name", field, *varying],

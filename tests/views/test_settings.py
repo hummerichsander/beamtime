@@ -78,6 +78,8 @@ def test_seeds_fold() -> None:
     assert props["seeds"] == SEEDS_FIELD and "by" not in props
     settle(props, {"by": "config.arm"})
     assert props["by"] == ["config.arm"] and "seeds" not in props
+    settle(props, {"by": "seeds"}, "config.trainer.seed")
+    assert props["seeds"] == "config.trainer.seed" and "by" not in props
     settle(props, {"by": None})
     assert props == {"id": "c", "y": "val/loss"}
 

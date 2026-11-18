@@ -1088,3 +1088,29 @@ def test_view_data_quotes_names_yaml_reads_as_other_types(ctx: Context, project:
     line = next(s for s in lines if s.startswith("data_table:"))
     flow = yaml.safe_load(line)["data_table"]["columns"]
     assert flow == ["x", "2020", "1e-3", "true", "null", "on"]
+
+
+def test_default_view_merges_on_the_groups_seed_key(ctx: Context) -> None:
+    """A nested seed merges above the threshold; two seed-like keys fall back to no merging."""
+    import json
+
+    from beamtime.format import constants as c
+    from beamtime.format.io import write_replaced
+    from beamtime.synth.summary import card_and_preview
+    from tests.query.test_code import make_run
+
+    rows = [{"_step": s, "_t": float(s), "val/acc": 0.1 * s} for s in range(3)]
+    for group, two in (("nested", False), ("two", True)):
+        for i in range(10):
+            run_dir = make_run(ctx.logdir, group, git={}, proposals={})
+            config = {"schema": 1, "trainer": {"seed": i}, "lr": 0.1}
+            write_replaced(run_dir / c.CONFIG, config | ({"rng_seed": i // 2} if two else {}))
+            card, preview = card_and_preview(rows, status="finished", duration_s=1.0)
+            write_replaced(run_dir / c.CARD, card)
+            write_replaced(run_dir / c.PREVIEW, preview)
+            (run_dir / c.METRICS).write_text("".join(json.dumps(r) + "\n" for r in rows))
+    lines = lambda name: [  # noqa: E731
+        n for n in m.walk(default_view(ctx, name).body) if isinstance(n, m.Line)
+    ]
+    assert {n.seeds for n in lines("nested")} == {"config.trainer.seed"}
+    assert {n.seeds for n in lines("two")} == {None}

@@ -8,6 +8,7 @@ from typing import Any
 
 PATH_OR_DATE = re.compile(r"[/\\]|^\d{4}-\d{2}-\d{2}")
 MISSING = "\0missing"
+SEED_LEAVES = ("seed", "random_seed", "rng_seed")
 
 
 @dataclass(kw_only=True, frozen=True)
@@ -96,9 +97,18 @@ def is_seed(key: str) -> bool:
     """Whether a flattened key names a run's seed, by its last segment.
 
     :param key: The flattened key.
-    :return: Whether it is named, or nested under, ``seed``."""
+    :return: Whether its leaf is ``seed``, ``random_seed`` or ``rng_seed``."""
     leaf = re.sub(r'^\["|"\]$', "", key.rsplit(".", 1)[-1])
-    return leaf.lower() == "seed"
+    return leaf.lower() in SEED_LEAVES
+
+
+def seed_key(varying: list[str]) -> str | None:
+    """Find the one seed among a group's varying config keys.
+
+    :param varying: The varying keys, e.g. ``config.trainer.seed``.
+    :return: The seed key, or ``None`` when no key or several keys look like a seed."""
+    seeds = [k for k in varying if is_seed(k.removeprefix("config."))]
+    return seeds[0] if len(seeds) == 1 else None
 
 
 def flatten(config: dict[str, Any], prefix: str = "") -> dict[str, Any]:
