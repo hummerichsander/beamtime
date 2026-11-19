@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from beamtime.format.authored import NOTE_TYPES
-from beamtime.guide import EXAMPLES, TOPICS, example, read
+from beamtime.guide import EXAMPLES, TOPICS, example, read, values_of
 from beamtime.ops import call
 from beamtime.ops.context import Context
 from beamtime.ops.registry import BY_NAME, BY_TOOL, GuideParams
@@ -320,3 +320,67 @@ def test_data_files_recipe(ctx: Context, project: Path) -> None:
     query = {"file": {"path": f"data/{stored.name}", "view": SWEEP, "columns": ["lr"]}}
     shown = call("query", {"query": query}, ctx)
     assert [r[0] for r in shown["rows"]] == [0.0001, 0.001, 0.01]
+
+
+def seeded_keys(fields: list[str], seed: str | None) -> dict[str, typing.Any]:
+    """Make a ``keys`` answer whose config varies over ``fields``, with the group's seed key.
+
+    :param fields: The varying config keys.
+    :param seed: The group's seed key, or ``None``.
+    :return: The answer, as far as the guide reads it."""
+    rows = [[k, 3, [0, 1, 2]] for k in fields]
+    return {
+        "metrics": {"rows": [["val/loss", 3, 10, False, 3]]},
+        "config": {"rows": rows, "varying": fields, "seed": seed},
+        "data": {"rows": []},
+    }
+
+
+@pytest.mark.parametrize(
+    ("seed", "fields", "seeds", "swept"),
+    [
+        (
+            "config.trainer.seed",
+            ["config.trainer.seed", "config.lr"],
+            "config.trainer.seed",
+            "config.lr",
+        ),
+        ("config.seed", ["config.seed", "config.lr"], "config.seed", "config.lr"),
+    ],
+)
+def test_example_values_use_the_groups_seed_key(
+    ctx: Context,
+    monkeypatch: pytest.MonkeyPatch,
+    seed: str,
+    fields: list[str],
+    seeds: str,
+    swept: str,
+) -> None:
+    """A group seeded by ``trainer.seed`` fills ``seeds`` with it and never sweeps it."""
+
+    def answer(op: str, params: dict[str, typing.Any], ctx: Context) -> dict[str, typing.Any]:
+        return seeded_keys(fields, seed) if op == "keys" else {"proposal": {}}
+
+    monkeypatch.setattr("beamtime.guide.remote_answer", answer)
+    values = values_of(ctx, "g")
+    assert values["seeds"] == seeds
+    assert values["swept"] == swept
+    assert values["swept2"] == seeds
+
+
+def test_example_values_fall_back_to_config_seed_on_older_remotes(
+    ctx: Context, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An answer without a ``seed`` entry is read as the literal ``config.seed``."""
+
+    def answer(op: str, params: dict[str, typing.Any], ctx: Context) -> dict[str, typing.Any]:
+        if op != "keys":
+            return {"proposal": {}}
+        keys = seeded_keys(["config.seed", "config.lr"], None)
+        del keys["config"]["seed"]
+        return keys
+
+    monkeypatch.setattr("beamtime.guide.remote_answer", answer)
+    values = values_of(ctx, "g")
+    assert values["seeds"] == "config.seed"
+    assert values["swept"] == "config.lr"

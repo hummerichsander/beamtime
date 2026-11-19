@@ -307,7 +307,8 @@ def values_of(ctx: Context, group: str) -> dict[str, str]:
     stat = "min" if lower else "max"
     losses = [k for k in metrics if "loss" in k and k != main]
     config = {k: v for k, _, v in keys["config"]["rows"]}
-    varying = [k for k in varying_config(keys) if k != "config.seed"]
+    seed = keys["config"].get("seed") or "config.seed"
+    varying = [k for k in varying_config(keys) if k != seed]
     swept = varying[0] if varying else ""
     texts = [k for k in varying if any(isinstance(v, str) for v in config.get(k) or [])]
     data = {
@@ -326,12 +327,10 @@ def values_of(ctx: Context, group: str) -> dict[str, str]:
         "loss_prefix": prefix(loss),
         "swept": swept,
         # a second axis: another swept field, else the seed, else the first again.
-        "swept2": varying[1]
-        if len(varying) > 1
-        else ("config.seed" if "config.seed" in config else swept),
+        "swept2": varying[1] if len(varying) > 1 else (seed if seed in config else swept),
         "swept_scale": scale_of(config.get(swept)),
         "change": texts[0] if texts else swept,
-        "seeds": "config.seed" if "config.seed" in config else "",
+        "seeds": seed if seed in config else "",
         "hist": hists[0] if hists else "",
         "image": data["image"][0] if data["image"] else "",
         "table": next((k for k in data["table"] if k not in hists), ""),
