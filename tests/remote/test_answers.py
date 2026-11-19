@@ -459,3 +459,19 @@ def test_merged_keys_find_the_seed_key_again() -> None:
         "cli",
     )
     assert answer["config"]["seed"] == "config.trainer.seed"
+
+
+def test_merged_keys_keep_the_dropped_keys_of_every_source() -> None:
+    """Merged keys list each source's dropped keys, so Color by still offers them."""
+
+    def keys(dropped: dict[str, str]) -> dict[str, Any]:
+        config = {"columns": ["key", "runs", "values"], "rows": [], "varying": ["config.arch"]}
+        return {"kind": "keys", "runs": 1, "config": config | {"aliases": {}, "dropped": dropped}}
+
+    answer = merged(
+        "keys",
+        [("local", keys({"config.model": "config.arch"})), ("a", keys({"config.width": "config.arch"}))],
+        {},
+        "cli",
+    )
+    assert answer["config"]["dropped"] == {"config.model": "config.arch", "config.width": "config.arch"}

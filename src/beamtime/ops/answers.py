@@ -524,11 +524,14 @@ class Keys(Bare):
             if table == "config":
                 varying: list[str] = []
                 aliases: dict[str, str] = {}
+                dropped: dict[str, str] = {}
                 for t in tables:
                     varying += [k for k in t.get("varying") or [] if k not in varying]
                     aliases.update(t.get("aliases") or {})
+                    dropped.update(t.get("dropped") or {})
                 first[table]["varying"] = sorted(varying)
                 first[table]["aliases"] = aliases
+                first[table]["dropped"] = dropped
                 first[table]["seed"] = seed_key(varying)
         return first
 
