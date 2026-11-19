@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import json
 import time
 from pathlib import Path
@@ -30,7 +31,8 @@ def test_an_authored_change_on_a_remote_wakes_only_the_pages_watching_authored_c
         )
         stream = hub.stream("p")
         await anext(stream)
-        client = RemoteClient(spec=box_spec, on_event=lambda e: forward_remote_change(hub, "box", e))
+        cold = dataclasses.replace(box_spec, cache=None)
+        client = RemoteClient(spec=cold, on_event=lambda e: forward_remote_change(hub, "box", e))
         client.connect()
         client.subscribe(["."])
         try:

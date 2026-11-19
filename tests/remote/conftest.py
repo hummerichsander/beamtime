@@ -1,4 +1,5 @@
 import dataclasses
+import os
 import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -29,11 +30,15 @@ def box(project: Path, tmp_path: Path, fresh_logdir: Callable[[Path, int], None]
 
 @pytest.fixture
 def box_spec(box: Path) -> Spec:
-    """How to reach ``box``: over a plain command.
+    """How to reach ``box``: over a plain command, on the cache ``box`` was indexed into.
+
+    Without ``--cache`` the remote starts on a cold temporary cache, and its 0.2 s catch-up leaves
+    streams unindexed under load.
 
     :param box: The remote's log dir.
     :return: The spec."""
-    return Spec(name="box", path=str(box), command=COMMAND, transport="command")
+    cache = os.environ["BEAMTIME_CACHE"]
+    return Spec(name="box", path=str(box), command=COMMAND, transport="command", cache=cache)
 
 
 @pytest.fixture
