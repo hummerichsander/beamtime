@@ -11,6 +11,7 @@ import pytest
 
 from beamtime.ops.registry import BY_TOOL
 from beamtime.synth import generate
+from tests.conftest import index_fully
 
 anyio = pytest.importorskip("anyio")
 pytest.importorskip("mcp")
@@ -74,6 +75,7 @@ def project(tmp_path_factory: pytest.TempPathFactory) -> Path:
     root.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     generate(root / "beamtime", seed=0, now=datetime.now(timezone.utc))
+    index_fully(root / "beamtime")
     return root
 
 
