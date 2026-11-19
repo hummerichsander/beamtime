@@ -1511,11 +1511,15 @@ def test_images_step_through_their_loggings_expand_zoom_and_download(project: Pa
     page.evaluate("window.__saved = []; HTMLAnchorElement.prototype.click = function () { if (this.download) window.__saved.push([this.download, this.href]); }")
     block.locator(".chart-frame").first.hover()
     block.locator('button[aria-label="Download"]').click()
-    block.get_by_text("Original files").click()
+    block.get_by_text("All images").click()
     saved = page.evaluate("window.__saved")
     assert len(saved) == figures.count()
     assert all(re.fullmatch(r".+-samples-step\d+\.png", name) for name, _ in saved), saved
     assert page.evaluate("(u) => fetch(u).then((r) => r.headers.get('content-type'))", saved[0][1]) == "image/png"
+    page.evaluate("window.__saved = []")
+    block.locator('button[aria-label="Download"]').click()
+    block.get_by_text("Latest image").click()
+    assert len(page.evaluate("window.__saved")) == 1, "the latest is one file"
 
     figures.nth(1).locator("button.image-open").click()
     dialog = page.locator("dialog.chart-dialog")
@@ -1544,7 +1548,7 @@ def test_images_step_through_their_loggings_expand_zoom_and_download(project: Pa
     assert label.inner_text() == last, "the scrubber is one for both"
     page.evaluate("window.__saved = []")
     dialog.locator('button[aria-label="Download"]').click()
-    dialog.get_by_text("Original files").click()
+    dialog.get_by_text("This image").click()
     assert len(page.evaluate("window.__saved")) == 1, "the dialog saves the image it shows"
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
@@ -1694,3 +1698,20 @@ def test_images_from_a_views_step_reach_the_last_logging_and_hide_the_scrubber_i
     page.locator('[data-block-id="samples"] .images img').first.wait_for()
     assert page.locator('[data-block-id="samples"] figcaption').first.inner_text() == "step 200"
     assert page.locator(".scrubber").count() == 0
+
+
+def test_a_run_whose_last_image_is_far_back_shows_it_muted(project: Path, tmp_path: Path, server: str, page) -> None:
+    """A run that stopped logging many stops before the scrubbed one still shows its last image, muted."""
+    from tests.conftest import index_fully
+
+    short, long = write_pictures(project, tmp_path, 3, 0, "short"), write_pictures(project, tmp_path, 20, 0, "long")
+    assert short.wait(60) == 0 and long.wait(60) == 0
+    index_fully(project / "beamtime")
+    pictures_page(project, server, page, step=1500)
+    block = page.locator('main [data-block-id="samples"]')
+    block.locator(".scrub-label").wait_for()
+    assert block.locator(".scrub-label").inner_text().endswith("step 1500")
+    page.wait_for_function("() => document.querySelectorAll('main [data-block-id=samples] .images figure').length === 2")
+    captions = sorted(block.locator(".images figure figcaption").all_inner_texts())
+    assert captions == ["step 1500", "step 200"], captions
+    assert block.locator(".images figure.earlier figcaption").inner_text() == "step 200"

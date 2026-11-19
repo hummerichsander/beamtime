@@ -519,9 +519,12 @@ Decided while building the shell (milestone M5):
   The arrow keys move one stop, Home and End go to the ends. A view's `step: <n>` is where it starts. At
   the last stop the block follows the newest logging as a run writes it; after the viewer moves it, it
   stays. Fast scrubbing asks only for the stop it rests on (120 ms) and the old figures stay until the new
-  ones are there; a stop's figures come from one `data` call over the few stops before it. The step is
+  ones are there; a stop's figures come from one `data` call with `step: ["last", s]`, each run's latest images at or
+  before the stop, however far back. The step is
   kept for the session, per page and block, so back and forward and the dialog find it again; it isn't in
-  the URL. Download saves the shown images' original files (`<run>-<key>-step<n>.<ext>`). Clicking an
+  the URL. Download saves original files (`<run>-<key>-step<n>.<ext>`): "Latest image" the shown image logged
+  last (one file, so no prompt for several downloads), "All images" every shown image, one per run; the dialog
+  offers "This image" instead of the latest. Clicking an
   image or Expand opens the page's dialog on that run: the image as large as the dialog allows (pixelated
   when enlarged), the wheel and a trackpad pinch zoom around the pointer (caught only inside the image,
   so the page never scrolls), a drag pans, double-click or the reset button fits it again, `+` `−` `0`

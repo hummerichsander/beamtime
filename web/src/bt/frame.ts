@@ -18,13 +18,14 @@ export function expandedHeight(): number {
   return Math.round(innerHeight * 0.62);
 }
 
-// `files` saves the original files a block shows (logged images); a block without a drawing has no png.
+// `files` save original files a block shows (logged images), each entry one menu item; a block
+// without a drawing has no png.
 export type DownloadSet = {
   png?: (b: Background) => unknown;
   svg?: () => unknown;
   pdf?: () => unknown;
   csv?: () => unknown;
-  files?: () => unknown;
+  files?: { label: string; save: () => unknown }[];
 };
 
 export function Downloads(props: DownloadSet & { id?: string }) {
@@ -33,7 +34,7 @@ export function Downloads(props: DownloadSet & { id?: string }) {
   const close = (e: Event) => (e.target as Element).closest<HTMLElement>("[popover]")?.hidePopover();
   return html`<${Popover} icon="download" label="Download" title="Download">
     <div class="menu-list" onClick=${close}>
-      ${props.files ? html`<button type="button" onClick=${props.files}><${Icon} name="image" size=${15} /> Original files</button>` : null}
+      ${props.files?.map((f) => html`<button type="button" onClick=${f.save}><${Icon} name="image" size=${15} /> ${f.label}</button>`)}
       ${props.png ? html`<button type="button" onClick=${() => props.png!("transparent")}><${Icon} name="image" size=${15} /> PNG, transparent</button>
       <button type="button" onClick=${() => props.png!("white")}><${Icon} name="image" size=${15} /> PNG, white background</button>` : null}
       ${props.svg ? html`<button type="button" onClick=${props.svg}><${Icon} name="image" size=${15} /> SVG (vector)</button>` : null}

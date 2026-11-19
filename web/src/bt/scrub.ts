@@ -11,9 +11,6 @@ export type Stops = { values: number[]; steps: number[] };
 export type Entry = { run: string; step: number; path: string; caption?: string };
 export type Tile = { entry: Entry; earlier: boolean };
 
-// how many stops back a run's latest earlier image is looked for.
-export const BACK = 8;
-
 export function stopsOf(meta: Meta | undefined, by: By): Stops {
   const steps = meta?.steps ?? [];
   if (by === "step") return { values: steps, steps };
@@ -49,16 +46,16 @@ export function indexAt(stops: Stops, at: number): number {
   return found;
 }
 
-// the steps a run's figure may come from for a stop: the BACK stops before it and itself.
-export function windowOf(stops: Stops, i: number): [number, number] {
-  return [stops.steps[Math.max(0, i - BACK)], stops.steps[i]];
-}
-
 // every run's entries at its latest step at or before `at`; one logged earlier is `earlier`.
 export function shownAt(entries: Entry[], at: number): Tile[] {
   const latest = new Map<string, number>();
   for (const e of entries) if (e.step <= at && e.step > (latest.get(e.run) ?? -Infinity)) latest.set(e.run, e.step);
   return entries.filter((e) => latest.get(e.run) === e.step).map((entry) => ({ entry, earlier: entry.step < at && at !== Infinity }));
+}
+
+// the shown image logged last: the first of those at the highest step.
+export function latestOf(tiles: Tile[]): Tile | undefined {
+  return tiles.reduce<Tile | undefined>((best, t) => (!best || t.entry.step > best.entry.step ? t : best), undefined);
 }
 
 // "epoch 12 · step 4 000", or "step 4 000" on a page without a clock.

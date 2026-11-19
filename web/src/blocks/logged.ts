@@ -6,11 +6,11 @@ import { useContext, useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { type Call, useCall } from "../api.ts";
 import { useData, ViewCtx, type Node, type ViewContext } from "../bt/index.ts";
-import { ChartFrame } from "../bt/frame.ts";
+import { ChartFrame, type DownloadSet } from "../bt/frame.ts";
 import { step } from "../bt/fmt.ts";
 import { host } from "../bt/host.ts";
 import {
-  clockAt, hasClock, indexAt, nearest, scrubLabel, shownAt, stopsOf, windowOf, type By, type Entry, type Meta, type Stops, type Tile,
+  clockAt, hasClock, indexAt, latestOf, nearest, scrubLabel, shownAt, stopsOf, type By, type Entry, type Meta, type Stops, type Tile,
 } from "../bt/scrub.ts";
 import { transform, useZoom } from "../bt/zoom.ts";
 import { recording, rendering, sourcedRun } from "../router.ts";
@@ -56,18 +56,17 @@ function useImages(node: Node) {
   const ranged = !(rendering || EXPORTED) && (asked === "last" || typeof asked === "number") && stops.steps.length > 1;
   const i = follows ? stops.steps.length - 1 : indexAt(stops, state.step!);
   const at = stops.steps[i] ?? 0;
-  // fast scrubbing asks for the stop it rests on, not for every one it passes.
-  const settled = useSettled(at, 120);
-  // the block's own answer holds the asked step, the newest logging only when the view asks for the last.
-  const windowed = ranged && (!follows || asked !== "last");
-  const call: Call | null = windowed
-    ? { ...main, params: { ...main.params, step: windowOf(stops, indexAt(stops, settled)), limit: 2000 } }
-    : null;
-  const result = useCall(call);
-  const fresh = windowed ? result.data : base.data;
   // the old figures stay until the new ones are there.
   const keep = useRef<{ entries: Entry[]; at: number } | null>(null);
-  if (fresh) keep.current = { entries: fresh.entries, at: windowed ? settled : Infinity };
+  // fast scrubbing asks for the stop it rests on, not for every one it passes; with nothing shown yet, at once.
+  const settled = useSettled(at, 120);
+  const asking = keep.current ? settled : at;
+  // the block's own answer holds the asked step, the newest logging only when the view asks for the last.
+  const windowed = ranged && (!follows || asked !== "last");
+  const call: Call | null = windowed ? { ...main, params: { ...main.params, step: ["last", asking], limit: 2000 } } : null;
+  const result = useCall(call);
+  const fresh = windowed ? result.data : base.data;
+  if (fresh) keep.current = { entries: fresh.entries, at: windowed ? asking : Infinity };
   const plain = asked !== "last" && typeof asked !== "number";
   const tiles: Tile[] = !keep.current
     ? []
@@ -96,6 +95,16 @@ function fileOf(view: ViewContext, e: Entry, title: string): [string, string] {
 
 function saveFiles(view: ViewContext, tiles: Tile[], title: string): void {
   for (const { entry } of tiles) host().download(...fileOf(view, entry, title));
+}
+
+// the two downloads of an images block: one image (the latest shown, or the dialog's), or every shown one.
+function downloads(s: Shown, title: string, one: Tile | undefined, label: string): DownloadSet {
+  return {
+    files: [
+      { label, save: () => one && saveFiles(s.view, [one], title) },
+      { label: `All images (${s.tiles.length})`, save: () => saveFiles(s.view, s.tiles, title) },
+    ],
+  };
 }
 
 function Scrubber({ s }: { s: Shown }) {
@@ -134,7 +143,7 @@ export function Images({ node }: { node: Node }) {
   return html`<div class="block chart-block images-block">
     <${ChartFrame} id=${node.id} title=${title} caption=${node.props.caption}
       tools=${html`<${ByTool} s=${s} />`}
-      downloads=${{ files: () => saveFiles(s.view, s.tiles, title) }} onExpand=${() => open()}>
+      downloads=${downloads(s, title, latestOf(s.tiles), "Latest image")} onExpand=${() => open()}>
       ${s.base.status === "error" ? html`<${Notice} kind="error">${s.base.error}<//>` : null}
       ${s.error ? html`<${Notice} kind="error">${s.error}<//>` : null}
       ${s.base.data && !s.tiles.length ? html`<${Notice}>No images logged.<//>` : null}
@@ -157,15 +166,15 @@ export function Images({ node }: { node: Node }) {
 // with the scrubber below and the neighbours one click away.
 function ImagesDialog({ node, s, title }: { node: Node; s: Shown; title: string }) {
   const { tiles } = s;
-  const [chosen, choose] = useState<number | null>(null);
+  // the chosen image is a run's, so scrubbing keeps it on that run.
+  const [chosen, choose] = useState<string>(node.props.run);
   const z = useZoom();
-  const first = tiles.findIndex((t) => t.entry.run === node.props.run);
-  const index = Math.min(Math.max(0, chosen ?? first), tiles.length - 1);
+  const index = Math.max(0, tiles.findIndex((t) => t.entry.run === chosen));
   const shown = tiles[index];
   const src = shown ? fileUrl(sourcedRun(shown.entry.run, s.view.path), shown.entry.path) : "";
   // another image or another step starts fitted.
   useEffect(() => z.fit(), [src]);
-  const go = (by: number) => choose((index + by + tiles.length) % tiles.length);
+  const go = (by: number) => choose(tiles[(index + by + tiles.length) % tiles.length].entry.run);
   const keys: Record<string, () => void> = { "+": () => z.zoomBy(1.5), "=": () => z.zoomBy(1.5), "-": () => z.zoomBy(1 / 1.5), "0": z.fit };
   const tools = html`
     ${tiles.length > 1 ? html`<${IconButton} icon="chevron-left" label="Previous image" onClick=${() => go(-1)} /><${IconButton} icon="chevron-right" label="Next image" onClick=${() => go(1)} />` : null}
@@ -176,7 +185,7 @@ function ImagesDialog({ node, s, title }: { node: Node; s: Shown; title: string 
   return html`<div class="block chart-block images-block">
     <${ChartFrame} id=${node.id} title=${title} expanded
       notes=${shown ? [s.view.names.get(shown.entry.run) ?? shown.entry.run, `step ${step(shown.entry.step)}`] : []}
-      tools=${tools} downloads=${{ files: () => shown && saveFiles(s.view, [shown], title) }}>
+      tools=${tools} downloads=${downloads(s, title, shown, "This image")}>
       <div class="zoom-box" ref=${z.box} tabindex="0" style=${{ touchAction: "none" }} ...${z.handlers}
         onKeyDown=${(e: KeyboardEvent) => keys[e.key]?.()}>
         ${shown ? html`<img class="zoom-img" src=${src} alt=${shown.entry.caption ?? title} draggable=${false} style=${{ transform: transform(z.pose) }} />` : null}

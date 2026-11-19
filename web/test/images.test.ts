@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { clockAt, hasClock, indexAt, nearest, scrubLabel, shownAt, stopsOf, windowOf, type Entry } from "../src/bt/scrub.ts";
+import { clockAt, hasClock, indexAt, latestOf, nearest, scrubLabel, shownAt, stopsOf, type Entry } from "../src/bt/scrub.ts";
 import { FIT, MAX, panBy, zoomAt } from "../src/bt/zoom.ts";
 
 const meta = { steps: [100, 200, 300, 400], clocks: [0, 0, 1, 1] };
@@ -25,18 +25,14 @@ test("a position snaps to its closest stop and a step to the stop at or before i
   assert.equal(indexAt(stopsOf(meta, "clock"), 300), 0);
 });
 
-test("a window reaches a few stops back and never before the first", () => {
-  const stops = { values: [], steps: Array.from({ length: 20 }, (_, i) => i * 10) };
-  assert.deepEqual(windowOf(stops, 19), [110, 190]);
-  assert.deepEqual(windowOf(stops, 2), [0, 20]);
-});
-
 test("every run shows its entries at its latest step at or before the stop", () => {
   const e = (run: string, step: number): Entry => ({ run, step, path: `${step}.png` });
   const entries = [e("a", 100), e("a", 200), e("b", 100), e("c", 300)];
   const at200 = shownAt(entries, 200);
   assert.deepEqual(at200.map((t) => [t.entry.run, t.entry.step, t.earlier]), [["a", 200, false], ["b", 100, true]]);
   assert.deepEqual(shownAt(entries, 50), []);
+  assert.equal(latestOf(at200)?.entry.run, "a");
+  assert.equal(latestOf([]), undefined);
   assert.deepEqual(shownAt(entries, Infinity).map((t) => [t.entry.run, t.earlier]), [["a", false], ["b", false], ["c", false]]);
 });
 
