@@ -46,7 +46,7 @@ Where = Annotated[
 ]
 Fields = Annotated[
     list[str] | None,
-    msgspec.Meta(description="fields such as run.name, config.lr, metric.val/acc.max"),
+    msgspec.Meta(description="fields, e.g. run.name, config.lr, metric.val/acc.max"),
 ]
 Group = Annotated[str, msgspec.Meta(description="group below the log dir, or a run id")]
 RunId = Annotated[str, msgspec.Meta(description="the run id")]
@@ -147,6 +147,7 @@ class Data(Selection, kw_only=True):
     key: str
     step: Literal["last", "all"] | int | list[int] = "last"
     limit: int | None = None
+    clock: str | None = None
 
 
 class Timeline(Selection, kw_only=True):

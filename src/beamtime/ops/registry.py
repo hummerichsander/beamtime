@@ -864,7 +864,7 @@ METHODS = [
         params=DataParams,
         impl=f"{R}:data",
         positional=("from_", "key"),
-        summary="Logged tables, images (as file references) and text of a key.",
+        summary="Logged tables, images and text of a key.",
     ),
     Op(
         name="file",

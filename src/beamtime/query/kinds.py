@@ -503,6 +503,11 @@ def data_kind(ctx: Context, q: m.Data) -> dict[str, Any]:
     by_run: dict[str, list] = defaultdict(list)
     for run_id, step, record in rows:
         by_run[run_id].append((step, json.loads(record)))
+    steps = sorted({step for _, step, _ in rows})
+    extra = {"steps": steps}
+    if q.clock is not None:
+        check_known(ctx, [parse_field(f"metric.{q.clock}.last")], q.hidden)
+        extra["clocks"] = data_clocks(ctx, list(by_run), q.clock, steps)
     entries = []
     for run_id, items in by_run.items():
         match q.step:
@@ -524,8 +529,30 @@ def data_kind(ctx: Context, q: m.Data) -> dict[str, Any]:
         "kind": "data",
         "key": q.key,
         "entries": entries[:limit],
-        "meta": meta(ctx, matched=len(runs), entries=len(entries), cut=len(entries) > limit),
+        "meta": meta(
+            ctx, matched=len(runs), entries=len(entries), cut=len(entries) > limit, **extra
+        ),
     }
+
+
+def data_clocks(
+    ctx: Context, run_ids: list[str], clock: str, steps: list[int]
+) -> list[float | None]:
+    """Read a metric's value at each step, from the first run that has one there.
+
+    :param ctx: The query context.
+    :param run_ids: The runs that logged the key.
+    :param clock: The metric.
+    :param steps: The steps.
+    :return: One value per step; ``None`` where no run logged the clock at or before it."""
+    values: list[float | None] = [None] * len(steps)
+    for run_id in run_ids:
+        cols = Columns(index=ctx.index, run_id=run_id, ingested=ctx.ingested)
+        values = [
+            v if v is not None else w
+            for v, w in zip(values, x_values(cols, clock, steps), strict=True)
+        ]
+    return values
 
 
 def data_entry(run_id: str, run_dir: Path, record: dict[str, Any]) -> dict[str, Any]:

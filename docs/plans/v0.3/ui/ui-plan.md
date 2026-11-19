@@ -251,7 +251,7 @@ asks `series {y: [live/new]}` and fails today.
    the selected fields. `answers.merged`: `running` joins `matched`, `groups`, `means`.
 4. 03-index.md: one line under `series` (meta `running`) and one under Query language (live keys count as known).
 
-### Q32. The data answer lists its steps and their clock values (sonnet) — code
+### Q32. The data answer lists its steps and their clock values (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/query/models.py` (`Data` 143–148: new `clock: str | None = None`),
   `src/beamtime/query/kinds.py` (`data_kind` 476–528: meta `steps`, `clocks`), `src/beamtime/ops/answers.py`

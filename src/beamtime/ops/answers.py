@@ -305,6 +305,16 @@ class Data(Bare):
         :return: The merged answer, without ``meta``."""
         first = dict(answers[0][1])
         first["entries"] = [x for _, a in answers for x in a.get("entries", [])]
+        metas = [a.get("meta", {}) for _, a in answers]
+        steps = sorted({s for m in metas for s in m.get("steps", [])})
+        first["meta"] = {**first.get("meta", {}), "steps": steps}
+        if any("clocks" in m for m in metas):
+            at: dict[int, float] = {}
+            for m in metas:
+                for s, c in zip(m.get("steps", []), m.get("clocks", []), strict=True):
+                    if c is not None:
+                        at.setdefault(s, c)
+            first["meta"]["clocks"] = [at.get(s) for s in steps]
         return first
 
 

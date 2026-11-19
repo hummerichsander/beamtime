@@ -181,6 +181,21 @@ def test_logged_files_of_remote_runs(box: Path, ctx: Context) -> None:
     assert content == (run_dir / e["path"]).read_bytes()
 
 
+def test_data_steps_of_two_sources_merge(box: Path, ctx: Context) -> None:
+    """Both sources' entries come back, with one sorted list of steps and one clock value per step."""
+    from beamtime.ops.answers import merged
+
+    answer = call("data", {"from": ".", "key": "samples", "clock": "train/loss"}, ctx)
+    assert answer["meta"]["steps"] == [0, 1999] and len(answer["meta"]["clocks"]) == 2
+    assert {e["run"] for e in answer["entries"]} >= {e["run"] for e in call(
+        "data", {"from": f"@box/{SWEEP}", "key": "samples"}, ctx
+    )["entries"]}  # fmt: skip
+    here = {"entries": [], "meta": {"steps": [0, 500], "clocks": [None, 2.0]}}
+    there = {"entries": [], "meta": {"steps": [500, 900], "clocks": [3.0, 4.0]}}
+    both = merged("data", [(".", here), ("@box", there)], {}, "cli")["meta"]
+    assert both["steps"] == [0, 500, 900] and both["clocks"] == [None, 2.0, 4.0]
+
+
 HUNG = """
 import json, sys
 for line in sys.stdin:

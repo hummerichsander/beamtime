@@ -555,6 +555,55 @@ def test_data_kinds(ask) -> None:
     assert {e["step"] for e in window["entries"]} == {0}
 
 
+def test_data_steps(ask) -> None:
+    """The answer lists every logged step; the entries stay those of the asked step."""
+    last = ask({"data": {"from": "scaling/lr-sweep", "key": "samples"}})
+    assert last["meta"]["steps"] == [0, 1999] and "clocks" not in last["meta"]
+    assert {e["step"] for e in last["entries"]} == {1999}
+    first = ask({"data": {"from": "scaling/lr-sweep", "key": "samples", "step": 0}})
+    assert first["meta"]["steps"] == [0, 1999]
+    assert {e["step"] for e in first["entries"]} == {0}
+
+
+def test_data_clocks(ask) -> None:
+    """With a clock, the answer carries the clock's value at each step."""
+    q = {"from": "scaling/lr-sweep", "key": "samples", "clock": "train/loss"}
+    a = ask({"data": q})
+    assert len(a["meta"]["clocks"]) == len(a["meta"]["steps"]) == 2
+    assert all(isinstance(c, float) for c in a["meta"]["clocks"])
+    assert ask({"data": q | {"step": 0}})["meta"]["clocks"] == a["meta"]["clocks"]
+
+
+def test_data_unknown_clock(ask) -> None:
+    """A clock no run has is refused with suggestions, not answered with nulls."""
+    with pytest.raises(QueryError, match="train/loss"):
+        ask({"data": {"from": "scaling/lr-sweep", "key": "samples", "clock": "train/lsos"}})
+
+
+def test_data_steps_union(tmp_path: Path) -> None:
+    """Runs logging at different steps list the union; a clock is null before its first value."""
+    from beamtime.format.io import json_line
+
+    logdir = tmp_path / "beamtime"
+    roles = generate(logdir, seed=0, now=datetime.now(timezone.utc)).roles
+    run_dir = next(logdir.glob(f"**/{roles['running']}"))
+    record = {
+        "_step": 1000,
+        "_t": 1.0,
+        "key": "grads/layer3",
+        "kind": "table",
+        "columns": {"a": [1]},
+    }
+    (run_dir / "_data.jsonl").write_bytes(json_line(record))
+    with (run_dir / "_metrics.jsonl").open("ab") as f:
+        f.write(json_line({"_step": 1000, "_t": 1.0, "late": 7.0}))
+    query = {"data": {"from": "scaling", "key": "grads/layer3", "clock": "late"}}
+    a = ask_live(tmp_path, logdir, query)
+    assert a["meta"]["steps"] == [0, 1000, 1999]
+    assert a["meta"]["clocks"] == [None, 7.0, 7.0]
+    assert {e["step"] for e in a["entries"]} == {1000, 1999}
+
+
 def test_timeline(ask, roles) -> None:
     """Notes and events in time order, filtered by type; bodies on request."""
     a = ask(

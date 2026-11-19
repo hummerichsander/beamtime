@@ -532,7 +532,12 @@ series:
 data: {from: ., key: val/per_class, step: last}   # last | all | a step | [start, end]
 ```
 
-Tables come back as columns, images and text as references the UI or agent can load.
+Tables come back as columns, images and text as references the UI or agent can load. The entries are
+those of the asked step, so a page loads one step's files at a time; `meta.steps` lists every step at
+which a run in scope logged the key (the union over runs, ascending), whatever `step` asks. With
+`clock: <metric>` (an unknown metric is refused like any other), `meta.clocks` has the metric's value
+at each of those steps (`read.x_values`: its most recent value at or before the step, from the first
+run that has one; `null` where no run does). Merged answers union the `steps` and merge `clocks` by step.
 
 **`timeline`**: notes and run events in time order.
 

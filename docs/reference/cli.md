@@ -57,7 +57,7 @@ beamtime runs [from]
 | `--depth` | `all` | all, a number |
 | `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
 | `--hidden` | `False` | include hidden (test) runs |
-| `--select` |  | fields such as run.name, config.lr, metric.val/acc.max |
+| `--select` |  | fields, e.g. run.name, config.lr, metric.val/acc.max |
 | `--sort` |  | fields; a leading - sorts descending |
 | `--limit` |  | a number |
 | `--by` |  | one row per value of these fields, e.g. config.lr |
@@ -97,7 +97,7 @@ beamtime series [from]
 
 ### `beamtime data`
 
-Logged tables, images (as file references) and text of a key.
+Logged tables, images and text of a key.
 
 ```sh
 beamtime data [from] <key>
@@ -110,6 +110,7 @@ beamtime data [from] <key>
 | `--hidden` | `False` | include hidden (test) runs |
 | `--step` | `last` | last, all, a number |
 | `--limit` |  | a number |
+| `--clock` |  |  |
 
 ### `beamtime file`
 
