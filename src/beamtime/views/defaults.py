@@ -2,6 +2,7 @@
 authored view, and written out as one when a draft starts from it."""
 
 import re
+from collections import Counter
 from typing import Any
 
 from beamtime.format.ids import is_run_id
@@ -11,7 +12,6 @@ from beamtime.views import model as m
 from beamtime.views.settings import LOWER_IS_BETTER, SEEDS_FIELD
 
 OPEN_SECTIONS = 2
-SEED_GROUPING_ABOVE = 8
 TABLE_LIMIT = 100
 RECENT = 10
 NOTES = 3
@@ -85,10 +85,11 @@ def group_body(ctx: Context, path: str, pins: list[dict[str, Any]]) -> list[m.Bl
         own = direct < runs
         own_keys = call("keys", {"from": path, "depth": 1}, ctx) if own else keys
         seed = keys["config"].get("seed")
-        many = seed is not None and direct > SEED_GROUPING_ABOVE
+        merged = seed is not None and merges_seeds(ctx, path, varying, own, seed)
+        color = None if merged else swept(varying, seed)
         metrics = ordered_metrics(own_keys)
         main = [p["y"] for p in pins if p["y"] in metrics]
-        body += curves(metrics, seed if many else None, own, main)
+        body += curves(metrics, seed if merged else None, own, main, color)
         if varying:
             body.append(m.Config(id="hyperparameters", title="Hyperparameters"))
         code = ["run.code"] if keys.get("codes") else []
@@ -114,6 +115,35 @@ def group_body(ctx: Context, path: str, pins: list[dict[str, Any]]) -> list[m.Bl
         columns = ["run.name", "run.status", "run.group", "run.created_at"]
         body.append(m.Table(id="runs", title="Recent runs", columns=columns, limit=RECENT))
     return [*body, *record(run=False)]
+
+
+def merges_seeds(ctx: Context, path: str, varying: list[str], own: bool, seed: str) -> bool:
+    """Decide whether a group's curves average over seeds: some arm has two or more seeds.
+
+    :param ctx: The operation context.
+    :param path: The group.
+    :param varying: The group's varying config keys.
+    :param own: Whether only the runs directly in the group count.
+    :param seed: The group's seed key.
+    :return: Whether runs sharing every other varying key exist, at least twice."""
+    if seed not in varying:
+        return False
+    others = [k for k in varying if k != seed]
+    query = {"from": path, "depth": 1 if own else "all", "select": others, "limit": 10000}
+    rows = call("runs", query, ctx)["rows"]
+    # the answer's first column is the run id; an arm is what the other columns share.
+    arms = Counter(repr(row[1:]) for row in rows)
+    return max(arms.values(), default=0) >= 2
+
+
+def swept(varying: list[str], seed: str | None) -> str | None:
+    """Find the one config key a group sweeps, the key its charts are colored by.
+
+    :param varying: The group's varying config keys.
+    :param seed: The group's seed key, which never colors.
+    :return: The key, or ``None`` unless exactly one key other than the seed varies."""
+    others = [k for k in varying if k != seed]
+    return others[0] if len(others) == 1 else None
 
 
 def record(*, run: bool) -> list[m.Block]:
@@ -219,13 +249,16 @@ def count(ctx: Context, path: str, depth: Any) -> int:
     return call("runs", query, ctx)["meta"]["matched"]
 
 
-def curves(metrics: list[str], seeds: str | None, own: bool, main: list[str]) -> list[m.Block]:
+def curves(
+    metrics: list[str], seeds: str | None, own: bool, main: list[str], color: str | None = None
+) -> list[m.Block]:
     """Make one chart per metric, in sections by metric prefix.
 
     :param metrics: The metrics, ordered.
     :param seeds: ``config.seed`` to average over seeds, or ``None``.
     :param own: Whether to show only the runs directly in the group.
     :param main: The pinned metrics, in order.
+    :param color: The config key to color curves by, or ``None``; never for system metrics.
     :return: The sections: ``Main`` (the pinned metrics again, open; their charts there are
         ``pin-<metric>``), evaluation, training, the other prefixes (each its own section, even of
         one metric), ``Other`` (unprefixed metrics only), then ``System``; the first two of those
@@ -237,21 +270,22 @@ def curves(metrics: list[str], seeds: str | None, own: bool, main: list[str]) ->
     for k in metrics:
         groups.setdefault(prefix(k), []).append(k)
     order = sorted(groups, key=section_rank)
-    # system metrics are per machine, never averaged over seeds.
+
+    def chart(k: str, id_: str | None = None) -> m.Line:
+        # system metrics are per machine, never averaged over seeds or colored by a config key.
+        system = prefix(k) == SYSTEM
+        return line(k, None if system else seeds, own, id_, None if system else color)
+
     if len(order) == 1 and not pinned:
-        by = None if order == [SYSTEM] else seeds
-        return [m.Grid(id="curves", children=[line(k, by, own) for k in metrics])]
+        return [m.Grid(id="curves", children=[chart(k) for k in metrics])]
     # Main's ids start with neither ``charts-`` nor ``line-``, so no metric or prefix can collide.
     sections = []
     if pinned:
-        charts = [
-            line(k, seeds if prefix(k) != SYSTEM else None, own, f"pin-{m.slug(k)}") for k in pinned
-        ]
+        charts = [chart(k, f"pin-{m.slug(k)}") for k in pinned]
         sections.append(("Main", "main", charts, True))
     for i, name in enumerate(order):
         title = {"": "Other", SYSTEM: "System"}.get(name, name)
-        by = None if name == SYSTEM else seeds
-        charts = [line(k, by, own) for k in groups[name]]
+        charts = [chart(k) for k in groups[name]]
         opened = i < OPEN_SECTIONS and name != SYSTEM
         sections.append((title, f"charts-{m.slug(name or 'unprefixed')}", charts, opened))
     out: list[m.Block] = []
@@ -276,16 +310,23 @@ def section_rank(name: str) -> int:
     return 0 if name in EVAL_PREFIXES else 1 if name in TRAIN_PREFIXES else 2
 
 
-def line(metric: str, seeds: str | None, own: bool, id_: str | None = None) -> m.Line:
+def line(
+    metric: str, seeds: str | None, own: bool, id_: str | None = None, color: str | None = None
+) -> m.Line:
     """Make the line block of one metric.
 
     :param metric: The metric key.
     :param seeds: ``config.seed`` to average over seeds, or ``None`` for one curve per run.
     :param own: Whether to show only the runs directly in the group.
     :param id_: The block's id; ``line-<metric>`` without.
+    :param color: The config key to color curves by, or ``None``.
     :return: The block."""
     return m.Line(
-        id=id_ or f"line-{m.slug(metric)}", y=metric, seeds=seeds, depth=1 if own else "all"
+        id=id_ or f"line-{m.slug(metric)}",
+        y=metric,
+        seeds=seeds,
+        color=color,
+        depth=1 if own else "all",
     )
 
 

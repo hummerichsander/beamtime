@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -1198,6 +1199,89 @@ def test_default_view_merges_on_the_groups_seed_key(ctx: Context) -> None:
     ]
     assert {n.seeds for n in lines("nested")} == {"config.trainer.seed"}
     assert {n.seeds for n in lines("two")} == {None}
+
+
+def make_group(ctx: Context, group: str, configs: list[dict[str, Any]], nested: str = "") -> None:
+    """Write one finished run with a ``val/acc`` metric per config into a group.
+
+    :param ctx: The operation context.
+    :param group: The group below the log dir.
+    :param configs: One config per run.
+    :param nested: A subgroup of the group to write the runs into; empty for the group itself."""
+    import json
+
+    from beamtime.format import constants as c
+    from beamtime.format.io import write_replaced
+    from beamtime.synth.summary import card_and_preview
+    from tests.query.test_code import make_run
+
+    rows = [{"_step": s, "_t": float(s), "val/acc": 0.1 * s} for s in range(3)]
+    for config in configs:
+        run_dir = make_run(ctx.logdir, f"{group}/{nested}".rstrip("/"), git={}, proposals={})
+        write_replaced(run_dir / c.CONFIG, {"schema": 1, **config})
+        card, preview = card_and_preview(rows, status="finished", duration_s=1.0)
+        write_replaced(run_dir / c.CARD, card)
+        write_replaced(run_dir / c.PREVIEW, preview)
+        (run_dir / c.METRICS).write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+
+def charts_of(ctx: Context, group: str) -> list[m.Line]:
+    """List the line blocks of a group's default view.
+
+    :param ctx: The operation context.
+    :param group: The group below the log dir.
+    :return: The charts."""
+    return [n for n in m.walk(default_view(ctx, group).body) if isinstance(n, m.Line)]
+
+
+def test_two_arms_of_four_seeds_merge(ctx: Context) -> None:
+    """Eight runs in two arms of four seeds average over seeds; the arms stay apart."""
+    make_group(ctx, "arms", [{"lr": lr, "seed": s} for lr in (0.1, 0.2) for s in range(4)])
+    charts = charts_of(ctx, "arms")
+    assert {n.seeds for n in charts} == {"config.seed"} and {n.color for n in charts} == {None}
+
+
+def test_two_runs_differing_in_seed_merge(ctx: Context) -> None:
+    """A group of two runs that differ only in their seed averages over it."""
+    make_group(ctx, "pair", [{"lr": 0.1, "seed": s} for s in range(2)])
+    assert {n.seeds for n in charts_of(ctx, "pair")} == {"config.seed"}
+
+
+def test_one_seed_per_arm_does_not_merge(ctx: Context) -> None:
+    """Twelve runs whose every arm has a single seed show one curve per run."""
+    make_group(ctx, "single", [{"lr": 0.1 * (s + 1), "seed": s} for s in range(12)])
+    assert {n.seeds for n in charts_of(ctx, "single")} == {None}
+
+
+def test_aliased_seed_does_not_merge(ctx: Context) -> None:
+    """A seed that splits the runs like another key is an alias and not a varying key."""
+    make_group(ctx, "alias", [{"lr": 0.1 * s, "seed": s} for s in range(4)])
+    assert {n.seeds for n in charts_of(ctx, "alias")} == {None}
+
+
+def test_arms_count_own_runs(ctx: Context) -> None:
+    """Seeds of subgroup runs do not make the group's own runs merge."""
+    make_group(ctx, "own", [{"lr": 0.1 * (s + 1), "seed": s} for s in range(3)])
+    make_group(ctx, "own", [{"lr": 0.5, "seed": s} for s in range(2)], nested="sub")
+    assert {n.seeds for n in charts_of(ctx, "own") if n.depth == 1} == {None}
+
+
+def test_a_sweep_colors_its_charts_by_the_swept_key(ctx: Context) -> None:
+    """A three-value lr sweep without seeds colors every metric chart, never System, by lr."""
+    make_group(ctx, "sweep", [{"lr": lr} for lr in (0.1, 0.2, 0.3)])
+    assert {n.color for n in charts_of(ctx, "sweep")} == {"config.lr"}
+    from beamtime.views.defaults import curves
+
+    out = curves(["val/acc", "sys/cpu"], None, False, [], "config.lr")
+    assert {c.y: c.color for s in out for c in s.children[0].children} == {
+        "val/acc": "config.lr", "sys/cpu": None,
+    }  # fmt: skip
+
+
+def test_two_swept_keys_no_color(ctx: Context) -> None:
+    """Two varying keys other than the seed leave the colors to the viewer."""
+    make_group(ctx, "grid", [{"lr": lr, "wd": wd} for lr in (0.1, 0.2) for wd in (0, 1)])
+    assert {n.color for n in charts_of(ctx, "grid")} == {None}
 
 
 @pytest.mark.parametrize(

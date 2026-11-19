@@ -480,7 +480,9 @@ Decided while building the shell (milestone M5):
 - **The built-in default view** is built on the server as a view and compiled to a block tree
   (`{block, id, props, data, children}`, where `data` names API calls) like authored views. A
   group with runs of its own gets one chart per metric, in sections by metric prefix (averaged over
-  the group's seed key (`keys` `config.seed`) beyond eight runs, except the system metrics). The
+  the group's seed key (`keys` `config.seed`) when some arm, the runs sharing every other varying
+  key, has two or more seeds; otherwise one curve per run, colored by the one varying key other than
+  the seed when there is exactly one; the system metrics are neither averaged nor colored). The
   prefix is the text before the first `/`; after a known prefix (`val`, `valid`, `validation`,
   `eval`, `test`, `train`, `training`, case-insensitive) `.` and `_` separate too (`val_loss`,
   `val.acc` and `val/f1` share `val`). The sections: `Main` (the pinned metrics, below),

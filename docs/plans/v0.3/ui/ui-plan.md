@@ -306,7 +306,7 @@ asks `series {y: [live/new]}` and fails today.
    and `val.` work for the known prefixes." quickstart.md: log `"train/energy"` in the example.
 5. 07-web-ui.md: the sections sentence without "prefixes of one metric", with the separators.
 
-### D33. Seeds merge by arms; the swept key colors (sonnet + review) — code
+### D33. Seeds merge by arms; the swept key colors (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/views/defaults.py` (`SEED_GROUPING_ABOVE` 14 removed, `group_body` 73–120, new
   `merges_seeds` and `swept`, `curves`/`line` 220–283: a `color` argument), `tests/views/test_views.py`,
