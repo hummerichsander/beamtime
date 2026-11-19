@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { fieldTitle, xTitle, yTitle } from "../src/bt/axes.ts";
+import { fieldTitle, isClock, xTitle, yTitle } from "../src/bt/axes.ts";
 
 const metrics = { "val/loss": { label: "Validation loss", unit: "nats" }, "val/acc": {} };
 
@@ -9,6 +9,13 @@ test("x is a clock by name or a metric by label", () => {
   assert.deepEqual(["_step", "epoch", "_t", "_elapsed"].map((x) => xTitle(x, metrics)), ["step", "epoch", "wall time", "elapsed"]);
   assert.equal(xTitle("val/loss", metrics), "Validation loss (nats)");
   assert.equal(xTitle("grad_norm", metrics), "grad_norm");
+});
+
+test("a logged clock is titled by its leaf and is a clock only as a whole leaf", () => {
+  assert.equal(xTitle("train/epoch", metrics), "epoch");
+  assert.equal(xTitle("trainer.global_step", metrics), "global_step");
+  assert.deepEqual(["step", "train/epoch", "trainer.global_step", "iter"].map(isClock), [true, true, true, true]);
+  assert.deepEqual(["step_size", "iteration_ms", "epoch_time", "steps_per_s"].map(isClock), [false, false, false, false]);
 });
 
 test("y is one metric, the path several share, or nothing", () => {

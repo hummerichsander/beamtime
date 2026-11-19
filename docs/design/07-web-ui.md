@@ -389,8 +389,8 @@ Line charts behave like W&B's panels:
   run in the table and legends; an aggregated curve matches by its group and by the runs in it.
   Each curve answers with its own nearest point (within a few pixels beyond its ends), so runs logged
   at different times, as on an elapsed or wall-time axis, all show.
-- **Axes**: every chart titles both axes: a clock by name (`step`, `epoch`, `wall time`, `elapsed`),
-  else the metric's label and unit from the view's `metrics`; several metrics share the path they have
+- **Axes**: every chart titles both axes: a clock by name (`step`, `wall time`, `elapsed`) or by its
+  leaf (`train/epoch` is `epoch`), else the metric's label and unit from the view's `metrics`; several metrics share the path they have
   in common, or get no y title. A view's `xlabel` and `ylabel` replace these until the viewer picks
   another x axis or other metrics. The y axis is as wide as its widest tick label; wall-time ticks
   fall on round clock times and show dates for ranges beyond a day.
@@ -538,8 +538,10 @@ Decided while building the shell (milestone M5):
   **Pinning keeps the viewer's place.** The page keeps showing the old answer while the one for the
   new pins loads (no skeleton, no scroll restore), and holds the chart clicked where it was on
   screen while the Main section, "Save as view" and the header's best appear above it, until the
-  viewer scrolls. Clocks (`epoch` and the
-  global step) are an x axis and a progress fact, so they get no chart. After the charts: the run
+  viewer scrolls. Clocks (a metric whose
+  last segment after `/` or `.` is `epoch`, `step`, `global_step`, `iteration` or `iter`, the whole
+  segment: `steps_per_s` and `step_size` are not) are an x axis and a progress fact, so they get no
+  chart; `run.progress` stays on the exact `epoch` metric. After the charts: the run
   table (name, status, a progress column when the group logs `epoch`, varying
   config, the pinned metrics, a sparkline of the first), its memory
   and its latest notes. A group whose runs all live in subgroups gets its groups and the recent runs

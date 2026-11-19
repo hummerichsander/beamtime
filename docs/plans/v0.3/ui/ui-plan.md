@@ -328,7 +328,7 @@ asks `series {y: [live/new]}` and fails today.
    passed through `curves` to `line` (`m.Line(color=...)`), never for System charts.
 3. 07-web-ui.md: "averaged over `config.seed` when some arm has two or more seeds"; one line on the color.
 
-### D32. Clocks by leaf name (sonnet) — code
+### D32. Clocks by leaf name (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/views/defaults.py` (`CLOCKS` 23 → `CLOCK_LEAVES`, new `is_clock`; uses at 56,
   232), `src/beamtime/guide/__init__.py` (274–284), `src/beamtime/views/settings.py` (`generated_ts` 105–116:

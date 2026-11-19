@@ -5,6 +5,7 @@ import { html } from "htm/preact";
 import { useState } from "preact/hooks";
 
 import { useCall } from "../api.ts";
+import { isClock, xTitle } from "../bt/axes.ts";
 import { label } from "../bt/fmt.ts";
 import { colorOptions } from "../bt/chart-settings.ts";
 import { setChart, setView, type ChartPrefs, type Effective } from "../bt/prefs.ts";
@@ -16,15 +17,13 @@ import { Popover } from "../ui/primitives.ts";
 
 export const X_AXES = [
   ["_step", "step"],
-  ["epoch", "epoch"],
   ["_t", "wall time"],
   ["_elapsed", "elapsed"],
 ] as const;
 
-// the x axes on offer: the progress clocks (epoch only when logged), then every other metric.
+// the x axes on offer: the step, the logged clocks, wall time and elapsed, then every other metric.
 function xGroups(metrics: string[]): [string, string[]][] {
-  const clocks = X_AXES.filter(([k]) => k !== "epoch" || metrics.includes("epoch")).map(([k]) => k);
-  return [["Progress", clocks], ["Metrics", metrics.filter((k) => !clocks.includes(k as never))]];
+  return [["Progress", ["_step", ...metrics.filter(isClock), "_t", "_elapsed"]], ["Metrics", metrics.filter((k) => !isClock(k))]];
 }
 
 export type Field = "metrics" | "x" | "steps" | "runs" | "band" | "color" | "colormap" | "smooth" | "scale" | "range" | "outliers" | "legend" | "markers";
@@ -65,7 +64,7 @@ const FIELDS: Record<Field, (c: Context) => unknown> = {
   x: ({ prefs, metrics, set, setAll }) => html`
     <span class="field-label">x axis</span>
     <${MultiSelect} single groups=${xGroups(metrics)} labels=${Object.fromEntries(X_AXES)} value=${[prefs.x]} label="x axis"
-      placeholder=${Object.fromEntries(X_AXES)[prefs.x] ?? prefs.x} onChange=${(v: string[]) => set({ x: v[0] })} />
+      placeholder=${xTitle(prefs.x, {})} onChange=${(v: string[]) => set({ x: v[0] })} />
     <span></span>
     <button type="button" class="link small" onClick=${() => setAll({ x: prefs.x })}>Use this x axis on all charts on this page</button>`,
 

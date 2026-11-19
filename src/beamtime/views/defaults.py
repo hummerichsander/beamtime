@@ -9,7 +9,7 @@ from beamtime.format.ids import is_run_id
 from beamtime.ops import call
 from beamtime.ops.context import Context
 from beamtime.views import model as m
-from beamtime.views.settings import LOWER_IS_BETTER, SEEDS_FIELD
+from beamtime.views.settings import CLOCK_LEAVES, LOWER_IS_BETTER, SEEDS_FIELD
 
 OPEN_SECTIONS = 2
 TABLE_LIMIT = 100
@@ -20,7 +20,6 @@ TRAIN_PREFIXES = ("train", "training")
 KNOWN_PREFIXES = EVAL_PREFIXES + TRAIN_PREFIXES
 # the SDK's system metrics: their own collapsed section, last.
 SYSTEM = "sys"
-CLOCKS = ("epoch", "global_step", "trainer/global_step")
 EMPTY = (
     "No runs here yet. Runs appear once a script calls beamtime.init() with this group as its dir."
 )
@@ -53,7 +52,7 @@ def pins_of(
 
     run_id = path.rsplit("/", 1)[-1]
     keys = call("keys", {"from": run_id if is_run_id(run_id) else path}, ctx)
-    metrics = [k for k in ordered_metrics(keys) if k not in CLOCKS]
+    metrics = [k for k in ordered_metrics(keys) if not is_clock(k)]
     if given is None:
         group = (path.rsplit("/", 1)[0] if "/" in path else ".") if is_run_id(run_id) else path
         given = [{"y": y, "higher": not lower_is_better(y)} for y in predicted(ctx, group, metrics)]
@@ -266,7 +265,7 @@ def curves(
         one metric), ``Other`` (unprefixed metrics only), then ``System``; the first two of those
         open. A single section without pins is a plain grid. Clocks (``epoch``) get no chart: they
         are an x axis and a progress fact."""
-    metrics = [k for k in metrics if k not in CLOCKS]
+    metrics = [k for k in metrics if not is_clock(k)]
     pinned = [k for k in main if k in metrics]
     groups: dict[str, list[str]] = {}
     for k in metrics:
@@ -359,6 +358,14 @@ def lower_is_better(metric: str) -> bool:
     leaf = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", leaf)
     leaf = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", leaf)
     return any(word in LOWER_IS_BETTER for word in re.split(r"[_.\-/]+", leaf.lower()))
+
+
+def is_clock(metric: str) -> bool:
+    """Tell whether a metric is a clock: its leaf (after ``/`` or ``.``) is a clock name.
+
+    :param metric: E.g. ``train/epoch`` or ``trainer.global_step``; not ``step_size``.
+    :return: ``True`` for a clock."""
+    return re.split(r"[/.]", metric)[-1] in CLOCK_LEAVES
 
 
 def prefix(metric: str) -> str:

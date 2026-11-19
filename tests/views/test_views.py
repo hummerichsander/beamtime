@@ -708,6 +708,25 @@ def test_prefix_needs_a_separator() -> None:
         assert prefix(name) == ""
 
 
+def test_clock_is_the_whole_leaf() -> None:
+    """A clock is a metric whose last segment after ``/`` or ``.`` is a clock name, nothing longer."""
+    from beamtime.views.defaults import is_clock
+
+    for name in ("epoch", "train/epoch", "step", "trainer.global_step", "iter", "a/b.iteration"):
+        assert is_clock(name)
+    for name in ("steps_per_s", "epoch_time", "step_size", "iteration_ms", "val/loss", "lr_step"):
+        assert not is_clock(name)
+
+
+def test_clocks_get_no_chart() -> None:
+    """Clocks by leaf name make no chart; throughput and epoch time still do."""
+    from beamtime.views.defaults import curves
+
+    metrics = ["train/epoch", "step", "trainer.global_step", "iter", "steps_per_s", "epoch_time"]
+    (grid,) = curves(metrics, None, False, [])
+    assert [c.y for c in grid.children] == ["steps_per_s", "epoch_time"]
+
+
 def test_ordered_metrics_ranks_by_prefix() -> None:
     """Validation first, then test, train, other prefixes and unprefixed metrics."""
     from beamtime.views.defaults import ordered_metrics

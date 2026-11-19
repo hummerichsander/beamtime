@@ -291,8 +291,8 @@ def values_of(ctx: Context, group: str) -> dict[str, str]:
     :param group: A group or run.
     :return: Placeholder values; empty where the group has nothing fitting."""
     from beamtime.views.defaults import (
-        CLOCKS,
         EVAL_PREFIXES,
+        is_clock,
         lower_is_better,
         ordered_metrics,
         prefix,
@@ -301,7 +301,7 @@ def values_of(ctx: Context, group: str) -> dict[str, str]:
 
     keys = remote_answer("keys", {"from": group}, ctx)
     metrics = ordered_metrics(keys)
-    plain = [k for k in metrics if k not in CLOCKS]
+    plain = [k for k in metrics if not is_clock(k)]
     evals = [k for k in plain if prefix(k) in EVAL_PREFIXES]
     main = proposed(ctx, group, metrics) or (evals or plain or [""])[0]
     lower = lower_is_better(main)

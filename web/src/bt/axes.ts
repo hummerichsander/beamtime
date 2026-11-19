@@ -1,11 +1,12 @@
 // The titles a chart's axes get when its view doesn't write them.
 
+import { CLOCK_LEAVES } from "./chart-defaults.ts";
 import { label } from "./fmt.ts";
 import type { MetricInfo } from "./index.ts";
 
 type Metrics = Record<string, MetricInfo>;
 
-const CLOCKS: Record<string, string> = { _step: "step", epoch: "epoch", _t: "wall time", _elapsed: "elapsed" };
+const CLOCKS: Record<string, string> = { _step: "step", _t: "wall time", _elapsed: "elapsed" };
 
 // a metric as its label and unit from the view's `metrics`, else its key.
 export function metricTitle(key: string, metrics: Metrics): string {
@@ -13,9 +14,14 @@ export function metricTitle(key: string, metrics: Metrics): string {
   return `${info?.label ?? key}${info?.unit ? ` (${info.unit})` : ""}`;
 }
 
-// the x axis: a clock by name, else the metric that is x.
+// a logged clock (`train/epoch`, `trainer.global_step`) is a metric whose leaf is a clock name.
+export function isClock(key: string): boolean {
+  return (CLOCK_LEAVES as readonly string[]).includes(key.split(/[/.]/).at(-1) ?? "");
+}
+
+// the x axis: a clock by name or leaf, else the metric that is x.
 export function xTitle(x: string, metrics: Metrics): string {
-  return CLOCKS[x] ?? metricTitle(x, metrics);
+  return CLOCKS[x] ?? (isClock(x) ? x.split(/[/.]/).at(-1)! : metricTitle(x, metrics));
 }
 
 // the y axis: one metric by its title, several by the path they share, or none.

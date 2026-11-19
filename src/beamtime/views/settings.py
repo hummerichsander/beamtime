@@ -10,6 +10,8 @@ from beamtime.format.schema import SchemaError
 from beamtime.views import model as m
 
 SEEDS_FIELD = "config.seed"
+# the last segment of a metric that makes it a clock: an x axis and a progress fact, not a chart.
+CLOCK_LEAVES = ("epoch", "step", "global_step", "iteration", "iter")
 LOWER_IS_BETTER = (
     "loss",
     "losses",
@@ -128,6 +130,7 @@ def generated_ts() -> str:
         "// Beamtime: generated from views/settings.py by scripts/build-chart-defaults. "
         "Do not edit by hand.\n"
         f"export const SEEDS_FIELD = {json.dumps(SEEDS_FIELD)};\n"
+        f"export const CLOCK_LEAVES = {json.dumps(list(CLOCK_LEAVES))};\n"
         f"export const LOWER_IS_BETTER = {json.dumps(list(LOWER_IS_BETTER))};\n"
         f"export const DEFAULTS = {{\n  line: {{\n{line},\n  }},\n}} as const;\n"
     )
