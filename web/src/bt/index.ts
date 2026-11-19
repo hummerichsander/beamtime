@@ -4,7 +4,7 @@ import { createContext, type RefObject } from "preact";
 import { useContext, useEffect, useRef, useState } from "preact/hooks";
 
 import { type Call, type Result, useCall } from "../api.ts";
-import { recording } from "../router.ts";
+import { rendering } from "../router.ts";
 import { Store, stored, store, useStore } from "../state.ts";
 import type { Pin } from "./prefs.ts";
 import { assignColors, paint, palette, type Mode, type Pair, type Theme } from "./theme.ts";
@@ -91,9 +91,10 @@ export function runColors(ids: string[], t: Theme | null): Map<string, string> {
   return assignColors(ids, t ? palette(t) : ["#2f5fc4"]);
 }
 
+// a render or screenshot mounts every block: it can't scroll, and a lower chart would stay blank.
 export function useVisible(margin = "200px"): [RefObject<HTMLDivElement>, boolean] {
   const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(recording);
+  const [visible, setVisible] = useState(rendering);
   useEffect(() => {
     if (visible || !ref.current) return;
     const io = new IntersectionObserver(

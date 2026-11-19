@@ -205,7 +205,8 @@ can hand users a link to exactly the view or run they talk about.
 - **Markdown** for notes and memory through `marked`, with raw HTML shown as text and KaTeX for
   math; both load on first use.
 - **Lazy rendering**: blocks render when they scroll into view; custom-block iframes are created
-  then too.
+  then too. The exception is a render or screenshot (`?render=1`): it can't scroll, so every chart and
+  custom block mounts at once; folded sections stay as saved.
 
 **Backend**
 
@@ -261,6 +262,11 @@ without indexing or watching anything. A small pool of browser pages is kept war
 take a second or two, not a browser start each time. Playwright and its Chromium are part of
 `beamtime[serve]`; the browser is downloaded on first use. Where Chromium cannot run (login nodes
 often lack its system libraries), rendering reports that it was skipped and validation stays static.
+
+The render never scrolls: it mounts every chart and custom block below the first screen at once (the
+page's folds stay as saved; only `record=1`, used by exports, opens them), so no chart is blank in the
+page shot. A table whose block clips its rows shows a `more-rows` line saying how many rows show, so
+the shot never hides rows silently.
 
 ## Static export
 

@@ -1397,3 +1397,57 @@ def test_the_x_axis_follows_the_shown_curves(lengths: str, server: str, page) ->
     page.locator("table.runs tbody tr", has_text="short").locator(".swatch").click()
     page.wait_for_timeout(800)
     assert abs(last_x() - zoomed) < 300, "a zoom is kept when a run is hidden"
+
+
+def table_view(project: Path, group: str, tables: dict[str, int], folded: bool = False, charts: int = 0) -> None:
+    """Save a view of one ``data_table`` per CSV file, with ``n`` rows each, and a folded section if asked.
+
+    :param project: The project root.
+    :param group: The group the view belongs to.
+    :param tables: The tables' names and their row counts.
+    :param folded: Whether to add a section that is saved folded, with a table inside.
+    :param charts: How many line charts to add below the tables."""
+    import yaml
+
+    from beamtime.ops import call
+    from beamtime.ops.context import Context
+
+    ctx = Context.make()
+    call("view new", {"group": group, "name": "tables"}, ctx)
+    body = []
+    for name, n in tables.items():
+        (project / f"{name}.csv").write_text("a,b\n" + "".join(f"{i},{i * i}\n" for i in range(n)))
+        call("view data", {"draft": "tables", "file": f"{name}.csv"}, ctx)
+        body.append({"data_table": {"id": name, "file": f"data/{name}.csv"}})
+    body += [{"line": {"id": f"c{i}", "y": "val/acc"}} for i in range(charts)]
+    if folded:
+        body.append({"section": {"id": "later", "title": "Later", "open": False, "children": [{"data_table": {"id": "inner", "file": f"data/{next(iter(tables))}.csv"}}]}})
+    view = {"schema": 1, "title": "tables", "finding": "x", "body": body}
+    (project / ".beamtime" / "drafts" / "tables" / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    call("view save", {"draft": "tables"}, ctx)
+
+
+def test_a_data_table_says_when_rows_are_hidden(project: Path, server: str, page) -> None:
+    """A table clipped by its block says how many rows show, in a line a screenshot has; one that fits has none."""
+    table_view(project, "scaling/lr-sweep", {"fifteen": 15, "three": 3})
+    base = server.split("/f/local")[0]
+    page.goto(f"{base}/f/local/scaling/lr-sweep?token={server.split('token=')[1]}")
+    page.wait_for_selector('[data-block-id="fifteen"] table')
+    hint = page.locator('[data-block-id="fifteen"] .more-rows')
+    hint.wait_for()
+    assert re.fullmatch(r"\d+ of 15 rows shown, scroll for the rest", hint.inner_text().strip()), hint.inner_text()
+    assert page.locator('[data-block-id="three"] table').count() == 1
+    assert page.locator('[data-block-id="three"] .more-rows').count() == 0
+    wrap = page.locator('[data-block-id="fifteen"] .table-wrap')
+    assert wrap.evaluate("(e) => e.scrollHeight > e.clientHeight"), "the rest stays scrollable"
+
+
+def test_a_render_mounts_every_block_but_keeps_folds(project: Path, server: str, page) -> None:
+    """Under ``render=1`` blocks below the first screen mount without scrolling; a folded section stays folded."""
+    table_view(project, "scaling/lr-sweep", {"fifteen": 15}, folded=True, charts=4)
+    base = server.split("/f/local")[0]
+    page.set_viewport_size({"width": 1280, "height": 300})
+    page.goto(f"{base}/f/local/scaling/lr-sweep?token={server.split('token=')[1]}&render=1")
+    page.wait_for_selector('[data-block-id="fifteen"] table')
+    page.wait_for_selector('[data-block-id="c3"] canvas')
+    assert page.locator('[data-block-id="inner"]').count() == 0, "the folded section stays folded"

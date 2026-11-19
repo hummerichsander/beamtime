@@ -19,5 +19,6 @@ Runs as rows, no lines between them: hovering tints the whole row as one rounded
 - Added: `.table-wrap` (scroll), sticky sorted headers, sparklines, and `.swatch-toggle`, the swatch's button that hides a run in charts.
 - Added: the `progress` column (`run.progress`, the planned epochs done): the percentage, and for a running run a thin accent bar (`.bar` in `td.progress`, `--fraction` 0 to 1) along the cell's bottom edge.
 - `scorecard` (`web/src/blocks/scorecard.ts`) is the same table with one row per value of a field: `td.score` cells show mean and a muted `± std`, tinted by `--shade` (0 to 1, the accent at up to 28 %) by the column's direction, the best bold; a row without runs is muted with a `queued` tag.
+- A `data_table` that its block clips at `max-block-size` (560 px) stays scrollable and says so in one muted `more-rows` line under it: "13 of 15 rows shown, scroll for the rest" (rows fully in view of all rows), joined with the `limit` cut as "13 of 80 rows shown, scroll for the rest of the first 50". A table that fits has no line; the line is what a screenshot, which can't scroll, shows.
 - Cells are inset from the row's tint, and the wrap overhangs the column, so text still lines up down the page.
 - A caption's number comes from a CSS counter: write `<b></b>`, with class `table-caption` on the caption.

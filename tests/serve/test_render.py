@@ -157,6 +157,8 @@ def test_a_tall_page_is_capped_and_names_what_fell_below(browser_ok, ctx: Contex
     file = Path(answer["shots"][0]["file"])
     assert file.suffix == ".jpg"
     assert jpeg_size(file) == (1280, render.SHOT_HEIGHT)
+    assert [f for f in answer["findings"] if f["level"] == "error"] == [], "no blank chart, and it settled"
+    assert answer["seconds"] < render.TIME_LIMIT_S
     cut = answer["cut"]
     assert cut["shown_height"] == render.SHOT_HEIGHT and cut["page_height"] > render.SHOT_HEIGHT
     assert cut["blocks_below"], cut

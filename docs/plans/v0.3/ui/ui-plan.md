@@ -489,7 +489,7 @@ asks `series {y: [live/new]}` and fails today.
 2. `empty = curves && !curves.curves.some((c) => c.y.some((v) => v !== null && Number.isFinite(v)))`; the
    notice picks its text by `curves.running`.
 
-### W36. A data table says when rows are hidden, and the screenshot draws every chart (sonnet) — code
+### W36. A data table says when rows are hidden, and the screenshot draws every chart (sonnet) — code — **done**
 
 - **Touches:** `web/src/blocks/data.ts` (`DataTable` 15–52: the wrap and the `more-rows` line), `web/src/styles/blocks.css`
   (`.table-wrap` 58, `.more-rows` 74), `web/src/bt/index.ts` (`useVisible` 94–113), `web/src/router.ts` (`rendering`,

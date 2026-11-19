@@ -1,7 +1,7 @@
 // `data_table` (a logged table or a view's data file) and `timeline` (notes and run events).
 
 import { html } from "htm/preact";
-import { useContext, useState } from "preact/hooks";
+import { useContext, useEffect, useRef, useState } from "preact/hooks";
 
 import { useData, ViewCtx, type Node } from "../bt/index.ts";
 import { compare, full, label, step, value } from "../bt/fmt.ts";
@@ -24,7 +24,27 @@ export function DataTable({ node }: { node: Node }) {
   const limit = node.props.limit ?? 50;
   let rows = table?.rows ?? [];
   if (sort) rows = [...rows].sort((a, b) => compare(a[sort.i], b[sort.i]) * (sort.desc ? -1 : 1));
+  const wrap = useRef<HTMLDivElement>(null);
+  const [seen, setSeen] = useState<number | null>(null);
+  // the wrap clips at max-block-size: a clipped table says so, since a screenshot can't scroll.
+  useEffect(() => {
+    const el = wrap.current;
+    if (!el) return;
+    const measure = () => {
+      if (el.scrollHeight <= el.clientHeight + 1) return setSeen(null);
+      const edge = el.getBoundingClientRect().top + el.clientHeight;
+      setSeen([...el.querySelectorAll("tbody tr")].filter((r) => r.getBoundingClientRect().bottom <= edge + 1).length);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [table, sort, limit]);
   const toggle = (i: number) => setSort(sort?.i === i && !sort.desc ? { i, desc: true } : { i, desc: false });
+  const cut = rows.length > limit;
+  const more = seen !== null
+    ? `${seen} of ${rows.length} rows shown, scroll for the rest${cut ? ` of the first ${limit}` : ""}`
+    : cut ? `${limit} of ${rows.length} rows shown` : null;
   return html`<${Panel} title=${node.props.title ?? node.props.key} caption=${node.props.caption} numbered result=${result}
       count=${table ? String(table.rows.length) : undefined}>
     ${entries.length > 1
@@ -37,14 +57,14 @@ export function DataTable({ node }: { node: Node }) {
       ? html`<${Notice}>${entries.length ? "This entry is stored as a file that isn't shown here (Parquet)." : "No table logged."}<//>`
       : null}
     ${table
-      ? html`<div class="table-wrap"><table class="runs data">
+      ? html`<div class="table-wrap" ref=${wrap}><table class="runs data">
           <thead><tr class="small">${table.columns.map((c, i) => html`<th class=${rows.some((r) => typeof r[i] === "number") ? "num" : ""}
               onClick=${() => toggle(i)} aria-sort=${sort?.i === i ? (sort.desc ? "descending" : "ascending") : undefined}>
               ${label(c)}${sort?.i === i ? (sort.desc ? " ↓" : " ↑") : ""}</th>`)}</tr></thead>
           <tbody>${rows.slice(0, limit).map((r) => html`<tr>${r.map((v) => html`<td class=${typeof v === "number" ? "num" : ""}
               data-tip=${v === null || v === undefined ? undefined : full(v)}>${value(v)}</td>`)}</tr>`)}</tbody>
         </table></div>
-        ${rows.length > limit ? html`<p class="more-rows small">${limit} of ${rows.length} rows shown</p>` : null}`
+        ${more ? html`<p class="more-rows small">${more}</p>` : null}`
       : null}
   <//>`;
 }
