@@ -72,8 +72,11 @@ function Chart(props: {
   // waits for the new data, so a zoom never snaps back in between.
   const last = useRef<any>(null);
   if (result.data) last.current = result.data;
-  // a scale nobody chose follows the values, hidden curves included, so hiding a run never flips the axis.
-  const scale: Scale = prefs.scale ?? (last.current ? autoScale(last.current) : "linear");
+  // a scale nobody chose follows the values, hidden curves included, so hiding a run never flips the axis;
+  // a zoom's answer holds only its window, so the scale stays the one of the whole curve.
+  const auto = useRef<Scale>("linear");
+  if (result.data && !zoom) auto.current = autoScale(result.data);
+  const scale: Scale = prefs.scale ?? auto.current;
   const log = scale === "log";
   const curves = last.current ? reshape(last.current, { log }) : null;
   const smoothed = curves && prefs.smooth > 0 ? smooth(curves, prefs.smooth) : curves;

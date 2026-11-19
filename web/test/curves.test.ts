@@ -37,6 +37,21 @@ test("log scale drops non-positive values", () => {
   assert.deepEqual(out.curves[0].y, [null, 1]);
 });
 
+test("the scale nobody chose is log only for positive values over more than two decades", () => {
+  const of = (...ys: (number | null)[][]) => autoScale({ curves: ys.map((y) => ({ y })) });
+  assert.equal(of([2.3, 0.5, 0.01]), "log", "a loss from 2.3 to 0.01");
+  assert.equal(of([2.3, 0.5, 0.3]), "linear", "within one decade");
+  assert.equal(of([-120, -80, -3]), "linear", "an ELBO below zero");
+  assert.equal(of([2.3, 0, 0.01]), "linear", "a zero");
+  assert.equal(of([null, null]), "linear", "no values");
+  assert.equal(of([5]), "linear", "one value");
+  assert.equal(autoScale({ curves: [] }), "linear");
+  assert.equal(of([2.3, null, NaN, 0.01]), "log", "nulls and NaN are skipped");
+  assert.equal(of([2.3, 1], [0.05, 0.01]), "log", "across curves, hidden ones too");
+  const band = { y: [2.3, 0.01], lo: [-1, -0.5], hi: [3, 0.1] };
+  assert.equal(autoScale({ curves: [band] }), "log", "decided on y, a band below zero included");
+});
+
 test("curves align on the union of their x values", () => {
   const { curves } = reshape({
     curves: [

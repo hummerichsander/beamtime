@@ -1399,6 +1399,24 @@ def test_the_x_axis_follows_the_shown_curves(lengths: str, server: str, page) ->
     assert abs(last_x() - zoomed) < 300, "a zoom is kept when a run is hidden"
 
 
+def test_a_zoom_keeps_the_scale_resolved_from_the_values(lengths: str, server: str, page) -> None:
+    """A loss over four decades draws log, and a zoom into its flat tail, whose window spans less than two
+    decades, keeps the log axis."""
+    page.goto(f"{server.split('/f/local')[0]}/f/local/{lengths}?token={server.split('token=')[1]}")
+    page.wait_for_selector(".chart canvas")
+    notes = page.locator(".chart .chart-head .muted").first
+    assert "log" in notes.inner_text(), "a loss over four decades draws log"
+    box = box_of(page, ".chart .u-over")
+    y = box["y"] + box["height"] / 2
+    with page.expect_request(lambda r: r.url.endswith("/api/series") and "steps" in (r.post_data or "")):
+        page.mouse.move(box["x"] + box["width"] * 0.6, y)
+        page.mouse.down()
+        page.mouse.move(box["x"] + box["width"] - 2, y, steps=5)
+        page.mouse.up()
+    page.wait_for_timeout(800)
+    assert "log" in notes.inner_text(), "the zoomed window keeps the log axis"
+
+
 def table_view(project: Path, group: str, tables: dict[str, int], folded: bool = False, charts: int = 0) -> None:
     """Save a view of one ``data_table`` per CSV file, with ``n`` rows each, and a folded section if asked.
 
