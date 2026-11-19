@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { align, byLabels, logDomain, marksChart, nearest, pointsOf, reshape, xExtent, type Curve } from "../src/bt/curves.ts";
+import { align, byLabels, logDomain, marksChart, nearest, pointsOf, reshape, valued, xExtent, type Curve } from "../src/bt/curves.ts";
 
 const curve = (key: string, run: string | null, x: number[], y: (number | null)[]): Curve =>
   ({ key, label: key, run, metric: "m", x, y, lo: null, hi: null, n: null, monotone: true, step: null, group: null, runs: [], resumes: [] });
@@ -218,4 +218,14 @@ test("a smoothed chart's raw curve counts with its curve", () => {
   const smooth = { ...raw, key: "a", x: [0, 1000] };
   assert.deepEqual(xExtent([smooth, raw], new Set()), [0, 8000]);
   assert.deepEqual(xExtent([smooth, raw], new Set(["r1"])), null);
+});
+
+test("a chart has values once one point is finite; running comes from the answer's meta", () => {
+  const none = reshape({ curves: [{ run: "r", name: "n", metric: "m", raw: true, x: [], y: [] }], meta: { running: 1 } });
+  assert.equal(none.running, 1);
+  assert.equal(valued(none), false);
+  assert.equal(valued(reshape({ curves: [] })), false);
+  assert.equal(reshape({ curves: [] }).running, 0);
+  assert.equal(valued(reshape({ curves: [{ run: "r", name: "n", metric: "m", raw: true, x: [0, 1], y: [null, NaN] }] })), false);
+  assert.equal(valued(reshape({ curves: [{ run: "r", name: "n", metric: "m", raw: true, x: [0, 1], y: [null, 2] }] })), true);
 });

@@ -386,6 +386,52 @@ def test_a_scorecard_keeps_queued_rows_and_a_new_run_appears_in_its_row(live_pag
     assert "queued" not in other.inner_text() and "0.5" in other.inner_text()
 
 
+def test_a_chart_waits_for_the_first_value_of_a_running_run(
+    project: Path, server: str, page
+) -> None:
+    """A running run that has logged nothing yet shows "Waiting for the first value", and the
+    chart is drawn as soon as the first value arrives."""
+    import yaml
+
+    from beamtime.ops import call
+    from beamtime.ops.context import Context
+
+    script = (
+        "import sys, time\nfrom pathlib import Path\nimport beamtime\n"
+        'r = beamtime.init(dir="waiting", name="w", system_metrics=False)\n'
+        "go = Path(sys.argv[1])\n"
+        "while not go.exists():\n    time.sleep(0.1)\n"
+        'for step in range(300):\n    r.log({"waiting/loss": 1 / (1 + step)}, step=step)\n'
+        "    time.sleep(0.1)\nr.finish()\n"
+    )
+    go = project / "go"
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("BEAMTIME_", "SLURM_"))}
+    env["BEAMTIME_LOGDIR"] = str(project / "beamtime")
+    writer = subprocess.Popen([sys.executable, "-c", script, go], cwd=project, env=env)
+    try:
+        wait_until(lambda: any((project / "beamtime" / "waiting").glob("*/_run.json")))
+        ctx = Context.make()
+        call("view new", {"group": "waiting", "name": "loss"}, ctx)
+        draft = project / ".beamtime" / "drafts" / "loss"
+        body = [{"line": {"id": "loss", "title": "waiting/loss", "y": "waiting/loss"}}]
+        view = {"schema": 1, "title": "waiting", "finding": "x", "body": body}
+        (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+        call("view save", {"draft": "loss"}, ctx)
+
+        page.goto(server.replace("/f/local", "/f/local/waiting"))
+        # the run is indexed a moment after it starts; until then no run is in scope.
+        notice = page.locator(".chart .notice", has_text="Waiting for the first value of waiting/loss.")
+        notice.wait_for(timeout=30_000)
+        assert "error" not in notice.get_attribute("class")
+
+        go.touch()
+        page.wait_for_selector(".chart canvas", timeout=60_000)
+        assert page.locator(".chart .notice").count() == 0
+    finally:
+        writer.kill()
+        writer.wait(10)
+
+
 def test_live_ticks_refetch_only_what_changed(live_page) -> None:
     """A metric tick refetches series, not the authored calls view, notes and memory_show."""
     page = live_page.page

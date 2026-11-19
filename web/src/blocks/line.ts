@@ -7,7 +7,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { type Call, useCall } from "../api.ts";
 import { hovered, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { xTitle, yTitle } from "../bt/axes.ts";
-import { align, linthresh, marksChart, reshape, robustRange, smooth, type Curve, type Curves } from "../bt/curves.ts";
+import { align, linthresh, marksChart, reshape, robustRange, smooth, valued, type Curve, type Curves } from "../bt/curves.ts";
 import { png, useChart } from "../bt/chart.ts";
 import { fileName, light, paper, recolor, type Background } from "../bt/export.ts";
 import { effective, metricsOf, seriesCall } from "../bt/chart-settings.ts";
@@ -149,7 +149,7 @@ function Chart(props: {
     prefs.color ? `colored by ${label(prefs.color)}` : null,
     resumed(smoothed?.curves.filter(isShown) ?? [], formatterFor(prefs.x)),
   ].filter(Boolean);
-  const empty = curves && !curves.curves.length;
+  const empty = curves && !valued(curves);
   // a chart of one metric can be pinned as a main metric, whose direction it then shows.
   const [y] = shownMetrics.length === 1 ? shownMetrics : [null];
   const pin = y === null ? undefined : pins.find((p) => p.y === y);
@@ -224,7 +224,7 @@ function Chart(props: {
     ${problem ? html`<p class="block-error small">${problem}</p>` : null}
     <${Panel} result=${result}>
       ${empty
-        ? html`<${Notice}>No run in scope logs ${title}.<//>`
+        ? html`<${Notice}>${curves.running > 0 ? `Waiting for the first value of ${title}.` : `No run in scope logs ${title}.`}<//>`
         : html`<div class=${`chart-plot${result.status === "ready" && !result.refreshing ? "" : " pending"}`} ref=${el}
             style=${`min-block-size:${props.height}px`}></div>`}
     <//>

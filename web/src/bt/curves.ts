@@ -23,9 +23,15 @@ export type Curve = {
   resumes: number[];
 };
 
-export type Curves = { curves: Curve[]; aggregated: boolean };
+// `running`: how many of the answer's runs are running, from the series meta (0 in an exported page).
+export type Curves = { curves: Curve[]; aggregated: boolean; running: number };
 
-export function reshape(answer: { curves: any[] }, opts: { log?: boolean } = {}): Curves {
+// whether any curve has a finite point; a column opened without a committed value has none.
+export function valued(c: Curves): boolean {
+  return c.curves.some((cv) => cv.y.some((v) => v !== null && Number.isFinite(v)));
+}
+
+export function reshape(answer: { curves: any[]; meta?: { running?: number } }, opts: { log?: boolean } = {}): Curves {
   const raw = answer.curves ?? [];
   const aggregated = raw.some((c) => "by" in c);
   const labels = aggregated ? byLabels(raw.map((c) => c.by)) : runLabels(raw);
@@ -47,7 +53,7 @@ export function reshape(answer: { curves: any[] }, opts: { log?: boolean } = {})
     runs: aggregated ? (c.runs ?? []) : [c.run],
     resumes: c.resumes ?? [],
   }));
-  return { curves: opts.log ? clipBands(curves) : curves, aggregated };
+  return { curves: opts.log ? clipBands(curves) : curves, aggregated, running: answer.meta?.running ?? 0 };
 }
 
 // the lowest a band is drawn on a log axis: just under the smallest positive curve value.

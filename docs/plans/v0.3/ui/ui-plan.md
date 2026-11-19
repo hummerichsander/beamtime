@@ -472,7 +472,7 @@ asks `series {y: [live/new]}` and fails today.
    when empty; the select renders `<optgroup>`s with "none" first.
 3. 03-index.md: `dropped` in the keys answer; 07-web-ui.md: the Colors section and what it offers.
 
-### W35. Waiting for the first value (sonnet) — code
+### W35. Waiting for the first value (sonnet) — code — **done**
 
 - **Touches:** `web/src/blocks/line.ts` (`empty` 147, notice 220–224), `web/src/bt/curves.ts` (`Curves`: `running`),
   `web/test/curves.test.ts`, `tests/serve/test_browser.py`, `docs/design/07-web-ui.md` (l. 418–419).

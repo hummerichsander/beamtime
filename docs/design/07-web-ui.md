@@ -448,6 +448,10 @@ The settings panel opens beside its chart, so a change can be seen as it happens
 chart if it fits, else to its left, else against the viewport's right edge; it stays on screen and
 follows scrolling and resizing. It never scrolls sideways: long metric names wrap. When the server
 refuses a chart (averaging over an x that goes back on itself), the chart shows its message as a notice.
+A chart without a finite point shows an info notice: "Waiting for the first value of `<title>`." while
+a run in its scope is running (the `series` meta says `running`), else "No run in scope logs `<title>`.";
+the first value arrives through the live refetch and the chart is drawn. An exported page has no
+`running` and keeps the second text.
 
 In the code every chart sits in one `ChartFrame` (`web/src/bt/frame.ts`): the head with title and
 notes, the tools, the download menu, the legend (the shared `Legend`) and the caption. A chart kind
