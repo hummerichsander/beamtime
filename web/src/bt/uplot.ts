@@ -2,7 +2,7 @@
 
 import uPlot from "uplot";
 
-import { align, logDomain, logRange, logTicks, markers, nearest, xExtent, type Curve } from "./curves.ts";
+import { align, logDomain, logRange, logTicks, nearest, pointsOf, xExtent, type Curve } from "./curves.ts";
 import { extent, logSplits, timeLabel, timeTicks } from "./shapes.ts";
 import { alpha, type ChartStyle } from "./theme.ts";
 
@@ -20,6 +20,8 @@ export type LineSpec = {
   // symlog: values within ± this stay linear.
   asinh: number;
   band: boolean;
+  // every point of every curve is marked; a curve's lone point always is.
+  markers: boolean;
   // fixed y limits; null ends follow the data.
   range: [number | null, number | null] | null;
   // the zoomed x range; when the data was fetched for it, the data's own range already is it.
@@ -73,8 +75,8 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       // uPlot takes dashes in canvas pixels.
       dash: spec.dashes[i]?.map((v) => v * devicePixelRatio),
       spanGaps: true,
-      // few points are marked, read from the data as it is now: a live update keeps the chart.
-      points: { show: true, size: spec.style.line * 3, fill: spec.colors[i], filter: (self: uPlot, at: number) => markers(self.data[at]) },
+      // marked as the chart decides now (`current`): a live update or a hidden curve keeps one rule per chart.
+      points: { show: true, size: spec.style.line * 3, fill: spec.colors[i], filter: (self: uPlot, at: number) => pointsOf(self.data[at], current.markers) },
     })),
   ];
   if (spec.raw) {

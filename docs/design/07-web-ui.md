@@ -395,6 +395,12 @@ Line charts behave like W&B's panels:
   later attempt took over (`LineSpec.marks`, from the series answer's `resumes` on the chart's x axis,
   so also on elapsed time or a metric), and the chart's note says "resumed at 1,000" (or "N resumes").
   Aggregated curves and runs with one attempt have none.
+- **Markers**: one rule per chart, not per curve (`LineSpec.markers`, from `curves.marksChart`): `auto`
+  marks every point of every curve while the shown curve with the most finite points has at most 30
+  (after downsampling, before smoothing; hiding a curve counts again), `on` always, `off` never. A
+  curve with exactly one finite point is marked in every mode, as it is otherwise invisible. The
+  setting is `markers` of the chart's settings (Axes) and of the `line` block; `auto` is not written
+  into a saved view.
 - **Click**: clicking a curve (or a point) opens its run in the side panel.
 - **Legend**: click hides or shows a curve, double-click shows only it (again: all). The run table's
   color dots do the same for runs. Hidden runs apply to every chart of the view; a chart with hidden
@@ -413,7 +419,8 @@ Line charts behave like W&B's panels:
   - smoothing: TensorBoard's debiased EMA, computed in the page; the band is smoothed with the
     curve; the raw curve faint behind, optionally;
   - axes: linear, log or symlog (linear near zero, logarithmic beyond; for values that cross zero),
-    a fixed y range, an outlier-robust auto range (1st to 99th percentile), the legend.
+    a fixed y range, an outlier-robust auto range (1st to 99th percentile), the legend, the markers
+    (auto, on, off).
 - **Hiding and adding charts**: every chart has the same × ("Hide this chart"), per viewer; the grid
   or section it sat in says "2 hidden · show" (a chart outside a grid leaves that link in its place).
   After the page's last chart, "Add a chart" lists every metric the whole page shows no chart of

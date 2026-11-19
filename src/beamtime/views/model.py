@@ -65,6 +65,10 @@ class Line(Node, tag="line"):
     outliers: Annotated[bool, msgspec.Meta(description="y range ignores outliers")] = False
     raw: Annotated[bool, msgspec.Meta(description="when smoothing, the raw curve faintly")] = True
     legend: bool = True
+    markers: Annotated[
+        Literal["auto", "on", "off"],
+        msgspec.Meta(description="dots on points; auto when every curve is sparse"),
+    ] = "auto"
     xlabel: Annotated[str | None, msgspec.Meta(description="x axis title; default from x")] = None
     ylabel: Annotated[str | None, msgspec.Meta(description="y axis title; default from y")] = None
 

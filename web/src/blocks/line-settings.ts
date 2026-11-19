@@ -26,16 +26,16 @@ function xGroups(metrics: string[]): [string, string[]][] {
   return [["Progress", clocks], ["Metrics", metrics.filter((k) => !clocks.includes(k as never))]];
 }
 
-export type Field = "metrics" | "x" | "steps" | "runs" | "band" | "color" | "colormap" | "smooth" | "scale" | "range" | "outliers" | "legend";
+export type Field = "metrics" | "x" | "steps" | "runs" | "band" | "color" | "colormap" | "smooth" | "scale" | "range" | "outliers" | "legend" | "markers";
 
-export const LINE_FIELDS: Field[] = ["metrics", "x", "steps", "runs", "band", "color", "colormap", "smooth", "scale", "range", "outliers", "legend"];
+export const LINE_FIELDS: Field[] = ["metrics", "x", "steps", "runs", "band", "color", "colormap", "smooth", "scale", "range", "outliers", "legend", "markers"];
 
 const SECTIONS: [string, Field[]][] = [
   ["Data", ["metrics", "x", "steps"]],
   ["Aggregation", ["runs", "band"]],
   ["Colors", ["color", "colormap"]],
   ["Smoothing", ["smooth"]],
-  ["Axes", ["scale", "range", "outliers", "legend"]],
+  ["Axes", ["scale", "range", "outliers", "legend", "markers"]],
 ];
 
 type Context = {
@@ -153,6 +153,14 @@ const FIELDS: Record<Field, (c: Context) => unknown> = {
     <span></span>
     <label class="tick"><input type="checkbox" checked=${prefs.legend}
       onChange=${(e: Event) => set({ legend: (e.target as HTMLInputElement).checked })} /> legend</label>`,
+
+  markers: ({ prefs, set }) => html`
+    <span class="field-label">Markers</span>
+    <div class="segmented small" role="radiogroup" aria-label="Markers">
+      ${(["auto", "on", "off"] as const).map((k) => html`<button type="button" role="radio" aria-checked=${prefs.markers === k}
+          data-tip=${k === "auto" ? "dots on every point while no shown curve has more than 30 points" : undefined}
+          onClick=${() => set({ markers: k })}>${k}</button>`)}
+    </div>`,
 };
 
 export function Settings(props: {

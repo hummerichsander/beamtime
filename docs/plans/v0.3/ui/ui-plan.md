@@ -423,7 +423,7 @@ asks `series {y: [live/new]}` and fails today.
 2. The x scale's `range` reads `current`: `const e = xExtent([...current.curves, ...(current.raw ?? [])], current.hidden) ?? [min, max]`,
    then the single-value padding. Zooms set the scale explicitly (`applyZoom`) and are unaffected.
 
-### W33. Markers: one rule per chart, and a setting (sonnet) — reproduced
+### W33. Markers: one rule per chart, and a setting (sonnet) — reproduced — **done**
 
 - **Touches:** `src/beamtime/views/model.py` (`Line` 40–69: `markers`), `web/src/bt/chart-defaults.ts`
   (generated), `web/src/bt/prefs.ts` (`ChartPrefs` 8–25, `Effective` 97), `web/src/bt/curves.ts` (`markers`

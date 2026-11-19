@@ -22,6 +22,7 @@ export type ChartPrefs = {
   ymax?: number | null;
   outliers?: boolean;
   legend?: boolean;
+  markers?: "auto" | "on" | "off";
 };
 
 export type Span = 1 | 2 | "full";
@@ -94,7 +95,7 @@ export function toggleRun(path: string, key: string, all: string[], solo = false
   });
 }
 
-export type Effective = Required<Pick<ChartPrefs, "x" | "smooth" | "raw" | "band" | "scale" | "outliers" | "legend">> & ChartPrefs;
+export type Effective = Required<Pick<ChartPrefs, "x" | "smooth" | "raw" | "band" | "scale" | "outliers" | "legend" | "markers">> & ChartPrefs;
 
 // the settings a chart uses: its node's defaults, the viewer's for the whole page, then for this chart.
 export function cascade<T extends ChartPrefs>(defaults: T, prefs: ViewPrefs, id: string): T {

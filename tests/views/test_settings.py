@@ -32,6 +32,7 @@ EVERYTHING: dict[str, Any] = {
     "outliers": True,
     "raw": False,
     "legend": False,
+    "markers": "on",
 }
 
 
@@ -41,7 +42,7 @@ def test_settings_and_defaults_come_from_the_struct() -> None:
     defaults = line_defaults()
     assert "y" not in defaults and set(defaults) == set(SETTINGS) - {"y"}
     assert defaults["x"] == "_step" and defaults["band"] == "minmax" and defaults["raw"] is True
-    assert defaults["scale"] is None and defaults["by"] is None
+    assert defaults["scale"] is None and defaults["by"] is None and defaults["markers"] == "auto"
 
 
 def test_settle_is_idempotent() -> None:
@@ -58,10 +59,22 @@ def test_settle_is_idempotent() -> None:
 def test_default_settings_leave_props_clean() -> None:
     """Settings at their default write nothing, and remove what an earlier choice wrote."""
     props: dict[str, Any] = {"id": "c", "y": "val/loss", "x": "_elapsed", "band": "std"}
-    settle(props, {"x": "_step", "band": "minmax", "smooth": 0, "raw": True, "legend": True})
+    settle(props, {"x": "_step", "band": "minmax", "smooth": 0, "raw": True, "legend": True, "markers": "auto"})
     assert props == {"id": "c", "y": "val/loss"}
     settle(props, {"ymin": None, "ymax": None, "steps": [None, None], "color": None})
     assert props == {"id": "c", "y": "val/loss"}
+
+
+def test_markers_round_trip() -> None:
+    """On and off are written and read back; auto is the default and stays out of a saved view."""
+    props: dict[str, Any] = {"id": "c", "y": "val/loss"}
+    settle(props, {"markers": "on"})
+    assert props["markers"] == "on"
+    assert wire_props(m.Line(y="val/loss", markers="off")) == {"markers": "off"}
+    settle(props, {"markers": "auto"})
+    assert props == {"id": "c", "y": "val/loss"}
+    with pytest.raises(SchemaError, match="markers"):
+        settle(props, {"markers": "some"})
 
 
 def test_scale_always_written() -> None:
@@ -114,6 +127,7 @@ def test_round_trip_law() -> None:
         [10, None],
     )
     assert line.by == ["config.arm"] and line.raw is False and line.legend is False
+    assert line.markers == "on"
 
 
 def test_chart_defaults_file_is_current() -> None:

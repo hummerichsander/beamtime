@@ -8,6 +8,7 @@ export const DEFAULTS = {
     color: null,
     colormap: null,
     legend: true,
+    markers: "auto",
     outliers: false,
     raw: true,
     scale: null,

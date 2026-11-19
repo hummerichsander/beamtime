@@ -7,7 +7,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { type Call, useCall } from "../api.ts";
 import { hovered, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { xTitle, yTitle } from "../bt/axes.ts";
-import { align, linthresh, reshape, robustRange, smooth, type Curve, type Curves } from "../bt/curves.ts";
+import { align, linthresh, marksChart, reshape, robustRange, smooth, type Curve, type Curves } from "../bt/curves.ts";
 import { png, useChart } from "../bt/chart.ts";
 import { fileName, light, paper, recolor, type Background } from "../bt/export.ts";
 import { effective, metricsOf, seriesCall } from "../bt/chart-settings.ts";
@@ -102,6 +102,7 @@ function Chart(props: {
       height,
       scale: prefs.scale,
       asinh: prefs.scale === "symlog" ? linthresh(align(shown).y) : 1,
+      markers: marksChart(curves.curves, hidden, prefs.markers),
       band: (smoothed.aggregated || smoothed.curves.length === 1) && prefs.band !== "none" && !trajectory,
       range,
       zoom,

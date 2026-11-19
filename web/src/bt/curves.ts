@@ -154,14 +154,29 @@ function runLabels(curves: any[]): string[] {
   return curves.map((c, i) => (counts.get(names[i])! > 1 ? `${names[i]} (${String(c.run).slice(-4)})` : names[i]));
 }
 
-// a curve with at most this many points marks each of them, so a single point or a sparse metric shows.
+// a chart whose longest shown curve has at most this many points marks each of them.
 export const SPARSE = 30;
 
-// the indices of the points to mark: all the finite ones when there are few, else none.
-export function markers(ys: ArrayLike<number | null | undefined>): number[] {
-  const finite: number[] = [];
-  for (let i = 0; i < ys.length; i++) if (typeof ys[i] === "number" && Number.isFinite(ys[i])) finite.push(i);
-  return finite.length <= SPARSE ? finite : [];
+export type Markers = "auto" | "on" | "off";
+
+const finite = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v);
+
+// whether a chart marks the points of its curves: one decision for all, from the shown curves as drawn.
+export function marksChart(curves: Curve[], hidden: Set<string>, mode: Markers): boolean {
+  if (mode !== "auto") return mode === "on";
+  let longest = 0;
+  for (const c of curves) {
+    if (hidden.has(c.key) || (c.run !== null && hidden.has(c.run))) continue;
+    longest = Math.max(longest, c.y.filter(finite).length);
+  }
+  return longest <= SPARSE;
+}
+
+// the indices of the points to mark: every finite one when `all`, else only a curve's lone point, which is otherwise invisible.
+export function pointsOf(ys: ArrayLike<number | null | undefined>, all: boolean): number[] {
+  const at: number[] = [];
+  for (let i = 0; i < ys.length; i++) if (finite(ys[i])) at.push(i);
+  return all || at.length === 1 ? at : [];
 }
 
 function format(v: unknown): string {

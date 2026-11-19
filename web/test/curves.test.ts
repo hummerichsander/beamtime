@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { align, byLabels, logDomain, markers, nearest, reshape, xExtent } from "../src/bt/curves.ts";
+import { align, byLabels, logDomain, marksChart, nearest, pointsOf, reshape, xExtent, type Curve } from "../src/bt/curves.ts";
+
+const curve = (key: string, run: string | null, x: number[], y: (number | null)[]): Curve =>
+  ({ key, label: key, run, metric: "m", x, y, lo: null, hi: null, n: null, monotone: true, step: null, group: null, runs: [], resumes: [] });
 
 test("raw and bucketed run curves", () => {
   const out = reshape({
@@ -89,16 +92,34 @@ test("log ticks fit the range", async () => {
   assert.deepEqual(logTicks(0.001, 10), [0.001, 0.01, 0.1, 1, 10]);
 });
 
-test("sparse curves mark every finite point, dense ones none", () => {
+const line = (key: string, n: number, run: string | null = key): Curve => curve(key, run, Array.from({ length: n }, (_, i) => i), Array.from({ length: n }, (_, i) => i));
+
+test("a chart marks its points when its longest shown curve is sparse, or as told", () => {
+  const none = new Set<string>();
+  assert.equal(marksChart([line("a", 12), line("b", 400)], none, "auto"), false);
+  assert.equal(marksChart([line("a", 12), line("b", 400)], none, "on"), true);
+  assert.equal(marksChart([line("a", 12), line("b", 400)], none, "off"), false);
+  // two curves share one decision as they grow: marked up to 30 each, dropped together at 31.
+  assert.equal(marksChart([line("a", 30), line("b", 12)], none, "auto"), true);
+  assert.equal(marksChart([line("a", 31), line("b", 12)], none, "auto"), false);
+  // a hidden long curve does not suppress the markers of the shown short one.
+  assert.equal(marksChart([line("a", 12), line("b", 400)], new Set(["b"]), "auto"), true);
+  assert.equal(marksChart([line("a", 12), line("b", 400, "r2")], new Set(["r2"]), "auto"), true);
+  // a curve with no value counts 0.
+  assert.equal(marksChart([curve("a", "a", [0, 1], [null, NaN])], none, "auto"), true);
+});
+
+test("a marked chart marks every finite point, an unmarked one only a lone point", () => {
   const series = (n: number) => Array.from({ length: n }, (_, i) => i);
-  assert.deepEqual(markers([]), []);
-  assert.deepEqual(markers([null, 3, null]), [1]);
-  assert.deepEqual(markers([1, 2]), [0, 1]);
-  assert.deepEqual(markers([NaN, 1, Infinity, 2, null]), [1, 3]);
-  assert.equal(markers(series(30)).length, 30);
-  assert.deepEqual(markers(series(31)), []);
-  // gaps in the aligned data don't count: 31 slots, 3 values.
-  assert.deepEqual(markers(series(31).map((i) => (i % 15 === 0 ? i : null))), [0, 15, 30]);
+  assert.deepEqual(pointsOf([], true), []);
+  assert.deepEqual(pointsOf([NaN, 1, Infinity, 2, null], true), [1, 3]);
+  assert.deepEqual(pointsOf(series(31), true), series(31));
+  assert.deepEqual(pointsOf(series(31), false), []);
+  assert.deepEqual(pointsOf([1, 2], false), []);
+  assert.deepEqual(pointsOf([null, 3, null], false), [1]);
+  assert.deepEqual(pointsOf([null, 3, null], true), [1]);
+  // gaps in the aligned data don't count: 31 slots, 1 value.
+  assert.deepEqual(pointsOf(series(31).map((i) => (i === 15 ? i : null)), false), [15]);
 });
 
 const aggregated = (y: (number | null)[], lo: number[], hi: number[]) => ({
@@ -182,8 +203,6 @@ test("values come from the envelope alone, whatever the old fields say", () => {
 });
 
 test("the x extent follows the shown curves", () => {
-  const curve = (key: string, run: string | null, x: number[], y: (number | null)[]) =>
-    ({ key, label: key, run, metric: "m", x, y, lo: null, hi: null, n: null, monotone: true, step: null, group: null, runs: [], resumes: [] });
   const short = curve("a", "r1", [0, 500, 1000], [1, 0.5, 0.2]);
   const long = curve("b", "r2", [0, 2500, 5000], [1, 0.4, 0.1]);
   assert.deepEqual(xExtent([short, long], new Set()), [0, 5000]);

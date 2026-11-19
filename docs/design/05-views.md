@@ -185,7 +185,7 @@ of a field or per subgroup, each narrowed to its runs; `$value` names the value 
 
 | Block | Wave | Purpose | Key props |
 |---|---|---|---|
-| `line` | 1 | metric curves over steps, time or another metric | `y`, `x`, `color`, `by`, `band`, `seeds`, `smooth`, `raw`, `scale` (`linear`, `log`, `symlog`), `ymin`, `ymax`, `steps`, `outliers`, `legend`, `xlabel`, `ylabel`; wave 2: `facet`, `highlight` |
+| `line` | 1 | metric curves over steps, time or another metric | `y`, `x`, `color`, `by`, `band`, `seeds`, `smooth`, `raw`, `scale` (`linear`, `log`, `symlog`), `ymin`, `ymax`, `steps`, `outliers`, `legend`, `markers` (`auto`, `on`, `off`), `xlabel`, `ylabel`; wave 2: `facet`, `highlight` |
 | `histogram` | 1 | a logged distribution (a table with `bin_start`, `bin_end`, `count`), one outline per run | `key`, `step` (`last` or a step), `xlabel`, `ylabel`; wave 2: `all` as a step-by-bin heatmap |
 
 **One value per run**
@@ -377,7 +377,7 @@ html`<${bt.chart.Figure} id="phase" title="…" xlabel="…" ylabel="…"
 ```
 
 `Figure` puts the drawing in the chart frame of layer 7: the head, a settings panel with the fields listed in `settings`
-(any of the line chart's: `x`, `scale`, `range`, `smooth`, `color`, `colormap`, `outliers`, `legend`), a legend of `series`
+(any of the line chart's: `x`, `scale`, `range`, `smooth`, `color`, `colormap`, `outliers`, `legend`, `markers`), a legend of `series`
 with hide and solo, hover in both directions (a legend item or `bt.hover(key)` sets the page's hovered run; `draw` gets
 it back as `hovered`), downloads (SVG or PNG of what `el` holds, CSV from `csv`: rows as objects or arrays with the header
 first) and the viewer's preferences, kept like a built-in chart's under the figure's `id`. `draw` runs when the block gives a
