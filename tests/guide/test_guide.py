@@ -118,9 +118,40 @@ def test_kit_names_exist_in_the_frontend() -> None:
     if not WEB.is_dir():
         pytest.skip("no web sources")
     source = "".join(f.read_text() for f in WEB.rglob("*.ts"))
-    for name in ("kit", "kit-api", "charts"):
+    for name in ("kit", "kit-api", "charts", "type"):
         for path in re.findall(r"\bbt\.((?:[a-zA-Z]+\.)*[a-zA-Z]+)", TEXTS[name]):
             assert path.split(".")[-1] in source, f"{name}: bt.{path}"
+
+
+def test_type_topic_names_real_classes_with_their_families() -> None:
+    """The type part is short, opens with the family rule, is linked, and its table follows the tokens."""
+    import json
+    from beamtime.guide.skills import SKILLS
+    from beamtime.views import code
+
+    design = Path(__file__).parents[2] / "design"
+    if not design.is_dir():
+        pytest.skip("no design sources")
+    text = TEXTS["type"]
+    assert len(text.split()) < 900 and "family says who wrote the text" in text.split("\n\n")[1]
+    assert "type" in SKILLS["beamtime-views"][1]
+    for name in ("index", "kit", "kit-api", "anti-patterns", "checklist"):
+        assert "guide type" in TEXTS[name] or "`type`" in TEXTS[name], name
+
+    groups = json.loads((design / "tokens.json").read_text())["type"]["groups"]
+    family = {s["name"]: g["name"].lower() for g in groups for s in g["styles"]}
+    css = (design / "tokens.css").read_text() + (design / "components.css").read_text()
+    rows = re.findall(r"^\| `(\w+)` \| ([a-z ]+?)\b", text, re.M)
+    assert {"body", "heading", "small", "num", "number", "prose", "caption", "code"} <= {n for n, _ in rows}
+    for name, font in rows:
+        assert re.search(rf"\.{name}\b[^{{]*[{{,]", css), f"no selector .{name}"
+        if name in family:
+            assert font.split()[0] == family[name], f"{name} is {family[name]}, the part says {font}"
+    for name in re.findall(r'class="([^"]+)"', text):
+        for cls in name.split():
+            assert re.search(rf"\.{cls}\b", css), cls
+    for snippet in re.findall(r"```js\n(.*?)```", text, re.S):
+        assert code.problems("export default function render(root) {}\n" + snippet) == []
 
 
 def test_note_types_and_verdict_words_are_all_there() -> None:
@@ -246,7 +277,7 @@ def test_topics_naming_family_tools_carry_the_line(project: Path) -> None:
     from beamtime.mcp.server import FAMILIES
 
     members = {name for names in FAMILIES.values() for name in names}
-    only_the_checker = {"charts", "anti-patterns", "kit-api"}
+    only_the_checker = {"charts", "anti-patterns", "kit-api", "type"}
     core, every = with_agent(project, "{mcp_tools: core}"), with_agent(project, "{mcp_tools: all}")
     for topic in TOPICS:
         named = members & set(re.findall(r"`(\w+)", TEXTS[topic]))

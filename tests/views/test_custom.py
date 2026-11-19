@@ -74,6 +74,12 @@ body:
         (GOOD + "el.style.fill = 'rgb(1, 2, 3)';", "color literal"),
         (GOOD + "const xs = [" + ", ".join(["1.5"] * 250) + "];", "numbers inline"),
         (GOOD + "// " + "x" * 70_000, "KB"),
+        (GOOD + "const t = '<text font-size=\"12\">x</text>';", "font literal 'font-size'"),
+        (GOOD + "text.attr('font-size', 12);", "font literal 'font-size'"),
+        (GOOD + "text.style('font-family', 'serif');", "font literal 'font-family'"),
+        (GOOD + "const s = 'font: 12px x';", "font literal 'font:'"),
+        (GOOD + "const o = { fontSize: 12 };", "font literal 'fontSize'"),
+        (GOOD + "const css = 'p { line-height: 1.2 }';", "font literal 'line-height'"),
     ],
 )
 def test_code_checks(source: str, message: str) -> None:
@@ -85,6 +91,22 @@ def test_code_checks_ignore_comments_and_strings() -> None:
     """Words in comments and strings are no calls: a caption may say fetch."""
     source = GOOD + "// fetch the data, then import it\nconst s = 'we fetch nothing';\n"
     assert code.problems(source) == []
+
+
+def test_font_check_allows_classes_and_the_canvas_font() -> None:
+    """Type classes, the theme's canvas font, a font weight and words in captions are no literals."""
+    allowed = (
+        "html`<span class=\"small num\">x</span>`;",
+        "ctx.font = bt.theme.tokens.font;",
+        "const o = { font: bt.theme.tokens.font };",
+        "el.style.fontWeight = 600; const css = 'b { font-weight: 600 }';",
+        "const caption = 'pick a font size';",
+        "// font-size: 12px is set by the class\n",
+    )
+    for extra in allowed:
+        assert code.problems(GOOD + extra) == [], extra
+    fix = dict(code.problems(GOOD + "el.style.fontSize = '12px';"))
+    assert "font literal 'fontSize'" in fix and "guide type" in fix["font literal 'fontSize'"]
 
 
 def test_placeholders_and_fill() -> None:

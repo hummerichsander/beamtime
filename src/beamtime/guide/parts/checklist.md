@@ -12,6 +12,7 @@ Answer yes or no for every block in the render, then fix what fails:
 8. Does every chart label its axes, and does each caption say what the chart shows rather than repeat the axes?
 9. Does every top-level section have a one- or two-word title for its section label?
 10. Do status, results and colours use the app's own marks (`bt.ui.Sym`, `bt.theme.tone`), not hex, emoji or typed-in results?
+11. Does all text use the app's type: no odd sizes or fonts (`guide type`)?
 
 The render also reports what it measured: console errors, blank blocks, overflowing or clipped
 content, overlapping blocks, and charts with more than eight curves.

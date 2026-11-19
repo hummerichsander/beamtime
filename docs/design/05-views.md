@@ -718,6 +718,7 @@ research shows work better than long rule lists.
 | `guide notes`, `verdicts`, `memory` | note types and links; judging a proposal, stating what the check says; compressing memory | ~500 each |
 | `guide remote`, `analysis` | `@source/...` groups; which tool answers which question | ~400 each |
 | `guide data-files` | a table of your own on a page: the recipe from file to saved view (`view_data`, `data_table`, a `file` query in a custom block), the rules and the findings with their fixes | ~900 |
+| `guide type` | which type class for which text in custom blocks and views: the family rule (the family says who wrote the text), the class table, SVG and canvas text, emphasis, and how `title`, `caption` and Markdown fields render | ~700 |
 | `guide <group>` | additionally: the group's metrics and varying config, its current view; from M7 library blocks and outdated pins | – |
 
 ### Workflow
@@ -792,6 +793,10 @@ Answered yes or no for every block in the screenshots:
 5. Do axes use sensible scales (log for quantities spanning orders of magnitude)?
 6. Does the first screen show the finding and the evidence for it?
 7. Is anything decorative that carries no information?
+8. Does every chart label its axes, and does each caption say what the chart shows rather than repeat the axes?
+9. Does every top-level section have a one- or two-word title for its section label?
+10. Do status, results and colours use the app's own marks (`bt.ui.Sym`, `bt.theme.tone`), not hex, emoji or typed-in results?
+11. Does all text use the app's type: no odd sizes or fonts (`guide type`)?
 
 ### Anti-patterns
 
@@ -801,7 +806,8 @@ Answered yes or no for every block in the screenshots:
 |---|---|
 | ✓ more than about eight curves in one chart | `color`, `by`, `seeds` |
 | ✓ aggregating runs that differ in more than noise | aggregate by the varying key too |
-| ✓ colors, fonts or sizes in custom code | `bt.theme`, `bt.fmt`, CSS variables |
+| ✓ colors in custom code (`#hex`, `rgb(`, `hsl(`) | `bt.theme`, CSS variables |
+| ✓ font literals in custom code (`font-size`, `font-family`, `font:`, `line-height`, in strings too; `font-weight` and `font: bt.theme.tokens.font` pass) | a type class on the element (`guide type`); canvas uses `bt.theme.tokens.font` |
 | ✓ numbers written into code | declare a query |
 | ✓ a block that breaks without data | handle `status` and empty results |
 | ✓ log scale over values that can be zero or negative | a linear scale, or a symlog transform |

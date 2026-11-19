@@ -497,9 +497,10 @@ class GuideParams(Params, kw_only=True):
             "remote",
             "analysis",
             "data-files",
+            "type",
         ]
         | None,
-        msgspec.Meta(description="default: the list of topics"),
+        msgspec.Meta(description="default: the topic list"),
     ] = None
     name: Annotated[
         str | None, msgspec.Meta(description="one example or block, e.g. sweep or scatter")

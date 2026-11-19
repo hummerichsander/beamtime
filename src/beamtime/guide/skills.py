@@ -7,7 +7,7 @@ SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "beamtime-views": (
         "Build or change the Beamtime view of a group: charts, the kit, library blocks. Use when "
         "the user asks for a page, a figure or a dashboard of runs logged with Beamtime.",
-        ("views", "charts", "kit", "kit-api", "library", "data-files", "anti-patterns"),
+        ("views", "charts", "kit", "kit-api", "library", "data-files", "type", "anti-patterns"),
     ),
     "beamtime-record": (
         "Write Beamtime's research record: proposals, predictions, notes, verdicts and memory. "

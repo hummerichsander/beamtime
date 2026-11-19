@@ -1004,7 +1004,7 @@ def test_chart_frames_and_live_data_pass_the_code_lints() -> None:
     figure = "export default function render(root) { bt.useData('runs'); bt.chart.Figure(root, { svg: '<svg/>' }); }"
     assert code.lints(figure) == [] and code.opens_with_heading(figure) is False
     phase = files("beamtime.guide").joinpath("examples/code/phase-map.js").read_text()
-    assert code.lints(phase) == []
+    assert code.lints(phase) == [] and code.problems(phase) == []
 
 
 def test_save_leaves_out_line_settings_at_their_default(ctx: Context, project: Path) -> None:

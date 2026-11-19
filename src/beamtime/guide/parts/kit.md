@@ -114,11 +114,11 @@ thing on every page. Never hex colours, emoji or glyphs for status, and never a 
 
 Every top-level block of a view is a page section. A top-level `section` (or custom block) titled
 with one or two words shows that title as the section label, in mono above the block (in its
-collapse toggle when the block collapses); a longer title, a nested section, a Markdown
-`##` in a `text` block and `bt.ui.Section` inside code render as a sans `heading` inside the block. So structure a
+collapse toggle when the block collapses); a longer title, a nested section and `bt.ui.Section`
+inside code render as a sans `heading` inside the block. So structure a
 view as top-level `section`s with short titles (`validation`, `energy`, `phase space`) and put the
 blocks, custom ones included, inside; split one big custom block into one per section. Use
-`bt.ui.Section` only for subheadings within one block; longer explanations go in the caption.
+`bt.ui.Section` only for subheadings within one block; longer explanations go in the caption. Text takes its font from a type class: `guide type`.
 
 `guide kit-api` lists every name and the rules `view_validate` checks. For live data use `bt.useData`,
 never a value copied into the code.

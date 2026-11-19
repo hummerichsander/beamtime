@@ -31,6 +31,8 @@
   lists (data belongs in queries or data files).
 - No color literals (`#hex`, `rgb(`, `hsl(`): take colors from `bt.theme` or CSS variables, so the
   block works in light and dark.
+- No font literals (`font-size`, `font-family`, `font:`, `line-height`): a type class, or
+  `bt.theme.tokens.font` on canvas; `guide type`.
 - Read field names from the query's `columns` instead of writing them into the code; such a block
   can become a library block later.
 - The render must show no errors, draw something and fit its width; a block that throws shows an

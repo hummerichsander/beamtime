@@ -669,7 +669,7 @@ the bundle. Decisions 17 and 18 say what the look is; this ticket makes everythi
 
 ## T. Type
 
-### T31. Font instructions for agents, and a font check (sonnet + review) — real data
+### T31. Font instructions for agents, and a font check (sonnet + review) — real data — **done**
 
 Lines below are at `274fc44`, not the plan's base commit; refresh them if Q31–D33 moved them.
 

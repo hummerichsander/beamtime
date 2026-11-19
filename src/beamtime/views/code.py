@@ -36,6 +36,10 @@ COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
 STRING = re.compile(r"'(?:\\.|[^'\\\n])*'|\"(?:\\.|[^\"\\\n])*\"")
 NUMBERS = re.compile(rf"(?:-?\d+(?:\.\d+)?(?:e-?\d+)?\s*,\s*){{{MAX_NUMBERS},}}", re.I)
 COLOR = re.compile(r"#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(", re.I)
+FONT = re.compile(
+    r"\bfont-(?:size|family)\b|\bfont(?:Size|Family)\b|\bline-?[hH]eight\b"
+    r"|\bfont\s*:(?!\s*bt\.theme\.tokens\.font\b)"
+)
 
 
 def problems(code: str) -> list[tuple[str, str]]:
@@ -52,7 +56,7 @@ def problems(code: str) -> list[tuple[str, str]]:
             )
         )
     bare = COMMENT.sub(" ", code)
-    # colors are looked for in strings too, where they live; the rest ignores string contents.
+    # colors and fonts are looked for in strings too, where they live; the rest ignores strings.
     for m in COLOR.finditer(bare):
         out.append(
             (
@@ -61,6 +65,14 @@ def problems(code: str) -> list[tuple[str, str]]:
             )
         )
         break
+    if (font := FONT.search(bare)) is not None:
+        out.append(
+            (
+                f"font literal {font.group(0)!r}",
+                "put a type class on the element (small, body, caption, code; guide type); "
+                "canvas uses bt.theme.tokens.font",
+            )
+        )
     bare = STRING.sub('""', bare)
     if not re.search(r"export\s+default\b", bare):
         out.append(("no default export", "export default function render(root) { ... }"))
