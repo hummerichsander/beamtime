@@ -807,7 +807,7 @@ Answered yes or no for every block in the screenshots:
 | ✓ more than about eight curves in one chart | `color`, `by`, `seeds` |
 | ✓ aggregating runs that differ in more than noise | aggregate by the varying key too |
 | ✓ colors in custom code (`#hex`, `rgb(`, `hsl(`) | `bt.theme`, CSS variables |
-| ✓ font literals in custom code (`font-size`, `font-family`, `font:`, `line-height`, in strings too; `font-weight` and `font: bt.theme.tokens.font` pass) | a type class on the element (`guide type`); canvas uses `bt.theme.tokens.font` |
+| ✓ font literals in custom code (`font-size`, `font-family`, `font:`, `.font =`, `line-height`, in strings too; `font-weight`, `font: bt.theme.tokens.font` and `.font = bt.theme.tokens.font` pass) | a type class on the element (`guide type`); canvas uses `bt.theme.tokens.font` |
 | ✓ numbers written into code | declare a query |
 | ✓ a block that breaks without data | handle `status` and empty results |
 | ✓ log scale over values that can be zero or negative | a linear scale, or a symlog transform |

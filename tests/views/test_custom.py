@@ -80,6 +80,8 @@ body:
         (GOOD + "const s = 'font: 12px x';", "font literal 'font:'"),
         (GOOD + "const o = { fontSize: 12 };", "font literal 'fontSize'"),
         (GOOD + "const css = 'p { line-height: 1.2 }';", "font literal 'line-height'"),
+        (GOOD + "ctx.font = '12px sans-serif';", "font literal '.font ='"),
+        (GOOD + "el.style.font = '12px x';", "font literal '.font ='"),
     ],
 )
 def test_code_checks(source: str, message: str) -> None:
@@ -98,6 +100,7 @@ def test_font_check_allows_classes_and_the_canvas_font() -> None:
     allowed = (
         "html`<span class=\"small num\">x</span>`;",
         "ctx.font = bt.theme.tokens.font;",
+        "if (ctx.font === bt.theme.tokens.font) {}",
         "const o = { font: bt.theme.tokens.font };",
         "el.style.fontWeight = 600; const css = 'b { font-weight: 600 }';",
         "const caption = 'pick a font size';",

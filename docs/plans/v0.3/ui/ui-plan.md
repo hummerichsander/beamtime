@@ -182,7 +182,7 @@ What's left runs in this order: Q31 Q32 D31 D33 S31 T31 W31 W32 W33 W34 W35 W36 
     which style, Markdown conventions). Rejected: a kit helper returning font strings (`bt.theme.font(style)`),
     because classes reach SVG and HTML and the one canvas font already exists as `bt.theme.tokens.font`.
 14. **Font literals are errors** (check: your decision; level **assumed**): `FONT` matches `font-size`,
-    `font-family`, `fontSize`, `fontFamily`, `line-height`, `lineHeight` and `font:` (not `font: bt.theme.tokens.font`),
+    `font-family`, `fontSize`, `fontFamily`, `line-height`, `lineHeight`, `font:` and `.font =` (not `font: bt.theme.tokens.font` or `.font = bt.theme.tokens.font`),
     in strings too, comments masked, and is reported by `problems` (an error, like a color literal). Font
     *weight* stays allowed (`<b>`, `font-weight` for the one number that matters, as `design/README.md` says).
     Rejected: a warning in `lints`, because the spec already promises this as a ✓ check and colors are errors.

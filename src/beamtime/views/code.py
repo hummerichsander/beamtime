@@ -38,7 +38,7 @@ NUMBERS = re.compile(rf"(?:-?\d+(?:\.\d+)?(?:e-?\d+)?\s*,\s*){{{MAX_NUMBERS},}}"
 COLOR = re.compile(r"#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?)\(", re.I)
 FONT = re.compile(
     r"\bfont-(?:size|family)\b|\bfont(?:Size|Family)\b|\bline-?[hH]eight\b"
-    r"|\bfont\s*:(?!\s*bt\.theme\.tokens\.font\b)"
+    r"|\bfont\s*:(?!\s*bt\.theme\.tokens\.font\b)|\.font\s*=(?!=)(?!\s*bt\.theme\.tokens\.font\b)"
 )
 
 
