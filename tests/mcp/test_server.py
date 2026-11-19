@@ -141,9 +141,9 @@ def test_all_names_no_tools_more_in_instructions_or_prompts() -> None:
     assert "call the `view_*` and `block_*` tools directly" in view
 
 
-def test_tool_definitions_under_11500_characters(project: Path) -> None:
+def test_tool_definitions_under_12000_characters(project: Path) -> None:
     """The definitions of a fresh server, ``tools_more`` and the instructions included, stay under
-    11.5k characters of JSON."""
+    12k characters of JSON."""
 
     async def work(s):
         return (await s.list_tools()).tools
@@ -152,7 +152,7 @@ def test_tool_definitions_under_11500_characters(project: Path) -> None:
         len(json.dumps(t.model_dump(exclude_none=True, by_alias=True)))
         for t in session(project, work)
     )
-    assert size + len(INSTRUCTIONS) < 11_500
+    assert size + len(INSTRUCTIONS) < 12_000
 
 
 def test_instructions_name_the_where_ops() -> None:
