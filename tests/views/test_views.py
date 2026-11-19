@@ -1215,8 +1215,9 @@ def make_group(ctx: Context, group: str, configs: list[dict[str, Any]], nested: 
     from beamtime.synth.summary import card_and_preview
     from tests.query.test_code import make_run
 
-    rows = [{"_step": s, "_t": float(s), "val/acc": 0.1 * s} for s in range(3)]
-    for config in configs:
+    for i, config in enumerate(configs):
+        # every run logs its own values, as real runs do, so no run table column ties them.
+        rows = [{"_step": s, "_t": float(s), "val/acc": 0.1 * s + i} for s in range(3)]
         run_dir = make_run(ctx.logdir, f"{group}/{nested}".rstrip("/"), git={}, proposals={})
         write_replaced(run_dir / c.CONFIG, {"schema": 1, **config})
         card, preview = card_and_preview(rows, status="finished", duration_s=1.0)

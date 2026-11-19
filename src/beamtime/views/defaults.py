@@ -129,7 +129,9 @@ def merges_seeds(ctx: Context, path: str, varying: list[str], own: bool, seed: s
     if seed not in varying:
         return False
     others = [k for k in varying if k != seed]
-    query = {"from": path, "depth": 1 if own else "all", "select": others, "limit": 10000}
+    # an empty select means the default columns; run.id alone leaves every arm empty.
+    select = others or ["run.id"]
+    query = {"from": path, "depth": 1 if own else "all", "select": select, "limit": 10000}
     rows = call("runs", query, ctx)["rows"]
     # the answer's first column is the run id; an arm is what the other columns share.
     arms = Counter(repr(row[1:]) for row in rows)
