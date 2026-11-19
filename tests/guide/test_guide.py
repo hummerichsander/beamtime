@@ -1,3 +1,4 @@
+import json
 import re
 import typing
 from importlib.resources import files
@@ -12,6 +13,7 @@ from beamtime.ops import call
 from beamtime.ops.context import Context
 from beamtime.ops.registry import BY_NAME, BY_TOOL, GuideParams
 from beamtime.record.proposals import parse as parse_proposal
+from beamtime.views import code
 from beamtime.views import model as m
 
 PARTS = files("beamtime.guide") / "parts"
@@ -125,9 +127,7 @@ def test_kit_names_exist_in_the_frontend() -> None:
 
 def test_type_topic_names_real_classes_with_their_families() -> None:
     """The type part is short, opens with the family rule, is linked, and its table follows the tokens."""
-    import json
     from beamtime.guide.skills import SKILLS
-    from beamtime.views import code
 
     design = Path(__file__).parents[2] / "design"
     if not design.is_dir():
