@@ -38,7 +38,7 @@ def fences(text: str) -> list[str]:
 
 
 def label_of(node: m.Node) -> str:
-    """Port of ``labelOf`` in ``web/src/bt/labels.ts``: the margin label of a top-level node.
+    """Port of ``labelOf`` in ``web/src/bt/labels.ts``: the section label of a top-level node.
 
     :param node: The node.
     :return: The label; empty for none."""
@@ -132,16 +132,16 @@ def test_note_types_and_verdict_words_are_all_there() -> None:
 
 
 def test_vocabulary_table_and_title_rule_are_in_the_parts() -> None:
-    """The kit part has the vocabulary table; views, kit and checklist say titles go left."""
+    """The kit part has the vocabulary table; views, kit and checklist say titles become section labels."""
     assert "bt.theme.tone" in TEXTS["kit"] and "bt.ui.Predictions" in TEXTS["kit"]
     assert "bt.ui.Sym" in TEXTS["checklist"]
     for name in ("views", "kit", "checklist"):
-        assert "left column" in TEXTS[name], name
+        assert "section label" in TEXTS[name], name
 
 
 @pytest.mark.parametrize("name", EXAMPLES)
 def test_examples_validate_and_label_their_sections(ctx: Context, name: str) -> None:
-    """An example has no errors, no wording lint, and a margin label on every top-level block."""
+    """An example has no errors, no wording lint, and a section label on every top-level block."""
     group = {"direction": "scaling", "run": None}.get(name, SWEEP)
     if group is None:
         group = call("runs", {"from": SWEEP, "limit": 1}, ctx)["rows"][0][0]

@@ -110,11 +110,12 @@ thing on every page. Never hex colours, emoji or glyphs for status, and never a 
 | pass, fail, warning | `bt.theme.tone` (`good`, `bad`, `warn`) |
 | a run's or group's colour, a colour ramp | `bt.theme.runColor`, `groupColor`, `scale` |
 
-## Titles go in the left column
+## Titles become section labels
 
 Every top-level block of a view is a page section. A top-level `section` (or custom block) titled
-with one or two words shows that title in the margin; a longer title, a nested section, a Markdown
-`##` in a `text` block and `bt.ui.Section` inside code all stay in the content column. So structure a
+with one or two words shows that title as the section label, in mono above the block (in its
+collapse toggle when the block collapses); a longer title, a nested section, a Markdown
+`##` in a `text` block and `bt.ui.Section` inside code render as a sans `heading` inside the block. So structure a
 view as top-level `section`s with short titles (`validation`, `energy`, `phase space`) and put the
 blocks, custom ones included, inside; split one big custom block into one per section. Use
 `bt.ui.Section` only for subheadings within one block; longer explanations go in the caption.

@@ -617,7 +617,7 @@ asks `series {y: [live/new]}` and fails today.
 
 ## S. The design system
 
-### S31. Adopt the modern design system everywhere (sonnet + review) — code
+### S31. Adopt the modern design system everywhere (sonnet + review) — code — **done**
 
 The design system (`design/`) and a first pass over the app landed together before this ticket: tokens, the
 Section, Table, Stat, Note, Button, IconButton and Field components, the collapse toggles that carry the

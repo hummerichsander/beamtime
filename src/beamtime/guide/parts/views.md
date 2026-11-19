@@ -58,9 +58,9 @@ forking, validating and saving are in `guide library`.
   | Where does the research stand? | `proposal`, `groups`, `timeline`, `memory` |
 
 - **Structure by sections.** Make every top-level node a `section` titled with one or two words
-  (`validation`, `energy`): the title shows in the page's left column. Longer titles, nested sections
-  and headings inside text or custom blocks stay in the content column; put long explanations in a
-  caption.
+  (`validation`, `energy`): the title becomes the section label, in mono above the block (in its
+  collapse toggle when it collapses). Longer titles, nested sections and headings inside text or
+  custom blocks render as a sans heading inside the block; put long explanations in a caption.
 - **Tame many runs** (more than about eight curves) with `color: <field>`, `by: [<field>]` or
   `seeds: config.seed`.
 - **State the setup in captions**: what was varied, what was held fixed, how many runs. Charts

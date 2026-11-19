@@ -1,4 +1,4 @@
-// The label of a block's Section: a short word in the page's margin, from what the block is.
+// The label of a block's Section: a short word above the block, from what the block is.
 
 type LabelNode = { block: string; props: Record<string, any>; children?: LabelNode[] };
 

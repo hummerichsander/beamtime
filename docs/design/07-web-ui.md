@@ -42,11 +42,13 @@ These qualities are made concrete as budgets and rules, and checked like correct
 
 ### Light
 
-- **A notebook, not a dashboard.** Pages read like a lab notebook: warm paper, ink, a serif for
-  the texts people and agents write. A page is a column of Sections separated by hairlines, each with a
-  short label in the margin, not boxes ([design/README.md](../../design/README.md)). The top bar and status bar are thin (48 and 30 px); the sidebar collapses
+- **A notebook, not a dashboard.** Pages read like a calm lab notebook: cool neutral paper, ink, a serif
+  only for the texts people and agents wrote. A page is a centered column (at most 1120 px) of Sections
+  separated by hairlines, each with a short mono label above its content (in the toggle of a block that
+  collapses), with panels for destinations and rounded hover rows for lists, not boxes
+  ([design/README.md](../../design/README.md)). The top bar and status bar are thin (48 and 30 px); the sidebar collapses
   with one key. Most of the screen is the view.
-- **One accent color**, warm neutral surfaces, no gradients; color means data or status
+- **One accent color**, cool neutral surfaces, no gradients; color means data or status
   ([layer 5](05-views.md#the-default-theme)).
 - **Typography carries the structure**: a sans page name, serif statements, italic for proposals, bold for
   the numbers that matter, tabular lining figures, a base size of 15 px.
@@ -561,8 +563,8 @@ Decided while building the shell (milestone M5):
   is tested in CI; timings are measured before releases.
 - A fixed shell: top bar, sidebar with the group tree per source, header and view, a context drawer,
   a status bar. The header is defined here.
-- A notebook-like look: warm paper, a serif for titles and written texts, larger type, symbols
-  instead of words, whitespace instead of boxes, quiet hover feedback.
+- A calm notebook-like look: cool neutral paper, a sans for the interface and a serif for written
+  texts, larger type, symbols instead of words, whitespace instead of boxes, quiet hover feedback.
 - Charts are uPlot everywhere, with W&B-like interactions; chart settings stay with each viewer
   until views can be saved from the UI (M6).
 - Texts written by agents and people are edited in place; each edit is a new file (a superseding

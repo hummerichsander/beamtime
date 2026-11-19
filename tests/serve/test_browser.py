@@ -460,9 +460,7 @@ def test_nested_configs_read_well_everywhere(server: str, page, project: Path) -
         .first.get_attribute("href")
     )
     page.goto(f"{base}{run}?token={token}")
-    section = page.locator(
-        "section.collapsible:has(.config-tree), .section:has(.section-label:text-is('config')) section.collapsible"
-    ).first
+    section = page.locator("section.collapsible:has(.collapse-toggle:has(.toggle-label:text-is('config')))").first
     section.wait_for()
     assert section.locator(".config-tree").count() == 0, "the config starts closed on a run's page"
     section.locator("button.collapse-toggle").click()

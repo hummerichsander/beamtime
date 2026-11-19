@@ -186,7 +186,6 @@ export function History(props: { path: string }) {
   };
   if (result.status === "error") return html`<${Notice} kind="error">${result.error}<//>`;
   return html`<section class="history">
-    <h2 class="history-title heading"><${Icon} name="history" size=${16} /> View history</h2>
     ${result.data && !entries.length ? html`<${Notice}>No saved view yet; the page shows the built-in view.<//>` : null}
     <ol class="versions">
       ${entries.map(

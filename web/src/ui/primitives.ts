@@ -25,7 +25,7 @@ export function Tag(props: { tone?: string; tip?: string; children?: ComponentCh
   return html`<span class=${`tag small tone-${props.tone ?? "muted"}`} data-tip=${props.tip}>${props.children}</span>`;
 }
 
-// one row of the page: a short label in the margin and the content, between hairlines.
+// one section of the page: a short label above the content.
 export function Section(props: { label?: string; class?: string; children?: ComponentChildren }) {
   return html`<section class=${`section ${props.class ?? ""}`}>
     <div class="section-label code">${props.label}</div>

@@ -1070,7 +1070,6 @@ l0,-`+(a+144)+`c-2,-159.3,-10,-310.7,-24,-454c-53.3,-528,-210,-949.7,
     </div>
   </form>`:h`<${Ga} icon="save" class="save-view" onClick=${()=>l(!0)}
         tip="Save your chart settings and added charts as this page's view, for everyone">Save as view<//>`}function j5(t){let e=pe(z1(t.path)),a=e.data?.entries??[],[r,l]=te(null),o=r??a.slice(0,2).map(s=>s.version).reverse(),n=s=>{let i=o.includes(s)?o.filter(u=>u!==s):[...o,s].slice(-2);l(i.sort())};return e.status==="error"?h`<${je} kind="error">${e.error}<//>`:h`<section class="history">
-    <h2 class="history-title heading"><${le} name="history" size=${16} /> View history</h2>
     ${e.data&&!a.length?h`<${je}>No saved view yet; the page shows the built-in view.<//>`:null}
     <ol class="versions">
       ${a.map((s,i)=>h`<li key=${s.version} class=${o.includes(s.version)?"picked":""}>

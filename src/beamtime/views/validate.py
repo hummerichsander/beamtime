@@ -277,7 +277,7 @@ def wording(n: m.Node, at: dict[str, Any], *, top: bool) -> list[Finding]:
                 level="warning",
                 **at,
                 message=f"title {n.title!r} has more than two words",
-                fix="titles of one or two words go in the left column; move the rest to a caption",
+                fix="one or two words become the section label; move the rest to a caption",
             )
         )
     if top and isinstance(n, m.Markdown) and n.text.lstrip().startswith("#"):
@@ -286,7 +286,7 @@ def wording(n: m.Node, at: dict[str, Any], *, top: bool) -> list[Finding]:
                 level="warning",
                 **at,
                 message="a top-level text block starts with a heading",
-                fix="make it a top-level section so the title goes in the left column",
+                fix="make it a top-level section so the title becomes its section label",
             )
         )
     return out
@@ -389,7 +389,7 @@ def custom_checks(
                 level="warning",
                 **at,
                 message=f"{n.code}: its render opens with a heading",
-                fix="make it a top-level section so the title goes in the left column",
+                fix="make it a top-level section so the title becomes its section label",
             )
         )
     return out

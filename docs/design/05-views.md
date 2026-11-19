@@ -481,6 +481,8 @@ Beamtime owns the look of every view; views never contain colors, fonts or sizes
 | Type | `serif`, `sans`, `mono`; the styles `title`, `heading`, `statement`, `prose`, `caption`, `body`, `small`, `number`, `code` |
 | Shape | `space-1` to `space-4`, `radius`, `radius-pill`, `margin`, `measure`, `measure-short`, `stroke-data`, `stroke-rule`, `stroke-icon` |
 
+The app no longer uses `margin` (sections put their label above the content); the token stays because custom blocks may use it.
+
 The web UI, built-in blocks, the chart style and the CSS variables of custom blocks all read the same
 tokens. Type styles are classes in the markup; stylesheets never set a size.
 
@@ -503,10 +505,11 @@ tokens. Type styles are classes in the markup; stylesheets never set a size.
 
 ### The default theme
 
-Warm and quiet, like a lab notebook: off-white paper (`#faf9f6`) or warm charcoal (`#1e1e1c`), ink
-rather than black, one ink-blue accent, no gradients. XCharter for what people read, IBM Plex Sans for
-the interface, IBM Plex Mono for code and margin labels; the fonts ship with the frontend. Color is
-reserved for data and status. Exported figures use the light variant.
+Calm and modern: cool neutral grays in a light and a dark mode, ink rather than black, one blue
+accent, no gradients. XCharter for what people and agents wrote, IBM Plex Sans for the interface and
+the names in it, IBM Plex Mono for code, ids, keys and section labels; the fonts ship with the
+frontend. Color is reserved for data and status. Exported figures use the light variant.
+The look is specified in [design/README.md](../../design/README.md).
 
 ### Colors for runs and groups
 
@@ -672,7 +675,7 @@ library block is checked and saved on the source whose group it is checked again
    more than about eight curves.
 3. **Lints, warnings only.** Findings that never stop saving, each with its fix: a caption starting with
    `x:` or longer than 140 characters (the axes say that; say what the chart shows); a top-level section or
-   custom block whose title has more than two words (titles of one or two words go in the left column); a
+   custom block whose title has more than two words (titles of one or two words become the section label); a
    top-level Markdown block starting with a heading, or custom code whose render opens with an `h1`–`h3` or a
    `bt.ui.Section` (make it a top-level section); custom code drawing its own chart (`d3.line`,
    `createElementNS`, `<svg`) without `bt.chart.` (use `bt.chart.Figure`); custom code reading no live data
@@ -709,7 +712,7 @@ research shows work better than long rule lists.
 | `guide charts` | chart practice: axis labels, captions that do not restate the axes, at most eight curves, log and symlog, prefix sections, shared y limits | ~700 |
 | `guide checklist` | the screenshot checklist | ~400 |
 | `guide anti-patterns` | common mistakes with fixes | ~800 |
-| `guide kit` | custom blocks: the three chart tiers, `Figure`, reusing the app's vocabulary (`Sym`, `Predictions`, `tone`), section titles in the left column | ~1.5k |
+| `guide kit` | custom blocks: the three chart tiers, `Figure`, reusing the app's vocabulary (`Sym`, `Predictions`, `tone`), section titles as section labels | ~1.5k |
 | `guide kit-api`, `guide library` | every `bt` name with the validator's rules; library blocks | ~1k each |
 | `guide proposals`, `predictions` | proposals with plans and versions; `each` and `compare` with worked examples | ~700 each |
 | `guide notes`, `verdicts`, `memory` | note types and links; judging a proposal, stating what the check says; compressing memory | ~500 each |
@@ -985,8 +988,8 @@ Decided while building themes (milestone M5):
 - All charts are uPlot; there is no Vega-Lite and no `vega` block. Figures are PNG with CSV data.
 - Validation is static always, plus one headless render where a browser is available; screenshots are
   the agent's own check.
-- Themes are token files with light and dark pairs and `extends`; the default is a warm, quiet
-  notebook look with a serif for reading.
+- Themes are token files with light and dark pairs and `extends`; the default is the calm,
+  cool-neutral look of the design system, with a serif only for what people and agents wrote.
 - Run colors are stable by hash with collision resolution within a view.
 - Reusable blocks form a library in `blocks/`, used like widgets; views pin block versions and upgrade
   deliberately.
