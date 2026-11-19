@@ -368,6 +368,26 @@ def is_clock(metric: str) -> bool:
     return re.split(r"[/.]", metric)[-1] in CLOCK_LEAVES
 
 
+def clock_of(metrics: list[str]) -> str | None:
+    """Pick the clock a page's logged images are placed by: ``epoch`` first, then the others.
+
+    :param metrics: The page's metric keys.
+    :return: The clock metric, or ``None`` when the page logs none."""
+    rank = {k: CLOCK_LEAVES.index(re.split(r"[/.]", k)[-1]) for k in metrics if is_clock(k)}
+    return min(rank, key=rank.get, default=None)
+
+
+def page_clock(ctx: Context, path: str) -> str | None:
+    """Find the clock of a group or run page.
+
+    :param ctx: The operation context.
+    :param path: The group or run path below the log dir.
+    :return: The clock metric, or ``None``."""
+    run_id = path.rsplit("/", 1)[-1]
+    keys = call("keys", {"from": run_id if is_run_id(run_id) else path}, ctx)
+    return clock_of(ordered_metrics(keys))
+
+
 def prefix(metric: str) -> str:
     """Name a metric's namespace: the text before ``/``, or a known prefix before ``.`` or ``_``.
 

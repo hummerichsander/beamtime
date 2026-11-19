@@ -203,7 +203,8 @@ of a field or per subgroup, each narrowed to its runs; `$value` names the value 
 | `importance` | 2 | how strongly config fields relate to a target metric | `target`, `fields` |
 
 **Logged data**: `data_table` (`key` and `step`, or `file` for a data file stored with the view,
-with `columns` to choose and order its columns; `limit`), `images` (`key`, `step`: `last` or a step; wave 2: `slider`), `text` (`key`, `step`). All
+with `columns` to choose and order its columns; `limit`), `images` (`key`, `step`: `last` or a step, where its scrubber starts; the scrubber under the figures steps
+through every logging, see [the web UI](07-web-ui.md)), `text` (`key`, `step`). All
 wave 1.
 
 **Research context** (wave 1)

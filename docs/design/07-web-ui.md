@@ -508,6 +508,25 @@ Decided while building the shell (milestone M5):
   stream sends `stale` events with call ids, at most one a second per page; the page refetches those
   calls, keeps the old answer on screen while it does, and updates charts through uPlot's
   `setData`. After a reconnect it refetches everything on screen.
+- **Logged images** (`images`, `web/src/blocks/logged.ts`) sit in a `ChartFrame` like a chart: the head with
+  the title, the tools on hover (a "by epoch" toggle when the page has a clock, the download menu,
+  expand) and the caption. The figures show every run's image at the scrubbed step; a run that logged
+  nothing there shows its latest earlier image, muted and labeled with its own step. Under them a
+  **scrubber** (a range input) has one stop per logging, from the `data` answer's `meta.steps`; it reads
+  "step 4000", or "epoch 12 · step 4000" when the page has a clock (the view's `clock`, found by
+  `page_clock` in `views/defaults.py`: `epoch` first, then the other leaves of `CLOCK_LEAVES`). "By epoch"
+  spaces the stops by the clock's value (one per distinct value, at its last logging) instead of by step.
+  The arrow keys move one stop, Home and End go to the ends. A view's `step: <n>` is where it starts. At
+  the last stop the block follows the newest logging as a run writes it; after the viewer moves it, it
+  stays. Fast scrubbing asks only for the stop it rests on (120 ms) and the old figures stay until the new
+  ones are there; a stop's figures come from one `data` call over the few stops before it. The step is
+  kept for the session, per page and block, so back and forward and the dialog find it again; it isn't in
+  the URL. Download saves the shown images' original files (`<run>-<key>-step<n>.<ext>`). Clicking an
+  image or Expand opens the page's dialog on that run: the image as large as the dialog allows (pixelated
+  when enlarged), the wheel and a trackpad pinch zoom around the pointer (caught only inside the image,
+  so the page never scrolls), a drag pans, double-click or the reset button fits it again, `+` `−` `0`
+  work with the image focused, ‹ › step to the previous and next image, and the scrubber works as inline,
+  for both. A render, an export and a screenshot show the starting step without the scrubber.
 - **The built-in default view** is built on the server as a view and compiled to a block tree
   (`{block, id, props, data, children}`, where `data` names API calls) like authored views. A
   group with runs of its own gets one chart per metric, in sections by metric prefix (averaged over

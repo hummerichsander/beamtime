@@ -727,6 +727,21 @@ def test_clocks_get_no_chart() -> None:
     assert [c.y for c in grid.children] == ["steps_per_s", "epoch_time"]
 
 
+def test_images_are_placed_by_the_pages_clock() -> None:
+    """The images call names the page's clock, epoch first; texts and pages without one don't."""
+    from beamtime.views.defaults import clock_of
+
+    assert clock_of(["val/loss", "step", "train/epoch", "global_step"]) == "train/epoch"
+    assert clock_of(["val/loss", "global_step", "iter"]) == "global_step"
+    assert clock_of(["val/loss", "lr"]) is None
+    view = parse("body:\n  - images: {key: samples}\n  - text: {key: notes}\n")
+    images, text = compile_view(view, path="g", clock="epoch")["children"]
+    assert images["data"]["main"]["params"]["clock"] == "epoch"
+    assert "clock" not in text["data"]["main"]["params"]
+    (images,) = compile_view(parse("body:\n  - images: {key: samples}\n"), path="g")["children"]
+    assert "clock" not in images["data"]["main"]["params"]
+
+
 def test_ordered_metrics_ranks_by_prefix() -> None:
     """Validation first, then test, train, other prefixes and unprefixed metrics."""
     from beamtime.views.defaults import ordered_metrics

@@ -18,16 +18,24 @@ export function expandedHeight(): number {
   return Math.round(innerHeight * 0.62);
 }
 
-export type DownloadSet = { png: (b: Background) => unknown; svg?: () => unknown; pdf?: () => unknown; csv?: () => unknown };
+// `files` saves the original files a block shows (logged images); a block without a drawing has no png.
+export type DownloadSet = {
+  png?: (b: Background) => unknown;
+  svg?: () => unknown;
+  pdf?: () => unknown;
+  csv?: () => unknown;
+  files?: () => unknown;
+};
 
 export function Downloads(props: DownloadSet & { id?: string }) {
-  register(props.id, props);
+  if (props.png) register(props.id, { ...props, png: props.png });
   // a choice closes the menu.
   const close = (e: Event) => (e.target as Element).closest<HTMLElement>("[popover]")?.hidePopover();
   return html`<${Popover} icon="download" label="Download" title="Download">
     <div class="menu-list" onClick=${close}>
-      <button type="button" onClick=${() => props.png("transparent")}><${Icon} name="image" size=${15} /> PNG, transparent</button>
-      <button type="button" onClick=${() => props.png("white")}><${Icon} name="image" size=${15} /> PNG, white background</button>
+      ${props.files ? html`<button type="button" onClick=${props.files}><${Icon} name="image" size=${15} /> Original files</button>` : null}
+      ${props.png ? html`<button type="button" onClick=${() => props.png!("transparent")}><${Icon} name="image" size=${15} /> PNG, transparent</button>
+      <button type="button" onClick=${() => props.png!("white")}><${Icon} name="image" size=${15} /> PNG, white background</button>` : null}
       ${props.svg ? html`<button type="button" onClick=${props.svg}><${Icon} name="image" size=${15} /> SVG (vector)</button>` : null}
       ${props.pdf && !EXPORTED ? html`<button type="button" onClick=${props.pdf}><${Icon} name="file-text" size=${15} /> PDF (vector)</button>` : null}
       ${props.csv ? html`<button type="button" onClick=${props.csv}><${Icon} name="file-text" size=${15} /> CSV data</button>` : null}

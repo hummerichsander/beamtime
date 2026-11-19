@@ -96,6 +96,26 @@ a.check:hover { text-decoration: none; }
 .images figure { margin: 0; }
 .images img { display: block; inline-size: 144px; block-size: 144px; object-fit: contain; image-rendering: pixelated; background: var(--surface); border-radius: var(--radius); }
 .images figcaption { color: var(--muted); margin-block-start: var(--space-1); }
+/* a run that logged nothing at the scrubbed step shows its latest earlier image, muted */
+.images figure.earlier img { opacity: 0.55; }
+.image-open { display: block; padding: 0; border: 0; background: none; border-radius: var(--radius); cursor: zoom-in; }
+.scrubber {
+  display: flex; align-items: center; gap: var(--space-3); margin-block-start: var(--space-3);
+  & input[type="range"] { flex: 1; min-inline-size: 0; }
+  & .scrub-label { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+}
+.tool-toggle {
+  padding: 0 var(--space-2); border: 0; border-radius: var(--radius); background: none; color: var(--muted); cursor: pointer;
+  &:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+  &[aria-pressed="true"] { color: var(--accent); }
+}
+/* the dialog's image: zoomed and panned inside a box that clips it */
+.zoom-box {
+  overflow: hidden; block-size: 62vh; border-radius: var(--radius); background: var(--surface); cursor: grab; touch-action: none;
+  &:active { cursor: grabbing; }
+  &:focus-visible { outline: var(--stroke-rule) solid var(--accent); }
+}
+.zoom-img { display: block; inline-size: 100%; block-size: 100%; object-fit: contain; image-rendering: pixelated; transform-origin: 0 0; user-select: none; }
 .text-entry pre { white-space: pre-wrap; margin: var(--space-1) 0 var(--space-3); }
 pre.log { margin: var(--space-2) 0 0; padding: var(--space-2); border-radius: var(--radius); overflow: auto; max-block-size: 440px; background: var(--surface); white-space: pre-wrap; word-break: break-word; }
 .memory-meta { margin: var(--space-3) 0 0; color: var(--muted); }

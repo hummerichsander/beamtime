@@ -62,15 +62,23 @@ class Compiler:
     """Compiles one view for one page."""
 
     def __init__(
-        self, *, view: m.View, path: str, draft: str | None = None, library: "Library | None" = None
+        self,
+        *,
+        view: m.View,
+        path: str,
+        draft: str | None = None,
+        library: "Library | None" = None,
+        clock: str | None = None,
     ) -> None:
         """Prepare compiling.
 
         :param view: The view.
         :param path: The page: a group below the log dir, or a run's path.
         :param draft: The draft's name when compiling a draft, so data files come from it.
-        :param library: The page's library blocks, for views that use them."""
+        :param library: The page's library blocks, for views that use them.
+        :param clock: The page's clock metric, which places logged images on a second axis."""
         self.view = view
+        self.clock = clock
         self.path = path
         self.draft = draft
         self.library = library
@@ -212,7 +220,10 @@ class Compiler:
                     )
                 return node("data_table", n.id, data={"main": call}, limit=n.limit, **common)
             case m.Images() | m.Text():
-                call = api("data", sel | {"key": n.key, "step": n.step}, scope)
+                params = sel | {"key": n.key, "step": n.step}
+                if isinstance(n, m.Images) and self.clock:
+                    params["clock"] = self.clock
+                call = api("data", params, scope)
                 return node(m.block_of(n), n.id, data={"main": call}, **common)
             case m.Proposal() | m.Predictions():
                 group = self.scope_of(n.of)
@@ -421,7 +432,12 @@ class Compiler:
 
 
 def compile_view(
-    view: m.View, *, path: str, draft: str | None = None, library: "Library | None" = None
+    view: m.View,
+    *,
+    path: str,
+    draft: str | None = None,
+    library: "Library | None" = None,
+    clock: str | None = None,
 ) -> dict[str, Any]:
     """Compile a view for a page.
 
@@ -429,9 +445,10 @@ def compile_view(
     :param path: A group below the log dir, or a run's path.
     :param draft: The draft's name when compiling a draft.
     :param library: The page's library blocks.
+    :param clock: The page's clock metric, for logged images.
     :return: The root node of the block tree.
     :raises SchemaError: If a library block is missing or its params don't fit."""
-    return Compiler(view=view, path=path, draft=draft, library=library).tree()
+    return Compiler(view=view, path=path, draft=draft, library=library, clock=clock).tree()
 
 
 def walk_tree(t: dict[str, Any]) -> list[dict[str, Any]]:

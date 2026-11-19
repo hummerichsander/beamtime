@@ -1451,3 +1451,220 @@ def test_a_render_mounts_every_block_but_keeps_folds(project: Path, server: str,
     page.wait_for_selector('[data-block-id="fifteen"] table')
     page.wait_for_selector('[data-block-id="c3"] canvas')
     assert page.locator('[data-block-id="inner"]').count() == 0, "the folded section stays folded"
+
+
+def images_view(project: Path, group: str) -> None:
+    """Save a view with one ``images`` block of the key ``samples``.
+
+    :param project: The project root.
+    :param group: The group the view belongs to."""
+    import yaml
+
+    from beamtime.ops import call
+    from beamtime.ops.context import Context
+
+    ctx = Context.make()
+    call("view new", {"group": group, "name": "pictures"}, ctx)
+    view = {"schema": 1, "title": "pictures", "finding": "x", "body": [{"images": {"id": "samples", "key": "samples"}}]}
+    (project / ".beamtime" / "drafts" / "pictures" / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    call("view save", {"draft": "pictures"}, ctx)
+
+
+def test_images_step_through_their_loggings_expand_zoom_and_download(project: Path, server: str, page) -> None:
+    """The scrubber moves through every logging, the dialog zooms and pans, and the original files download."""
+    images_view(project, "scaling/lr-sweep")
+    base = server.split("/f/local")[0]
+    page.goto(f"{base}/f/local/scaling/lr-sweep?token={server.split('token=')[1]}")
+    block = page.locator('[data-block-id="samples"]')
+    block.locator(".images figure img").first.wait_for()
+    figures = block.locator(".images figure")
+    assert figures.count() > 1
+    label = block.locator(".scrub-label").first
+    last = label.inner_text()
+    assert re.fullmatch(r"(epoch [\d.,k]+ · )?step [\d.,k]+", last), last
+    sources = [figures.nth(i).locator("img").get_attribute("src") for i in range(figures.count())]
+    sizes = {tuple(figures.nth(i).locator("img").evaluate("(e) => [e.width, e.height]")) for i in range(figures.count())}
+    assert len(sizes) == 1, "images keep one tile size"
+
+    scrub = block.locator('.scrubber input[type="range"]')
+    scrub.focus()
+    page.keyboard.press("Home")
+    page.wait_for_function("(l) => document.querySelector('main [data-block-id=samples] .scrub-label').textContent !== l", arg=last)
+    first = label.inner_text()
+    assert first != last
+    page.wait_for_function(
+        "(s) => [...document.querySelectorAll('[data-block-id=samples] .images img')].some((e) => !s.includes(e.getAttribute('src')))", arg=sources
+    )
+    page.keyboard.press("ArrowRight")
+    page.wait_for_function("(l) => document.querySelector('main [data-block-id=samples] .scrub-label').textContent !== l", arg=first)
+    page.keyboard.press("End")
+    page.wait_for_function("(l) => document.querySelector('main [data-block-id=samples] .scrub-label').textContent === l", arg=last)
+    page.keyboard.press("Home")
+    page.wait_for_function("(l) => document.querySelector('main [data-block-id=samples] .scrub-label').textContent === l", arg=first)
+
+    assert block.locator(".tool-toggle").count() == 0, "a page without a clock has no toggle"
+
+    block.locator(".chart-frame").hover()
+    # a browser asks before saving several files at once, so the test records the saves instead.
+    page.evaluate("window.__saved = []; HTMLAnchorElement.prototype.click = function () { if (this.download) window.__saved.push([this.download, this.href]); }")
+    block.locator(".chart-frame").first.hover()
+    block.locator('button[aria-label="Download"]').click()
+    block.get_by_text("Original files").click()
+    saved = page.evaluate("window.__saved")
+    assert len(saved) == figures.count()
+    assert all(re.fullmatch(r".+-samples-step\d+\.png", name) for name, _ in saved), saved
+    assert page.evaluate("(u) => fetch(u).then((r) => r.headers.get('content-type'))", saved[0][1]) == "image/png"
+
+    figures.nth(1).locator("button.image-open").click()
+    dialog = page.locator("dialog.chart-dialog")
+    dialog.locator(".zoom-img").wait_for()
+    start = dialog.locator(".zoom-img").get_attribute("src")
+    assert dialog.locator(".scrub-label").inner_text() == first, "the dialog shares the scrubbed step"
+    box = dialog.locator(".zoom-box").bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    scroll = page.evaluate("window.scrollY")
+    page.mouse.wheel(0, -600)
+    page.wait_for_function("() => !/scale\\(1\\)/.test(document.querySelector('dialog .zoom-img').style.transform)")
+    assert page.evaluate("window.scrollY") == scroll, "the wheel zooms, the page stays"
+    assert dialog.is_visible()
+    zoomed = dialog.locator(".zoom-img").get_attribute("style")
+    page.mouse.down()
+    page.mouse.move(box["x"] + box["width"] / 2 - 40, box["y"] + box["height"] / 2 - 40, steps=4)
+    page.mouse.up()
+    assert dialog.locator(".zoom-img").get_attribute("style") != zoomed, "a drag pans"
+    page.mouse.dblclick(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    assert "scale(1)" in dialog.locator(".zoom-img").get_attribute("style")
+    dialog.locator('button[aria-label="Next image"]').click()
+    assert dialog.locator(".zoom-img").get_attribute("src") != start
+    dialog.locator('.scrubber input[type="range"]').focus()
+    page.keyboard.press("End")
+    page.wait_for_function("(l) => document.querySelector('dialog .scrub-label').textContent === l", arg=last)
+    assert label.inner_text() == last, "the scrubber is one for both"
+    page.evaluate("window.__saved = []")
+    dialog.locator('button[aria-label="Download"]').click()
+    dialog.get_by_text("Original files").click()
+    assert len(page.evaluate("window.__saved")) == 1, "the dialog saves the image it shows"
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    page.wait_for_function("() => !document.querySelector('dialog.chart-dialog')")
+
+
+PICTURES = """
+import sys, time, random
+import beamtime
+from beamtime.synth.generate import png
+
+steps, pause, name = int(sys.argv[1]), float(sys.argv[2]), sys.argv[3]
+run = beamtime.init(dir='pictures', name=name, system_metrics=False)
+rng = random.Random(1)
+for i in range(steps):
+    step = i * 100
+    run.log({'train/epoch': step // 200, 'train/loss': 1 / (1 + step)}, step=step)
+    open('img.png', 'wb').write(png(rng))
+    run.log({'samples': beamtime.Image('img.png')}, step=step)
+    time.sleep(pause)
+run.finish()
+"""
+
+
+def write_pictures(project: Path, tmp_path: Path, steps: int, pause: float, name: str = "a") -> subprocess.Popen:
+    """Start a run in ``pictures`` that logs an epoch, a loss and an image every 100 steps.
+
+    :param project: The project root.
+    :param tmp_path: Pytest's temporary directory.
+    :param steps: How many loggings.
+    :param pause: Seconds between them.
+    :param name: The run's name.
+    :return: The writer process."""
+    script = tmp_path / f"pictures-{name}.py"
+    script.write_text(PICTURES)
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("BEAMTIME_", "SLURM_"))}
+    env |= {"BEAMTIME_LOGDIR": str(project / "beamtime"), "PYTHONUNBUFFERED": "1"}
+    return subprocess.Popen([sys.executable, script, str(steps), str(pause), name], cwd=tmp_path, env=env)
+
+
+def pictures_page(project: Path, server: str, page, writers: list[subprocess.Popen]) -> None:
+    """Open the view with the ``samples`` images of ``pictures`` once the writers are done or underway.
+
+    :param project: The project root.
+    :param server: The URL of ``serve`` for the project.
+    :param page: The browser page.
+    :param writers: The running writers, waited for when they are short."""
+    deadline = time.time() + 30
+    while not list((project / "beamtime" / "pictures").glob("*/_data.jsonl")):
+        assert time.time() < deadline, "the writer logged nothing"
+        time.sleep(0.1)
+    images_view(project, "pictures")
+    base = server.split("/f/local")[0]
+    page.goto(f"{base}/f/local/pictures?token={server.split('token=')[1]}")
+
+
+def test_images_are_labeled_by_the_pages_epoch_and_spaced_by_it(project: Path, tmp_path: Path, server: str, page) -> None:
+    """A page that logs an epoch labels the stops with it, and "by epoch" gives one stop per epoch."""
+    writer = write_pictures(project, tmp_path, 6, 0)
+    assert writer.wait(60) == 0
+    from tests.conftest import index_fully
+
+    index_fully(project / "beamtime")
+    pictures_page(project, server, page, [writer])
+    block = page.locator('main [data-block-id="samples"]')
+    label = block.locator(".scrub-label")
+    label.wait_for()
+    assert label.inner_text() == "epoch 2 · step 500"
+    scrub = block.locator('.scrubber input[type="range"]')
+    scrub.focus()
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_function("() => document.querySelector('main .scrub-label').textContent === 'epoch 2 · step 400'")
+    block.locator(".chart-frame").hover()
+    block.locator(".tool-toggle").click()
+    scrub.focus()
+    page.keyboard.press("End")
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_function("() => document.querySelector('main .scrub-label').textContent === 'epoch 1 · step 300'")
+    page.keyboard.press("Home")
+    page.wait_for_function("() => document.querySelector('main .scrub-label').textContent === 'epoch 0 · step 100'")
+    other = page.evaluate("[...document.querySelectorAll('a[href^=\"/f/local\"]')].map((a) => a.getAttribute('href')).find((h) => !h.startsWith('/f/local/pictures'))")
+    page.locator(f'a[href="{other}"]').first.click()
+    page.wait_for_url(re.compile(re.escape(other)))
+    page.go_back()
+    page.wait_for_function("() => document.querySelector('main .scrub-label')?.textContent === 'epoch 0 · step 100'")
+
+
+def test_a_running_runs_new_image_follows_only_from_the_last_stop(project: Path, tmp_path: Path, server: str, page) -> None:
+    """The scrubber at its last stop moves to each new logging; after the viewer moved it, it stays."""
+    writer = write_pictures(project, tmp_path, 40, 0.4)
+    try:
+        pictures_page(project, server, page, [writer])
+        label = page.locator('main [data-block-id="samples"] .scrub-label')
+        label.wait_for()
+
+        def current() -> int:
+            return int(re.search(r"step (\d+)", label.inner_text()).group(1))
+
+        seen = current()
+        page.wait_for_function("(n) => +document.querySelector('main .scrub-label').textContent.match(/step (\\d+)/)[1] > n", arg=seen, timeout=20000)
+        scrub = page.locator('main [data-block-id="samples"] .scrubber input[type="range"]')
+        scrub.focus()
+        page.keyboard.press("Home")
+        page.wait_for_function("() => document.querySelector('main .scrub-label').textContent.endsWith('step 0')")
+        page.wait_for_timeout(1500)
+        assert label.inner_text().endswith("step 0"), "the scrubber stays where the viewer put it"
+        page.keyboard.press("End")
+        later = current()
+        page.wait_for_function("(n) => +document.querySelector('main .scrub-label').textContent.match(/step (\\d+)/)[1] > n", arg=later, timeout=20000)
+    finally:
+        writer.terminate()
+        writer.wait(30)
+
+
+def test_a_key_logged_once_shows_no_scrubber(project: Path, tmp_path: Path, server: str, page) -> None:
+    """One logging has nothing to step through."""
+    writer = write_pictures(project, tmp_path, 1, 0)
+    assert writer.wait(60) == 0
+    from tests.conftest import index_fully
+
+    index_fully(project / "beamtime")
+    pictures_page(project, server, page, [writer])
+    block = page.locator('main [data-block-id="samples"]')
+    block.locator(".images img").first.wait_for()
+    assert block.locator(".scrubber").count() == 0

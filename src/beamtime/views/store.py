@@ -153,6 +153,20 @@ def check_name(name: str, *, new: bool = False) -> str:
     return name
 
 
+def images_clock(ctx: Context, path: str, view: m.View) -> str | None:
+    """Find the clock a view's logged images are placed by, when it has images.
+
+    :param ctx: The operation context.
+    :param path: A group below the log dir, or a run's path.
+    :param view: The view.
+    :return: The page's clock metric, or ``None``."""
+    from beamtime.views.defaults import page_clock
+
+    return (
+        page_clock(ctx, path) if any(isinstance(n, m.Images) for n in m.walk(view.body)) else None
+    )
+
+
 def shown(
     ctx: Context,
     path: str,
@@ -195,14 +209,15 @@ def shown(
         else:
             pins = pins_of(ctx, path, metrics)
             view = default_view(ctx, path, pins)
-        tree = compile_view(view, path=path, draft=draft_name, library=library)
+        clock = images_clock(ctx, path, view)
+        tree = compile_view(view, path=path, draft=draft_name, library=library, clock=clock)
     except SchemaError as e:
         # a broken version never breaks the page: the default shows, with what is wrong.
         pins = pins_of(ctx, path, metrics)
         view = default_view(ctx, path, pins)
         text = f"{e} Showing the default view."
         view.body.insert(0, m.Note(id="invalid-view", kind="warning", text=text))
-        tree = compile_view(view, path=path)
+        tree = compile_view(view, path=path, clock=images_clock(ctx, path, view))
         out |= {"source": "default", "invalid": str(e)}
     # every page shows its notes and memory; a view only decides where, by including them.
     blocks = {n.get("block") for n in walk_tree(tree)}

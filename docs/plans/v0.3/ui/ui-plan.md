@@ -525,7 +525,7 @@ asks `series {y: [live/new]}` and fails today.
    check, or the shot's pixels, over the 40-chart page) and one that a folded section stays folded.
 4. `07-web-ui.md`: Lazy rendering names the exception (renders and screenshots mount every block); Table.md gets the hint.
 
-### W37. Images: step through every logging, expand, zoom, download (sonnet + review) — code
+### W37. Images: step through every logging, expand, zoom, download (sonnet + review) — code — **done**
 
 - **Touches:** `web/src/blocks/logged.ts` (`Images` 13–29), new `web/src/bt/zoom.ts` (pan and zoom of one element),
   `web/src/bt/frame.ts` (`ChartFrame` 66–110, `Downloads` 23: a file download set), `web/src/shell/expanded.ts`
