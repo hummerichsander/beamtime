@@ -1,8 +1,8 @@
 # Pages and views
 
-Every group and run has a page. Without anything else, it shows the most important curves, the runs
-and the notes. A **view** replaces that with a page made for one question: *which learning rate is
-best*, *where did this run go wrong*.
+Every group and run has a page. Without anything else, it shows the curves in sections by metric prefix
+(`train/`, and `val.` or `val_` too), the runs and the notes. A **view** replaces that with a page made for
+one question: *which learning rate is best*, *where did this run go wrong*.
 
 ## Ask your agent
 
@@ -15,6 +15,13 @@ a new version; the page's history lists them, and older versions stay viewable.
 
 - Chart settings (smoothing, log scale, grouping by a config value, the x axis) are in the bar above
   each chart. **Save as view** keeps them for everyone.
+- **Color by** offers the varying config keys, run fields (status, tags, name, folder) and the keys that vary
+  together with another. In a sweep of one hyperparameter the default view already colors by it.
+- **Scale** is log when every value is positive and spans more than two decades, else linear; pick one in
+  the bar to fix it, or write `scale:` in a view.
+- **Markers** are `auto` (every point is marked while a curve has at most 30 points), `on` or `off`.
+- Logged images have a scrubber over every logging; click an image to zoom, pan and download it.
+- Hiding a run also shrinks the x axis to the curves that are shown.
 - The **×** on a chart hides it (the section says "n hidden · show"); **Add a chart** at the end of
   the charts picks any metric the page shows no chart of.
 - **Add text** puts a written panel at the top; click it to edit.

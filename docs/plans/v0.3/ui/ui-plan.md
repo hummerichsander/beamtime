@@ -735,7 +735,7 @@ Lines below are at `274fc44`, not the plan's base commit; refresh them if Q31–
 
 ## Z. Close
 
-### Z31. Close (sonnet) — code
+### Z31. Close (sonnet) — code — **done**
 
 - **Touches:** `CHANGELOG.md` (0.3.0 section), `docs/guides/views.md` (sections, markers, color by, scale),
   `CLAUDE.md` (Layout: `ui/mark.ts`, favicon files) only if a line there became wrong.

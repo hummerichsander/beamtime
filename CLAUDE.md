@@ -307,7 +307,7 @@ sync.
   `scripts/build-plugin` from `skills.py`; Markdown parts and six example views with
   `{{placeholders}}` filled from a group's keys, the `data` example's file in `examples/data/`; the custom example's code in `examples/code/`)
 - `design/`: the design system: tokens (`tokens.json`, generated `tokens.css`), `components.css`, fonts,
-  rules per component and `gallery.html`; `scripts/build-tokens` writes `tokens.css` and the favicon's accent fills, `scripts/check-design` keeps
+  rules per component and `gallery.html`; `scripts/build-tokens` writes `tokens.css` and the accent fills of `favicon.svg` and `favicon-live.svg`, `scripts/check-design` keeps
   raw values out of other CSS,
   `tests/test_design.py` checks all of it, the gallery in a browser
 - `web/`: the frontend in TypeScript (Preact + htm, uPlot, lucide, marked + KaTeX): `src/shell/` the
@@ -315,7 +315,7 @@ sync.
   settings from the generated `chart-defaults.ts`), `src/blocks/` the built-in blocks
   (`custom.ts` hosts custom blocks), `src/kit/` the custom-block frame (`frame.ts`, its own entry
   `kit.js`; `window.bt`; the bridge protocol),
-  `src/ui/` primitives (icons and symbols, tooltip, popovers, inline editing, Markdown),
+  `src/ui/` primitives (icons and symbols, the `///` mark, tooltip, popovers, inline editing, Markdown),
   `src/styles/` the stylesheets beyond `design/`. After any change in `web/`, run
   `cd web && npm ci && npm test && npm run build` and commit the rebuilt `src/beamtime/serve/static/`
   with it (CI fails when the bundle is stale; the shell must stay under 120 KB compressed)

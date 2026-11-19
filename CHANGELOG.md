@@ -197,6 +197,70 @@
 - **Breaking:** failure signatures replace paths with `<path>` and quoted strings with `<str>`, so a signature no
   longer matches one written by 0.2.
 
+**UI refinements** (the charts, the sidebar, the look, and what agents are told about type):
+
+- **Added** a metric a running run has just logged charts at once, and a chart whose runs are running but have
+  not logged a value yet says "Waiting for the first value of <title>." instead of an error. A live key is a known
+  key for `series`, `data`, `runs` and `where` (`runs` and `where` read the run card's value, which lags the
+  stream by a moment), and the `series` meta gains `running` (summed across sources).
+- **Added** the sidebar opens and closes at every level: the chevron is a 24 px wide, full-row target, a click on the
+  name of the current group toggles it, and the ancestors of the current group open once on navigation. While the
+  filter has text, every match is shown expanded and the chevrons are inert.
+- **Added** a Markers setting on line charts (`markers: auto | on | off`, default `auto`): `auto` marks every point
+  of every curve when the shown curve with the most finite points has at most 30, `on` always, `off` never; a curve
+  with a single point is marked in every mode. It was decided per curve and flickered.
+- **Changed** hiding a run shrinks the x axis to the shown curves; a zoom still wins.
+- **Added** "Color by" offers run fields (`status`, `tags`, `name` and the folder, as `run.group`) next to the
+  varying config keys, and lists the keys that vary together ("`<key>` · same split as `<canon>`") and the keys
+  Beamtime dropped because another determines them ("`<key>` · set by `<finer key>`"), all selectable. The `keys`
+  answer gains `config.dropped` (key -> the key that determines it), and a merged answer lists a key that varies
+  somewhere as varying.
+- **Added** the default view colors a sweep's charts by its one swept key (no merged seeds, exactly one varying
+  config key besides the seed). "Color by -> none" undoes it.
+- **Changed** sections accept `val/`, `val.` and `val_`: `/` always separates, `.` and `_` separate after a known
+  prefix (`val`, `valid`, `eval`, `test`, `validation`, `train`, `training`, matched case-insensitively), and a
+  prefix with a single metric keeps its own section. A viewer's open or closed state of sections that moved resets.
+- **Changed** the log scale comes from the values: a chart without an explicit `scale` is log when every finite
+  value is positive and spans more than two decades, else linear (it was log for any name with `loss`). A live loss
+  that crosses two decades turns log. The y-scale control shows the resolved scale; an explicit `scale` in the
+  block, the view's `metrics` or the viewer's choice wins.
+- **Changed** clocks come from the leaf of a metric's name (`epoch`, `step`, `global_step`, `iteration`, `iter`
+  after `/` or `.`): they get no chart and are offered as x axes under "Progress". A view can still chart one by
+  naming it. `run.progress` stays on the `epoch` metric.
+- **Changed** the default view merges seeds when `config.seed` varies and some arm (the runs sharing every other
+  varying key) has two or more seeds, instead of above 8 runs. "Each run" in the chart settings undoes it.
+- **Added** logged images step through every logging: a scrubber under the images (stops are the logged steps;
+  arrow keys, Home and End), "by step / by epoch" when the page has a clock, and a run without an image at the
+  scrubbed step shows its latest earlier one, muted and labelled with its own step. A view's `step:` is where the
+  scrubber starts; live updates follow the last stop until the viewer moves it.
+- **Added** the images block is a chart frame: download gives the original file of each image (inline "Latest
+  image" and "All images (n)", and "This image" and "All images" in the dialog), and a click or Expand opens a large
+  dialog that zooms (wheel, pinch, `+`/`-`), pans, resets on double-click and steps to the previous or next run.
+- **Added** the `data` query takes `clock: <metric>` and `step: ["last", s]` (CLI `--step last:S`: each run's latest
+  entries at or before step `s`), and its meta lists `steps` (every step at which a run in scope logged the key) and,
+  with a clock, `clocks`.
+- **Added** the top bar and the favicon carry the `///` mark: it gathers to the left on hover and on page load
+  (420 ms; a jump under reduced motion), and the live favicon (`favicon-live.svg`) is drawn gathered. A data table
+  says when rows are hidden, and a render mounts every chart before the screenshot.
+- **Changed** the look: cool neutral grays, a centered column of at most 1120 px, Section labels in mono above the
+  content, sans titles, panels for sub-groups and stats, rows with a rounded hover tint, 12 px corners and drawn
+  checkboxes, ranges, selects and number fields. Serif is only for what people and agents wrote, sans for what
+  Beamtime names, labels and counts, mono for ids, keys, code and section labels. Themes recolor through the same
+  tokens; custom blocks keep `var(--margin)`, which the app no longer uses. The agent guide and the spec follow.
+- **Added** the guide topic `beamtime guide type` (also in the `beamtime-views` skill): which type class to use for
+  each kind of text in custom blocks and views. `view_validate` rejects font literals in custom code (`font-size`,
+  `font-family`, `fontSize`, `fontFamily`, `line-height`, `lineHeight`, the `font` shorthand and an assigned
+  `.font = "<literal>"`, comments masked) as an error `font literal ...`; font weight stays allowed, and canvas
+  code uses `bt.theme.tokens.font`.
+- **Changed** the size limits to fit this: the chart kit may be 50 000 bytes compressed (was 48 000) and the MCP tool
+  definitions with the instructions 12 000 characters (was 11 500).
+- **Breaking:** the default chart scale is log when every value is positive and spans more than two decades, no
+  longer for names with `loss` (set `scale:` in the view or the view's `metrics`); sections, clocks, seed merging
+  and sweep coloring follow the rules above (Color by -> none and "each run" undo the last two); the `images`
+  block's `step:` is now where the scrubber starts; `view_validate` reports font literals in custom code as errors
+  (use a type class, see `beamtime guide type`). The `keys` answer's `config.dropped`, the `series` meta `running`
+  and the `data` query's `clock`, `step: ["last", s]` and meta `steps` and `clocks` are additive.
+
 ## 0.2.2
 
 - **Fixed** a crash in the live-update hub when a stale page (an older tab left open) sent a watch
