@@ -415,7 +415,12 @@ Line charts behave like W&B's panels:
     range; "Use this x axis on all charts on this page" sets it for every chart of the page;
   - aggregation: each run, over seeds or by a varying config key, and the band (min to max, ± std,
     ± std error, none); "over seeds" averages over the seed key `keys` reports (`config.seed` when it
-    reports none, and the node's own `seeds` when it names one), and "Color by" leaves that key out;
+    reports none, and the node's own `seeds` when it names one);
+  - colors: "Color by" offers, in groups, "Config" (the varying keys, the seed included), "Run" (status,
+    tags, name, folder: `run.status`, `run.tags`, `run.name`, `run.group`) and "Same split" (the `keys`
+    answer's `aliases` as "`<key>` · same split as `<canon>`" and `dropped` as "`<key>` · set by
+    `<finer key>`"); every entry is selectable, a list such as tags colors by the combination
+    (`colorOptions`); the colormap;
   - smoothing: TensorBoard's debiased EMA, computed in the page; the band is smoothed with the
     curve; the raw curve faint behind, optionally;
   - axes: linear, log or symlog (linear near zero, logarithmic beyond; for values that cross zero),

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { effective, metricsOf, normalizeSeries, seriesCall } from "../src/bt/chart-settings.ts";
+import { colorOptions, effective, metricsOf, normalizeSeries, seriesCall } from "../src/bt/chart-settings.ts";
 import type { Node } from "../src/bt/index.ts";
 import { prefsOf } from "../src/bt/prefs.ts";
 
@@ -60,4 +60,30 @@ test("a node's own seeds win over the group's seed key", () => {
   const own = { ...plain, data: { main: { ...plain.data!.main, params: { ...plain.data!.main.params, seeds: "config.rng_seed" } } } } as Node;
   const eff = effective(own, prefsOf("fixture.own").value);
   assert.equal(seriesCall(own, eff, { zoom: null, width: 600, seed: "config.trainer.seed" }).params.seeds, "config.rng_seed");
+});
+
+const RUN: [string, string][] = [["run.status", "status"], ["run.tags", "tags"], ["run.name", "name"], ["run.group", "folder"]];
+
+test("color by offers a seed-only group the seed and the run fields", () => {
+  const options = colorOptions({ config: { varying: ["config.seed"], aliases: {}, dropped: {} } });
+  assert.deepEqual(options, [["Config", [["config.seed", "seed"]]], ["Run", RUN]]);
+});
+
+test("color by lists aliases and dropped keys with their reason", () => {
+  const options = colorOptions({
+    config: {
+      varying: ["config.arch", "config.seed"],
+      aliases: { "config.x.arch": "config.arch" },
+      dropped: { "config.model": "config.arch" },
+    },
+  });
+  assert.deepEqual(options[2], [
+    "Same split",
+    [["config.x.arch", "x.arch · same split as arch"], ["config.model", "model · set by arch"]],
+  ]);
+});
+
+test("color by copes with an answer without dropped keys, or none yet", () => {
+  assert.deepEqual(colorOptions({ config: { varying: ["config.lr"], aliases: { "config.a": "config.lr" } } }).map(([g]) => g), ["Config", "Run", "Same split"]);
+  assert.deepEqual(colorOptions(undefined), [["Run", RUN]]);
 });

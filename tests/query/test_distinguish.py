@@ -58,11 +58,32 @@ def test_exact_aliases_are_folded_and_the_shortest_kept() -> None:
     assert distinct.aliases == {"config.x.y.a": "config.a"}
 
 
+def test_dropped_key_names_the_finer_key_that_determines_it() -> None:
+    """A key a finer key determines is dropped and says by which; an alias is never also dropped."""
+    arch_model = {"a1": "m1", "a2": "m1", "a3": "m2", "a4": "m2"}
+    per_run = [
+        {"arch": arch, "model": model, "model_copy": model, "seed": seed}
+        for arch, model in arch_model.items()
+        for seed in (0, 1)
+    ]
+    distinct = distinguishing(per_run)
+    assert distinct.varying == ["config.arch", "config.seed"]
+    assert distinct.dropped == {"config.model": "config.arch"}
+    assert distinct.aliases == {"config.model_copy": "config.model"}
+    assert not set(distinct.aliases) & set(distinct.dropped)
+
+
+def test_seed_only_group_drops_nothing() -> None:
+    """A group that only differs in its seed has no dropped key."""
+    assert distinguishing([{"seed": i} for i in range(3)]).dropped == {}
+
+
 def test_realistic_group_gives_arm_and_seed(ctx: Context) -> None:
     """The egnn-bench group's varying config is exactly the arm and the seed, nothing nested."""
     keys = call("keys", {"from": "realistic/egnn-bench"}, ctx)
     assert keys["config"]["varying"] == ["config.arm", "config.seed"]
     assert keys["config"]["aliases"]["config.hydrantic.seed"] == "config.seed"
+    assert keys["config"]["dropped"] == {}
 
 
 def test_seed_means_over_realistic_give_one_curve_per_arm(ctx: Context) -> None:

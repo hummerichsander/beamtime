@@ -456,7 +456,8 @@ has, and whether they are `constant`: one value in every run, a single point in 
 excepted), config keys (with distinct values or ranges), data keys (tables, images, text) and
 tags. Config also carries `varying`: the keys that actually distinguish the selected runs, dropping
 aliases (several keys that happen to split the runs the same way; the shortest name is kept, the
-rest listed in `aliases`) and noise unique to every run (a timestamped path, not a real sweep).
+rest listed in `aliases`), keys a finer key determines (listed in `dropped`, each with the first key that
+determines it) and noise unique to every run (a timestamped path, not a real sweep).
 `varying_config` and the header's facts line read `varying`, not the raw per-key value lists.
 
 **`runs`**: a run table.

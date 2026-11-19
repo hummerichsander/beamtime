@@ -3,6 +3,7 @@
 
 import type { Call } from "../api.ts";
 import { EXPORTED } from "../snapshot.ts";
+import { label } from "./fmt.ts";
 import type { Node } from "./index.ts";
 import { cascade, type ChartPrefs, type Effective, type ViewPrefs } from "./prefs.ts";
 import { DEFAULTS, SEEDS_FIELD } from "./chart-defaults.ts";
@@ -67,4 +68,18 @@ function nodeSettings(node: Node): Effective {
   if (params.band) settings.band = params.band;
   if (Array.isArray(params.steps)) settings.steps = params.steps;
   return settings as Effective;
+}
+
+// the fields a chart can be colored by, in groups: the keys that vary, what a run is, and the keys that
+// split the runs like another one (aliases) or that a finer key sets (dropped), with the reason.
+export function colorOptions(keys: any): [string, [string, string][]][] {
+  const { varying = [], aliases = {}, dropped = {} } = keys?.config ?? {};
+  const why = (map: Record<string, string>, text: string): [string, string][] =>
+    Object.entries(map).map(([k, by]) => [k, `${label(k)} · ${text} ${label(by)}`]);
+  const groups: [string, [string, string][]][] = [
+    ["Config", varying.map((k: string): [string, string] => [k, label(k)])],
+    ["Run", [["run.status", "status"], ["run.tags", "tags"], ["run.name", "name"], ["run.group", "folder"]]],
+    ["Same split", [...why(aliases, "same split as"), ...why(dropped, "set by")]],
+  ];
+  return groups.filter(([, options]) => options.length);
 }

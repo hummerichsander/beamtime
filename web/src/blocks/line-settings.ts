@@ -6,6 +6,7 @@ import { useState } from "preact/hooks";
 
 import { useCall } from "../api.ts";
 import { label } from "../bt/fmt.ts";
+import { colorOptions } from "../bt/chart-settings.ts";
 import { setChart, setView, type ChartPrefs, type Effective } from "../bt/prefs.ts";
 import { colormaps, type Colormaps } from "../bt/theme.ts";
 import { useStore } from "../state.ts";
@@ -44,6 +45,7 @@ type Context = {
   setAll: (p: ChartPrefs) => void;
   y: string[];
   metrics: string[];
+  keys: any;
   varying: string[];
   maps: Colormaps | null;
   keepsRunColors: boolean;
@@ -95,11 +97,13 @@ const FIELDS: Record<Field, (c: Context) => unknown> = {
       <option value="stderr">± std error</option><option value="none">none</option>
     </select></span>`,
 
-  color: ({ prefs, varying, set }) => html`
+  color: ({ prefs, keys, set }) => html`
     <span class="field-label">Color by</span>
     <span class="input"><select value=${prefs.color ?? ""} onChange=${(e: Event) => set({ color: (e.target as HTMLSelectElement).value || null })}>
       <option value="">none</option>
-      ${varying.map((k) => html`<option value=${k}>${label(k)}</option>`)}
+      ${colorOptions(keys).map(([group, options]) => html`<optgroup label=${group}>
+        ${options.map(([value, text]) => html`<option value=${value}>${text}</option>`)}
+      </optgroup>`)}
     </select></span>`,
 
   colormap: ({ prefs, maps, keepsRunColors, set, setAll }) => {
@@ -184,6 +188,7 @@ export function Settings(props: {
     setAll: (p) => setView(path, p),
     y: props.y,
     metrics: keys?.metrics?.rows.map((r: unknown[]) => r[0]) ?? [],
+    keys,
     varying: (keys?.config?.varying ?? []).filter((k: string) => k !== keys?.config?.seed),
     maps,
     keepsRunColors: props.keepsRunColors ?? true,

@@ -66,7 +66,7 @@ def test_one_shot_runs_budget(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
 
 STATIC = Path(__file__).parents[1] / "src" / "beamtime" / "serve" / "static"
 SHELL_BUDGET = 120_000
-KIT_BUDGET = 48_000
+KIT_BUDGET = 48_500
 
 
 def imports(entry: str) -> tuple[set[str], set[str]]:

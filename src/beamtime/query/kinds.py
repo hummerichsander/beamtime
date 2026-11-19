@@ -160,6 +160,7 @@ def keys_kind(ctx: Context, q: m.Keys) -> dict[str, Any]:
             "rows": [[f"config.{k}", len(v), summarize(v)] for k, v in sorted(config.items())],
             "varying": distinct.varying,
             "aliases": distinct.aliases,
+            "dropped": distinct.dropped,
             "seed": seed_key(distinct.varying),
         },
         "data": {

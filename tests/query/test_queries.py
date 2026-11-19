@@ -84,6 +84,22 @@ def test_runs_finds_the_planted_best_lr(ask) -> None:
     assert json.loads(json.dumps(a)) == a
 
 
+def test_runs_select_the_run_fields_color_by_offers(ask) -> None:
+    """Color by run.status, tags, name or group needs nothing beyond the runs call; a running run is told apart."""
+    a = ask(
+        {
+            "runs": {
+                "from": "scaling",
+                "select": ["run.status", "run.tags", "run.name", "run.group"],
+                "limit": 10000,
+            }
+        }
+    )
+    rows = table(a)
+    assert {"finished", "running"} <= {r["run.status"] for r in rows}
+    assert all(isinstance(r["run.tags"], list) and r["run.group"] for r in rows)
+
+
 def test_seeds_group_runs(ask) -> None:
     """seeds merges runs that differ only in the seed: five lrs of three seeds."""
     a = ask(

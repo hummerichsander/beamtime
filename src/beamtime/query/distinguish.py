@@ -13,17 +13,19 @@ SEED_LEAVES = ("seed", "random_seed", "rng_seed")
 
 @dataclass(kw_only=True, frozen=True)
 class Distinct:
-    """The config keys that distinguish runs, and which keys are aliases of which."""
+    """The config keys that distinguish runs, with the aliases and dropped keys left out."""
 
     varying: list[str]
     aliases: dict[str, str]
+    dropped: dict[str, str]
 
 
 def distinguishing(per_run: list[dict[str, Any]]) -> Distinct:
     """Find the flattened config keys worth showing: real splits, not aliases or path noise.
 
     :param per_run: Each run's flattened config, dotted key to value.
-    :return: ``varying`` keys (``config.``-prefixed) and each alias's canonical key."""
+    :return: ``varying`` keys (``config.``-prefixed), each alias's canonical key and each dropped
+        key's first determining key."""
     n = len(per_run)
     keys = sorted({k for cfg in per_run for k in cfg})
     sig = {k: signature(per_run, k) for k in keys}
@@ -44,13 +46,15 @@ def distinguishing(per_run: list[dict[str, Any]]) -> Distinct:
     seeds = {k for k in kept if is_seed(k)}
     reducers = {k: sig[k] for k in kept if k not in seeds and len(set(sig[k])) < n}
     dropped = {
-        k
+        k: next(a for a, s in reducers.items() if a != k and determines(s, sig[k]))
         for k in kept
         if k not in seeds and any(a != k and determines(s, sig[k]) for a, s in reducers.items())
     }
     varying = sorted(f"config.{k}" for k in kept if k not in dropped)
     return Distinct(
-        varying=varying, aliases={f"config.{k}": f"config.{c}" for k, c in aliases.items()}
+        varying=varying,
+        aliases={f"config.{k}": f"config.{c}" for k, c in aliases.items()},
+        dropped={f"config.{k}": f"config.{a}" for k, a in dropped.items()},
     )
 
 

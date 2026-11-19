@@ -448,7 +448,7 @@ asks `series {y: [live/new]}` and fails today.
 3. `LineSpec.markers: boolean`; uplot's filter: `pointsOf(self.data[at], current.markers)`.
 4. Settings: "Markers" segmented control (auto, on, off) in the Axes section after `legend`.
 
-### W34. Color by offers what can color (sonnet + review) — code
+### W34. Color by offers what can color (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/query/distinguish.py` (`Distinct` 13–18, `distinguishing` 44–53: `dropped`),
   `src/beamtime/query/kinds.py` (`keys_kind` 157–162), `web/src/bt/chart-settings.ts` (new `colorOptions`),

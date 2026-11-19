@@ -37,6 +37,12 @@ test("groups: palette in sorted order, numeric ramps from the colormap when many
   assert.equal(ramp(["#000000", "#ffffff"], 0.5), "#808080");
 });
 
+test("tags, a list, color runs by their combination", () => {
+  const g = groupColors([["a"], ["a", "b"], ["a"], []], theme);
+  assert.equal(g.size, 3);
+  assert.notEqual(g.get('["a"]'), g.get('["a","b"]'));
+});
+
 test("a chosen colormap always applies: to numbers by order, to categories evenly spaced", () => {
   const stops = ["#000000", "#ffffff"];
   const few = groupColors([0.1, 0.01, 0.001], theme, stops);
