@@ -755,6 +755,8 @@ def test_main_metrics_are_pinned_in_the_ui(server: str, page, project: Path) -> 
     saved = sorted((project / "beamtime" / "realistic" / "egnn-bench" / "view").glob("*.yaml"))[-1]
     assert "main_metrics: [training/loss]" in saved.read_text().split("body:")[0]
 
+    # charts draw only once in view; at 500px the first one sits below the fold.
+    page.set_viewport_size({"width": 1280, "height": 900})
     page.goto(f"{base}/f/local/scaling/lr-sweep?token={token}")
     page.wait_for_selector(".chart canvas")
     assert "Main (1)" in titles()[0]
