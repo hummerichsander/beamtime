@@ -90,6 +90,22 @@ export function logDomain(curves: Curve[], window: [number | null, number | null
   return hi > 0 ? [lo, hi] : null;
 }
 
+// the extent of x over the points with a value on the curves not hidden; null when none is shown.
+export function xExtent(curves: Curve[], hidden: Set<string>): [number, number] | null {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const c of curves) {
+    if (hidden.has(c.key) || (c.run !== null && hidden.has(c.run))) continue;
+    c.x.forEach((x, i) => {
+      const y = c.y[i];
+      if (y === null || y === undefined || !Number.isFinite(y) || !Number.isFinite(x)) return;
+      lo = Math.min(lo, x);
+      hi = Math.max(hi, x);
+    });
+  }
+  return lo <= hi ? [lo, hi] : null;
+}
+
 export type Aligned = { x: number[]; y: (number | null)[][]; lo: (number | null)[][]; hi: (number | null)[][] };
 
 // uPlot wants one sorted x array; every curve gets null where it has no point.

@@ -399,6 +399,8 @@ Line charts behave like W&B's panels:
 - **Legend**: click hides or shows a curve, double-click shows only it (again: all). The run table's
   color dots do the same for runs. Hidden runs apply to every chart of the view; a chart with hidden
   runs says so and shows them again on click.
+  The x axis ends at the shown curves (a raw curve behind a smoothed one counts with its curve), so
+  hiding the longest run shortens it and showing the run restores it; a zoom stays as it is.
 - **Zoom**: drag zooms one chart's x axis and refetches that step window for exact points;
   double-click or the reset button zooms out. Live data keeps the zoom.
 - **Settings per chart**, in sections; there are no view-wide chart settings:

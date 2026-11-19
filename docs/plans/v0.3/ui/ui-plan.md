@@ -404,7 +404,7 @@ asks `series {y: [live/new]}` and fails today.
 4. `.twisty`: `inline-size: 24px; align-self: stretch; justify-content: center; align-items: center;
    margin-inline: -4px; cursor: pointer` (tokens only; check with `scripts/check-design`).
 
-### W32. The x axis follows the shown curves (sonnet) — code
+### W32. The x axis follows the shown curves (sonnet) — code — **done**
 
 - **Touches:** `web/src/bt/curves.ts` (new `xExtent`), `web/src/bt/uplot.ts` (x `range` 105), `web/test/curves.test.ts`,
   `tests/serve/test_browser.py` (a legend toggle), `docs/design/07-web-ui.md` (l. 382–384).

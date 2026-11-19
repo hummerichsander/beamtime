@@ -2,7 +2,7 @@
 
 import uPlot from "uplot";
 
-import { align, logDomain, logRange, logTicks, markers, nearest, type Curve } from "./curves.ts";
+import { align, logDomain, logRange, logTicks, markers, nearest, xExtent, type Curve } from "./curves.ts";
 import { extent, logSplits, timeLabel, timeTicks } from "./shapes.ts";
 import { alpha, type ChartStyle } from "./theme.ts";
 
@@ -101,8 +101,14 @@ export function lineChart(el: HTMLElement, spec: LineSpec): LineChart {
       legend: { show: false },
       padding: [8, 8, 0, 0],
       scales: {
-        // one x value would collapse the range to nothing.
-        x: { time: false, range: (_self, min, max) => (min === max ? [min - (Math.abs(min) * 0.01 || 1), max + (Math.abs(max) * 0.01 || 1)] : [min, max]) },
+        // the shown curves' extent, not the data's: a hidden run does not stretch the axis; one x value would collapse the range to nothing.
+        x: {
+          time: false,
+          range: (_self, min, max) => {
+            const [a, b] = xExtent([...current.curves, ...(current.raw ?? [])], current.hidden) ?? [min, max];
+            return a === b ? [a - (Math.abs(a) * 0.01 || 1), b + (Math.abs(b) * 0.01 || 1)] : [a, b];
+          },
+        },
         y: {
           ...(spec.scale === "log" ? { distr: 3 } : spec.scale === "symlog" ? { distr: 4, asinh: spec.asinh } : {}),
           range: (self, min, max) => {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { align, byLabels, logDomain, markers, nearest, reshape } from "../src/bt/curves.ts";
+import { align, byLabels, logDomain, markers, nearest, reshape, xExtent } from "../src/bt/curves.ts";
 
 test("raw and bucketed run curves", () => {
   const out = reshape({
@@ -179,4 +179,24 @@ test("values come from the envelope alone, whatever the old fields say", () => {
     ],
   });
   assert.deepEqual(out.curves.map((c) => [c.y, c.lo, c.hi, c.n]), [[[2], [1], [3], [4]], [[5], [4], [6], [2]]]);
+});
+
+test("the x extent follows the shown curves", () => {
+  const curve = (key: string, run: string | null, x: number[], y: (number | null)[]) =>
+    ({ key, label: key, run, metric: "m", x, y, lo: null, hi: null, n: null, monotone: true, step: null, group: null, runs: [], resumes: [] });
+  const short = curve("a", "r1", [0, 500, 1000], [1, 0.5, 0.2]);
+  const long = curve("b", "r2", [0, 2500, 5000], [1, 0.4, 0.1]);
+  assert.deepEqual(xExtent([short, long], new Set()), [0, 5000]);
+  assert.deepEqual(xExtent([short, long], new Set(["r2"])), [0, 1000]);
+  assert.deepEqual(xExtent([short, long], new Set(["b"])), [0, 1000]);
+  assert.equal(xExtent([short, long], new Set(["r1", "r2"])), null);
+  assert.deepEqual(xExtent([curve("c", "r3", [0, 9, 20], [1, null, NaN])], new Set()), [0, 0]);
+  assert.equal(xExtent([], new Set()), null);
+});
+
+test("a smoothed chart's raw curve counts with its curve", () => {
+  const raw = { key: "a·raw", label: "a", run: "r1", metric: "m", x: [0, 8000], y: [1, 2], lo: null, hi: null, n: null, monotone: true, step: null, group: null, runs: [], resumes: [] };
+  const smooth = { ...raw, key: "a", x: [0, 1000] };
+  assert.deepEqual(xExtent([smooth, raw], new Set()), [0, 8000]);
+  assert.deepEqual(xExtent([smooth, raw], new Set(["r1"])), null);
 });

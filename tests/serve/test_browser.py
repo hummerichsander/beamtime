@@ -1290,3 +1290,64 @@ def test_the_tree_sidebar_opens_and_closes_every_level(deep: str, server: str, p
     assert chevron.get_attribute("aria-disabled") == "true"
     chevron.click()
     assert item("a").count() == 1 and page.url == f"{base}/f/local/tier"
+
+
+@pytest.fixture
+def lengths(project: Path, tmp_path: Path) -> str:
+    """A group of two runs that logged 1000 and 5000 steps, indexed.
+
+    :param project: The project root.
+    :param tmp_path: Pytest's temporary directory.
+    :return: The group."""
+    from tests.conftest import index_fully
+
+    script = tmp_path / "lengths.py"
+    script.write_text(
+        "import beamtime\n"
+        "for name, last in (('short', 1000), ('long', 5000)):\n"
+        "    run = beamtime.init(dir='lengths', name=name, system_metrics=False)\n"
+        "    for step in range(0, last + 1, last // 20):\n"
+        "        run.log({'train/loss': 1 / (1 + step)}, step=step)\n"
+        "    run.finish()\n"
+    )
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("BEAMTIME_", "SLURM_"))}
+    env |= {"BEAMTIME_LOGDIR": str(project / "beamtime")}
+    subprocess.run([sys.executable, script], cwd=project, env=env, check=True)
+    index_fully(project / "beamtime")
+    return "lengths"
+
+
+def test_the_x_axis_follows_the_shown_curves(lengths: str, server: str, page) -> None:
+    """Hiding the longer run ends the x axis near the shorter run's last step, showing it again restores
+    the axis, and a zoom is kept."""
+    page.goto(f"{server.split('/f/local')[0]}/f/local/{lengths}?token={server.split('token=')[1]}")
+    page.wait_for_selector(".chart canvas")
+    box = box_of(page, ".chart .u-over")
+    right = {"x": box["x"] + box["width"] - 2, "y": box["y"] + box["height"] / 2}
+
+    def last_x() -> float:
+        page.mouse.move(right["x"] - 40, right["y"])
+        page.mouse.move(right["x"], right["y"])
+        row = page.locator(".bt-tip:not([hidden]) .bt-tip-row").first
+        row.wait_for()
+        return float(re.search(r"[\d,.]+$", row.inner_text().strip()).group().replace(",", ""))
+
+    assert last_x() > 4000
+    long_row = page.locator("table.runs tbody tr", has_text="long").locator(".swatch")
+    long_row.click()
+    page.wait_for_timeout(500)
+    assert last_x() <= 1100, "a hidden run no longer stretches the x axis"
+    long_row.click()
+    page.wait_for_timeout(500)
+    assert last_x() > 4000, "showing the run again restores the axis"
+
+    page.mouse.move(box["x"] + 2, right["y"])
+    page.mouse.down()
+    page.mouse.move(box["x"] + box["width"] / 2, right["y"], steps=5)
+    page.mouse.up()
+    page.wait_for_timeout(800)
+    zoomed = last_x()
+    assert zoomed < 3500, "the drag zooms"
+    page.locator("table.runs tbody tr", has_text="short").locator(".swatch").click()
+    page.wait_for_timeout(800)
+    assert abs(last_x() - zoomed) < 300, "a zoom is kept when a run is hidden"
