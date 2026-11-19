@@ -8,7 +8,7 @@ import type { Node } from "./index.ts";
 import { cascade, type ChartPrefs, type Effective, type ViewPrefs } from "./prefs.ts";
 import { DEFAULTS, SEEDS_FIELD } from "./chart-defaults.ts";
 
-// a chart's settings when nobody chose any; `scale` is always resolved on the wire, so its default is the UI's fallback.
+// a chart's settings when nobody chose any; a line chart's `scale` nobody chose is resolved from its values.
 export const BASE: Effective = { ...DEFAULTS.line, scale: "linear" };
 
 // sparklines ask for fewer points than this; charts for more.
@@ -61,7 +61,7 @@ export function normalizeSeries(params: Record<string, unknown>): Record<string,
 // what the node says: settings on its props, the grouping, band and window on its series call.
 function nodeSettings(node: Node): Effective {
   const params = node.data?.main.params ?? {};
-  const settings: Record<string, unknown> = { ...BASE };
+  const settings: Record<string, unknown> = { ...BASE, scale: null };
   for (const key of Object.keys(BASE)) if (node.props[key] != null) settings[key] = node.props[key];
   if (params.seeds) settings.by = "seeds";
   else if (Array.isArray(params.by)) settings.by = params.by[0];

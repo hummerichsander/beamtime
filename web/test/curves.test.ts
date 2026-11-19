@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { align, byLabels, logDomain, marksChart, nearest, pointsOf, reshape, valued, xExtent, type Curve } from "../src/bt/curves.ts";
+import { align, autoScale, byLabels, logDomain, marksChart, nearest, pointsOf, reshape, valued, xExtent, type Curve } from "../src/bt/curves.ts";
 
 const curve = (key: string, run: string | null, x: number[], y: (number | null)[]): Curve =>
   ({ key, label: key, run, metric: "m", x, y, lo: null, hi: null, n: null, monotone: true, step: null, group: null, runs: [], resumes: [] });

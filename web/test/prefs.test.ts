@@ -53,7 +53,7 @@ test("runs hide, show, and solo", () => {
 test("a node's settings come from its props and its series call, and absent ones are the defaults", () => {
   const empty = prefsOf("n").value;
   const plain = effective(line("a"), empty);
-  assert.deepEqual([plain.x, plain.band, plain.scale, plain.by, plain.steps, plain.smooth], ["_step", "minmax", "linear", null, null, 0]);
+  assert.deepEqual([plain.x, plain.band, plain.scale, plain.by, plain.steps, plain.smooth], ["_step", "minmax", null, null, null, 0]);
   const e = effective(line("b", { scale: "log", x: "epoch" }, { seeds: "config.seed", band: "std", steps: [0, 5] }), empty);
   assert.deepEqual([e.scale, e.x, e.by, e.band, e.steps], ["log", "epoch", "seeds", "std", [0, 5]]);
   assert.equal(effective(line("c", {}, { by: ["config.lr"] }), empty).by, "config.lr");

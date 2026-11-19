@@ -28,8 +28,10 @@ Rules for every chart, built-in or drawn in code. `view_validate` warns about th
 
 - Training curves use `x: epoch` when the runs log it; otherwise steps. A clock (`_t`, `_elapsed`)
   is an x axis, not a chart of its own. A metric as x is never interpolated.
-- `scale: log` only for values that stay positive (losses, learning rates, errors). For values that
-  cross zero use `symlog`, which is linear near zero. Scatter has `x_scale` and `y_scale`.
+- The y scale follows the values: log when every value is positive and spans more than two decades
+  (a loss from 2.3 to 0.01), else linear; set `scale` (or the view's `metrics`) to fix it. `scale: log`
+  only for values that stay positive. For values that cross zero use `symlog`, which is linear near
+  zero. Scatter has `x_scale` and `y_scale`.
 - Sweeps over several orders of magnitude (`config.lr`) get `x_scale: log`.
 - **Small multiples share the y range.** Charts that are compared side by side get the same
   `ymin` and `ymax`, or the eye compares different scales.

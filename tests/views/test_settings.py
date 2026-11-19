@@ -78,7 +78,7 @@ def test_markers_round_trip() -> None:
 
 
 def test_scale_always_written() -> None:
-    """A scale is explicit, even the linear one, since a loss without a scale is drawn log."""
+    """A scale is explicit, even the linear one, since a chart without one resolves it from its values."""
     props: dict[str, Any] = {"id": "c", "y": "val/loss"}
     settle(props, {"scale": "linear"})
     assert props["scale"] == "linear"

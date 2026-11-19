@@ -348,7 +348,7 @@ asks `series {y: [live/new]}` and fails today.
 2. `generated_ts` exports `CLOCK_LEAVES`; run `scripts/build-chart-defaults`.
 3. `xGroups`: Progress lists `_step`, then the logged clocks, `_t`, `_elapsed`; `axes.ts` titles a clock by its leaf.
 
-### D34. Log scale from the values (sonnet + review) — code
+### D34. Log scale from the values (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/views/compile.py` (`line` 282–320: `guess` 303 removed, `scale` only when
   explicit), `src/beamtime/views/model.py` (`Line.scale` description 55–61), `web/src/bt/curves.ts` (new

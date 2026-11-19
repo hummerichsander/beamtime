@@ -185,7 +185,7 @@ of a field or per subgroup, each narrowed to its runs; `$value` names the value 
 
 | Block | Wave | Purpose | Key props |
 |---|---|---|---|
-| `line` | 1 | metric curves over steps, time or another metric | `y`, `x`, `color`, `by`, `band`, `seeds`, `smooth`, `raw`, `scale` (`linear`, `log`, `symlog`), `ymin`, `ymax`, `steps`, `outliers`, `legend`, `markers` (`auto`, `on`, `off`), `xlabel`, `ylabel`; wave 2: `facet`, `highlight` |
+| `line` | 1 | metric curves over steps, time or another metric | `y`, `x`, `color`, `by`, `band`, `seeds`, `smooth`, `raw`, `scale` (`linear`, `log`, `symlog`; default: the view's `metrics`, else log when every value is positive and spans more than two decades, else linear), `ymin`, `ymax`, `steps`, `outliers`, `legend`, `markers` (`auto`, `on`, `off`), `xlabel`, `ylabel`; wave 2: `facet`, `highlight` |
 | `histogram` | 1 | a logged distribution (a table with `bin_start`, `bin_end`, `count`), one outline per run | `key`, `step` (`last` or a step), `xlabel`, `ylabel`; wave 2: `all` as a step-by-bin heatmap |
 
 **One value per run**
@@ -460,9 +460,10 @@ with hundreds of runs and thousands of points per curve.
 - **One owner for a line chart's settings.** The `line` struct (`m.Line`) is the only place a setting's name,
   type and default is written. The web UI gets the defaults as generated constants
   (`web/src/bt/chart-defaults.ts`, from `scripts/build-chart-defaults`), and compilation writes a node's props
-  with `views/settings.py` `wire_props`. The wire omits a setting at its default, except `scale`, which is
-  always resolved (the view's `metrics`, else log for losses, else linear); `band`, `by`, `seeds` and `steps`
-  travel in the series call.
+  with `views/settings.py` `wire_props`. The wire omits a setting at its default; `scale` is on it only
+  when the block or the view's `metrics` says so, otherwise the chart resolves it from the values it
+  draws (log when every value is positive and spans more than two decades, else linear); `band`, `by`,
+  `seeds` and `steps` travel in the series call.
 - **Drawings by custom code** (d3, SVG, canvas) use `bt.chart.Figure` ([the kit](#the-bt-kit-api)): the frame, settings, legend, hover and downloads are the same as a built-in chart's; only the plot is the block's own.
 - Wave-1 widgets beyond curves (`scatter`, `bar`, `histogram`) use uPlot's point and bar paths.
 
@@ -926,7 +927,7 @@ Decided while building views (milestone M6):
   new version with the local account as author. Hidden runs stay the viewer's own. The settings
   of a `line` fold in through `views/settings.py`, which derives their names and defaults from
   `m.Line`: the settings are merged into the node, decoded as a `line` and written with every
-  default left out, except `scale`, which is always explicit; unknown settings are dropped.
+  default left out; unknown settings are dropped.
   The web side reads the same defaults from `web/src/bt/chart-defaults.ts`, generated from `m.Line` by
   `scripts/build-chart-defaults`; `web/src/bt/chart-settings.ts` turns a node and the viewer's preferences into
   the chart's settings and its series call, and a page's stored answers are found by the call with settings at

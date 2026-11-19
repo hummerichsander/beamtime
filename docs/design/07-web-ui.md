@@ -389,6 +389,11 @@ Line charts behave like W&B's panels:
   run in the table and legends; an aggregated curve matches by its group and by the runs in it.
   Each curve answers with its own nearest point (within a few pixels beyond its ends), so runs logged
   at different times, as on an elapsed or wall-time axis, all show.
+- **Scale**: the y scale is the block's or the view's `metrics` when they say one, else resolved from the
+  values the chart holds (`curves.autoScale`): log when every finite value of every curve, hidden ones
+  included, is positive and the largest is more than 100 times the smallest, else linear. A live loss
+  that crosses two decades turns log. The y-scale control marks the resolved scale; picking one fixes it
+  until "Reset this chart". Exports and the PDF carry the resolved scale.
 - **Axes**: every chart titles both axes: a clock by name (`step`, `wall time`, `elapsed`) or by its
   leaf (`train/epoch` is `epoch`), else the metric's label and unit from the view's `metrics`; several metrics share the path they have
   in common, or get no y title. A view's `xlabel` and `ylabel` replace these until the viewer picks

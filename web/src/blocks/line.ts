@@ -7,7 +7,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { type Call, useCall } from "../api.ts";
 import { hovered, useRunColors, useTheme, useVisible, ViewCtx, type Node } from "../bt/index.ts";
 import { xTitle, yTitle } from "../bt/axes.ts";
-import { align, linthresh, marksChart, reshape, robustRange, smooth, valued, type Curve, type Curves } from "../bt/curves.ts";
+import { align, autoScale, linthresh, marksChart, reshape, robustRange, smooth, valued, type Curve, type Curves } from "../bt/curves.ts";
 import { png, useChart } from "../bt/chart.ts";
 import { fileName, light, paper, recolor, type Background } from "../bt/export.ts";
 import { effective, metricsOf, seriesCall } from "../bt/chart-settings.ts";
@@ -15,7 +15,7 @@ import { ChartFrame, expandedHeight, HEIGHT, Legend, type LegendItem } from "../
 import { host } from "../bt/host.ts";
 import { duration, label, step, value } from "../bt/fmt.ts";
 import { lineChart, type LineSpec } from "../bt/plot.ts";
-import { hideChart, higherIsBetter, setMain, toggleRun, update, usePrefs } from "../bt/prefs.ts";
+import { hideChart, higherIsBetter, setMain, toggleRun, update, usePrefs, type Scale } from "../bt/prefs.ts";
 import { chartStyle, dashOf, groupColors, palette as paletteOf, stopsOf, swatch, type Theme } from "../bt/theme.ts";
 import { groupUrl, navigate } from "../router.ts";
 import { IconButton } from "../ui/primitives.ts";
@@ -68,11 +68,13 @@ function Chart(props: {
   const stops = stopsOf(prefs.colormap);
   const colors = useMemo(() => (byField && prefs.color && theme ? fieldColors(byField, prefs.color, theme, stops) : runs), [byField, theme, runs, prefs.color, prefs.colormap]);
   const el = useRef<HTMLDivElement>(null);
-  const log = prefs.scale === "log";
   // while a new call (a zoom, a setting) loads, the legend keeps the last answer; the chart
   // waits for the new data, so a zoom never snaps back in between.
   const last = useRef<any>(null);
   if (result.data) last.current = result.data;
+  // a scale nobody chose follows the values, hidden curves included, so hiding a run never flips the axis.
+  const scale: Scale = prefs.scale ?? (last.current ? autoScale(last.current) : "linear");
+  const log = scale === "log";
   const curves = last.current ? reshape(last.current, { log }) : null;
   const smoothed = curves && prefs.smooth > 0 ? smooth(curves, prefs.smooth) : curves;
   const hidden = new Set(all.hidden);
@@ -100,8 +102,8 @@ function Chart(props: {
       hidden,
       style: chartStyle(t),
       height,
-      scale: prefs.scale,
-      asinh: prefs.scale === "symlog" ? linthresh(align(shown).y) : 1,
+      scale,
+      asinh: scale === "symlog" ? linthresh(align(shown).y) : 1,
       markers: marksChart(curves.curves, hidden, prefs.markers),
       band: (smoothed.aggregated || smoothed.curves.length === 1) && prefs.band !== "none" && !trajectory,
       range,
@@ -134,7 +136,7 @@ function Chart(props: {
     onZoom: (w) => setZoom(w),
     onClick: (c) => c.run && navigate(groupUrl(path, { run: c.run }), { replace: true }),
   };
-  useChart(el, lineChart, spec, [result.data, colors, JSON.stringify(prefs), all.hidden, zoom], theme);
+  useChart(el, lineChart, spec, [result.data, colors, JSON.stringify(prefs), scale, all.hidden, zoom], theme);
 
   const named = shownMetrics.map((m) => metrics[m]?.label ?? m).join(", ");
   const title = prefs.y?.length ? named : node.props.title ?? named;
@@ -144,7 +146,7 @@ function Chart(props: {
     prefs.by === "seeds" ? "seed mean" : prefs.by ? `by ${label(prefs.by)}` : null,
     prefs.smooth > 0 ? `smoothed ${prefs.smooth.toFixed(2)}` : null,
     prefs.x !== "_step" ? xTitle(prefs.x, metrics) : null,
-    prefs.scale !== "linear" ? prefs.scale : null,
+    scale !== "linear" ? scale : null,
     node.props.note && !prefs.by && !node.props.note.startsWith("seed") ? node.props.note : null,
     prefs.color ? `colored by ${label(prefs.color)}` : null,
     resumed(smoothed?.curves.filter(isShown) ?? [], formatterFor(prefs.x)),
@@ -180,7 +182,7 @@ function Chart(props: {
         title,
         xlabel,
         ylabel,
-        yscale: prefs.scale,
+        yscale: scale,
         ylim: [prefs.ymin ?? null, prefs.ymax ?? null],
         series: series.map((c) => ({ label: c.label, x: c.x, y: c.y, ...(band ? { lo: c.lo, hi: c.hi } : {}) })),
       }, fileName(title, "pdf"));  // prettier-ignore
@@ -218,7 +220,7 @@ function Chart(props: {
               onClick=${() => setMain(path, pins.map((p) => (p === pin ? { ...p, higher: !p.higher } : p)))} />`
           : null}
         ${zoom ? html`<${IconButton} icon="reset" label="Reset zoom (double-click)" onClick=${() => setZoom(null)} />` : null}
-        <${Settings} id=${node.id} path=${path} prefs=${prefs} y=${shownMetrics} fields=${LINE_FIELDS} pinning=${pinning} />`}
+        <${Settings} id=${node.id} path=${path} prefs=${{ ...prefs, scale }} y=${shownMetrics} fields=${LINE_FIELDS} pinning=${pinning} />`}
       legend=${items.length ? html`<${Legend} items=${items} label="Show or hide curves" role="group" />` : null}
       caption=${props.expanded ? undefined : node.props.caption}>
     ${problem ? html`<p class="block-error small">${problem}</p>` : null}

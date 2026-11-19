@@ -314,8 +314,7 @@ class Compiler:
         if n.color:
             data["colors"] = api("runs", sel | {"select": [n.color], "limit": RUNS_LIMIT}, scope)
         info = self.view.metrics.get(ys[0])
-        guess = "log" if lower_is_better(ys[0]) and "loss" in ys[0] else "linear"
-        scale = n.scale or (info.scale if info and info.scale else guess)
+        scale = n.scale or (info.scale if info else None)
         note = [
             *(["seed mean and range"] if n.seeds else []),
             *(["own runs"] if n.depth == 1 else []),
@@ -325,7 +324,7 @@ class Compiler:
             n.id,
             data=data,
             y=ys[0] if len(ys) == 1 else ys,
-            scale=scale,
+            **({"scale": scale} if scale else {}),
             **settings.wire_props(n),
             note=", ".join(note) or None,
             **common,

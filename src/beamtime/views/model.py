@@ -55,8 +55,9 @@ class Line(Node, tag="line"):
     scale: Annotated[
         Scale | None,
         msgspec.Meta(
-            description="default: the view's metrics, else log for losses, else linear; symlog "
-            "is linear near zero and logarithmic beyond"
+            description="default: the view's metrics, else log when every value is positive and "
+            "spans more than two decades, else linear; symlog is linear near zero and "
+            "logarithmic beyond"
         ),
     ] = None
     steps: Annotated[list[int | None] | None, msgspec.Meta(description="[first, last] step")] = None

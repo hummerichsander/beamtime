@@ -17,7 +17,8 @@ export type ChartPrefs = {
   color?: string | null;
   colormap?: string | null;
   band?: "minmax" | "std" | "stderr" | "none";
-  scale?: Scale;
+  // null: the chart resolves it from its values.
+  scale?: Scale | null;
   ymin?: number | null;
   ymax?: number | null;
   outliers?: boolean;

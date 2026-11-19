@@ -31,6 +31,16 @@ export function valued(c: Curves): boolean {
   return c.curves.some((cv) => cv.y.some((v) => v !== null && Number.isFinite(v)));
 }
 
+// the y scale a chart takes when nobody chose one: log when every finite value, hidden curves included, is
+// positive and the largest is more than 100 times the smallest; no values or one value are linear.
+export function autoScale(answer: { curves?: any[] }): "log" | "linear" {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const c of answer.curves ?? [])
+    for (const v of c.y ?? []) if (Number.isFinite(v)) [lo, hi] = [Math.min(lo, v), Math.max(hi, v)];
+  return lo > 0 && hi > lo * 100 ? "log" : "linear";
+}
+
 export function reshape(answer: { curves: any[]; meta?: { running?: number } }, opts: { log?: boolean } = {}): Curves {
   const raw = answer.curves ?? [];
   const aggregated = raw.some((c) => "by" in c);

@@ -64,6 +64,21 @@ def test_parse_errors_name_the_node(text: str, message: str) -> None:
         parse(text)
 
 
+def test_scale_is_on_the_node_only_when_the_view_says_so() -> None:
+    """A loss without a scale in the block or the view's metrics is left to the chart."""
+    view = parse("""
+metrics: {val/acc: {scale: log}}
+body:
+  - line: {y: train/loss}
+  - line: {y: val/acc}
+  - line: {y: train/loss, scale: linear}
+""")
+    free, from_metrics, block = compile_view(view, path="g")["children"]
+    assert "scale" not in free["props"]
+    assert from_metrics["props"]["scale"] == "log"
+    assert block["props"]["scale"] == "linear"
+
+
 def test_compile_resolves_scope_filters_and_props() -> None:
     """Blocks become the default tree's nodes with declared calls relative to the page."""
     view = parse("""

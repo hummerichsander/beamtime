@@ -37,7 +37,7 @@ SETTINGS = ("y",) + tuple(
     f.name for f in msgspec.structs.fields(m.Line) if f.name not in _NODE | {"y", *AUTHORED}
 )
 
-# the series call carries these (and scale is resolved by compile), so they are not node props.
+# the series call carries these (compile sets an explicit scale), so they are not node props.
 CALLED = ("y", "by", "band", "steps", "scale")
 PROPS = tuple(k for k in (*SETTINGS, "xlabel", "ylabel") if k not in CALLED)
 
