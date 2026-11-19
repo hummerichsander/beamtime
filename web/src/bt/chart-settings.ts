@@ -78,7 +78,7 @@ export function colorOptions(keys: any): [string, [string, string][]][] {
     Object.entries(map).map(([k, by]) => [k, `${label(k)} · ${text} ${label(by)}`]);
   const groups: [string, [string, string][]][] = [
     ["Config", varying.map((k: string): [string, string] => [k, label(k)])],
-    ["Run", [["run.status", "status"], ["run.tags", "tags"], ["run.name", "name"], ["run.group", "folder"]]],
+    ["Run", [["run.status", "status"], ["run.tags", "tags"], ["run.name", "name"], ["run.group", "group"]]],
     ["Same split", [...why(aliases, "same split as"), ...why(dropped, "set by")]],
   ];
   return groups.filter(([, options]) => options.length);

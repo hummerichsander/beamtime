@@ -417,7 +417,7 @@ Line charts behave like W&B's panels:
     ± std error, none); "over seeds" averages over the seed key `keys` reports (`config.seed` when it
     reports none, and the node's own `seeds` when it names one);
   - colors: "Color by" offers, in groups, "Config" (the varying keys, the seed included), "Run" (status,
-    tags, name, folder: `run.status`, `run.tags`, `run.name`, `run.group`) and "Same split" (the `keys`
+    tags, name, group: `run.status`, `run.tags`, `run.name`, `run.group`) and "Same split" (the `keys`
     answer's `aliases` as "`<key>` · same split as `<canon>`" and `dropped` as "`<key>` · set by
     `<finer key>`"); every entry is selectable, a list such as tags colors by the combination
     (`colorOptions`); the colormap;

@@ -530,8 +530,8 @@ class Keys(Bare):
                     aliases.update(t.get("aliases") or {})
                     dropped.update(t.get("dropped") or {})
                 first[table]["varying"] = sorted(varying)
-                first[table]["aliases"] = aliases
-                first[table]["dropped"] = dropped
+                first[table]["aliases"] = {k: c for k, c in aliases.items() if k not in varying}
+                first[table]["dropped"] = {k: a for k, a in dropped.items() if k not in varying}
                 first[table]["seed"] = seed_key(varying)
         return first
 

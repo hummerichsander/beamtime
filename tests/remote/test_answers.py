@@ -475,3 +475,18 @@ def test_merged_keys_keep_the_dropped_keys_of_every_source() -> None:
         "cli",
     )
     assert answer["config"]["dropped"] == {"config.model": "config.arch", "config.width": "config.arch"}
+
+
+def test_merged_keys_list_a_key_that_varies_somewhere_only_as_varying() -> None:
+    """A key varying in one source and an alias or dropped in another is listed once, as varying."""
+
+    def keys(varying: list[str], aliases: dict[str, str], dropped: dict[str, str]) -> dict[str, Any]:
+        config = {"columns": ["key", "runs", "values"], "rows": [], "varying": varying}
+        return {"kind": "keys", "runs": 1, "config": config | {"aliases": aliases, "dropped": dropped}}
+
+    local = keys(["config.arch"], {"config.lr": "config.arch"}, {"config.model": "config.arch"})
+    remote = keys(["config.lr", "config.model"], {}, {})
+    answer = merged("keys", [("local", local), ("a", remote)], {}, "cli")
+    assert answer["config"]["varying"] == ["config.arch", "config.lr", "config.model"]
+    assert answer["config"]["aliases"] == {}
+    assert answer["config"]["dropped"] == {}

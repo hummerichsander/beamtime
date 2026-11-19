@@ -62,7 +62,7 @@ test("a node's own seeds win over the group's seed key", () => {
   assert.equal(seriesCall(own, eff, { zoom: null, width: 600, seed: "config.trainer.seed" }).params.seeds, "config.rng_seed");
 });
 
-const RUN: [string, string][] = [["run.status", "status"], ["run.tags", "tags"], ["run.name", "name"], ["run.group", "folder"]];
+const RUN: [string, string][] = [["run.status", "status"], ["run.tags", "tags"], ["run.name", "name"], ["run.group", "group"]];
 
 test("color by offers a seed-only group the seed and the run fields", () => {
   const options = colorOptions({ config: { varying: ["config.seed"], aliases: {}, dropped: {} } });
