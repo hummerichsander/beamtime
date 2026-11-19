@@ -519,10 +519,13 @@ def data_kind(ctx: Context, q: m.Data) -> dict[str, Any]:
                 pass
             case int():
                 items = [(s, r) for s, r in items if s == q.step]
-            case [a, b]:
+            case ["last", int() as b]:
+                latest = max((s for s, _ in items if s <= b), default=None)
+                items = [(s, r) for s, r in items if s == latest]
+            case [int() as a, int() as b]:
                 items = [(s, r) for s, r in items if a <= s <= b]
             case _:
-                raise QueryError("data: step is last, all, a step or [first, last]")
+                raise QueryError('data: step is last, all, a step, [first, last] or ["last", step]')
         run_dir = ctx.index.logdir / ids[run_id]["_path"]
         entries += [data_entry(run_id, run_dir, record) for _, record in items]
     limit = q.limit if q.limit is not None else ctx.defaults["entries"]

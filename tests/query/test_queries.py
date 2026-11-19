@@ -618,6 +618,11 @@ def test_data_steps_union(tmp_path: Path) -> None:
     assert a["meta"]["steps"] == [0, 1000, 1999]
     assert a["meta"]["clocks"] == [None, 7.0, 7.0]
     assert {e["step"] for e in a["entries"]} == {1000, 1999}
+    before = ask_live(tmp_path, logdir, {"data": query["data"] | {"step": ["last", 1500]}})
+    steps = {e["run"]: e["step"] for e in before["entries"]}
+    assert steps[roles["running"]] == 1000 and set(steps.values()) == {0, 1000}
+    none = ask_live(tmp_path, logdir, {"data": query["data"] | {"step": ["last", -1]}})
+    assert none["entries"] == []
 
 
 def test_timeline(ask, roles) -> None:

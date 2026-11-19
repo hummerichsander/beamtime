@@ -145,7 +145,7 @@ class Data(Selection, kw_only=True):
     """Logged tables, images and text."""
 
     key: str
-    step: Literal["last", "all"] | int | list[int] = "last"
+    step: Literal["last", "all"] | int | list[int | Literal["last"]] = "last"
     limit: int | None = None
     clock: str | None = None
 

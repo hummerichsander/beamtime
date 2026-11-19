@@ -55,13 +55,13 @@ def scalar(text: str) -> Any:
 
 
 def step_value(text: str) -> Any:
-    """Read ``--step``: ``last``, ``all``, a step, or ``first:last``.
+    """Read ``--step``: ``last``, ``all``, a step, ``first:last``, or ``last:step``.
 
     :param text: The value as typed.
     :return: The value in the object form."""
     if ":" in text:
         a, b = text.split(":", 1)
-        return [int(a), int(b)]
+        return [a if a == "last" else int(a), int(b)]
     return scalar(text)
 
 
@@ -134,7 +134,7 @@ def add_field(parser: argparse.ArgumentParser, field: Any, positional: bool) -> 
                 "type": lambda t: [scalar(v) or None for v in t.split(":")],
             }
         case "step":
-            kw |= {"metavar": "last|all|STEP|FIRST:LAST", "type": step_value}
+            kw |= {"metavar": "last|all|STEP|FIRST:LAST|last:STEP", "type": step_value}
         case "depth":
             kw |= {"type": scalar, "metavar": "all|N"}
         case "verdict":

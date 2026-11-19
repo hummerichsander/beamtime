@@ -532,11 +532,12 @@ series:
 **`data`**: logged tables, images and text.
 
 ```yaml
-data: {from: ., key: val/per_class, step: last}   # last | all | a step | [start, end]
+data: {from: ., key: val/per_class, step: last}   # last | all | a step | [start, end] | [last, step]
 ```
 
 Tables come back as columns, images and text as references the UI or agent can load. The entries are
-those of the asked step, so a page loads one step's files at a time; `meta.steps` lists every step at
+those of the asked step, so a page loads one step's files at a time; `["last", s]` gives each run's latest
+entries at or before `s` (a run that logged nothing by then has none); `meta.steps` lists every step at
 which a run in scope logged the key (the union over runs, ascending), whatever `step` asks. With
 `clock: <metric>` (an unknown metric is refused like any other), `meta.clocks` has the metric's value
 at each of those steps (`read.x_values`: its most recent value at or before the step, from the first

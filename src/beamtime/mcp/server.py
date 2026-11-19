@@ -54,8 +54,8 @@ def instructions(mcp_tools: str = "core") -> str:
         more = (
             "Tools for views, blocks, run control and export are not listed: "
             "`tools_more` with `family` describes a family, with `tool` and `args` calls one. To "
-            "build a group's page read `guide views`, then `tools_more views`, then call the "
-            "`view_*` tools through `tools_more`. "
+            "build a group's page read `guide views`, then `tools_more views`, and call the "
+            "`view_*` tools through it. "
         )
     return (
         "Beamtime records ML experiments as runs in groups below a log dir. Start a "
@@ -68,13 +68,13 @@ def instructions(mcp_tools: str = "core") -> str:
         f"({', '.join(sorted(op.name for op in OPS if op.user_only))}) "
         "are not tools: give the user the command. "
         "from and group: a group below the log dir or a run id; depth: levels below it, "
-        "default all. hidden: true includes hidden runs, left out by default. "
+        "default all. hidden: true includes hidden runs. "
         "where: field -> value or {op: value}; ops eq ne lt le gt ge in nin has "
         "exists glob; also any: [...], not: {...}. fields: run.status, config.lr, "
         "metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc, "
-        "metric.a.nonfinite_step, metric.a.rise_step:3, metric.a[b.min_step]. to: write all of the "
+        "metric.a.nonfinite_step, metric.a.rise_step:3, metric.a[b.min_step]. to: write the whole "
         "answer to a "
-        ".csv or .json file below .beamtime/exports/ and answer the path, outside the token budget."
+        ".csv or .json file below .beamtime/exports/ and answer its path, outside the token budget."
     )
 
 

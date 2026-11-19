@@ -190,6 +190,9 @@ def test_data_steps_of_two_sources_merge(box: Path, ctx: Context) -> None:
     assert {e["run"] for e in answer["entries"]} >= {e["run"] for e in call(
         "data", {"from": f"@box/{SWEEP}", "key": "samples"}, ctx
     )["entries"]}  # fmt: skip
+    remote = {e["run"] for e in call("data", {"from": f"@box/{SWEEP}", "key": "samples"}, ctx)["entries"]}
+    before = call("data", {"from": ".", "key": "samples", "step": ["last", 1000]}, ctx)["entries"]
+    assert {e["step"] for e in before} == {0} and {e["run"] for e in before} >= remote
     here = {"entries": [], "meta": {"steps": [0, 500], "clocks": [None, 2.0]}}
     there = {"entries": [], "meta": {"steps": [500, 900], "clocks": [3.0, 4.0]}}
     both = merged("data", [(".", here), ("@box", there)], {}, "cli")["meta"]
