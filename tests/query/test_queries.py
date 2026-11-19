@@ -845,15 +845,16 @@ def test_a_live_metric_answers_series_runs_and_where(tmp_path: Path) -> None:
     r = ask_live(
         tmp_path,
         logdir,
-        {"runs": {"from": ".", "select": ["run.id", "metric.live/new.last"], "limit": 5}},
+        {"runs": {"from": ".", "select": ["run.id", "metric.live/new.last"], "limit": 100}},
     )
-    assert r["rows"] is not None
+    # runs and where read the card, which lags, so the live value is None until it catches up.
+    assert [roles["running"], None] in r["rows"]
     w = ask_live(
         tmp_path,
         logdir,
         {"runs": {"from": ".", "where": {"metric.live/new.last": {"ge": 0}}, "select": ["run.id"]}},
     )
-    assert w["rows"] is not None
+    assert roles["running"] not in [row[0] for row in w["rows"]]
 
 
 def test_an_unknown_metric_fails_with_live_keys_among_the_suggestions(tmp_path: Path) -> None:

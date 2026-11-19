@@ -285,7 +285,9 @@ Design goals:
 - **Small and predictable.** Few concepts, no general-purpose expressions.
 - **Validated with helpful errors.** An unknown metric fails with the closest matches and a pointer
   to `beamtime keys`, instead of returning nothing. A metric only a running run's columns have yet
-  (its card lags up to 3 minutes) counts as known and is among the suggestions.
+  (its card lags up to 3 minutes) counts as known and is among the suggestions. `runs` with
+  `metric.<k>.last` and `where` on such a key read the card's value, so they read `None` until the
+  card catches up, the same lag as any metric's `last`.
 - **Exact by default.** Every number comes from the full data; only curves are downsampled, and the
   answer says so.
 - **Token-aware.** Defaults keep answers small; larger answers have to be asked for.
