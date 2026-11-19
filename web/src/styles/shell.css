@@ -54,7 +54,12 @@ a.source { border-radius: var(--radius); &:hover { color: var(--ink); text-decor
   &.current { background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
   &.source-root { margin-block-start: var(--space-2); }
 }
-.twisty { inline-size: 16px; flex: none; display: inline-flex; color: var(--muted); }
+.twisty {
+  inline-size: 24px; align-self: stretch; flex: none; display: inline-flex; justify-content: center; align-items: center;
+  margin-inline: -4px; color: var(--muted);
+  &.expandable { cursor: pointer; }
+  &[aria-disabled="true"] { cursor: default; }
+}
 .tree-name { overflow: hidden; text-overflow: ellipsis; flex: 1; }
 .tree-marks { display: inline-flex; gap: 2px; }
 .count { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; min-inline-size: 2ch; text-align: end; }

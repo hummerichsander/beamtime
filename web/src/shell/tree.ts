@@ -68,6 +68,15 @@ function hasMatch(n: TreeNode, f: string): boolean {
   return n.children.some((c) => c.path.toLowerCase().includes(f) || hasMatch(c, f));
 }
 
+// the open set plus every group above a path, below its source's root (hosts open through `closed`).
+export function withPath(open: Set<string>, path: string | null): Set<string> {
+  if (!path || isRoot(path)) return open;
+  const parts = path.split("/");
+  const out = new Set(open);
+  for (let i = path.startsWith("@") ? 2 : 1; i < parts.length; i++) out.add(parts.slice(0, i).join("/"));
+  return out.size === open.size ? open : out;
+}
+
 export function siblings(roots: TreeNode[], path: string): TreeNode[] {
   if (isRoot(path)) return roots;
   const i = path.lastIndexOf("/");

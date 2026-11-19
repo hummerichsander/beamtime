@@ -1229,3 +1229,64 @@ def test_a_hidden_run_is_listed_on_demand_and_promoted(hidden_run: dict[str, str
     page.goto(f"{base}/f/local/{group}?token={token}")
     page.wait_for_selector(".facts")
     page.wait_for_selector(".facts a:has-text('hidden')", state="detached")
+
+
+@pytest.fixture
+def deep(project: Path, roles: dict) -> str:
+    """A project with a run in a group three levels deep, indexed.
+
+    :param project: The project root.
+    :param roles: The generator's runs by role.
+    :return: The deep group."""
+    from beamtime.ops import call
+    from beamtime.ops.context import Context
+    from tests.conftest import index_fully
+
+    call("cp", {"source": roles["realistic_dirty"], "dest": "tier/a/b"}, Context.make())
+    index_fully(project / "beamtime")
+    return "tier/a/b"
+
+
+def test_the_tree_sidebar_opens_and_closes_every_level(deep: str, server: str, page) -> None:
+    """A chevron toggles its group, the current group's name toggles it, another name navigates, a
+    filter shows matches expanded with inert chevrons, and the arrow keys behave as before."""
+    base = server.split("/f/local")[0]
+    page.goto(server)
+    page.goto(f"{base}/f/local/{deep}")
+
+    def item(name: str):
+        return page.locator("a.tree-item").filter(has=page.locator(f".tree-name:text-is('{name}')"))
+
+    item("b").wait_for()
+    assert item("tier").count() == item("a").count() == 1, "the ancestors open on arrival"
+    item("a").locator(".twisty").click()
+    item("b").wait_for(state="detached")
+    assert page.url == f"{base}/f/local/{deep}"
+    item("a").locator(".twisty").click()
+    item("b").wait_for()
+
+    item("b").click()
+    assert item("b").count() == 1, "a leaf's name only navigates"
+    item("a").click()
+    page.wait_for_url(f"{base}/f/local/tier/a")
+    item("a").click()
+    item("b").wait_for(state="detached")
+    assert page.url == f"{base}/f/local/tier/a"
+    item("a").click()
+    item("b").wait_for()
+    item("tier").click()
+    page.wait_for_url(f"{base}/f/local/tier")
+    assert item("a").count() == 1, "another name navigates and leaves the tree as it was"
+
+    item("a").focus()
+    page.keyboard.press("ArrowLeft")
+    item("b").wait_for(state="detached")
+    page.keyboard.press("ArrowRight")
+    item("b").wait_for()
+
+    page.get_by_label("Filter groups").fill("b")
+    assert item("b").count() == 1
+    chevron = item("tier").locator(".twisty")
+    assert chevron.get_attribute("aria-disabled") == "true"
+    chevron.click()
+    assert item("a").count() == 1 and page.url == f"{base}/f/local/tier"

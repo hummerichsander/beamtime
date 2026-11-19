@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { groupUrl, isRoot, parse, rootOf, runUrl, sourcedRun } from "../src/router.ts";
-import { buildTree, depth, siblings, visible } from "../src/shell/tree.ts";
+import { buildTree, depth, siblings, visible, withPath } from "../src/shell/tree.ts";
 
 const rows = [
   { path: ".", runs: 26 },
@@ -67,4 +67,16 @@ test("runs on a remote's pages link to that remote", () => {
   const r = parse(`/r/@box/${id}`, "");
   assert.ok(r.page === "run" && r.id === `@box/${id}`);
   assert.equal(sourcedRun(id, "@box/scaling/lr-sweep"), `@box/${id}`);
+});
+
+test("going to a group opens the groups above it, never a host root", () => {
+  const open = new Set(["a"]);
+  assert.deepEqual([...withPath(open, "a/b/c")].sort(), ["a", "a/b"]);
+  assert.equal(withPath(open, "a/b"), open, "nothing to add returns the same set");
+  assert.equal(withPath(open, "a"), open);
+  assert.equal(withPath(open, "."), open);
+  assert.equal(withPath(open, null), open);
+  assert.deepEqual([...withPath(new Set(), "@au002a/a/b")].sort(), ["@au002a/a"]);
+  assert.equal(withPath(open, "@au002a").size, 1);
+  assert.deepEqual([...withPath(new Set(), "@au002a/a")], []);
 });

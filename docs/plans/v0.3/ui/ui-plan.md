@@ -380,7 +380,7 @@ asks `series {y: [live/new]}` and fails today.
 
 ## W. The web UI
 
-### W31. A sidebar that (un)collapses (sonnet) — code
+### W31. A sidebar that (un)collapses (sonnet) — code — **done**
 
 - **Touches:** `web/src/shell/sidebar.ts` (`Sidebar` 15–86, `Item` 88–117, `withAncestors` 125–131 replaced),
   `web/src/shell/tree.ts` (new `withPath`), `web/src/styles/shell.css` (`.twisty` 57), `web/test/tree.test.ts`,

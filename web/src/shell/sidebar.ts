@@ -10,7 +10,7 @@ import { stored, store, useStore } from "../state.ts";
 import { Icon, Sym } from "../ui/icons.ts";
 import { symbolFor } from "../ui/symbols.ts";
 import * as calls from "./calls.ts";
-import { buildTree, depth, visible, type TreeNode } from "./tree.ts";
+import { buildTree, depth, visible, withPath, type TreeNode } from "./tree.ts";
 
 export function Sidebar() {
   const r = useStore(route);
@@ -22,7 +22,7 @@ export function Sidebar() {
   const list = useRef<HTMLDivElement>(null);
   const current = r.page === "group" ? r.path : null;
   const roots = buildTree(rows(result.data), result.data?.meta?.sources ?? []);
-  const shown = visible(roots, withAncestors(open, current), filter, closed);
+  const shown = visible(roots, open, filter, closed);
   const isOpen = (path: string) => (isRoot(path) ? !closed.has(path) : open.has(path));
 
   const toggle = (path: string, value?: boolean) => {
@@ -42,9 +42,14 @@ export function Sidebar() {
     setOpen(next);
   };
 
-  // going to a group on a closed host shows it; closing the host while there, or reloading, doesn't.
+  // going to a group opens the groups above it, and its host if closed; closing them while there, or reloading, doesn't.
   const was = useRef(current);
   useEffect(() => {
+    const next = withPath(open, current);
+    if (next !== open) {
+      store("open", [...next]);
+      setOpen(next);
+    }
     if (current !== was.current && current && !isRoot(current) && closed.has(rootOf(current))) toggle(rootOf(current), true);
     was.current = current;
   }, [current]);
@@ -80,12 +85,12 @@ export function Sidebar() {
     </label>
     <div class="tree" ref=${list} onKeyDown=${onKey} role="tree">
       ${shown.map((n) => html`<${Item} key=${n.path} node=${n} current=${n.path === current}
-        open=${isOpen(n.path) || !!filter} onToggle=${() => toggle(n.path)} />`)}
+        open=${isOpen(n.path) || !!filter} filtering=${!!filter} onToggle=${() => toggle(n.path)} />`)}
     </div>
   </nav>`;
 }
 
-function Item(props: { node: TreeNode; current: boolean; open: boolean; onToggle: () => void }) {
+function Item(props: { node: TreeNode; current: boolean; open: boolean; filtering: boolean; onToggle: () => void }) {
   const n = props.node;
   const hover = () => calls.prefetchGroup(n.path);
   const expandable = n.children.length > 0;
@@ -96,9 +101,16 @@ function Item(props: { node: TreeNode; current: boolean; open: boolean; onToggle
       onClick=${(e: MouseEvent) => {
         if (e.metaKey || e.ctrlKey) return;
         e.preventDefault();
-        navigate(groupUrl(n.path));
+        if (props.current && expandable && !props.filtering) props.onToggle();
+        else navigate(groupUrl(n.path));
       }}>
-    <span class="twisty" onClick=${(e: Event) => { e.preventDefault(); e.stopPropagation(); props.onToggle(); }}>
+    <span class=${`twisty${expandable ? " expandable" : ""}`} aria-disabled=${expandable && props.filtering ? "true" : undefined}
+      onClick=${(e: Event) => {
+        if (!expandable) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (!props.filtering) props.onToggle();
+      }}>
       ${expandable ? html`<${Icon} name=${props.open ? "chevron-down" : "chevron-right"} size=${14} />` : null}</span>
     ${isRoot(n.path)
       ? html`<${Sym} size=${14} spec=${{
@@ -120,12 +132,4 @@ function parentOf(path: string): string {
   if (isRoot(path)) return path;
   const i = path.lastIndexOf("/");
   return i < 0 ? "." : path.slice(0, i);
-}
-
-function withAncestors(open: Set<string>, path: string | null): Set<string> {
-  if (!path || path === ".") return open;
-  const out = new Set(open);
-  const parts = path.split("/");
-  for (let i = 1; i < parts.length; i++) out.add(parts.slice(0, i).join("/"));
-  return out;
 }

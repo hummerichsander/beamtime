@@ -122,6 +122,11 @@ These qualities are made concrete as budgets and rules, and checked like correct
   unreachable remotes), a light/dark/theme switch, settings.
 - **Sidebar**: the group tree, one top-level entry per source ([layer 4](04-remotes.md#naming-remote-groups)),
   with run counts and status dots (running, failed, lost). It loads lazily and can be filtered.
+  **A chevron (a 24 px target, the row's full height) opens and closes its group, and so does a click on
+  the name of the current group; a click on any other name navigates.** Going to a group opens the groups
+  above it once (added to the stored open set, never the host root, which has its own closed set), so
+  closing one of them afterwards stays closed. While the filter has text, every match shows expanded and
+  the chevrons are inert (`aria-disabled`).
 - **Header**, owned by Beamtime and identical on every view:
   - a small breadcrumb, the group's name as title and its research status (`open`, `proposed`,
     `running`, `evaluable`, `concluded`; [research record](09-research-record.md#group-status));
@@ -185,7 +190,7 @@ can hand users a link to exactly the view or run they talk about.
 
 - **Command palette (⌘K)**: groups, runs by name or id, notes by description, library blocks, and
   commands (switch theme, export, copy link).
-- **Keyboard**: arrow keys in the tree, `[`/`]` for previous and next sibling group, `Esc` clears the
+- **Keyboard**: arrow keys in the tree (→ opens, ← closes or moves to the parent), `[`/`]` for previous and next sibling group, `Esc` clears the
   selection, `?` lists shortcuts.
 - **Breadcrumb** in the header for moving up.
 
