@@ -139,7 +139,7 @@ What the tickets build together, so a session doesn't rediscover the design:
   window `metric.<a>[<b>.<step stat>]` are run-table fields like any other, usable in `select`, `where`, `sort` and
   `to`; they are computed from columns (so E91 applies).
 - **Small MCP surface** (E99): the rendered tool list and the instructions stay under
-  12,000 characters (decision 12); shared texts appear once, in the server instructions.
+  11,500 characters (decision 12); shared texts appear once, in the server instructions.
 
 Done, for every ticket: its Done line holds; its Check passes; the spec documents say what the code does; a
 `CHANGELOG.md` bullet under 0.3.0 says what changed for users; its heading is marked done in the ticket's own commit.
@@ -204,14 +204,14 @@ The tickets run in this order: E91 E92 E93 E95 E96 E97 E98 E99 E94 X91.
     curves and the x-axis mapping (`read.py`, `null` for non-finite points), so answers never carry non-finite numbers.
     Rejected: the last finite value at or before the step (it would report a value the run didn't log there, e.g.
     the pre-divergence loss at `nonfinite_step`).
-12. **The MCP listing stays under 12,000 characters** (E99; your decision, replacing decision 6's 8,000): the
+12. **The MCP listing stays under 11,500 characters** (E99; your decision, replacing decision 6's 8,000): the
     tool definitions and the instructions, measured with `json.dumps` defaults. Measured 13,271 + 977 before,
     9,990 + 1,405 = 11,395 after. Rejected: 8,000, because the structure alone (names, types, 20 wrappers,
     `cursor` in 10 tools) is about 6.7k compact, so it needs dropping almost every parameter description.
 13. **The MCP instructions follow the rules block** (E94; scope extension after the E99 review): their opening
     sentence says to start a work session with `status` and to use the narrowest tool for a question about data
     (it said `keys` first), and their field examples include the series fields (`nonfinite_step`, `rise_step:3`,
-    `metric.a[b.min_step]`); the rules block's table names them too. The 12,000-character limit holds.
+    `metric.a[b.min_step]`); the rules block's table names them too. The 11,500-character limit holds.
 
 ## E. Efficiency
 
@@ -370,13 +370,13 @@ The tickets run in this order: E91 E92 E93 E95 E96 E97 E98 E99 E94 X91.
 - **Read:** `docs/design/08-cli-mcp.md` § MCP (l. 163–200).
 - **Check:** `uv run pytest -q -n 2 tests/mcp tests/ops tests/cli`; `uv run python docs/site/reference.py` then
   `uv run pytest -q tests/test_docs.py`.
-- **Done:** the test, renamed `test_tool_definitions_under_12000_characters`, sums the JSON of the listed tools and
-  the instructions and asserts under 12,000 characters (13.3k + 1.0k before, 10.0k + 1.4k
+- **Done:** the test, renamed `test_tool_definitions_under_11500_characters`, sums the JSON of the listed tools and
+  the instructions and asserts under 11,500 characters (13.3k + 1.0k before, 10.0k + 1.4k
   after); every tool keeps every parameter.
 - **Risks:** a shortened `where` description loses the operator list → the instructions carry it once and each
   schema says "see instructions: where" (`test_instructions_name_the_where_ops`); `decoded` still finds every
   property's type after the schema shrinks (`test_decoded_after_slim`).
-- **Stop if:** under 12,000 characters needs dropping parameters or tools; come back with the closest result.
+- **Stop if:** under 11,500 characters needs dropping parameters or tools; come back with the closest result.
 
 1. Measure per tool (name, description, schema) and list the ten largest in the commit message.
 2. The `where` field text, the field examples and the `to` text move to the instructions once; schemas keep a
