@@ -13,7 +13,7 @@ import {
   clockAt, hasClock, indexAt, nearest, scrubLabel, shownAt, stopsOf, windowOf, type By, type Entry, type Meta, type Stops, type Tile,
 } from "../bt/scrub.ts";
 import { transform, useZoom } from "../bt/zoom.ts";
-import { recording, sourcedRun } from "../router.ts";
+import { recording, rendering, sourcedRun } from "../router.ts";
 import { EXPORTED, fileUrl } from "../snapshot.ts";
 import { Store, useStore } from "../state.ts";
 import { IconButton } from "../ui/primitives.ts";
@@ -53,12 +53,13 @@ function useImages(node: Node) {
   const by: By = state.by === "clock" && hasClock(meta) ? "clock" : "step";
   const stops: Stops = useMemo(() => stopsOf(meta, by), [meta, by]);
   const follows = state.step === null;
-  const ranged = !(recording || EXPORTED) && (asked === "last" || typeof asked === "number") && stops.steps.length > 1;
+  const ranged = !(rendering || EXPORTED) && (asked === "last" || typeof asked === "number") && stops.steps.length > 1;
   const i = follows ? stops.steps.length - 1 : indexAt(stops, state.step!);
   const at = stops.steps[i] ?? 0;
   // fast scrubbing asks for the stop it rests on, not for every one it passes.
   const settled = useSettled(at, 120);
-  const windowed = ranged && !follows;
+  // the block's own answer holds the asked step, the newest logging only when the view asks for the last.
+  const windowed = ranged && (!follows || asked !== "last");
   const call: Call | null = windowed
     ? { ...main, params: { ...main.params, step: windowOf(stops, indexAt(stops, settled)), limit: 2000 } }
     : null;

@@ -513,7 +513,7 @@ Decided while building the shell (milestone M5):
   expand) and the caption. The figures show every run's image at the scrubbed step; a run that logged
   nothing there shows its latest earlier image, muted and labeled with its own step. Under them a
   **scrubber** (a range input) has one stop per logging, from the `data` answer's `meta.steps`; it reads
-  "step 4000", or "epoch 12 · step 4000" when the page has a clock (the view's `clock`, found by
+  "step 4000", or "epoch 12 · step 4000" when the page has a clock (the images call's `clock`, found by
   `page_clock` in `views/defaults.py`: `epoch` first, then the other leaves of `CLOCK_LEAVES`). "By epoch"
   spaces the stops by the clock's value (one per distinct value, at its last logging) instead of by step.
   The arrow keys move one stop, Home and End go to the ends. A view's `step: <n>` is where it starts. At

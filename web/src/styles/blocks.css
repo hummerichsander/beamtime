@@ -106,7 +106,7 @@ a.check:hover { text-decoration: none; }
 }
 .tool-toggle {
   padding: 0 var(--space-2); border: 0; border-radius: var(--radius); background: none; color: var(--muted); cursor: pointer;
-  &:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+  &:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
   &[aria-pressed="true"] { color: var(--accent); }
 }
 /* the dialog's image: zoomed and panned inside a box that clips it */

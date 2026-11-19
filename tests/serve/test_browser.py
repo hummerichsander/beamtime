@@ -1453,11 +1453,12 @@ def test_a_render_mounts_every_block_but_keeps_folds(project: Path, server: str,
     assert page.locator('[data-block-id="inner"]').count() == 0, "the folded section stays folded"
 
 
-def images_view(project: Path, group: str) -> None:
+def images_view(project: Path, group: str, step: int | None = None) -> None:
     """Save a view with one ``images`` block of the key ``samples``.
 
     :param project: The project root.
-    :param group: The group the view belongs to."""
+    :param group: The group the view belongs to.
+    :param step: Where the block's scrubber starts, else the last logging."""
     import yaml
 
     from beamtime.ops import call
@@ -1465,7 +1466,8 @@ def images_view(project: Path, group: str) -> None:
 
     ctx = Context.make()
     call("view new", {"group": group, "name": "pictures"}, ctx)
-    view = {"schema": 1, "title": "pictures", "finding": "x", "body": [{"images": {"id": "samples", "key": "samples"}}]}
+    block = {"id": "samples", "key": "samples"} | ({"step": step} if step is not None else {})
+    view = {"schema": 1, "title": "pictures", "finding": "x", "body": [{"images": block}]}
     (project / ".beamtime" / "drafts" / "pictures" / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
     call("view save", {"draft": "pictures"}, ctx)
 
@@ -1583,18 +1585,18 @@ def write_pictures(project: Path, tmp_path: Path, steps: int, pause: float, name
     return subprocess.Popen([sys.executable, script, str(steps), str(pause), name], cwd=tmp_path, env=env)
 
 
-def pictures_page(project: Path, server: str, page, writers: list[subprocess.Popen]) -> None:
-    """Open the view with the ``samples`` images of ``pictures`` once the writers are done or underway.
+def pictures_page(project: Path, server: str, page, step: int | None = None) -> None:
+    """Open the view with the ``samples`` images of ``pictures`` once a writer has logged.
 
     :param project: The project root.
     :param server: The URL of ``serve`` for the project.
     :param page: The browser page.
-    :param writers: The running writers, waited for when they are short."""
+    :param step: Where the block's scrubber starts, else the last logging."""
     deadline = time.time() + 30
     while not list((project / "beamtime" / "pictures").glob("*/_data.jsonl")):
         assert time.time() < deadline, "the writer logged nothing"
         time.sleep(0.1)
-    images_view(project, "pictures")
+    images_view(project, "pictures", step)
     base = server.split("/f/local")[0]
     page.goto(f"{base}/f/local/pictures?token={server.split('token=')[1]}")
 
@@ -1606,7 +1608,7 @@ def test_images_are_labeled_by_the_pages_epoch_and_spaced_by_it(project: Path, t
     from tests.conftest import index_fully
 
     index_fully(project / "beamtime")
-    pictures_page(project, server, page, [writer])
+    pictures_page(project, server, page)
     block = page.locator('main [data-block-id="samples"]')
     label = block.locator(".scrub-label")
     label.wait_for()
@@ -1634,7 +1636,7 @@ def test_a_running_runs_new_image_follows_only_from_the_last_stop(project: Path,
     """The scrubber at its last stop moves to each new logging; after the viewer moved it, it stays."""
     writer = write_pictures(project, tmp_path, 40, 0.4)
     try:
-        pictures_page(project, server, page, [writer])
+        pictures_page(project, server, page)
         label = page.locator('main [data-block-id="samples"] .scrub-label')
         label.wait_for()
 
@@ -1664,7 +1666,31 @@ def test_a_key_logged_once_shows_no_scrubber(project: Path, tmp_path: Path, serv
     from tests.conftest import index_fully
 
     index_fully(project / "beamtime")
-    pictures_page(project, server, page, [writer])
+    pictures_page(project, server, page)
     block = page.locator('main [data-block-id="samples"]')
     block.locator(".images img").first.wait_for()
     assert block.locator(".scrubber").count() == 0
+
+
+def test_images_from_a_views_step_reach_the_last_logging_and_hide_the_scrubber_in_a_render(
+    project: Path, tmp_path: Path, server: str, page
+) -> None:
+    """A view's ``step`` is only where the scrubber starts; a render shows that step without it."""
+    writer = write_pictures(project, tmp_path, 6, 0)
+    assert writer.wait(60) == 0
+    from tests.conftest import index_fully
+
+    index_fully(project / "beamtime")
+    pictures_page(project, server, page, step=200)
+    block = page.locator('main [data-block-id="samples"]')
+    block.locator(".scrub-label").wait_for()
+    assert block.locator(".scrub-label").inner_text() == "epoch 1 · step 200"
+    block.locator('.scrubber input[type="range"]').focus()
+    page.keyboard.press("End")
+    page.wait_for_function("() => document.querySelector('main [data-block-id=samples] figcaption')?.textContent === 'step 500'")
+
+    base = server.split("/f/local")[0]
+    page.goto(f"{base}/f/local/pictures?token={server.split('token=')[1]}&render=1")
+    page.locator('[data-block-id="samples"] .images img').first.wait_for()
+    assert page.locator('[data-block-id="samples"] figcaption').first.inner_text() == "step 200"
+    assert page.locator(".scrubber").count() == 0
