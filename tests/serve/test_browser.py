@@ -655,7 +655,8 @@ def test_the_default_view_groups_charts_by_prefix_and_a_hidden_chart_comes_back(
         "els => els.map(e => e.getAttribute('aria-label') || e.innerText)"
     )
     assert names() == [
-        "Close validation (4)", "Close energy (3)", "Open Other (2)", "Open System (2)",
+        "Close validation (4)", "Close training (1)", "Open energy (3)", "Open Other (1)",
+        "Open System (2)",
     ]  # fmt: skip
     assert page.locator(".chart-title:text-is('validation/loss')").count() == 1
     assert page.locator(".chart-title:text-is('sys/gpu_mem')").count() == 0
@@ -695,7 +696,7 @@ def test_the_default_view_groups_charts_by_prefix_and_a_hidden_chart_comes_back(
     page.locator(toggles).nth(1).click()
     page.reload()
     page.wait_for_selector(".chart canvas")
-    assert names()[1] == "Open energy (3)"
+    assert names()[1] == "Open training (1)"
 
 
 def test_main_metrics_are_pinned_in_the_ui(server: str, page, project: Path) -> None:
@@ -714,7 +715,6 @@ def test_main_metrics_are_pinned_in_the_ui(server: str, page, project: Path) -> 
     assert page.locator("table.runs td.spark").count() == 0
 
     page.set_viewport_size({"width": 1200, "height": 500})
-    page.locator("button.view-section-title[aria-label='Open Other (2)']").click()
     frame = page.locator(".chart-frame", has=page.locator(".chart-title:text-is('training/loss')"))
     scroller = page.locator(".main")
     scroller.evaluate("e => { e.scrollTop = e.scrollHeight; }")
@@ -732,7 +732,7 @@ def test_main_metrics_are_pinned_in_the_ui(server: str, page, project: Path) -> 
     page.wait_for_selector("table.runs td.spark")
     # the chart stays in its own section as well, and where the viewer was looking.
     assert page.locator(".chart-title:text-is('training/loss')").count() == 2
-    assert page.locator("button.view-section-title[aria-label='Close Other (2)']").count() == 1
+    assert page.locator("button.view-section-title[aria-label='Close training (1)']").count() == 1
     assert abs(own.bounding_box()["y"] - top) < 3
     assert scroller.evaluate("e => e.scrollTop") > scrolled
     assert page.locator(".chart-frame button[aria-label='Lower is better']").count() == 2

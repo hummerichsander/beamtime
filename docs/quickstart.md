@@ -33,7 +33,7 @@ run = beamtime.init(dir="dt-scan", config={"dt": 1e-3})
 
 for step in range(1000):
     energy = simulate_step()
-    run.log({"energy": energy})
+    run.log({"train/energy": energy})
 ```
 
 Run your script as usual. Each run becomes a folder in `beamtime/dt-scan/`. Beamtime also records

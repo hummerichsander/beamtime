@@ -678,19 +678,59 @@ def test_curves_sit_in_sections_by_prefix() -> None:
     assert sorted(charts) == sorted(metrics) and out[0].children[0].children[0].id == "line-val-acc"
 
 
-def test_pins_make_the_main_section_and_one_prefix_is_a_plain_grid() -> None:
-    """Pinned metrics sit in an open Main section and stay in their own section; prefixes of one
-    metric go to Other."""
+def test_val_separators_share_one_section() -> None:
+    """``val_loss``, ``val.acc`` and ``val/f1`` share the section ``val``; a lone ``train/loss``
+    has its own section and ``lr`` stays in Other."""
     from beamtime.views.defaults import curves
 
-    metrics = ["val/acc", "train/loss", "train/lr", "energy/e", "energy/m", "x/one"]
+    out = curves(["val_loss", "val.acc", "val/f1", "train/loss", "lr"], None, False, [])
+    assert [(s.title, s.id) for s in out] == [
+        ("val (3)", "charts-val"), ("train (1)", "charts-train"), ("Other (1)", "charts-unprefixed"),
+    ]  # fmt: skip
+
+
+def test_longest_known_prefix_wins() -> None:
+    """``validation_loss`` is the prefix ``validation``, not ``val`` plus a rest; case is kept."""
+    from beamtime.views.defaults import prefix
+
+    assert prefix("validation_loss") == "validation"
+    assert prefix("valid.acc") == "valid"
+    assert prefix("Val_loss") == "Val"
+    assert prefix("val/acc") == "val" and prefix("any/thing_here") == "any"
+
+
+def test_prefix_needs_a_separator() -> None:
+    """Unknown prefixes and names without ``_`` or ``.`` after a known one stay unprefixed."""
+    from beamtime.views.defaults import prefix
+
+    for name in ("value_loss", "vale", "val", "validx", "lr", "my_loss", "loss.val", "trainer_x"):
+        assert prefix(name) == ""
+
+
+def test_ordered_metrics_ranks_by_prefix() -> None:
+    """Validation first, then test, train, other prefixes and unprefixed metrics."""
+    from beamtime.views.defaults import ordered_metrics
+
+    rows = [[k] for k in ("lr", "x/a", "train_loss", "test.acc", "val_loss")]
+    assert ordered_metrics({"metrics": {"rows": rows}}) == [
+        "val_loss", "test.acc", "train_loss", "x/a", "lr",
+    ]  # fmt: skip
+
+
+def test_pins_make_the_main_section_and_one_prefix_is_a_plain_grid() -> None:
+    """Pinned metrics sit in an open Main section and stay in their own section; a prefix of one
+    metric keeps its section."""
+    from beamtime.views.defaults import curves
+
+    metrics = ["val/acc", "train/loss", "train/lr", "energy/e", "energy/m", "x/one", "lr"]
     out = curves(metrics, None, False, ["energy/e", "val/acc"])
     assert [(s.title, s.open) for s in out] == [
-        ("Main (2)", True), ("train (2)", True), ("energy (2)", True), ("Other (2)", False),
+        ("Main (2)", True), ("val (1)", True), ("train (2)", True), ("energy (2)", False),
+        ("x (1)", False), ("Other (1)", False),
     ]  # fmt: skip
     assert [c.y for c in out[0].children[0].children] == ["energy/e", "val/acc"]
     assert out[0].children[0].children[0].id == "pin-energy-e"
-    assert out[2].children[0].children[0].id == "line-energy-e"
+    assert out[3].children[0].children[0].id == "line-energy-e"
     (grid,) = curves(["loss", "acc", "epoch"], None, False, [])
     assert isinstance(grid, m.Grid) and [c.y for c in grid.children] == ["loss", "acc"]
 

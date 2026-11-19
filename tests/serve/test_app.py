@@ -82,9 +82,9 @@ def test_view_of_groups_and_runs(api, roles: dict[str, str]) -> None:
     walk = lambda n: [n["block"], *[b for c in n.get("children", []) for b in walk(c)]]  # noqa: E731
     assert "stat" not in walk(sweep["view"])
     # the proposal's predicted metric is pinned: an open Main section, then every metric once.
-    main, other = (c for c in sweep["view"]["children"] if c["block"] == "section")
+    main, *others = (c for c in sweep["view"]["children"] if c["block"] == "section")
     assert main["props"]["title"] == "Main (1)" and main["props"]["open"] is True
-    curves = [g for s in (main, other) for g in s["children"]]
+    curves = [g for s in (main, *others) for g in s["children"]]
     assert all(c["data"]["main"]["method"] == "series" for g in curves for c in g["children"])
     assert [c["props"]["y"] for g in curves for c in g["children"]] == ["val/acc", "val/acc", "train/loss", "lr"]
     table = next(c for c in sweep["view"]["children"] if c["block"] == "table")
@@ -93,7 +93,8 @@ def test_view_of_groups_and_runs(api, roles: dict[str, str]) -> None:
     assert best["metric"] == "val/acc" and best["config"]["lr"] == 3e-4
     assert sweep["pins"] == [{"y": "val/acc", "higher": True}]
     unpinned = api("view", path="scaling/lr-sweep", metrics=[]).json()
-    assert unpinned["pins"] == [] and unpinned["view"]["children"][0]["block"] == "grid"
+    assert unpinned["pins"] == [] and unpinned["view"]["children"][0]["block"] == "section"
+    assert unpinned["view"]["children"][0]["props"]["title"] == "val (1)"
     assert api("summary", path="scaling/lr-sweep", metrics=[]).json()["summary"] is None
 
     top = api("view", path="").json()

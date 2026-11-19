@@ -2,7 +2,6 @@
 authored view, and written out as one when a draft starts from it."""
 
 import re
-from collections import Counter
 from typing import Any
 
 from beamtime.format.ids import is_run_id
@@ -18,6 +17,7 @@ RECENT = 10
 NOTES = 3
 EVAL_PREFIXES = ("val", "valid", "eval", "test", "validation")
 TRAIN_PREFIXES = ("train", "training")
+KNOWN_PREFIXES = EVAL_PREFIXES + TRAIN_PREFIXES
 # the SDK's system metrics: their own collapsed section, last.
 SYSTEM = "sys"
 CLOCKS = ("epoch", "global_step", "trainer/global_step")
@@ -227,17 +227,15 @@ def curves(metrics: list[str], seeds: str | None, own: bool, main: list[str]) ->
     :param own: Whether to show only the runs directly in the group.
     :param main: The pinned metrics, in order.
     :return: The sections: ``Main`` (the pinned metrics again, open; their charts there are
-        ``pin-<metric>``), evaluation, training, the other prefixes, ``Other`` (unprefixed metrics
-        and prefixes of one metric), then ``System``; the first two of those open. A single
-        section without pins is a plain grid. Clocks (``epoch``) get no chart: they are an x
-        axis and a progress fact."""
+        ``pin-<metric>``), evaluation, training, the other prefixes (each its own section, even of
+        one metric), ``Other`` (unprefixed metrics only), then ``System``; the first two of those
+        open. A single section without pins is a plain grid. Clocks (``epoch``) get no chart: they
+        are an x axis and a progress fact."""
     metrics = [k for k in metrics if k not in CLOCKS]
     pinned = [k for k in main if k in metrics]
-    sizes = Counter(prefix(k) for k in metrics)
     groups: dict[str, list[str]] = {}
     for k in metrics:
-        name = prefix(k) if sizes[prefix(k)] > 1 or prefix(k) == SYSTEM else ""
-        groups.setdefault(name, []).append(k)
+        groups.setdefault(prefix(k), []).append(k)
     order = sorted(groups, key=section_rank)
     # system metrics are per machine, never averaged over seeds.
     if len(order) == 1 and not pinned:
@@ -274,6 +272,7 @@ def section_rank(name: str) -> int:
         return 4
     if not name:
         return 3
+    name = name.lower()
     return 0 if name in EVAL_PREFIXES else 1 if name in TRAIN_PREFIXES else 2
 
 
@@ -297,7 +296,7 @@ def ordered_metrics(keys: dict[str, Any]) -> list[str]:
     :return: The metric keys."""
     names = [r[0] for r in keys["metrics"]["rows"]]
     rank = {"val": 0, "valid": 0, "eval": 0, "validation": 0, "test": 1, "train": 2, "training": 2}
-    return sorted(names, key=lambda k: (rank.get(k.split("/", 1)[0], 3) if "/" in k else 4, k))
+    return sorted(names, key=lambda k: (rank.get(prefix(k).lower(), 3) if prefix(k) else 4, k))
 
 
 def varying_config(keys: dict[str, Any]) -> list[str]:
@@ -320,8 +319,12 @@ def lower_is_better(metric: str) -> bool:
 
 
 def prefix(metric: str) -> str:
-    """Name a metric's namespace.
+    """Name a metric's namespace: the text before ``/``, or a known prefix before ``.`` or ``_``.
 
-    :param metric: E.g. ``val/acc``.
+    :param metric: E.g. ``val/acc``, ``val.acc`` or ``val_acc``.
     :return: E.g. ``val``; empty without one."""
-    return metric.split("/", 1)[0] if "/" in metric else ""
+    if "/" in metric:
+        return metric.split("/", 1)[0]
+    if (found := re.match(r"([^._]+)[._]", metric)) and found[1].lower() in KNOWN_PREFIXES:
+        return found[1]
+    return ""

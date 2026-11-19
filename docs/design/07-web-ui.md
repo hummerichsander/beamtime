@@ -480,11 +480,14 @@ Decided while building the shell (milestone M5):
 - **The built-in default view** is built on the server as a view and compiled to a block tree
   (`{block, id, props, data, children}`, where `data` names API calls) like authored views. A
   group with runs of its own gets one chart per metric, in sections by metric prefix (averaged over
-  the group's seed key (`keys` `config.seed`) beyond eight runs, except the system metrics): `Main` (the pinned metrics, below),
-  evaluation (`val`, `test`, ...), training, the other prefixes alphabetically, `Other` (unprefixed metrics and prefixes of one metric)
+  the group's seed key (`keys` `config.seed`) beyond eight runs, except the system metrics). The
+  prefix is the text before the first `/`; after a known prefix (`val`, `valid`, `validation`,
+  `eval`, `test`, `train`, `training`, case-insensitive) `.` and `_` separate too (`val_loss`,
+  `val.acc` and `val/f1` share `val`). The sections: `Main` (the pinned metrics, below),
+  evaluation (`val`, `test`, ...), training, the other prefixes alphabetically, `Other` (unprefixed metrics only)
   and `System` (`sys/*`). Titles carry the count (`validation (5)`); `Main` is open, so are the first
   two sections after it, the rest and `System` closed, and a group with a single section and no pins
-  is a plain grid. Every metric has its chart in its prefix section, with the id `line-<slug>`, so
+  is a plain grid. A prefix of one metric keeps its own section. Every metric has its chart in its prefix section, with the id `line-<slug>`, so
   stored settings survive.
   **Main metrics are the viewer's choice**, never guessed from names: a chart's settings offer
   "Pin as main metric" (and "Unpin"), and a pinned chart shows a ↑/↓ button, "Higher is better" /

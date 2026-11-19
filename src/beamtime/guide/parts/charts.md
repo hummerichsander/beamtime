@@ -20,6 +20,8 @@ Rules for every chart, built-in or drawn in code. `view_validate` warns about th
   `seeds: config.seed` (seeds merged), or `color: <field>` (one hue per value, a ramp when numeric).
 - Many metrics are not many curves: give each prefix its own `section` (`train`, `val`, `grads`), one
   chart per metric, instead of one chart with twenty lines.
+- Name metrics `<prefix>/<name>` (`train/loss`, `val/acc`): each prefix gets its section; `val_` and
+  `val.` work for the known prefixes (`val`, `valid`, `validation`, `eval`, `test`, `train`, `training`).
 - A band (`band: std | stderr | minmax`) needs at least two runs per group; say which in the caption.
 
 ## Axes and scales

@@ -280,7 +280,7 @@ asks `series {y: [live/new]}` and fails today.
 
 ## D. The default view and the chart rules
 
-### D31. Sections by prefix with `/`, `.` and `_` (sonnet) — reproduced
+### D31. Sections by prefix with `/`, `.` and `_` (sonnet) — reproduced — **done**
 
 - **Touches:** `src/beamtime/views/defaults.py` (`curves` 220–262, `ordered_metrics` 285–293, `prefix`
   316–322, new `KNOWN_PREFIXES`), `src/beamtime/guide/parts/charts.md` (l. 21), `docs/quickstart.md` (l. 32),
