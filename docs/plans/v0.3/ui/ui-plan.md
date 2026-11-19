@@ -571,7 +571,7 @@ asks `series {y: [live/new]}` and fails today.
 
 ## L. The mark
 
-### L31. The `///` mark in the design system (sonnet + review) — code
+### L31. The `///` mark in the design system (sonnet + review) — code — **done**
 
 - **Touches:** new `design/components/Mark.md`, `design/components.css` (`.mark`), `design/favicon.svg`
   (rewritten), new `design/favicon-live.svg`, `design/gallery.html`, `design/README.md` (Components list,

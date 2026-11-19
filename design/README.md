@@ -77,7 +77,8 @@ numbers.
 - **Controls.** Buttons and icon buttons fill a light tint of their color on hover; they draw no edge.
   Fields and selects are filled with `surface` and keep a `border` edge. Native controls (checkbox,
   range, select, number) are drawn by the system, never left to the browser: see [Field](components/Field.md).
-- **Motion.** Rare and fast (120–150ms), only for changes of state, off under reduced motion.
+- **Motion.** Rare and fast (120–150ms), only for changes of state, off under reduced motion. The one exception is the [Mark](components/Mark.md)'s
+  "gather left" (420ms, ease in-out), which plays on hover and once on page load.
 - **Icons.** Lucide shapes drawn hard, like the rules: `stroke-icon` (1.5px), square caps, mitred
   joins, in `currentColor`, usually `muted`; 14–16px. Render them with class `icon`. No emoji, no
   filled icons, and never as the only sign of a state.
@@ -95,7 +96,8 @@ color numeric and grouped values, never individual runs.
 Use the markup on each component's page, type classes included. Component CSS sets layout, color and
 weight only; font sizes come only from the type classes.
 
-- Page: [Section](components/Section.md), [Header](components/Header.md), [Proposal](components/Proposal.md)
+- Page: [Section](components/Section.md), [Header](components/Header.md), [Proposal](components/Proposal.md),
+  [Mark](components/Mark.md)
 - Data: [Table](components/Table.md), [Chart](components/Chart.md), [Images](components/Images.md), [Note](components/Note.md),
   [Stat](components/Stat.md), [Config](components/Config.md)
 - Controls: [Sym](components/Sym.md), [Tag](components/Tag.md), [Button](components/Button.md),

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <style>
+    path { stroke: #2f5aa8; stroke-width: 2.6; stroke-linecap: round; fill: none; }
+    .m2 { animation: m2 2.8s ease-in-out infinite; }
+    .m3 { animation: m3 2.8s ease-in-out infinite; }
+    @keyframes m2 { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(2px); } }
+    @keyframes m3 { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(4px); } }
+    @media (prefers-color-scheme: dark) {
+      path { stroke: #86a8e8; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .m2, .m3 { animation: none; }
+    }
+  </style>
+  <path d="M2.5 19.5 L9.5 4.5" />
+  <path class="m2" d="M6.5 19.5 L13.5 4.5" />
+  <path class="m3" d="M10.5 19.5 L17.5 4.5" />
+</svg>

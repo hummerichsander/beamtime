@@ -9,7 +9,7 @@ import pytest
 ROOT = Path(__file__).parents[1]
 GALLERY = ROOT / "design" / "gallery.html"
 COMPONENTS = (
-    "Section", "Header", "Proposal", "Table", "Chart", "Images", "Note", "Stat",
+    "Section", "Header", "Proposal", "Mark", "Table", "Chart", "Images", "Note", "Stat",
     "Sym", "Tag", "Button", "IconButton", "Field", "Notice", "Config",
 )  # fmt: skip
 
@@ -29,17 +29,22 @@ def test_tokens_css_is_current() -> None:
     assert script("build-tokens", "--check").returncode == 0
 
 
-def test_favicon_follows_the_system_theme_and_is_bundled() -> None:
-    """The beam mark recolors itself in dark mode, ships to static/, and an export can inline it."""
-    svg = (ROOT / "design" / "favicon.svg").read_text()
-    assert "@media (prefers-color-scheme: dark)" in svg
+def test_favicons_follow_the_system_theme_and_are_bundled() -> None:
+    """The mark's rest and live icons recolor in dark mode, the live one loops and stops under reduced motion, and both ship."""
     tokens = (ROOT / "design" / "tokens.css").read_text()
     light, dark = re.findall(r"--accent: (#\w+)", tokens)[:2]
-    assert light in svg and dark in svg
+    static = ROOT / "src" / "beamtime" / "serve" / "static"
+    for name in ("favicon.svg", "favicon-live.svg"):
+        svg = (ROOT / "design" / name).read_text()
+        assert "@media (prefers-color-scheme: dark)" in svg
+        assert f"stroke: {light};" in svg and f"stroke: {dark};" in svg
+        assert (static / name).read_bytes() == (ROOT / "design" / name).read_bytes()
+    live = (ROOT / "design" / "favicon-live.svg").read_text()
+    assert "2.8s" in live and "infinite" in live
+    assert re.search(r"prefers-reduced-motion: reduce\)\s*{[^}]*animation: none", live)
+    assert "animation" not in (ROOT / "design" / "favicon.svg").read_text()
     assert script("build-tokens", "--check").returncode == 0
-    bundled = ROOT / "src" / "beamtime" / "serve" / "static" / "favicon.svg"
-    assert bundled.is_file() and bundled.read_bytes() == (ROOT / "design" / "favicon.svg").read_bytes()
-    index = (ROOT / "src" / "beamtime" / "serve" / "static" / "index.html").read_text()
+    index = (static / "index.html").read_text()
     assert '<link rel="icon" href="/static/favicon.svg"' in index
 
 
@@ -142,3 +147,25 @@ def test_the_gallery_renders_in_both_themes(browser, tmp_path: Path) -> None:
     # the same values the tokens give; rgb() here, hex there.
     paper = re.search(r"--paper: #(\w{2})(\w{2})(\w{2})", tokens).groups()
     assert seen["light"]["background"] == "rgb({}, {}, {})".format(*(int(c, 16) for c in paper))
+
+
+def test_the_mark_gathers_left_on_hover(browser) -> None:
+    """The middle and right stroke move 2 and 4 units left on hover, with or without reduced motion (which only drops the movement)."""
+    reads = {}
+    for motion in ("no-preference", "reduce"):
+        page = browser.new_page(viewport={"width": 1280, "height": 900}, reduced_motion=motion)
+        page.goto(GALLERY.as_uri())
+        mark = page.locator("#Mark svg.mark").first
+        mark.scroll_into_view_if_needed()
+        page.wait_for_timeout(1000)
+        rest = page.evaluate("[...document.querySelectorAll('#Mark svg.mark')[0].querySelectorAll('path')].map((p) => getComputedStyle(p).transform)")
+        mark.hover()
+        page.wait_for_timeout(600)
+        hover = page.evaluate("[...document.querySelectorAll('#Mark svg.mark')[0].querySelectorAll('path')].map((p) => getComputedStyle(p).transform)")
+        reads[motion] = (rest, hover)
+        page.close()
+    for rest, hover in reads.values():
+        assert rest == ["none", "none", "none"]
+        assert hover[0] == "none"
+        assert hover[1] == "matrix(1, 0, 0, 1, -2, 0)"
+        assert hover[2] == "matrix(1, 0, 0, 1, -4, 0)"

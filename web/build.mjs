@@ -66,6 +66,7 @@ keep(await build({
 }));
 await copyFile("src/index.html", `${out}/index.html`);
 await copyFile("../design/favicon.svg", `${out}/favicon.svg`);
+await copyFile("../design/favicon-live.svg", `${out}/favicon-live.svg`);
 await mkdir(`${out}/kit`, { recursive: true });
 await copyFile("src/kit/frame.html", `${out}/kit/frame.html`);
 await writeFile(`${out}/THIRD_PARTY_LICENSES.txt`, await licenses());

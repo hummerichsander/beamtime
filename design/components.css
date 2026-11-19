@@ -18,6 +18,20 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .tone-accent { color: var(--accent); }
 .tone-muted { color: var(--muted); }
 
+/* Mark: the three slashes; the middle and right one gather left on hover and once on load */
+.mark { flex: none; stroke: var(--accent); stroke-width: 2.6; stroke-linecap: round; fill: none; }
+.mark path { transform-box: fill-box; transition: transform 420ms ease-in-out; }
+.mark-2 { animation: mark-gather-2 840ms ease-in-out; }
+.mark-3 { animation: mark-gather-3 840ms ease-in-out; }
+.mark:hover .mark-2, .mark.gathered .mark-2 { transform: translateX(-2px); }
+.mark:hover .mark-3, .mark.gathered .mark-3 { transform: translateX(-4px); }
+@keyframes mark-gather-2 { 50% { transform: translateX(-2px); } }
+@keyframes mark-gather-3 { 50% { transform: translateX(-4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .mark path { transition: none; }
+  .mark-2, .mark-3 { animation: none; }
+}
+
 /* Section: a small label above the content */
 .section { display: grid; grid-template-columns: minmax(0, 1fr); row-gap: var(--space-3); padding-block: var(--gutter); border-block-end: var(--stroke-rule) solid var(--line); }
 .section:last-child { border-block-end: 0; }
