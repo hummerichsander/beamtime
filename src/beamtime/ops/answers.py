@@ -678,7 +678,7 @@ def merged(method: str, answers: list[tuple[str, dict]], params: dict, caller: s
     out = merger.merged(answers, params, caller)
     counts = {
         key: sum(a.get("meta", {}).get(key) or 0 for _, a in answers)
-        for key in ("matched", "groups", "means")
+        for key in ("matched", "groups", "means", "running")
         if key == "matched" or any(a.get("meta", {}).get(key) is not None for _, a in answers)
     }
     out["meta"] = {**out.get("meta", {}), **counts, "source": "."}

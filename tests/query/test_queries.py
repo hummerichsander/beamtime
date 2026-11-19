@@ -617,9 +617,13 @@ def test_file(ask) -> None:
 
 def test_file_columns(ask) -> None:
     """``columns`` narrows and orders the answer; a wrong name gets the closest one."""
-    a = ask({"file": {"path": "data/3f9a21c0-fit.csv", "view": "scaling", "columns": ["acc", "lr"]}})
+    a = ask(
+        {"file": {"path": "data/3f9a21c0-fit.csv", "view": "scaling", "columns": ["acc", "lr"]}}
+    )
     assert a["columns"] == ["acc", "lr"] and a["rows"][1] == [0.85, 0.003]
-    with pytest.raises(QueryError, match=r"no column 'acc '.*columns: lr, acc\. Did you mean 'acc'"):
+    with pytest.raises(
+        QueryError, match=r"no column 'acc '.*columns: lr, acc\. Did you mean 'acc'"
+    ):
         ask({"file": {"path": "data/3f9a21c0-fit.csv", "view": "scaling", "columns": ["acc "]}})
 
 
@@ -746,6 +750,100 @@ def test_keys_of_running_runs_come_from_their_columns(tmp_path: Path) -> None:
     metrics = {r[0]: r for r in a["metrics"]["rows"]}
     assert metrics["live/new"][:4] == ["live/new", 1, 5000, False]
     assert metrics["train/loss"][1] == 26
+
+
+def live_logdir(
+    tmp_path: Path, *, extra: str | None = "live/new", role: str = "running"
+) -> tuple[Path, dict[str, str]]:
+    """Generate a log dir whose running run has logged a metric its card doesn't list yet.
+
+    :param tmp_path: The test's temporary directory.
+    :param extra: The new metric key, or ``None`` to log nothing new.
+    :param role: The role of the run that logs it.
+    :return: The log dir and the generator's roles."""
+    from beamtime.format.io import json_line
+
+    logdir = tmp_path / "beamtime"
+    roles = generate(logdir, seed=0, now=datetime.now(timezone.utc)).roles
+    if extra is not None:
+        run_dir = next(logdir.glob(f"**/{roles[role]}"))
+        with (run_dir / "_metrics.jsonl").open("ab") as f:
+            f.write(json_line({"_step": 5000, "_t": 1.0, extra: 1.0}))
+    return logdir, roles
+
+
+def ask_live(tmp_path: Path, logdir: Path, query: dict) -> dict:
+    """Answer one query on a fresh index of a log dir.
+
+    :param tmp_path: The test's temporary directory.
+    :param logdir: The log dir.
+    :param query: The query.
+    :return: The answer."""
+    index = Index(logdir=logdir, cache=tmp_path / "cache")
+    try:
+        index.catch_up(".", budget_s=float("inf"))
+        return run(query, logdir=logdir, index=index)
+    finally:
+        index.close()
+
+
+def test_a_live_metric_answers_series_runs_and_where(tmp_path: Path) -> None:
+    """A metric only a running run's columns have is known to series, runs and where."""
+    logdir, roles = live_logdir(tmp_path)
+    a = ask_live(tmp_path, logdir, {"series": {"from": ".", "y": ["live/new"]}})
+    assert [c["run"] for c in a["curves"]] == [roles["running"]]
+    assert a["meta"]["running"] == 1
+    r = ask_live(
+        tmp_path,
+        logdir,
+        {"runs": {"from": ".", "select": ["run.id", "metric.live/new.last"], "limit": 5}},
+    )
+    assert r["rows"] is not None
+    w = ask_live(
+        tmp_path,
+        logdir,
+        {"runs": {"from": ".", "where": {"metric.live/new.last": {"ge": 0}}, "select": ["run.id"]}},
+    )
+    assert w["rows"] is not None
+
+
+def test_an_unknown_metric_fails_with_live_keys_among_the_suggestions(tmp_path: Path) -> None:
+    """A typo of a live key is refused and the live key is suggested."""
+    logdir, _ = live_logdir(tmp_path)
+    with pytest.raises(QueryError, match="live/new"):
+        ask_live(tmp_path, logdir, {"series": {"from": ".", "y": ["live/nwe"]}})
+
+
+def test_live_keys_of_lost_runs(tmp_path: Path) -> None:
+    """A run stored as running but derived lost still counts its columns, but not as running."""
+    logdir, roles = live_logdir(tmp_path, role="lost")
+    a = ask_live(tmp_path, logdir, {"series": {"from": roles["lost"], "y": ["live/new"]}})
+    assert len(a["curves"]) == 1 and a["meta"]["running"] == 0
+
+
+def test_live_keys_without_columns(tmp_path: Path) -> None:
+    """A running run without a manifest yet adds no live keys and breaks nothing."""
+    logdir, roles = live_logdir(tmp_path, extra=None)
+    run_dir = next(logdir.glob(f"**/{roles['running']}"))
+    (run_dir / "_metrics.jsonl").unlink(missing_ok=True)
+    with pytest.raises(QueryError, match="no run"):
+        ask_live(tmp_path, logdir, {"series": {"from": ".", "y": ["live/new"]}})
+
+
+def test_live_keys_respect_depth(tmp_path: Path) -> None:
+    """With depth 1 a subgroup's running run adds no live keys."""
+    logdir, roles = live_logdir(tmp_path)
+    run_dir = next(logdir.glob(f"**/{roles['running']}"))
+    group = run_dir.parent.relative_to(logdir).as_posix()
+    top = group.split("/")[0]
+    if "/" not in group:
+        pytest.skip("the running run is not in a subgroup")
+    with pytest.raises(QueryError, match="no run"):
+        ask_live(
+            tmp_path,
+            logdir,
+            {"runs": {"from": top, "depth": 1, "select": ["metric.live/new.last"]}},
+        )
 
 
 @pytest.fixture(scope="module")

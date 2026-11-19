@@ -221,7 +221,7 @@ What's left runs in this order: Q31 Q32 D31 D33 S31 T31 W31 W32 W33 W34 W35 W36 
 
 ## Q. Queries
 
-### Q31. A live metric is a known metric (sonnet + review) — reproduced
+### Q31. A live metric is a known metric (sonnet + review) — reproduced — **done**
 
 - **Touches:** `src/beamtime/query/select.py` (`known_keys` 84–95, `check_known` 117–140, new
   `live_metric_keys`), `src/beamtime/query/kinds.py` (`series_kind` 217–265: meta `running`),

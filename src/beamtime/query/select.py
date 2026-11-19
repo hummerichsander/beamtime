@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from beamtime.format.run import derived_status
-from beamtime.index.columns import Column, open_columns
+from beamtime.index.columns import TIME_KEY, Column, open_columns
 from beamtime.index.index import Index
 from beamtime.index.store import in_scope
 from beamtime.query import models as m
@@ -100,7 +100,27 @@ def known_keys(
     rows = ctx.index.store.db.execute(
         f"SELECT DISTINCT j.key FROM runs, json_each({source}) j WHERE {cond}", params
     )
-    return {r[0] for r in rows}
+    keys = {r[0] for r in rows}
+    return keys | live_metric_keys(ctx, hidden) if what == "metrics" else keys
+
+
+def live_metric_keys(ctx: Context, hidden: bool = False, depth: Any = "all") -> set[str]:
+    """List the metrics running runs logged since their card was last written.
+
+    A run rewrites its card every few minutes, so a new metric is in its columns first.
+
+    :param ctx: The query context.
+    :param hidden: Whether hidden runs count.
+    :param depth: ``all`` or how many levels below the scope to include.
+    :return: The column keys of the stored-as-running runs in scope."""
+    cond, params = scope_condition(ctx, depth, hidden)
+    ids = ctx.index.store.db.execute(
+        f"SELECT id FROM runs WHERE {cond} AND status = 'running'", params
+    )
+    keys: set[str] = set()
+    for (run_id,) in ids:
+        keys |= open_columns(ctx.index.series / run_id)[1].keys()
+    return keys - {TIME_KEY}
 
 
 def scope_condition(
@@ -127,12 +147,16 @@ def scope_condition(
     return cond, params
 
 
-def check_known(ctx: Context, fields: list[Field], hidden: bool = False) -> None:
+def check_known(
+    ctx: Context, fields: list[Field], hidden: bool = False, depth: Any = "all"
+) -> None:
     """Refuse fields naming keys that no run in scope has, with the closest matches.
 
     :param ctx: The query context.
     :param fields: The fields of the query.
-    :param hidden: Whether hidden runs count."""
+    :param hidden: Whether hidden runs count.
+    :param depth: How many levels below the scope the live keys are read from."""
+    live: set[str] | None = None
     for f in fields:
         what = {"metric": "metrics", "value": "values", "config": "config"}.get(f.ns)
         if what is None:
@@ -146,6 +170,11 @@ def check_known(ctx: Context, fields: list[Field], hidden: bool = False) -> None
         ).fetchone()
         if hit:
             continue
+        if what == "metrics":
+            if live is None:
+                live = live_metric_keys(ctx, hidden, depth)
+            if f.key in live:
+                continue
         if known := known_keys(ctx, what, hidden):
             raise QueryError(
                 f"{f.text!r}: no run in {ctx.scope!r} has {f.ns} key {f.key!r}."
@@ -217,7 +246,7 @@ def select_runs(
     fields = [parse_field(t) for t in texts]
     # the steps a window refers to are fetched like fields but not part of the answer.
     steps = [r for f in fields if (r := f.ref) is not None and r not in fields]
-    check_known(ctx, [*fields, *steps], sel.hidden)
+    check_known(ctx, [*fields, *steps], sel.hidden, sel.depth)
     exprs = [(f, e) for f in [*fields, *steps] if (e := sql(f)) is not None]
     whole = "config" if config else "NULL"
     cols = ", ".join(["id", "path", "status", "heartbeat", whole, *[e for _, e in exprs]])

@@ -284,7 +284,8 @@ Design goals:
 
 - **Small and predictable.** Few concepts, no general-purpose expressions.
 - **Validated with helpful errors.** An unknown metric fails with the closest matches and a pointer
-  to `beamtime keys`, instead of returning nothing.
+  to `beamtime keys`, instead of returning nothing. A metric only a running run's columns have yet
+  (its card lags up to 3 minutes) counts as known and is among the suggestions.
 - **Exact by default.** Every number comes from the full data; only curves are downsampled, and the
   answer says so.
 - **Token-aware.** Defaults keep answers small; larger answers have to be asked for.
@@ -495,6 +496,8 @@ series:
   and older hubs read them, and `raw` and `by` stay honest facts about fidelity and grouping; retiring the
   duplicates waits for the next protocol major. The cost is four extra arrays in a downsampled answer (about
   1.7x the JSON, bounded by the chart's point budget).
+- **The series meta says `running`**: how many matched runs have the derived status `running`, summed across
+  sources in a merged answer, so a chart without a point yet can say it waits for the first value.
 - **The CLI and MCP get the envelope only.** For callers `cli` and `mcp` the answer drops `last`, `min`, `max`,
   `count` and `mean` from every curve (`first`, `raw` and `width` stay), once and before the token cut
   (`budget.page`, `answers.paged`), so a page holds more curves (about two thirds more); the query layer never strips.

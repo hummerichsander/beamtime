@@ -223,7 +223,7 @@ def series_kind(ctx: Context, q: m.Series) -> dict[str, Any]:
     :param q: The query.
     :return: ``{curves, meta}``."""
     by = list(q.by or [])
-    fields = ["run.name", *[f"metric.{y}.count" for y in q.y], *by]
+    fields = ["run.name", "run.status", *[f"metric.{y}.count" for y in q.y], *by]
     runs, _ = select_runs(ctx, q, fields, config=bool(q.seeds))
     if q.steps and len(q.steps) != 2:
         raise QueryError("series: steps is [first, last], e.g. [0, 5000]")
@@ -263,6 +263,7 @@ def series_kind(ctx: Context, q: m.Series) -> dict[str, Any]:
             points="all" if q.points == "all" else per_curve,
             downsampled=any(not cv.get("raw", False) for cv in curves),
             from_preview=sum(cv.get("source") == "preview" for cv in curves),
+            running=sum(r["run.status"] == "running" for r in runs),
         ),
     }
 
