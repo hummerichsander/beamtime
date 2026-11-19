@@ -10,6 +10,7 @@ import { ago } from "../bt/fmt.ts";
 import { groupUrl, route, timelineUrl } from "../router.ts";
 import { useStore } from "../state.ts";
 import { Icon } from "../ui/icons.ts";
+import { Mark } from "../ui/mark.ts";
 import { IconButton } from "../ui/primitives.ts";
 import { change } from "./settings.ts";
 import * as calls from "./calls.ts";
@@ -25,7 +26,7 @@ export function TopBar() {
   return html`<header class="topbar">
     <${IconButton} icon="panel-left" label=${side ? "Hide the sidebar (⌘B)" : "Show the sidebar (⌘B)"}
       pressed=${side} onClick=${() => sidebar.set(!side)} />
-    <a class="project heading" href="/f/local">${info?.project ?? "Beamtime"}</a>
+    <a class="project heading" href="/f/local"><${Mark} />${info?.project ?? "Beamtime"}</a>
     <button type="button" class="search input body" onClick=${() => palette.set("")} aria-label="Search (⌘K)">
       <${Icon} name="search" size=${15} /><span class="search-label small">Search groups, runs, commands</span><kbd class="small">⌘K</kbd>
     </button>

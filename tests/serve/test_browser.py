@@ -255,18 +255,47 @@ def wait_until(condition, timeout: float = 15.0) -> None:
 
 
 def test_the_title_and_favicon_show_a_running_run(live_page) -> None:
-    """A group with a running run gets a (1) count in its title and a dot on its favicon."""
+    """A group with a running run gets a (1) count in its title and the live mark as its favicon."""
     page = live_page.page
     live_page.goto("/f/local/live")
     page.wait_for_selector(".chart canvas")
     wait_until(lambda: page.title().startswith("(1) live"))
     assert page.title().endswith("· Beamtime")
     href = page.eval_on_selector("link[rel=icon]", "el => el.href")
-    assert href.startswith("data:image/png")
+    assert href.endswith("/static/favicon-live.svg")
+    assert page.eval_on_selector("link[rel=icon]", "el => el.type") == "image/svg+xml"
+    page.evaluate(
+        """() => {
+            window.__icon_writes = 0;
+            new MutationObserver((records) => { window.__icon_writes += records.length; })
+              .observe(document.querySelector("link[rel=icon]"), { attributes: true });
+        }"""
+    )
+    page.wait_for_timeout(2500)
+    assert page.evaluate("window.__icon_writes") == 0
     live_page.stop_writer()
     wait_until(lambda: page.title() == "live · Beamtime", timeout=30)
     href = page.eval_on_selector("link[rel=icon]", "el => el.href")
     assert href.endswith("/static/favicon.svg")
+
+
+def test_the_top_bar_mark_gathers_on_hover(server: str, page) -> None:
+    """The mark sits in the project link, gathers left on hover and holds still under reduced motion."""
+    page.goto(server)
+    page.wait_for_selector(".topbar .project .mark")
+    shift = "() => new DOMMatrix(getComputedStyle(document.querySelector('.topbar .mark-3')).transform).e"
+    page.wait_for_timeout(1200)
+    assert page.evaluate(shift) == 0
+    page.hover(".topbar .mark")
+    page.wait_for_timeout(700)
+    assert page.evaluate(shift) == -4
+    page.emulate_media(reduced_motion="reduce")
+    page.mouse.move(600, 600)
+    page.wait_for_timeout(100)
+    assert page.evaluate(shift) == 0
+    assert page.eval_on_selector(".topbar .mark-3", "el => getComputedStyle(el).animationName") == "none"
+    page.hover(".topbar .mark")
+    assert page.evaluate(shift) == -4
 
 
 LAST_STEP = """

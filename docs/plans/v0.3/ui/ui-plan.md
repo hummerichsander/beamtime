@@ -595,7 +595,7 @@ asks `series {y: [live/new]}` and fails today.
    keyframe plays once on load; `@media (prefers-reduced-motion: reduce)`: no transition or animation.
 3. Mark.md: what it is, the two poses, the motions, sizes (16 in the top bar), never as a status sign.
 
-### L32. The mark in the app (sonnet) — code
+### L32. The mark in the app (sonnet) — code — **done**
 
 - **Touches:** new `web/src/ui/mark.ts`, `web/src/shell/bars.ts` (`TopBar` 22–41, project link 28),
   `web/src/shell/favicon.ts` (16–52: `withDot` removed), `web/src/styles/shell.css` (`.project`),

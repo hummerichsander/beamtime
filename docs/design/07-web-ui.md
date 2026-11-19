@@ -101,7 +101,7 @@ These qualities are made concrete as budgets and rules, and checked like correct
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ top bar:   project · search (⌘K) · sources · theme · settings                │
+│ top bar:   /// project · search (⌘K) · sources · theme · settings            │
 ├──────────────┬─────────────────────────────────────────────┬─────────────────┤
 │ sidebar      │ header: breadcrumb · title · status ·       │ context drawer  │
 │              │         statement · predictions · facts     │ (toggle)        │
@@ -118,7 +118,7 @@ These qualities are made concrete as budgets and rules, and checked like correct
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Top bar**: project name, the command palette (⌘K), the state of each source (local, connected or
+- **Top bar**: the `///` mark (`ui/mark.ts`, [`design/components/Mark.md`](../../design/components/Mark.md)) and the project name, one link; the mark gathers left on hover and once on page load. Then the command palette (⌘K), the state of each source (local, connected or
   unreachable remotes), a light/dark/theme switch, settings.
 - **Sidebar**: the group tree, one top-level entry per source ([layer 4](04-remotes.md#naming-remote-groups)),
   with run counts and status dots (running, failed, lost). It loads lazily and can be filtered.
@@ -159,11 +159,13 @@ These qualities are made concrete as budgets and rules, and checked like correct
   unreadable runs, remote connections, the selection, and the pause switch.
 - **The browser tab**: every page sets `document.title` to its name (a group's, a run's, "Timeline"
   or "Settings") followed by " · Beamtime", with a `(N)` prefix while `N` runs are live in it (a run
-  page counts only itself). The favicon (`design/favicon.svg`, a beam mark that recolors itself for
-  `prefers-color-scheme: dark`; `scripts/build-tokens` writes its light and dark strokes from the `accent` token) gets a small accent dot added while `N > 0`, so a live tab stands out
-  among several (`shell/favicon.ts`). An exported page keeps its own, data-URI favicon and never
-  touches it: nothing in a static snapshot is ever live, and `/static/favicon.svg` doesn't resolve
-  next to a page opened from disk.
+  page counts only itself). The favicon is the mark: `/static/favicon.svg` (rest pose) and, while `N > 0`,
+  `/static/favicon-live.svg` (the gathered pose, looping gathered, rest, gathered every 2.8 s in browsers that animate
+  SVG icons; elsewhere the still gathered pose), both generated from the `accent` token by `scripts/build-tokens`
+  and recoloring themselves for `prefers-color-scheme: dark`, so a live tab stands out among several
+  (`shell/favicon.ts`; the link's `href` is set only when it changes, so live ticks never touch it). An exported page keeps
+  its own, data-URI favicon and never touches it: nothing in a static snapshot is ever live, and `/static/favicon.svg`
+  doesn't resolve next to a page opened from disk.
 
 On narrow screens the sidebar and drawer collapse into overlays; phones get a read-only layout with
 the header and the view.
