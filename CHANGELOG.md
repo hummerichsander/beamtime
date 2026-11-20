@@ -252,6 +252,11 @@
   `font-family`, `fontSize`, `fontFamily`, `line-height`, `lineHeight`, the `font` shorthand and an assigned
   `.font = "<literal>"`, comments masked) as an error `font literal ...`; font weight stays allowed, and canvas
   code uses `bt.theme.tokens.font`.
+- **Fixed** `beamtime serve` could crash with a segmentation fault when a page's first requests arrived together:
+  two threads set up the same request type at once. The serve (and `serve --stdio`) now sets up every request type
+  at startup, which adds about 0.8 s to it. A page whose serve died this way showed charts that never loaded.
+- **Fixed** an images block on a group page could show step 0's images for every run when its first answer came
+  back quickly; it now settles on the step the viewer picked.
 - **Changed** the size limits to fit this: the chart kit may be 50 000 bytes compressed (was 48 000) and the MCP tool
   definitions with the instructions 12 000 characters (was 11 500).
 - **Breaking:** the default chart scale is log when every value is positive and spans more than two decades, no
