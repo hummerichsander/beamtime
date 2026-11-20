@@ -1710,7 +1710,7 @@ def test_images_are_labeled_by_the_pages_epoch_and_spaced_by_it(project: Path, t
 
 def test_a_running_runs_new_image_follows_only_from_the_last_stop(project: Path, tmp_path: Path, server: str, page) -> None:
     """The scrubber at its last stop moves to each new logging; after the viewer moved it, it stays."""
-    writer = write_pictures(project, tmp_path, 40, 0.4)
+    writer = write_pictures(project, tmp_path, 200, 0.4)
     try:
         pictures_page(project, server, page)
         label = page.locator('main [data-block-id="samples"] .scrub-label')
