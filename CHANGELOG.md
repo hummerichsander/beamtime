@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 (unreleased)
+## 0.3.0
 
 - **Added** `beamtime ps` (user-only): lists every Beamtime process of this user on this machine by kind: `serve`
   (web UI), `index` (`serve --no-ui`), `remote` (`serve --stdio`), `mcp` (with its client's name) and `ssh` (logins
