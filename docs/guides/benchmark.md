@@ -1,19 +1,15 @@
 # Benchmark: Beamtime and plain files
 
-What does it cost an agent to answer questions about experiments with Beamtime, compared with the
-files a researcher would otherwise have? In the pilots every setup answered nearly every question
-correctly, so the benchmark measures the price of a right answer: tokens, cost, time and turns.
-Correctness is still graded and reported next to it. This page describes the benchmark: what is
-compared, the data and the tasks, the rules that keep the comparison fair, and what it cannot tell
-you. The scripts live in
+What does it cost an agent to answer questions about experiments with Beamtime, compared with plain
+files? Every setup answers nearly every question correctly, so the benchmark measures the price of a
+right answer (tokens, cost, time, turns) and reports correctness next to it. The scripts live in
 [`bench/agents/compare/`](https://github.com/hummerichsander/beamtime/tree/main/bench/agents/compare).
 
 ## The question
 
 The same eight questions, asked of the same numbers, in four setups, on two models (Sonnet and
-Haiku). A headless Claude Code session answers each question; a script grades the answer against
-values computed from the data. The report leads with what a session cost (tokens, dollars, seconds,
-turns) and then shows how many answers were right.
+Haiku). A headless Claude Code session answers each; a script grades the answer against values
+computed from the data.
 
 ## The four setups
 

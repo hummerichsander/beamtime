@@ -1,16 +1,10 @@
 # Setting up a project
 
 `beamtime setup` sets up a project and the machine you work on. It looks at what is there, asks a
-few questions, shows everything it will change, and writes only after you confirm. Press Enter
-through the questions to take what it found. Ctrl-c at any point leaves the project and the machine
-as they were.
-
-Up to 0.2 the command was `beamtime init`; it is `beamtime setup` now, with no old name. (The
-`beamtime.init()` call in your script is unchanged.)
+few questions, shows every change, and writes only after you confirm. Enter takes what it found;
+Ctrl-c leaves everything as it was.
 
 ## What it asks
-
-Which questions you get depends on where you run it:
 
 | You are... | It asks |
 |---|---|
@@ -20,17 +14,15 @@ Which questions you get depends on where you run it:
 | in a project set up with an older release | what to bring up to date, and only the questions that are new since |
 | in a project that is set up and current | nothing up front: the list of your answers, and then only what you pick |
 
-Every flow ends the same way: a review grouped by where each change lands (the project, this
-machine, remote machines, imports), then `Write it`, `Change an answer`, or `Show the command and
-quit`. The command it prints is a `beamtime setup --yes ...` that makes the same setup on another
-machine or in a script.
+Every flow ends in a review grouped by where each change lands (project, this machine, remotes,
+imports): `Write it`, `Change an answer`, or `Show the command and quit`. The printed command,
+`beamtime setup --yes ...`, makes the same setup on another machine or in a script.
 
 ## Without a terminal
 
-Without a terminal, `beamtime setup` asks nothing. It prints the review and the command and writes
-nothing. With `--yes` it writes. Nothing outside the project happens unless a flag names it: no
-installs on remote machines, no ssh config, no SDK, and agents are registered only when `--agents`
-names them. A session of an agent is never started.
+Without a terminal, `beamtime setup` prints the review and the command and writes nothing; `--yes`
+writes. Nothing outside the project happens unless a flag names it (remote installs, ssh config, the
+SDK, agents via `--agents`). No agent session is started.
 
 ```sh
 beamtime setup --yes                          # beamtime.yaml, the log dir and .gitignore
@@ -39,7 +31,7 @@ beamtime setup --yes --agents claude-code     # and the MCP server and rules for
 
 ## Flags
 
-Every answer is a flag. Flags and questions make the same plan.
+Every answer is a flag; flags and questions make the same plan.
 
 | Flag | What it answers | Example |
 |---|---|---|
@@ -72,23 +64,25 @@ Every answer is a flag. Flags and questions make the same plan.
 
 ## Agents
 
-Each agent you pick gets the MCP server in its own config, and a block of rules in its instruction
-file (`CLAUDE.md`, `AGENTS.md` or `GEMINI.md`) that says Beamtime is the record: findings go into
-notes and the memory, not into loose files. The block sits between `beamtime` markers and a rerun
-replaces only the block, so your own text around it stays. Choose `Skip` (or `--no-rules`) to write
-no block.
+Each agent you pick gets the MCP server in its config and a rules block in its instruction file
+(`CLAUDE.md`, `AGENTS.md` or `GEMINI.md`): findings go into notes and the memory, not loose files.
+The block sits between `beamtime` markers; a rerun replaces only the block. `Skip` (or `--no-rules`)
+writes none.
 
-How much agents do on their own is one of three presets: **careful** (they propose and analyze, you
-launch runs), **hands-on** (they may launch runs too) and **analysis only** (no proposals; tables,
-charts and pages). `Choose each setting` shows every knob, including `proposal length` (100, 150 or
-300 words). The choice is written to `beamtime.yaml` under `agent`; see [Settings](settings.md#agent).
-The main metric, seed key and domain are not asked: set them under `agent:` yourself.
+Presets for how much agents do on their own:
+
+- **careful**: they propose and analyze, you launch runs.
+- **hands-on**: they may launch runs too.
+- **analysis only**: no proposals; tables, charts and pages.
+
+`Choose each setting` shows every knob, including `proposal length` (100, 150 or 300 words). The
+choice goes to `beamtime.yaml` under `agent` ([Settings](settings.md#agent)). Set the main metric,
+seed key and domain there yourself.
 
 ## Past work
 
-`beamtime setup` copies earlier runs into the log dir, under `imported/`, as ordinary runs that
-remember where they came from (`imported_from`). The originals are never touched, and importing the
-same folder twice copies only what is new.
+`beamtime setup` copies earlier runs into the log dir under `imported/`, as ordinary runs with
+`imported_from`. Originals are never touched; a second import copies only what is new.
 
 | Source | What comes in |
 |---|---|
@@ -98,43 +92,33 @@ same folder twice copies only what is new.
 | CSV | one run per file; a `step`, `epoch` or `iteration` column is the step, other numeric columns are metrics |
 | Beamtime | runs, with their proposals, notes, memory, views and library blocks |
 
-A few things to know:
+- **Keras / TensorBoard callback**: every folder with event files is one run, so a fit's `train/`
+  and `validation/` come in as two runs with the same metric names.
+- **Weights & Biases**: reading an offline run's history needs `wandb` below 0.30 in the environment
+  that runs `beamtime setup`. Otherwise the run comes in with its config and its summary as one
+  step, and the review says so.
+- **Beamtime runs outside the log dir** are copied in by default, also under `--yes`; `--import ''`
+  declines. In a project with neither `beamtime.yaml` nor a log dir, the wizard offers them ticked;
+  without a terminal, name them with `--import`.
+- **Large files**: checkpoints are copied too; the review shows the bytes.
 
-- **Keras and the TensorBoard callback.** Every folder with event files is one run. Keras writes
-  `train/` and `validation/` side by side, so a fit comes in as two runs, one per folder, both
-  with the same metric names; they are not merged into one run with a training and a validation
-  curve.
-- **Weights & Biases.** Reading the history of an offline run needs the `wandb` package in the
-  environment that runs `beamtime setup`. Its reader was checked up to `wandb` 0.28.2 and is gone in
-  0.30. With `wandb` 0.30 or newer, or without it, the run comes in with its config and its summary as a single step,
-  and the review says so.
-- **Beamtime runs outside the log dir** (an old log dir, runs from before you moved the log dir) are
-  copied in by default, also under `--yes`. They are a copy; the originals stay. `--import ''`
-  declines. In a project with neither a `beamtime.yaml` nor a log dir yet, the wizard offers them
-  ticked, and without a terminal you name them with `--import`.
-- **Large files.** Checkpoints are copied too; the review shows how many bytes it will copy.
-
-Notes and memory files (`NOTES.md`, a `notes/` folder, Claude Code's project memory) are turned into
-typed notes by your agent, since that takes judgment. After the write, the wizard offers to start the
-agent on them, to copy the prompt for an editor agent, or to leave it for later.
+Notes and memory files (`NOTES.md`, a `notes/` folder, Claude Code's project memory) become typed
+notes through your agent. After the write, the wizard offers to start the agent, copy the prompt for
+an editor agent, or leave it for later.
 
 ```sh
 beamtime setup --migrate-with claude-code
 ```
 
-starts the agent later. In a set-up project it skips the questions: on a terminal it starts the agent
-in the project at once, and without a terminal it prints the command to run. `--yes` never starts a
-session.
+starts it later, skipping the questions: on a terminal it starts the agent, without one it prints
+the command. `--yes` never starts a session.
 
 ## Updating
 
-After you upgrade Beamtime, run `beamtime setup` again. Your data never needs migrating: every file
-reads in every later release. What goes stale is the setup around it: the rules block in your
-instruction files, an MCP command that no longer starts, the skills, a setting this release no longer
-reads, the SDK in your environment, Beamtime on a remote machine, and Beamtime runs outside the log
-dir. The wizard checks the data first and says it is fine, then lists the stale items, all ticked, and
-asks only what is new since your setup. Skipping the rules question keeps the old rules block as it
-is; setup never removes one.
+After an upgrade, run `beamtime setup` again. Data never needs converting. What can go stale is the
+setup around it: the rules block, the MCP command, the skills, an unread setting, the SDK, Beamtime
+on a remote, and runs outside the log dir. The wizard lists the stale items, all ticked, and asks
+only the new questions. Setup never removes a rules block.
 
 ```sh
 beamtime setup --check          # one line per stale item; exit 3 if there is one, 0 if not
@@ -142,31 +126,26 @@ beamtime setup --yes            # bring every stale item up to date
 beamtime setup --yes --update rules,mcp
 ```
 
-`beamtime status` says in one line when the rules block is from an older release. A rules block you
-edited by hand is listed but not ticked.
+`beamtime status` flags an outdated rules block. A block you edited by hand is listed but not ticked.
 
 ## Changing an answer
 
-In a project that is set up and current, `beamtime setup` opens the list of your answers with their
-current values: where runs happen, the remotes, the agents, how much they do, the rules, git and the
-SDK. Pick one to ask it again (and the questions it newly turns on: choosing an agent where there
-was none also asks how much it does and the rules), then review the change. `Review the changes`
-goes straight to the review.
+In a current project, `beamtime setup` lists your answers (where runs happen, remotes, agents, how
+much they do, rules, git, SDK). Pick one to ask it again, with any questions it turns on, then
+review. `Review the changes` goes straight to the review.
 
-If you edit `agent` in `beamtime.yaml`, the rules block in `CLAUDE.md` no longer matches it. The list
-says so, and the review rewrites the block. Without a terminal, `beamtime setup --yes --update rules`
-does the same; `--check` and `status` stay quiet, because the setup is current.
+After you edit `agent` in `beamtime.yaml`, the list flags the stale rules block and the review
+rewrites it; without a terminal, `beamtime setup --yes --update rules`. `--check` and `status` stay
+quiet, since the setup is current.
 
-On a cluster checkout that is already set up, the cluster questions come again, and the wizard ends
-with "Nothing to change." when your answers change nothing.
+On a set-up cluster checkout, the cluster questions come again; unchanged answers end with "Nothing
+to change."
 
 ## Git and the SDK
 
-By default the research record (proposals, notes, memory, views) is committed and run data stays out
-of git, through a marked block in `.gitignore`. `--git none` ignores the whole log dir. A linked log
-dir (`--link-logdir`) is local to the machine, so that checkout doesn't commit the record, and the
-review says so.
+By default the research record (proposals, notes, memory, views) is committed and run data is
+ignored through a marked block in `.gitignore`. `--git none` ignores the whole log dir. A linked log
+dir (`--link-logdir`) is machine-local, so that checkout commits no record; the review says so.
 
-`--sdk` adds `beamtime` to the project's environment with the project's own tool (`uv add`,
-`poetry add`, `conda` or `pip`). It is asked only when the environment doesn't have Beamtime and its
-Python is 3.10 or newer.
+`--sdk` adds `beamtime` with the project's tool (`uv add`, `poetry add`, `conda` or `pip`). It is
+asked only when the environment lacks Beamtime and runs Python 3.10 or newer.

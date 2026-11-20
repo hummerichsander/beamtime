@@ -18,4 +18,4 @@ trainer.fit(model, datamodule)
 - Checkpoints are written into the run's folder (`checkpoints/`) and listed with the run.
 - On several GPUs only rank 0 records; nothing else is needed.
 
-Both `lightning` and the older `pytorch_lightning` package work.
+Both `lightning` and `pytorch_lightning` work.

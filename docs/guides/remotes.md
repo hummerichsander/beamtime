@@ -3,10 +3,9 @@
 Beamtime on your laptop can show a cluster's runs next to your own, live, over ssh. Nothing runs
 on the cluster except a short-lived Beamtime process started by ssh.
 
-`beamtime setup` does steps 1 to 3 for you: it finds the hosts in `~/.ssh/config`, checks all of
-them at once (login, Beamtime and Python there), can install Beamtime and add the ssh lines of step 2,
-and writes the remote. [Setting up a project](setup.md) lists the flags (`--remote`, `--install-remote`,
-`--ssh-share`). The steps below are the same by hand.
+`beamtime setup` does steps 1 to 3: it checks the hosts in `~/.ssh/config`, can install Beamtime and
+add the ssh lines, and writes the remote ([flags](setup.md): `--remote`, `--install-remote`,
+`--ssh-share`). By hand:
 
 ## 1. Install Beamtime there
 
@@ -34,8 +33,8 @@ Host mycluster
 beamtime source add cluster mycluster:/scratch/myproject/beamtime
 ```
 
-probes ssh for how to start Beamtime there and writes the entry to your user settings. To share it
-with a team, pass `--project` instead, or edit `beamtime.yaml` by hand:
+probes how to start Beamtime there and writes the entry to your user settings; `--project` writes it
+to `beamtime.yaml` for the team:
 
 ```yaml
 remotes:
@@ -45,9 +44,8 @@ remotes:
     path: ${SCRATCH}/myproject/beamtime   # the log dir there; ~ and ${VAR} expand there
 ```
 
-A teammate who clones the project runs `beamtime setup` once: it asks only how they reach the
-project's remotes. A remote this machine doesn't use is switched off with `--skip-remote NAME`, which
-writes `enabled: false` for it in the user settings ([Settings](settings.md#remote-machines)).
+A teammate runs `beamtime setup` once; it asks only how they reach the project's remotes.
+`--skip-remote NAME` switches one off on this machine ([Settings](settings.md#remote-machines)).
 
 ## 4. Use it
 
@@ -60,11 +58,9 @@ beamtime runs @cluster     # from the command line
 A second `beamtime serve` for a root that already has one prints the running one's URL. `beamtime ps`
 lists the serves, `beamtime stop` ends one ([Running processes](settings.md#running-processes)).
 
-Remote groups are named `@cluster/...` everywhere, reads and writes alike: notes, proposals,
-memory, views and library blocks. A view draft still lives on your own machine; only
-validating and saving it reach the cluster. Lists of runs, groups and notes merge both machines.
-A laptop with no runs of its own works the same way: `beamtime serve mycluster:/scratch/beamtime`
-from an empty directory needs no local project at all.
+Remote groups are `@cluster/...` everywhere, for reads and writes. View drafts stay local; validating
+and saving reach the cluster. Lists merge both machines. Without a local project,
+`beamtime serve mycluster:/scratch/beamtime` works from an empty directory.
 
 ## When the cluster is away
 

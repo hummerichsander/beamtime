@@ -14,11 +14,9 @@ beamtime mcp install --client cursor
 beamtime mcp install --client codex
 ```
 
-Add `--skills` to write three Beamtime skills into `.claude/skills/`, one per task (views, the
-research record, analysis).
-
-Add `--instructions` to also write Beamtime's working rules into `CLAUDE.md` (or `AGENTS.md`), in
-a marked block you can edit around. Running it again updates the block.
+`--skills` writes three skills into `.claude/skills/` (views, the research record, analysis).
+`--instructions` writes Beamtime's rules into a marked block in `CLAUDE.md` (or `AGENTS.md`); a
+rerun updates the block.
 
 ## What to ask
 
@@ -34,32 +32,23 @@ and `/beamtime:memory`.
 
 ## What agents may do
 
-Agents read everything and **add**: notes, proposals, verdicts, memory and pages. Every addition is
-a new file with the agent as its author; nothing is overwritten.
+Agents read everything and **add** notes, proposals, verdicts, memory and pages, each a new file
+with the agent as author. Smoke tests start hidden (`BEAMTIME_HIDDEN=1`) and count nowhere until
+`beamtime run promote`.
 
-A smoke test or debugging run should start hidden (`BEAMTIME_HIDDEN=1`): it counts nowhere until someone
-promotes it with `beamtime run promote`.
-
-Agents never **delete, move or set up** anything. For those, they tell you the command to run
-yourself: `beamtime setup`, `beamtime rm`, `beamtime mv`, `beamtime gc`, `beamtime serve`,
-`beamtime stop`, `beamtime ps`, `beamtime set`. When your setup is out of date, `beamtime status` and `beamtime setup --check` say so,
-and your agent hands you `beamtime setup`.
+Agents never **delete, move or set up** anything; they hand you the command (`beamtime setup`,
+`rm`, `mv`, `gc`, `serve`, `stop`, `ps`, `set`). When your setup is out of date, `beamtime status`
+says so and your agent hands you `beamtime setup`.
 
 ## How much agents do
 
-The `agent` setting in `beamtime.yaml` says how much agents do on their own: whether they may
-launch runs, how many seeds and what significance a proposal asks for, how long a proposal may be,
-and more. `beamtime setup` asks for a preset (careful, hands-on or analysis only) and writes it;
-[Settings](settings.md#agent) lists every key.
-
-One of them is `proposal_words` (150 by default): agents keep a proposal's statement, rationale and
-prediction descriptions to about that many words, since a proposal is frozen once a run records it.
-`beamtime proposal set` still writes a longer one, and adds a line to its answer:
-`warning: 212 words, beyond this project's limit of 150 (agent.proposal_words); a proposal is frozen
-once a run records it, so shorten it now`.
+The `agent` setting in `beamtime.yaml` says how much agents do on their own: launching runs, seeds,
+significance, proposal length and more. `beamtime setup` writes a preset (careful, hands-on or
+analysis only); [Settings](settings.md#agent) lists every key. A proposal beyond `proposal_words`
+(150) is still written, with a warning, since it freezes once a run records it.
 
 ## The agent's manual
 
-`beamtime guide` lists the topics agents read about Beamtime (`beamtime guide <topic>`): how to
-write proposals, how to build pages, and checklists. Its defaults come from the `agent` setting and
-say where each value comes from; your own instruction file can change them ("always put the run table first").
+`beamtime guide <topic>` is what agents read: proposals, pages, checklists. Its defaults come from
+the `agent` setting; your own instruction file can override them ("always put the run table
+first").
