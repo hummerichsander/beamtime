@@ -29,14 +29,20 @@ function scrubOf(key: string, start: number | null): Store<Scrub> {
   return scrubs.get(key)!;
 }
 
-// a value that follows its input after it has been still for a moment.
-function useSettled<T>(value: T, ms: number): T {
-  const [settled, setSettled] = useState(value);
+// a value that follows its input after it has been still for a moment, or at once while `now`.
+function useSettled<T>(value: T, ms: number, now: boolean): T {
+  const settled = useRef(value);
+  const [, redraw] = useState(0);
+  if (now) settled.current = value;
   useEffect(() => {
-    const t = setTimeout(() => setSettled(value), ms);
+    if (now || settled.current === value) return;
+    const t = setTimeout(() => {
+      settled.current = value;
+      redraw((n) => n + 1);
+    }, ms);
     return () => clearTimeout(t);
-  }, [value]);
-  return settled;
+  }, [value, now]);
+  return settled.current;
 }
 
 // what the inline block and its dialog share: the stops, the figure of each run at the scrubbed stop
@@ -54,13 +60,15 @@ function useImages(node: Node) {
   const stops: Stops = useMemo(() => stopsOf(meta, by), [meta, by]);
   const follows = state.step === null;
   const ranged = !(rendering || EXPORTED) && (asked === "last" || typeof asked === "number") && stops.steps.length > 1;
-  const i = follows ? stops.steps.length - 1 : indexAt(stops, state.step!);
+  const indexOf = (s: number | null) => (s === null ? stops.steps.length - 1 : indexAt(stops, s));
+  const i = indexOf(state.step);
   const at = stops.steps[i] ?? 0;
   // the old figures stay until the new ones are there.
   const keep = useRef<{ entries: Entry[]; at: number } | null>(null);
   // fast scrubbing asks for the stop it rests on, not for every one it passes; with nothing shown yet, at once.
-  const settled = useSettled(at, 120);
-  const asking = keep.current ? settled : at;
+  // the viewer's step settles, not the stop: that falls to 0 while the stops reload.
+  const settled = useSettled(state.step, 120, !keep.current);
+  const asking = stops.steps[indexOf(settled)] ?? 0;
   // the block's own answer holds the asked step, the newest logging only when the view asks for the last.
   const windowed = ranged && (!follows || asked !== "last");
   const call: Call | null = windowed ? { ...main, params: { ...main.params, step: ["last", asking], limit: 2000 } } : null;
