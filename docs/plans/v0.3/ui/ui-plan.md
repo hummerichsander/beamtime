@@ -127,12 +127,14 @@ is marked done in the ticket's own commit.
 Q31 ─ Q32 ─ D31 ─ D33 ─ T31             Python (Q31, Q32 share kinds.py and answers.py; D31, D33 share defaults.py;
                                         T31 edits guide parts and 05-views.md)
 W35 after Q31, W37 after Q32 and D32; then one at a time (shared bundle):
-S31 ─ W31 ─ W32 ─ W33 ─ W34 ─ W35 ─ W36 ─ D32 ─ W37 ─ D34 ─ L31 ─ L32 ─ Z31
+S31 ─ W31 ─ W32 ─ W33 ─ W34 ─ W35 ─ W36 ─ D32 ─ W37 ─ D34 ─ L31 ─ L32 ─ Z31 ─ Z32
 ```
+
+Z32 gathers what the reviews and the full runs left open after Z31.
 
 S31 runs before T31: T31's `type` part describes the type and labels S31 makes true.
 
-What's left runs in this order: Q31 Q32 D31 D33 S31 T31 W31 W32 W33 W34 W35 W36 D32 W37 D34 L31 L32 Z31
+What's left runs in this order: Q31 Q32 D31 D33 S31 T31 W31 W32 W33 W34 W35 W36 D32 W37 D34 L31 L32 Z31 Z32
 
 ## Decisions taken; say if you want otherwise
 
@@ -743,6 +745,101 @@ Lines below are at `274fc44`, not the plan's base commit; refresh them if Q31–
   `uv run pytest -q tests/serve/test_browser.py`; by hand the Goal's serve run.
 - **Done:** the changelog lists the Breaking changes below; every Goal check passes; `ticket.py status` shows all done.
 
+### Z32. Wrap-up: loose ends of the UI plan (sonnet + review) — code
+
+Line numbers at `3c5a4a4`. Seven small items; commit each on its own (subject `Z32: <item>`), the last
+commit also marks this heading done. Another session may hold uncommitted edits in `CLAUDE.md`,
+`src/beamtime/views/render.py`, `tests/conftest.py`, `tests/test_design.py`: never stage, stash or revert
+them (`git status` first; `git add -p` for your hunks only).
+
+- **Touches:** `src/beamtime/views/defaults.py` (`group_body` 66–116, `merges_seeds` 119, `swept` 140),
+  `tests/views/test_views.py` (beside `test_two_swept_keys_no_color` 1331; `make_group` 1253);
+  `src/beamtime/views/export.py` (`write` 273–319: the frame's `css` 295–302), `web/src/blocks/custom.ts`
+  (`frameSource` 211–222: the `@font-face` strip 217–218), `design/tokens.json` (`serif` 191),
+  `tests/serve/test_export.py` (`test_an_export_opens_from_disk` 89–124), `tests/serve/test_browser.py`
+  (`test_the_top_bar_mark_gathers_on_hover` 282–305), `src/beamtime/serve/server.py` (`serve` 27–132,
+  `watch_code` 349–363), `src/beamtime/views/render.py` (`screenshots` 162–194), `tests/test_budgets.py`
+  (`timed` 13–16), `tests/setup/test_scan.py` (295: docstring), `src/beamtime/query/kinds.py` (233, 510),
+  `src/beamtime/query/select.py` (`live_metric_keys` 107–109), `src/beamtime/query/distinguish.py` (48–52),
+  `docs/design/05-views.md` (484), `docs/design/07-web-ui.md` (export, 289–291), `CLAUDE.md` (346, only when
+  clean), `src/beamtime/serve/static/` (rebuilt), this plan (Questions 1, Not verified).
+- **Read:** D33's commits `0fb3843` and `34584a8`; `design/README.md` § Type;
+  `src/beamtime/serve/auth.py` 14–25 (`CSP`, `FRAME_CSP`); `web/src/kit/frame.html`; `web/build.mjs` 30–44.
+- **Check:** `uv run pytest -q -n0 tests/views tests/query tests/serve/test_export.py tests/serve/test_procs.py tests/serve/test_render.py`;
+  `uv run pytest -q tests/serve/test_browser.py -k "mark or images"`; `cd web && npm ci && npm test && npm run build`;
+  `python3 scripts/build-tokens --check && scripts/check-design`; then the full checks, twice, with 4 workers.
+- **Done:** a group whose own runs share `lr` while a subgroup's differ colors nothing, and one whose own runs
+  differ only in `wd` colors by `config.wd` (two tests, failing first); in an export opened from `file://`,
+  `document.fonts.load("15.5px XCharter")` inside a custom-block frame and on the page resolves to a loaded face,
+  and the run page's images show the logged last step with no `.scrubber`; `test_watch_restart_one_record` and
+  `test_every_widget_renders_cleanly` pass in two full parallel runs; Tab focus on `.topbar .project` moves
+  `.mark-3` by −4; the four nits are gone; `ticket.py status` shows Z32 done.
+- **Risks:** a group with a seed varying only in a subgroup must not merge (`test_arms_count_own_runs` stays
+  green); the inlined fonts make each frame's `srcdoc` ~600 KB — an export with many custom blocks must still
+  open (the export test's custom view; say the measured `frame.js` size in the commit); `code_files()` taken
+  before startup must still see a change made during startup (the procs test); the shell stays under 120 KB and
+  the kit under `KIT_BUDGET` (`tests/test_budgets.py`, unchanged: fonts never enter `app.js` or `kit.js`).
+- **Stop if:** `render.py` or `CLAUDE.md` still carries another session's uncommitted edits when you reach
+  items 3b or 4 (then do the rest and list those steps for the user); the page itself (not the frame) has no
+  fonts from `file://` (then the export needs inlined fonts in `main.css` too — about 600 KB more per export;
+  ask whether that is wanted); the render failure in 3b has a cause other than the two named there.
+
+1. **Seed coloring with subgroups.** In `group_body`, compute `local = varying_config(own_keys)` and use it for
+   `merges_seeds(ctx, path, local, own, seed)` and `swept(local, seed)`; the Config block and table keep the
+   subtree's `varying`. Tests with `make_group`: own `[{"lr": 0.1}] * 3` plus `nested="sub"` `[{"lr": 0.5}]`
+   → `{n.color for n in charts if n.depth == 1} == {None}`; own `[{"lr": 0.1, "wd": w} for w in (0, 1, 2)]`
+   plus sub `[{"lr": 0.5, "wd": 0}]` → `{"config.wd"}`. Check first that `own_keys["config"]["varying"]` is
+   per depth 1 (`keys` honours `depth`). `07-web-ui.md`'s color line: "the key that varies among the group's own runs".
+2. **Fonts in exported frames.** Cause: `frameSource` strips `@font-face` (custom.ts 217–218) because the frame
+   (`srcdoc`, sandboxed, opaque origin) may load no files; `--font-serif` is `XCharter` with no fallback, so
+   serif text falls to the browser default. Served frames load `/static/app.css` with `font-src 'self'` and
+   CORS (`auth.py` 21–25, 101–103): check first in a browser test that they already have fonts; then change
+   nothing there. Fix for exports: in `write`, the frame's `css` is `main.css` with every
+   `url("../fonts/<name>.woff2")` replaced by `url(data:font/woff2;base64,…)` from `src/beamtime/serve/static/fonts/` (a
+   `re.sub` in a small `inline_fonts(css: str, fonts: Traversable) -> str`); `frameSource` drops the strip
+   and its comment. An exported page has no CSP, so `data:` fonts are allowed. Add a fallback:
+   `"serif": "XCharter, Charter, \"Bitstream Charter\", Georgia, serif"`, then `scripts/build-tokens` and the
+   web build. Test: in `test_an_export_opens_from_disk`, evaluate
+   `async () => (await document.fonts.load("15.5px XCharter")).length` in the frame
+   (`page.frames[1]`) and on the page: > 0 (check first on the page; Stop if it is 0 there). Spec: 07-web-ui.md
+   289–291 "… carries the kit, styles and fonts inline (`srcdoc`, fonts as `data:` URIs)". Mark Questions 1
+   "resolved by Z32" and the last Not verified bullet with it.
+3. **Two parallel-run failures.** (a) `test_watch_restart_one_record`: the record is registered (server.py 88)
+   before `build` runs `warm_types()` (~0.8 s, `src/beamtime/serve/app.py` 43) and before `watch_code` takes `before =
+   code_files()` (350), so the test's `os.utime` lands in the baseline under load. Take the baseline in
+   `serve` before `register` (`before = code_files() if p.watch else {}`) and pass it:
+   `watch_code(server, restart, before)`. (b) `test_every_widget_renders_cleanly`: `screenshots` returns
+   `[]` from `rendered` when a Playwright `Error` lands in `findings` ("the render failed: …", 137–138) or the
+   launch fails (`skipped`), and the test indexes `shots[0]`. Reproduce with
+   `uv run pytest -q tests/serve` three times and read `one["findings"]`; check first whether
+   it is the element screenshot timing out (block offscreen or still mounting) or the 10 s server start in
+   `serving` (render.py 260–262, now after `warm_types`). Fix the cause (e.g. `target.first.scroll_into_view_if_needed()`
+   and a wait for `settle` before the block shot, or waiting on `server.started` without the 10 s cap), and in
+   `screenshots` return `[{"file": None, "block": block, "error": str(e)}]` on a failed block shot, as for a
+   missing block (181). The test asserts `one["shots"][0]["file"]` with `one` in the message. No timeout raises.
+4. **The scan test's notes.** `timed`'s reason: "timing budgets run serially: pytest -n0 tests/test_budgets.py
+   tests/setup/test_scan.py::test_scan_is_fast_on_a_large_tree" (CI already runs both, `.github/workflows/ci.yml` 67); give
+   `test_scan_is_fast_on_a_large_tree` a docstring. CLAUDE.md 346: append the scan test to the budgets command —
+   only when `git diff --quiet CLAUDE.md`; else put the line in your report for the user.
+5. **Focus gathers the mark.** Beside the hover test: `page.goto(server)`, wait 1200 ms, press Tab until
+   `document.activeElement.matches(".topbar .project")` (at most 10 presses), wait 700 ms, `shift == -4`;
+   `page.keyboard.press("Tab")` once more, 700 ms, `shift == 0`. Keyboard, not `.focus()`: programmatic focus
+   need not match `:focus-visible`.
+6. **Review nits.** kinds.py 233 and 510: pass `q.depth` to `check_known` (check first that `Series` and
+   `Data` inherit `depth` from `Selection`, models.py 106). select.py 108: "List the metric keys in the
+   columns of running runs: a new metric is there before the card lists it." distinguish.py 48–52: one
+   `next(…, None)` per key, e.g. `{k: a for k in kept if k not in seeds and (a := next((a for a, s in
+   reducers.items() if a != k and determines(s, sig[k])), None)) is not None}`. 05-views.md 484: "Sections
+   put their label above the content; the app uses no `margin`, which stays for custom blocks."
+7. **Images in exports.** In `test_an_export_opens_from_disk`, on the run export: `.scrubber` count is 0 and the
+   first figcaption reads `step <s>` for the last logged step of `samples` (from `call("data", …)`; check first
+   how `step()` in `web/src/bt/fmt.ts` formats it). The `render=1` case is already
+   `test_images_from_a_views_step_reach_the_last_logging_and_hide_the_scrubber_in_a_render`.
+
+For the user, not Done checks: in real Chrome, the multi-file download prompt of the images block, the live
+favicon in the tab strip, the mark's `transform-box` in Safari; the 0.3.0 release; the M8 real-cluster run;
+disk space on the machine.
+
 ## Breaking changes
 
 | What | Before | After | Migration |
@@ -775,7 +872,7 @@ Lines below are at `274fc44`, not the plan's base commit; refresh them if Q31–
 - Whether library blocks (`block_save`) run `code.problems`; if not, T31's check reaches only view code (say so).
 - Custom blocks in an exported page: the inline frame strips `@font-face` (`web/src/blocks/custom.ts` 217–218) and
   `--font-serif` is `XCharter` with no fallback, so serif classes there may render in the browser's default font.
-  Out of scope for T31; see the question below.
+  Out of scope for T31; resolved by Z32 (fonts inlined as `data:` URIs in the export's frame CSS).
 
 - That the generated skills (`scripts/build-plugin`) are committed anywhere that S31 must regenerate.
 - That exported pages and the headless renderer show the new look without changes (S31 checks by hand).
@@ -783,4 +880,5 @@ Lines below are at `274fc44`, not the plan's base commit; refresh them if Q31–
 ## Questions
 
 1. Exported pages: should custom-block frames keep the fonts (inline them as data URIs, or give `--font-serif`
-   a fallback), or is a system font acceptable in exports? Not planned yet.
+   a fallback), or is a system font acceptable in exports? **Resolved by Z32:** both — the export's frame CSS
+   carries the fonts as `data:` URIs, and `--font-serif` gains a serif fallback stack.
