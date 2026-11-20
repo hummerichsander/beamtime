@@ -271,7 +271,7 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`.
 - `compare/tables.py` and `compare/figures.py`: `uv run python bench/agents/compare/tables.py
   bench/agents/runs/compare-<sonnet stamp> bench/agents/runs/compare-<haiku stamp>
-  [--out docs/guides/benchmark]` takes one batch per model (Decision 18) and writes each into
+  [--out bench/agents/results]` takes one batch per model (Decision 18) and writes each into
   `<out>/<alias>/` (`sonnet/`, `haiku/`; the model id for a batch without an alias): `results.md`
   (model id, Claude Code version, date, seeds; per task and setup, then per setup over all tasks: n,
   then the cost (median with min-max of total tokens, uncached tokens (input, cache-write and output),

@@ -1,7 +1,7 @@
 """Write the comparison benchmark's report from a batch.
 
 ``uv run python bench/agents/compare/tables.py bench/agents/runs/compare-<stamp> [...]
-[--out docs/guides/benchmark]`` takes one batch per model and writes each into ``<out>/<alias>/``
+[--out bench/agents/results]`` takes one batch per model and writes each into ``<out>/<alias>/``
 (``sonnet``, ``haiku``): ``results.md`` (the facts, a table per task and setup, a table per setup;
 cost first, then the score) and the figures ``tokens-vs-score`` and ``time-per-task`` as ``.pdf``
 and ``.svg``. Given several batches it also writes ``<out>/models.md``, the per-setup table of
@@ -19,7 +19,7 @@ from typing import Any
 
 import figures
 
-OUT = Path(__file__).resolve().parents[3] / "docs" / "guides" / "benchmark"
+OUT = Path(__file__).resolve().parents[1] / "results"
 COLUMNS = ["n", "tokens", "uncached", "cost", "seconds", "turns", "tool calls", "score", "correct"]
 
 
