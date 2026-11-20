@@ -6,51 +6,6 @@ A view is what a group shows: a page that agents build freely, from declarative 
 their own code.
 [Layer 1](01-storage.md#views-in-storage) fixes where views live and how they are versioned; [layer 3](03-index.md#query-language) defines the queries they get their data from.
 
-## Prior art: dashboards as code
-
-| Tool | Format and layout | Data binding | Interactivity | Lesson |
-|---|---|---|---|---|
-| W&B workspaces and reports | Server-held JSON, editable via Pydantic classes; sections of panels, reports as blocks plus panel grids with `x, y, w, h` | the container owns a run set (filters, grouping); panels only name metric keys | run selection, grouping and smoothing cascade to all panels | closest to Beamtime's group-relative views; not diffable; panels with unknown keys render blank |
-| TensorBoard custom scalars | `Layout → Category → Chart` with regex-matched tags; written into the event log | regex over tags | none | tiny schema; a value-plus-band chart as a first-class type |
-| Grafana | JSON with a 24-column grid; v2 separates an `elements` map from a `layout` (grid, auto-grid, rows, tabs) | panels hold queries; per-field config (unit, decimals, thresholds) | typed variables interpolated into queries, `repeat` panels per value, conditional rendering when empty | variables and repeat are the most copied pattern; absolute grids cause noisy diffs; library panels outside files are painful |
-| Evidence.dev | Markdown with named SQL blocks; components reference queries by name | query-then-component | inputs feed `${inputs.x}` into queries; optional clauses vanish when unset | an unset filter should drop its clause |
-| Quarto dashboards | headings form pages, rows, columns; each cell a card; tabsets, sidebars, value boxes | code cells | via Shiny/OJS only | a handful of layout primitives covers most dashboards |
-| Observable Framework | Markdown with reactive JS; CSS grid classes and cards | build-time data loaders | reactive inputs | responsiveness comes from the card, not the chart |
-| Streamlit, Gradio | imperative layout by execution order | code | Streamlit reruns everything on interaction | static dependency graphs scale, full reruns don't |
-| Superset, Metabase | charts bound to datasets, dashboards reference charts | per chart | filters wired per chart | per-widget filter wiring is the recurring pain |
-| Vega-Lite, Altair | concat, repeat, facet; `config` themes | inline or named datasets | params and selections, but only within one spec | good per chart; cross-chart layout and filters belong to the host |
-| Rill canvas | YAML rows of items on 12 columns, tabs, `if` per item, inline theme | all charts share one metrics view | page filters apply to every chart | the closest analogue to a Beamtime view file |
-| Lightdash | chart YAML separate from dashboard YAML; items addressed by slug | per chart | filters with explicit targets | slugs make items addressable; whole-file uploads clobber edits |
-
-## Prior art: agents generating UIs and charts
-
-- **Freedom levels.** The field has settled on the same three levels as Beamtime: a catalog of
-  components the host renders, a declarative spec (Google's A2UI, Vercel's json-render), and free
-  code in a sandbox (Claude Artifacts, MCP Apps). Catalogs win on safety, consistency, validation
-  and incremental updates; free code wins on expressiveness. Every system allowing free code
-  sandboxes it and narrows the libraries.
-- **Component descriptions for the model.** json-render gives every component a schema and a
-  natural-language "when to use" description that the model reads. Catalogs are kept small.
-- **A2UI uses a flat list of components linked by id** rather than a nested tree, because it is
-  easier to generate, stream and update incrementally.
-- **Most chart errors are semantic, not syntactic**: wrong field, wrong aggregation, wrong scale,
-  layout and readability problems (VisEval, DV-World). Plotly and D3 fail more often than
-  matplotlib and Vega-Lite; a repair loop on execution errors brings Vega-Lite success to ~96%.
-- **Templates remove whole classes of error.** Data Formulator 2 lets the model choose the chart
-  and the fields while Vega-Lite templates produce the encoding.
-- **Rules alone are not enough.** Frontier models catch common design-rule violations but miss
-  subtle perceptual ones; deterministic checkers are stronger. Few-shot examples beat zero-shot.
-- **Screenshot critique helps strong models.** In MatPlotAgent, visual feedback gave GPT-4 about 8
-  of a 12-point gain; a weak model got worse. WebGen-Agent nearly doubled Claude 3.5 Sonnet's
-  accuracy with screenshot critique and backtracking. Gains level off after 1–3 rounds.
-- **Model judges are reliable on checklists, not on beauty.** VisJudge-Bench: the best general
-  model correlates only 0.43 with experts on aesthetics. ArtifactsBench (render, screenshot, judge
-  against a per-task checklist) reaches 94% ranking agreement with human preference.
-- **Design consistency is enforced structurally.** v0, the Apps SDK, A2UI and Thesys let the host's
-  design system render; Anthropic's frontend-design skill shows that unguided models converge on
-  generic styles. For dashboards, consistency matters more than distinctiveness, so Beamtime owns
-  the tokens.
-
 ## Principles
 
 1. **Agents build views freely; robustness comes from contracts, building blocks and checks.** Custom
@@ -337,7 +292,8 @@ export default function render(root) {
 ### The `bt` kit API
 
 The kit is a small, versioned JavaScript API. A block declares the major version it was written for
-(`kit: 1` or `kit: 2`); Beamtime keeps serving older majors as long as blocks use them. Version 2 only adds to version 1 (`bt.chart.Figure`, `bt.ui.Sym`, `Icon`, `Tag`, `Predictions`, `bt.theme.tone`), so a version 1 block runs unchanged. The kit exists only as
+(`kit: 1` or `kit: 2`); every major stays served. Version 2 only adds to version 1 (`bt.chart.Figure`,
+`bt.ui.Sym`, `Icon`, `Tag`, `Predictions`, `bt.theme.tone`). The kit exists only as
 Preact components and functions; there is no separate imperative widget API.
 
 **Entry point.** `export default function render(root)` is called once; re-rendering on data changes
@@ -354,10 +310,8 @@ is handled by the kit's hooks.
 Results carry `status` (`ready`, `loading`, `error`) and `meta` (freshness, downsampled, truncated).
 The kit reshapes the columnar answers of layer 3 for code: runs as `{columns, rows}` with rows as
 objects keyed by field; curves as a list of `{run, key, group, x, y, lo?, hi?, n?}`: `y` is the curve, `lo`
-and `hi` its band and `n` the points behind each value (none of the three on raw curves). The version 1
-fields `min`, `max`, `last`, `mean` and `count` still reach custom blocks beside them, so blocks written
-for kit v1 keep working; new code reads the envelope. The shell itself reads the envelope alone (the
-answers it receives always carry it, remote ones upgraded on arrival).
+and `hi` its band and `n` the points behind each value (none of the three on raw curves). Custom blocks also get the kit v1 fields `min`, `max`, `last`,
+`mean` and `count`; new code reads the envelope. The shell reads the envelope alone.
 
 **Components.** `bt.ui` holds layout, tables, stats and context blocks (`Grid`, `Row`, `Tabs`,
 `Section`, `Table`, `Stat`, `Note`, `Config`, `Images`, …); `bt.chart` holds charts (`Line`, `Scatter`, `Bar`,
@@ -721,7 +675,7 @@ research shows work better than long rule lists.
 | `guide remote`, `analysis` | `@source/...` groups; which tool answers which question | ~400 each |
 | `guide data-files` | a table of your own on a page: the recipe from file to saved view (`view_data`, `data_table`, a `file` query in a custom block), the rules and the findings with their fixes | ~900 |
 | `guide type` | which type class for which text in custom blocks and views: the family rule (the family says who wrote the text), the class table, SVG and canvas text, emphasis, and how `title`, `caption` and Markdown fields render | ~700 |
-| `guide <group>` | additionally: the group's metrics and varying config, its current view; from M7 library blocks and outdated pins | – |
+| `guide <group>` | additionally: the group's metrics and varying config, its current view, library blocks and outdated pins | – |
 
 ### Workflow
 
@@ -838,8 +792,8 @@ to them can solve that then.
 ## Evaluation harness
 
 A harness measures how well agents build views with the guide, the kit and the tools, and catches
-regressions when any of them changes. It lives in `bench/agents/` and follows the query-form
-experiment and ArtifactsBench (render, screenshot, judge against a per-task checklist).
+regressions when any of them changes. It lives in `bench/agents/`: render, screenshot, judge
+against a per-task checklist.
 
 - **Synthetic log dirs with planted truth.** A generator builds realistic log dirs from a seed:
   sweeps, ablations, scaling series, diverging and killed runs, logged samples, proposals and notes.
@@ -858,13 +812,11 @@ experiment and ArtifactsBench (render, screenshot, judge against a per-task chec
 | Robustness | does the view render in a single run, a subgroup and without data | deterministic |
 | Preference | which of two views a researcher prefers | humans, occasionally, to calibrate the judge |
 
-Item-by-item judging is used because vision models agree with experts on concrete questions but not
-on overall aesthetics. The harness answers design questions empirically (do examples help, is a
-second screenshot round worth it, how models compare, do custom blocks pay off) and guards releases:
-about ten tasks run on every change to the guide, kit or built-in blocks, the full suite before
-releases. The generator and task definitions are built early; scoring follows the first renderer.
+Judging goes item by item, since vision models agree with experts on concrete questions, not on
+aesthetics. About ten tasks run on every change to the guide, kit or built-in blocks, the full suite
+before releases.
 
-Since the research record (G3) the harness covers the whole agent surface, not only views. Tasks have
+The harness covers the whole agent surface, not only views. Tasks have
 a kind (`proposal`, `verdict`, `notes`, `view`, `analysis`, `lifecycle`), each with ground truth from
 the generator (`synth`): a proposal needs falsifiable predictions on the right metric, a verdict must
 match the planted effect without overclaiming, a correction supersedes instead of duplicating, an
@@ -877,8 +829,6 @@ seeds tasks from real session transcripts. The loop and the failure log are in
 `bench/agents/README.md` and `MISTAKES.md`.
 
 ## Implementation notes
-
-Decided while building custom blocks and the library (milestone M7):
 
 - **The kit is the built-in blocks.** Inside the frame, `bt.ui` and `bt.chart` render the same
   components as the page; `bt.useData(name, values)` returns a result that also carries its call, so
@@ -910,8 +860,6 @@ Decided while building custom blocks and the library (milestone M7):
   15 s; frame errors are logged by the page as `[block <id>] …`, so the renderer reports them, and the
   frame reports blank and overflowing content for the layout checks.
 
-Decided while building views (milestone M6):
-
 - **No inheritance**: a page shows its own newest view, else the built-in default.
 - **The model** is a msgspec tagged union on `block` (`beamtime/views/model.py`); YAML nodes are
   normalized to it, and errors name the node path (`body[2].children[0].line.y`).
@@ -921,7 +869,6 @@ Decided while building views (milestone M6):
 - **Drafts** live in `.beamtime/drafts/<name>/` with a `_draft.json` naming their group; block
   drafts in `.beamtime/drafts/blocks/<name>/`. A block draft's examples render in the view draft
   `block-<name>`, a name users' drafts can't take.
-- **`custom`** was accepted by the schema in M6 and runs since M7 (see above).
 - **Save as view** in the UI writes the charts with their settings (metrics, x axis, smoothing,
   aggregation, band, scale, outliers), the charts a viewer added, and the title and finding, as a
   new version with the local account as author. Hidden runs stay the viewer's own. The settings
@@ -945,8 +892,6 @@ Decided while building views (milestone M6):
   was cut off. `render_page` (the agent-task harness's judge) stays full height and uncapped.
 - **Drawn charts**: `scatter`, `bar` and `histogram` draw their marks on uPlot's axes and grid
   (a draw hook), with the same tooltips, hover highlight and PNG export as `line`.
-
-Decided while building themes (milestone M5):
 
 - **Theme files** are JSON with `colors` only, by the design system's token names; the default pair
   comes from `design/tokens.json`.
@@ -993,7 +938,7 @@ Decided while building themes (milestone M5):
 - Built-in blocks exist as YAML widgets and kit components with the same props; wave 1 is v1.
 - Custom blocks are ES modules in sandboxed iframes on the `bt` kit (Preact components only), loading
   only the libraries they declare.
-- All charts are uPlot; there is no Vega-Lite and no `vega` block. Figures are PNG with CSV data.
+- All charts are uPlot; there is no `vega` block. Figures are PNG with CSV data.
 - Validation is static always, plus one headless render where a browser is available; screenshots are
   the agent's own check.
 - Themes are token files with light and dark pairs and `extends`; the default is the calm,

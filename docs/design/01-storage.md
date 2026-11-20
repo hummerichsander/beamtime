@@ -245,8 +245,8 @@ How views look and behave is [layer 5](05-views.md). For storage:
   This is the run's membership in each proposal, explicit and independent of clocks or later moves
   ([the research record](09-research-record.md#versions)).
 - **`proposal_hashes`** has the same keys and the first 16 hex characters of the SHA-256 of each
-  recorded proposal file, so an edit of a frozen version is detected. Runs written before M4 lack it
-  and are simply not checked for edits.
+  recorded proposal file, so an edit of a frozen version is detected. A run without it is not checked
+  for edits.
 - **`job_key`** identifies the launch, so other ranks of the same job can find the run
   ([layer 2](02-sdk.md#distributed-training)): the scheduler's job and array ids, or
   `torchrun:<TORCHELASTIC_RUN_ID>`.

@@ -236,7 +236,7 @@ MCP prompts appear as slash commands in clients such as Claude Code (`/beamtime:
 | `compare` | compare two runs or groups: config differences, metric deltas, and a temporary view if it helps |
 | `report` | summarize a group for others: findings, verdicts, open questions, as a view or an export |
 | `memory` | update and compact a group's memory from the notes added since it was last written |
-| `migrate` | fold old notes and memory files into typed notes and the memory, and an instruction file's experiment section into Beamtime ([setup](10-setup.md#the-migrate-prompt)) |
+| `migrate` | fold existing notes and memory files into typed notes and the memory, and an instruction file's experiment section into Beamtime ([setup](10-setup.md#the-migrate-prompt)) |
 
 ### Skills and plugin
 
@@ -283,11 +283,6 @@ The guide states these as defaults ([layer 5](05-views.md#defaults)):
 - **Argument parsing with `argparse`**, with each command's module imported only when it runs.
 - **The MCP server** uses the official MCP Python SDK in `beamtime[serve]`, through its low-level
   server API, with tool schemas generated from the same msgspec structs as the CLI and the API.
-
-## Implementation notes
-
-Decided while building the CLI and MCP server (milestone M3):
-
 - **One registry** (`beamtime.ops.registry`) holds every operation: its CLI path, a msgspec parameter
   struct, a one-line summary and whether it is user-only. CLI flags and MCP tool schemas are generated
   from the same structs; the parameters of `keys`, `groups`, `runs`, `series`, `data` and `timeline`
@@ -317,11 +312,9 @@ Decided while building the CLI and MCP server (milestone M3):
   errors are tool errors with the same message, so agents can correct themselves. Parameters that
   agents can't guess (`where`, `select`, `sort`, `seeds`, `y`, `x`, `steps`, `query`) carry short
   descriptions; the listed definitions stay under 3.5k tokens (§ Tools).
-- **Prompts in M3**: `review`, `debug` and `compare`, which need only reading. M4 adds `proposal`,
-  `verdict` and `memory`; `view` and `report` follow with the milestones that add their tools.
 - **Two-word commands** (`note add`, `proposal show`, `proposal set`, `memory show`,
   `memory update`, `mcp install`) sit under a group command; a bare group prints its help.
-- **Writes (M4).** `note add` and `memory update` read the body from stdin, `proposal set` the
+- **Writes.** `note add` and `memory update` read the body from stdin, `proposal set` the
   proposal, when no file is given; MCP passes `body`, or `proposal` as an object or YAML text.
   `--verdict prediction=verdict` and `--evidence` repeat; evidence is a run id, note id,
   `group#prediction`, `group@view-version` or an object such as `{metric, stat, run, value}`, and
@@ -339,7 +332,7 @@ Decided while building the CLI and MCP server (milestone M3):
   `--instructions` writes the generated rules block into the client's rules file (`CLAUDE.md`,
   `GEMINI.md` or `AGENTS.md`).
 - **`gc` is a dry run** unless given `--yes`; `rm` and `mv` refuse runs whose heartbeat is fresh.
-- **`serve` and `demo`** (M5) are user-only operations in the registry. `serve` attaches
+- **`serve` and `demo`** are user-only operations in the registry. `serve` attaches
   when another `serve` holds the root's lock: it prints that one's URL and exits 0, and `--replace` stops
   it first ([layer 3](03-index.md#freshness-the-daemon)); Ctrl-C and SIGTERM stop it cleanly. `ps` and
   `stop` are user-only operations too; `stop` reaches a serve through `POST /api/shutdown`, which is no
@@ -347,7 +340,7 @@ Decided while building the CLI and MCP server (milestone M3):
   The API of the web UI is the registry's non-user-only operations under their MCP names, its page
   methods, and the two user-only operations the UI offers its user (`note rm`, `set`; flag `ui`)
   ([layer 7](07-web-ui.md#implementation-notes)).
-- **Remotes** (M8): operations route by the source their target names (`@cluster/...`), listings on
+- **Remotes**: operations route by the source their target names (`@cluster/...`), listings on
   `.` merge ([layer 4](04-remotes.md#routing-and-merging)). Writes to a remote group record the
   laptop's author and the remote account as `user`. `pull` and `doctor` reach remotes through the
   same protocol; `status` lists the sources with their state.

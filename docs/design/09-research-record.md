@@ -6,13 +6,9 @@ Beamtime records not only what runs did but why they were run and what was learn
 specifies that record: proposals with checkable predictions, the automatic check, notes, and a
 compressed memory.
 
-The design borrows from three practices:
-
-- **Preregistration** (OSF, AsPredicted): hypothesis, measures, analysis and sample size are fixed
-  before data exists; amendments are documented, never silent.
-- **Architecture decision records**: decisions are immutable records that are superseded, not
-  edited.
-- **Electronic lab notebooks**: timestamped entries linked to the data they discuss.
+It follows preregistration (expectations fixed before data exists; amendments documented, never
+silent), decision records (superseded, never edited) and lab notebooks (timestamped entries linked to
+the data).
 
 ## The cycle
 
@@ -367,8 +363,6 @@ The guide ([layer 5](05-views.md#defaults)) states these as defaults:
   `inconclusive` and provisional results.
 
 ## Implementation notes
-
-Decided while building the research record (milestone M4):
 
 - **Edits of frozen versions** are detected with `proposal_hashes` in `_run.json`
   ([layer 1](01-storage.md#_runjson)): the SDK records the hash of every proposal file it records.

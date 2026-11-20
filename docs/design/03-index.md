@@ -23,93 +23,26 @@ any time.
 Constraints: several processes (web server, CLI, MCP) read concurrently; the CLI must not need a
 running server; minimal dependencies; never on cluster filesystems.
 
-## Prior art
+## Store
 
-| Tool | Metric storage | Downsampling | Lesson |
-|---|---|---|---|
-| TensorBoard | event files, all in memory (Rust data server since 2.5) | random reservoir, 1000 points | spikes vanish; memory and startup grow with the logdir; dropped its SQLite mode |
-| W&B | server: MySQL/BigTable hot store, Parquet export | "full fidelity": x-buckets with min/max band and last value, recomputed on zoom | moved away from random 1500-point sampling because it lost spikes |
-| MLflow | file store (no index, "severely limits performance"), now SQLite by default; one row per value | even stride, ≤ 2500 points/run, min/max *step* only | spikes can be missed; per-value rows are large |
-| Aim | RocksDB per run plus merged index, SQLite for metadata | every n-th point, default 50 | crashed runs were never indexed and slowed queries; years of lock and index redesigns |
-| Trackio | SQLite per project in `~/.cache`; JSONL fallback on Lustre/GPFS/NFS | power-of-two stride for live charts, min/max bins for plots | independently arrived at Beamtime's split of files on clusters and SQLite locally |
-| ClearML | Elasticsearch | mean per bucket | averages hide spikes; servers ran out of memory |
-| Guild AI | files plus SQLite cache of per-tag summaries | – | summaries are what run tables need; re-reading whole folders on change is not |
+**SQLite for metadata, raw column files for metrics, read by one pure-Python implementation.**
+Ingest only appends bytes, every window and aggregate is exact, and nothing precomputed needs
+maintaining. Rules it follows:
 
-Recurring lessons:
-
-1. **Random sampling is the most common regret.** Use min/max per bucket.
+1. **Min/max per bucket, never random sampling**, so spikes survive. Plain min/max is one O(n) pass.
 2. **Never discard data at ingest.** Keep everything; downsample at query time.
 3. **Index continuously from file contents**, not when a run finishes; crashed runs must not degrade
    queries.
-4. **Keep downsampling stable** for live charts: fixed bucket edges, so a growing curve doesn't
-   jitter between refreshes.
-5. **SQLite is fine locally with one writer**, never on shared filesystems.
+4. **Fixed bucket edges**, so a growing live curve doesn't jitter between refreshes.
+5. **SQLite with one writer, locally only** (WAL: many readers, one writer), never on shared
+   filesystems.
+6. **Imports dominate one-shot latency.** NumPy (~67 ms), DuckDB (~98 ms) and PyArrow (~116 ms) each
+   cost more than a query, so the CLI path imports none of them and runs as an installed console
+   script, not through `uv run`.
 
-## Techniques
-
-- **Downsampling.** M4 (min, max, first, last per pixel column) renders a line chart without
-  visible error; plain min/max never loses a spike. LTTB looks smooth but can drop spikes.
-  Min/max is a single O(n) pass: NumPy does 10M points in ~10 ms, within 2× of the Rust library
-  tsdownsample. **Rust is not needed for downsampling.**
-- **Storage.** Time-series databases (Prometheus, VictoriaMetrics, QuestDB) store one append-only
-  column per series and publish a committed length separately, so readers never see partial
-  writes. Parquet and Arrow files have footers and cannot be appended in place.
-- **Engines.** SQLite in WAL mode allows many readers alongside one writer. DuckDB allows either one
-  read-write process or several read-only ones, which conflicts with a web server, CLI and MCP
-  reading while something indexes.
-- **Rust in a Python package.** Mature (maturin, manylinux2014 wheels cover clusters back to
-  CentOS 7), but it adds a CI matrix per platform, and the source fallback needs a Rust toolchain,
-  which clusters rarely have. Worth it only for a measured bottleneck.
-- **Browser.** Vega-Lite gets sluggish beyond roughly 20–50k points per chart. uPlot handles
-  hundreds of thousands and is the escape hatch for dense interactive charts.
-
-## Benchmarks
-
-Measured on an Apple M3, 16 GB, SSD, with synthetic runs of 20 metrics (12 every step, 8 every
-100 steps) with known spikes. Scale M is 1000 runs and 1.2×10^8 points in 4.2 GB of JSONL; L1 is
-one run with 10M steps. Charts use 500 buckets with min and max, about 1000 points per curve.
-Scripts and raw numbers are in `bench/index/`.
-
-Candidates:
-
-- **A**: SQLite with precomputed bucket levels as packed blobs, exact values from JSONL.
-- **B**: SQLite for metadata, raw column files per (run, metric) read with mmap, downsampled on
-  the fly with NumPy.
-- **E**: B's files read in pure Python, without NumPy.
-- **C**: SQLite with one row per point.
-- **D1 / D2**: DuckDB over Parquet files / with its own database file.
-
-Results at scale M (first call in a fresh process / warm):
-
-| | A | B | E | C | D1 | D2 |
-|---|---|---|---|---|---|---|
-| Full build | 146 s | 65 s | = B | 198 s | 45 s | 40 s |
-| Index size | 0.8 GB | 1.9 GB | = B | 2.9 GB | 0.8 GB | 1.0 GB |
-| Live: 1000 new lines queryable | 30 ms | 14–71 ms | = B | 29 ms | 15 ms | 28 ms |
-| Chart, 50 runs | 11 / 10 ms | 9 / 8 ms | 80 / 55 ms | 143 / 146 ms | 27 / 23 ms | 23 / 23 ms |
-| Zoom 1% of 10M steps | 0.2 ms | 11 ms | 7 ms | 26 ms | 10 ms | 2 ms |
-| Exact mean, 500 runs, any window | 4.6 s (rescans JSONL) | 0.35 / 0.07 s | 0.11 / 0.09 s | 0.49 / 0.21 s | 0.08 s | 0.18 / 0.08 s |
-| One-shot CLI chart, whole process | **55–59 ms** | 115–130 ms | 100–165 ms | 205 ms | 171–187 ms | 183–188 ms |
-
-Further findings:
-
-- **Imports dominate one-shot latency.** The bare interpreter starts in 20 ms; `sqlite3` and
-  `json` add 6 ms. NumPy adds 67 ms, DuckDB 98 ms, PyArrow 116 ms. Every candidate's query is
-  faster than its imports. Launching through `uv run` adds another 160–230 ms, so the CLI must be
-  an installed console script.
-- **Run tables don't separate the candidates.** SQLite with config and run card as JSON columns
-  answers in 10–13 ms (38 ms as a fresh process); scanning the 30k files directly takes about 1 s.
-- **JSONL parsing is the cost of a full rebuild.** `json` reads 117k lines/s, `orjson` 546k,
-  PyArrow's reader about 1M. The builds were single-process; building runs in parallel would cut
-  them by up to the core count.
-- **Spikes were preserved by every candidate.** The few misses sat in the same bucket as a larger
-  spike, which no min/max downsampling can show. All candidates agreed on the exact aggregates.
-
-## Recommendation
-
-**SQLite for metadata, raw column files for metrics (candidate B), read by one pure-Python
-implementation.** It is the simplest design and meets every target. Ingest only appends bytes, every
-window and aggregate is exact, and no precomputed structure needs maintaining.
+At scale M (1000 runs, 1.2×10^8 points) this meets every target: a one-shot CLI chart of 50 runs
+takes 100–165 ms as a whole process, an exact mean over 500 runs about 0.1 s, a full build about
+65 s single-process. Scripts and numbers are in `bench/index/`.
 
 ```
 ~/.cache/beamtime/<logdir-hash>/
@@ -131,23 +64,20 @@ window and aggregate is exact, and no precomputed structure needs maintaining.
   catches up only on the runs it queries, at 15–30 ms per run.
 - **Readers** map the column files and need no lock. A step window is a binary search.
 - **One read path.** Downsampling, windows and aggregates have exactly one implementation, in pure
-  Python over `mmap` and `array`, with `math.fsum` for sums, used by the CLI, MCP and `serve` alike.
-  The CLI, the UI and prediction checks can therefore never disagree, not even in the last bit. The
-  benchmark puts it at 55–90 ms for a 50-run chart. A NumPy path may be added later for long zooms in
-  `serve`, tested against this reference.
-- **Charts** split the requested window into buckets and send min and max per bucket, like W&B's
-  full fidelity. Bucket edges are fixed per zoom level, so live curves don't jitter. **Each chart**
+  Python over `mmap` and `array`, with `math.fsum` for sums, used by the CLI, MCP and `serve` alike,
+  so they never disagree, not even in the last bit. A NumPy path for long zooms in `serve` would be
+  tested against it.
+- **Charts** split the requested window into buckets and send min and max per bucket. Bucket edges are fixed per zoom level, so live curves don't jitter. **Each chart**
   has a point budget of about 30k, which keeps charts smooth in the browser.
 - **Values stay float64**, so exact aggregates are exact.
 
 ### What we don't do
 
-- **No precomputed levels for now** (candidate A). They can be added later as a cache on top of the
-  raw files if long-range charts over very long runs become slow.
-- **No DuckDB, PyArrow or NumPy as dependencies of the CLI path.** Their imports alone exceed the CLI
-  budget, and DuckDB's locking conflicts with concurrent readers.
-- **No Rust.** Parallel ingest plus optional `orjson` bring a full rebuild to a few seconds per 10^8
-  points without a native extension.
+- **No precomputed levels.** They could become a cache on top of the raw files if long-range charts
+  over very long runs get slow.
+- **No DuckDB, PyArrow or NumPy on the CLI path** (imports; DuckDB's locking also conflicts with
+  concurrent readers).
+- **No Rust.** Parallel ingest plus optional `orjson` is fast enough.
 
 ## Discovery
 
@@ -245,8 +175,8 @@ whose lock can be taken is **stale** (the process was killed). `ps` prints stale
 | `client` | the MCP client's name, or the ssh peer from `SSH_CONNECTION` for `remote`; else `null` |
 
 `ps` also scans `<disk cache root>/*/serve.json` and `runtime_base()/*/serve.json` for serves without a
-record (an older Beamtime still running; its row is made from `serve.json`, with `schema` 0, and a serve
-with both is listed once) and removes a `serve.json` whose `serve.lock` is free. The token stays: it
+record (an older release's serve: its row comes from `serve.json`, with `schema` 0; a serve with
+both is listed once) and removes a `serve.json` whose `serve.lock` is free. The token stays: it
 outlives restarts by design. `ssh` rows come from the Beamtime-marked blocks in `~/.ssh/config`, checked
 with `ssh -O check <host>`; `ps` names `ssh -O exit <host>` to end one, because Beamtime does not stop
 them.
@@ -347,7 +277,7 @@ to `run.created_at`, and a column shows the name as typed.
 **`run.code`** is one comparable identity for the code a run ran on: the short commit, plus the
 short diff hash (`run.dirty`'s `diff_sha`) when the checkout was dirty (`f385eda+1a2b3c4d`), so the
 same commit and the same uncommitted changes compare equal across runs and checkouts. It is `null`
-without a git checkout, or on a dirty run recorded before `diff_sha` existed. `keys` lists a
+without a git checkout, or on a dirty run without `diff_sha`. `keys` lists a
 group's distinct codes by count (only when they differ: a single version isn't a fact worth
 showing), and `check` adds a note to a proposal when its members didn't all run on the same code.
 
@@ -494,11 +424,8 @@ series:
   (`x`, `y`, no band). A downsampled curve gains `y` = `last`, `lo` = `min`, `hi` = `max` and `n` =
   `count`. A grouped curve gains `y` = `mean` (`lo`, `hi` and `n` already carry these names; with
   `band: none` `lo` and `hi` are `null`). `len(y) == len(x)`, and `lo <= y <= hi` wherever all three are
-  numbers. The old fields (`raw`, `first`, `min`, `max`, `last`, `count`, `mean`) keep flowing
-  to the web UI, `serve`'s HTTP API, `serve --stdio` (what remotes answer) and the kit, because kit v1 blocks
-  and older hubs read them, and `raw` and `by` stay honest facts about fidelity and grouping; retiring the
-  duplicates waits for the next protocol major. The cost is four extra arrays in a downsampled answer (about
-  1.7x the JSON, bounded by the chart's point budget).
+  numbers. The variant fields (`raw`, `first`, `min`, `max`, `last`, `count`, `mean`) also flow to the
+  web UI, `serve`'s HTTP API, `serve --stdio` and the kit, which kit v1 blocks and older hubs read.
 - **The series meta says `running`**: how many matched runs have the derived status `running`, summed across
   sources in a merged answer, so a chart without a point yet can say it waits for the first value.
 - **The CLI and MCP get the envelope only.** For callers `cli` and `mcp` the answer drops `last`, `min`, `max`,
@@ -507,12 +434,10 @@ series:
   A serve answering a CLI or MCP call (`x-beamtime-caller`) strips like the CLI, `serve --stdio` does not
   (`Context.wire`), and `remote.answer` strips what a remote or a serve answered, so a federated call ends up
   envelope-only too; what an older remote or an older running serve answered gains the envelope first
-  (`answers.upgraded`), so the strip never takes a curve's values. A CSV export (`series --to`) is wide, one row per run and step with `<y>`, `<y>.lo`, `<y>.hi`, `<y>.n` columns and none of the old names ([layer 8](08-cli-mcp.md#reading-cli-and-mcp)).
+  (`answers.upgraded`), so the strip never takes a curve's values. A CSV export (`series --to`) is wide, one row per run and step with `<y>`, `<y>.lo`, `<y>.hi`, `<y>.n` columns and none of the variant names ([layer 8](08-cli-mcp.md#reading-cli-and-mcp)).
 - A metric as `x` (`read.x_values`) pairs each point with that metric's most recent value at or before
   the same step (none where it isn't finite), so x is always a value the run logged and a stair-logged
-  `epoch` stays a stair.
-  Interpolating a metric that never decreases was tried and dropped: it can't tell a stair from a
-  plateau, and continued a learning-rate warmup far past any logged value. Points before the axis'
+  `epoch` stays a stair; there is no interpolation. Points before the axis'
   first value are dropped. Each curve says whether its `x` is `monotone` and, when `x` is not the
   step, keeps the `step` of each point.
 - A per-run curve of a run with later attempts carries `resumes`: where each of them took over, on
@@ -525,7 +450,6 @@ series:
   runs (the largest x belongs to the last bucket; a constant x is one bucket), each run is averaged
   per bucket first, and `x` in the answer is the bucket centre. Aggregating over an `x` that is not
   monotone in a run is an error: show each run instead. Steps keep power-of-two buckets.
-  (The parameter is `by`, not `group`, since a group is a folder of runs.)
 - Each chart has a point budget of about 30k; `points` per curve shrinks when a chart requests many
   curves.
 
@@ -621,8 +545,6 @@ MCP has one tool per kind (`keys`, `runs`, `series`, `data`, `timeline`, `groups
 
 ## Implementation notes
 
-Decided while building the index and the queries (milestone M2):
-
 - **Cache location.** `BEAMTIME_CACHE`, else `XDG_CACHE_HOME/beamtime`, else `~/.cache/beamtime`, then
   a directory per resolved log dir. The setup makes this one `cache` setting (`memory` or a path),
   resolved by `resolve_cache()` for the CLI, `serve`, MCP and `serve --stdio` alike, refusing network
@@ -662,27 +584,27 @@ Decided while building the index and the queries (milestone M2):
   processes opening a new cache at once don't rebuild it under each other; the column files are
   deleted inside that transaction too, so a process that sees the new schema never ingests into a
   folder about to go. Switching to WAL retries while another process holds the lock.
-- **`proposal.*` fields** (M4) are computed in Python after the SQL selection, like windowed
+- **`proposal.*` fields** are computed in Python after the SQL selection, like windowed
   statistics: on a `runs` row they describe the run's own proposal (a blank one is `open`), on a
   `groups` row the group's current proposal. `proposal.progress` is a fraction from 0 to 1;
   `groups` shows the progress as text ("9 of 15 grid points") and filters on `path` and
   `proposal.*`.
-- **Links** (M4): a `links` table (source note, kind, target) is filled at note ingest from the
+- **Links**: a `links` table (source note, kind, target) is filled at note ingest from the
   `[[...]]` links in bodies and from `evidence`, `resolves` and `supersedes`; it gives the backlinks of
-  runs and predictions. The index schema version is 3; older caches are rebuilt.
-- **Change reports** (M5): `catch_up` lists the runs it ingested in `Freshness.changed`; the
+  runs and predictions. The index schema version is 3; a cache of another version is rebuilt.
+- **Change reports**: `catch_up` lists the runs it ingested in `Freshness.changed`; the
   daemon's also lists groups whose `notes/`, `proposal/`, `memory/` or `view/` changed since its
   last poll. `Daemon(on_change=...)` receives them after every poll (every 2 s); `serve` turns them
   into live updates ([layer 7](07-web-ui.md#implementation-notes)).
-- **Deferred streams** (fixed in M5): a run whose streams a time budget deferred has no `indexed_at`
+- **Deferred streams**: a run whose streams a time budget deferred has no `indexed_at`
   yet, and the next catch-up with time to spare reads them, also for runs that have ended.
 - **Reserved names are not scopes**: `from` naming an authored or machine folder (`proposal/`,
   `notes/`, `_trash/`, …) is refused like a missing group.
-- **Remote sources** (M8): `beamtime serve --stdio` on a remote catches up only the scope of each
+- **Remote sources**: `beamtime serve --stdio` on a remote catches up only the scope of each
   request, into a temporary cache unless one is configured; a configured cache on NFS, Lustre or
   GPFS is refused for the temporary one, and `status` says why.
-- **Run facts come from the index** (refactor 2): `compare` and `digest` read config, card statistics, code,
-  status and error from the indexed rows, not from each run's files; no `members()` listing remains.
+- **Run facts come from the index**: `compare` and `digest` read config, card statistics, code,
+  status and error from the indexed rows, not from each run's files.
 - **Not yet**: `importance` for v1.1.
 
 ## Decisions
@@ -697,12 +619,9 @@ Decided while building the index and the queries (milestone M2):
   no daemon runs; with a `memory` cache they read through the running UI serve.
 - Every long-running process registers in `runtime_base()/procs/` under a held lock; liveness is the
   lock, never the pid. `beamtime ps` lists them, `beamtime stop` stops serves only.
-- Queries are validated with msgspec structs, which also produce the JSON schema. Measured on the
-  M3: Pydantic costs 65–81 ms to import plus about 2.5 ms per model; msgspec about 25 ms in total.
-- Views write conditions in the object form only. In a blind test (20 tasks, Sonnet and Haiku, two
-  repetitions each; `bench/query-forms/`) agents got all 160 answers right in both the object and
-  the string form, so there is no reason for a second syntax. The CLI keeps compact `--where`
-  strings.
+- Queries are validated with msgspec structs (about 25 ms to import), which also produce the JSON
+  schema.
+- Views write conditions in the object form only; the CLI keeps compact `--where` strings.
 - The validator converts numeric strings on numeric fields to numbers, because PyYAML reads `1e-3`
   as a string.
 - Across sources, listings are merged and aggregates are computed per source.

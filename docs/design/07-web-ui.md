@@ -490,8 +490,6 @@ and reduced motion when the system asks for it. Theme validation and a high-cont
 
 ## Implementation notes
 
-Decided while building the shell (milestone M5):
-
 - **The token** is created once per root (`serve.token` in the cache, mode 0600) and reused, so a
   browser stays signed in across restarts. The printed URL carries it once; the server answers with
   an HttpOnly, `SameSite=Strict` cookie named after the port (cookies ignore ports) and drops the
@@ -580,8 +578,7 @@ Decided while building the shell (milestone M5):
   tile in the default view.
 - **URLs**: `/f/local/<path>` for groups and runs (a run's path ends in its id), `?run=<id>` for the
   run open in the drawer, `?drawer=1` for the group's notes and timeline, `/r/<id>` resolving to the
-  run's path, `/settings/appearance`. `?v=<version>` and `?history` (M6);
-  `/search` and `/compare` come with the milestones that add them.
+  run's path, `/settings/appearance`, `?v=<version>` and `?history`.
 - **Keyboard**: ⌘K or `/` for the palette, arrows in the tree, `[` and `]` for siblings, `i` for the
   drawer, ⌘B or `b` for the sidebar, `p` to pause live updates, `Esc` to clear the selection and close
   the drawer, `?` for the list.
@@ -593,28 +590,25 @@ Decided while building the shell (milestone M5):
 - **API methods for the shell**: besides `meta`, `view` and `watch`, `summary` answers the lead main
   metric's best run for the header, apart from the view so both load in parallel. `view` and
   `summary` take the viewer's pins as `metrics: [{y, higher}]` (`[]` for none; left out when the
-  viewer has not pinned, so an older remote answers as before); `view` answers the pins it started
+  viewer has not pinned); `view` answers the pins it started
   from as `pins`.
 - **Modern platform features**: the palette, help and expanded charts are `<dialog>`s
   (`closedby="any"` with a fallback for Safari); popover panels use the `popover` attribute and are
-  placed from script, since anchor positioning isn't everywhere yet; one small tooltip serves every
-  `data-tip` (shown after a delay, hoverable, Escape dismisses), since interest invokers are
-  Chromium-only; pages switch instantly (a view-transition cross-fade snapshotted chart-heavy
-  pages and lagged), and focus moves to the new heading unless it stayed in the tree; inline editors grow with
+  placed from script; one small tooltip serves every `data-tip` (shown after a delay, hoverable,
+  Escape dismisses); pages switch instantly, without a view transition, and focus moves to the new heading unless it stayed in the tree; inline editors grow with
   `field-sizing: content`; Enter that confirms an IME composition doesn't save.
-- **Measured** on the generator's scale-M log dir (495 runs, 352 in one sweep, `bench/web/timing.py`,
-  local, warm cache), before the M9 release: first view median 117 ms (budget 300 ms; slowest
-  about 210 ms), group to group median 58 ms (budget 100 ms; slowest about 75 ms), the longest
-  pointer event while sweeping a chart median 16 ms (budget 50 ms). Group to group had grown to
-  110 ms; hovering a group link now also prefetches its blocks' calls once the view is in, a check
-  is computed once per request, and authored YAML is parsed with libyaml.
-- **Custom blocks** (M7): a block that throws, fails to load or keeps resizing is replaced by an error
+- **Timing** is measured on the generator's scale-M log dir (495 runs, 352 in one sweep,
+  `bench/web/timing.py`, local, warm cache) against the budgets: first view 300 ms, group to group
+  100 ms, the longest pointer event while sweeping a chart 50 ms. Hovering a group link prefetches its
+  blocks' calls once the view is in, a check is computed once per request, and authored YAML is
+  parsed with libyaml.
+- **Custom blocks**: a block that throws, fails to load or keeps resizing is replaced by an error
   panel naming the block, its code file and the error; the rest of the view stays intact.
-- **Sources** (M8): the tree has one root per source (this machine, then each remote), URLs name
+- **Sources**: the tree has one root per source (this machine, then each remote), URLs name
   remote groups as `/f/@cluster/...`, and the status bar has a chip per source: connected,
   unreachable since a time, or a snapshot of a time. A remote page that can't answer shows the
   source's state.
-- **Static export** (M9): `beamtime export --html` records the page through the renderer;
+- **Static export**: `beamtime export --html` records the page through the renderer;
   `--figures` takes each block's downloads by id at a paper size.
 
 ## Decisions
@@ -627,7 +621,7 @@ Decided while building the shell (milestone M5):
 - A calm notebook-like look: cool neutral paper, a sans for the interface and a serif for written
   texts, larger type, symbols instead of words, whitespace instead of boxes, quiet hover feedback.
 - Charts are uPlot everywhere, with W&B-like interactions; chart settings stay with each viewer
-  until views can be saved from the UI (M6).
+  until saved into a view.
 - Texts written by agents and people are edited in place; each edit is a new file (a superseding
   note, a new memory or proposal version); frozen proposals are not edited.
 - The theme colors the whole app, by the design system's tokens; a theme file changes colors only.

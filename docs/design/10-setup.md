@@ -1,15 +1,13 @@
 # Setup: `beamtime setup`
 
-Status: **draft; for review before planning.** The experience is agreed in the mockup
-([10-setup-mockup.html](10-setup-mockup.html), four scenarios; each step's margin names its flag and
-where the answer lands); the decisions behind it are in `docs/plans/setup/decisions.md`.
+Status: **reviewed.** The experience follows the mockup ([10-setup-mockup.html](10-setup-mockup.html),
+four scenarios; each step's margin names its flag and where the answer lands).
 
 `beamtime setup` sets up a project for Beamtime: it asks a few questions, shows everything it will
 change, and writes it only once the user confirms. It is often the first contact with Beamtime, so
 it has to be short, plain and safe. One command covers five situations: a first setup, a teammate
 joining a project that uses Beamtime already, a cluster login node, updating a setup made by an
-older release, and changing an answer of a current setup. The command was `beamtime init` up to 0.2;
-0.3 renames it to `beamtime setup`, with no `init` alias.
+older release, and changing an answer of a current setup.
 
 ## Principles
 
@@ -24,7 +22,7 @@ older release, and changing an answer of a current setup. The command was `beamt
 5. **Two places.** Each answer says where it lands: the project's `beamtime.yaml` (shared through
    git) or the machine's `~/.config/beamtime/settings.yaml`. A teammate is asked only the machine's
    questions.
-6. **Judgment goes to agents.** Turning old notes and memory files into typed notes needs judgment.
+6. **Judgment goes to agents.** Turning existing notes and memory files into typed notes needs judgment.
    The wizard never calls a model; it hands that work to the user's agent through the MCP `migrate`
    prompt and can start the agent for them. Setup without any agent is a first-class path.
 7. **Any terminal.** Arrow keys, space, Enter and number keys, on the standard library only; a
@@ -67,7 +65,7 @@ writes the answer into `Answers`), `when(answers, scan)` and, for steps that hol
 shows the review and returns the answers on `Write it`, and `None` for `Show the command and quit`
 (which prints `command()`) or ctrl-c (which prints "Nothing was written."). `setup()` is `run`, then
 `plan()` and `apply()` as one `Setting up` task, then the next steps. `ops/admin.py:setup` (the
-operation, renamed from `init` with its `SetupParams`) calls `flow.setup()` when stdin and stdout are
+operation, with its `SetupParams`) calls `flow.setup()` when stdin and stdout are
 terminals and there is no `--yes`, for every flow the scan picks; every other case plans from the
 flags as [above](#answers-flags-and-settings). The teammate, cluster and update steps are further lists
 for the same engine; `run` takes the list of the scan's flow, and for `current` it runs
@@ -184,7 +182,7 @@ is from 0.1.1"; the oldest release behind a rules block, `setup_release()`):
 2. *Checking juwels* (one probe of every enabled remote the project or this machine names that ssh
    can reach): a remote whose Beamtime is older than this one is marked `!` and becomes the item
    `remote:<name>` (`stale_remote()`), ticked.
-3. *What should be brought up to 0.3.0?*: one row per `Scan.stale` item, with its before and after,
+3. *What should be brought up to <version>?*: one row per `Scan.stale` item, with its before and after,
    plus the remotes of step 2, all ticked except a hand-edited rules block, and `+ Add a path` for more
    past work (the check of the first setup). The ticks are `Answers.update`, a `runs` row's folder is an
    `Answers.imports` entry, an added path fills the import answers as in the first setup.
@@ -197,7 +195,7 @@ The review opens with "your data  nothing is rewritten" and the log dir's counts
 as everywhere, and ends with "kept as they are" and the names of the items left unticked (a rules
 block is kept as well when the answer is *Skip*). In an update flow the plan changes skills and the
 rules blocks that exist only through `--update`: an unticked item is not planned by the agent
-answers either. The apply task is called *Updating*. The wizard ends with "Beamtime 0.3.0 is set up.
+answers either. The apply task is called *Updating*. The wizard ends with "Beamtime <version> is set up.
 Nothing in beamtime/ was rewritten.", `changes.py:since(setup release, this release)` and, when rules
 were written, "Agents read the new rules from their next session on." Without a terminal `setup
 --yes` plans the same from the flags.
@@ -329,10 +327,9 @@ remotes:
 
 ## The cache
 
-Today `cache_dir()` reads `BEAMTIME_CACHE` and `XDG_CACHE_HOME`, and `serve --stdio` takes `--cache`.
-An MCP server started by an agent client doesn't inherit the shell's `BEAMTIME_CACHE`, so on a
-cluster the CLI, MCP and `serve` could disagree on the cache. The cache becomes one setting, resolved
-by one function for every consumer (CLI, `serve`, MCP, `serve --stdio`, `pull`, `doctor`):
+The cache is one setting, resolved by one function for every consumer (CLI, `serve`, MCP,
+`serve --stdio`, `pull`, `doctor`), since an MCP server started by an agent client doesn't inherit
+the shell's environment:
 
 ```python
 def resolve_cache(logdir: Path, settings: Settings | None = None) -> Cache:
@@ -345,7 +342,7 @@ filesystem type of a configured path that was refused, or `None`) and `source` (
 environment counts. The value comes from, first match:
 
 1. `serve --stdio --cache` sent by the laptop (`remotes.<name>.cache` in the laptop's settings; it is a
-   `flag`-level `cache` setting of that process), then `BEAMTIME_CACHE` (a session override, as today);
+   `flag`-level `cache` setting of that process), then `BEAMTIME_CACHE` (a session override);
 2. the `cache` setting (project over user);
 3. the built-in default: `$XDG_CACHE_HOME/beamtime` or `~/.cache/beamtime`.
 
@@ -362,13 +359,11 @@ Then:
   (mode 0700), so a CLI call or MCP server on the same machine finds it and answers through it
   ([layer 3](03-index.md#freshness-the-daemon)). Its daemon and its requests share one temporary index for the
   session (removed when it stops), as `serve --stdio` does.
-- `serve --stdio` keeps its behaviour: memory unless a cache is configured, now also from the remote
-  machine's own `cache` setting. It no longer sets `BEAMTIME_CACHE`, and the remote's own `BEAMTIME_CACHE` does not make its cache persistent: only `--cache` or the setting do. Its memory is one temporary
-  directory for the whole session (removed when stdin closes), so its requests share their index; an
-  `Index` per request would index again each time.
+- `serve --stdio` uses memory unless `--cache` or the remote machine's own `cache` setting configures
+  a cache; the remote's `BEAMTIME_CACHE` does not. Its memory is one temporary directory for the whole
+  session (removed when stdin closes), so its requests share their index.
 
-`cache_dir(logdir, settings=None)` remains as the path of `resolve_cache()` for callers that only need
-it. Every consumer passes its `ctx.settings` (`Index(settings=...)`, `Daemon(settings=...)`,
+`cache_dir(logdir, settings=None)` is the path of `resolve_cache()` for callers that only need it. Every consumer passes its `ctx.settings` (`Index(settings=...)`, `Daemon(settings=...)`,
 `query.run(settings=...)`). `doctor` shows the resolved cache, its kind and its source.
 
 ## Remotes
@@ -471,7 +466,7 @@ install, a teammate's machine. It never points into a project virtualenv when an
   path) goes into the client's machine-level config instead (Claude Code's local scope in
   `~/.claude.json`, Cursor's `~/.cursor/mcp.json`, VS Code's user `mcp.json`), never into a file git
   shares.
-- **The root.** User-wide configs (Codex, Windsurf) get `--root <absolute root>`, as today. Shared
+- **The root.** User-wide configs (Codex, Windsurf) get `--root <absolute root>`. Shared
   configs get the client's workspace variable where it has one (`${workspaceFolder}` in VS Code and
   Cursor) and otherwise rely on the client starting the server in the project, which Claude Code,
   Gemini CLI and opencode do.
@@ -512,8 +507,7 @@ a set of values; single keys override it.
   and the conventions in the file stay. A file that already resolves to the same values is left as
   written. A preset's values change only with
   a changelog line.
-- **Careful is today's behaviour.** A project without `agent` behaves as careful, so nothing changes
-  for existing projects.
+- **Careful is the default.** A project without `agent` behaves as careful.
 - **Conventions are the user's.** The wizard neither asks for nor guesses `main_metric`, `direction`,
   `seed_key` and `domain`, not from the runs and not from the code. The user sets them afterwards under
   `agent:` in `beamtime.yaml`, and the agent step says where. Without them the guide and the rules
@@ -522,8 +516,7 @@ a set of values; single keys override it.
   launch; `research_record: required` tells agents never to launch without a proposal. The files
   keep meaning the same everywhere: a proposal's own `significance` default stays 0.95
   ([research record](09-research-record.md#statistics)); `agent.significance` is what agents write
-  into the proposals they draft. `memory update` warns beyond `memory_tokens` instead of the fixed
-  1.5k.
+  into the proposals they draft. `memory update` warns beyond `memory_tokens`.
 - **`proposal_words`** is the length agents keep a proposal to, counted as the whitespace-separated
   words of its `statement`, its `rationale` and every prediction's `description` (names, filters and
   numbers don't count). `proposal set` (`proposal_set`) writes a longer proposal anyway and adds one
@@ -739,8 +732,8 @@ the preview), so imported runs are ordinary runs. The originals are never touche
   `exit_code` (or `exitcode`) in the summary, then the metadata, and `finished` otherwise. The history
   reader is `wandb.sdk.internal.datastore.DataStore` (`open_for_scan`, `scan_data`) with
   `wandb.proto.wandb_internal_pb2.Record`, whose `history` records carry `item.key` or `nested_key`
-  and `item.value_json`; both exist in the `wandb` releases checked (0.12.21, 0.19.11, 0.21.4, 0.24.0 to 0.28.2) and not
-  in 0.30.0, where the reader counts as missing. A history record is a `{"_step", "_t", key}` record: the numeric values
+  and `item.value_json`; both exist in `wandb` 0.12.21 to 0.28.2 (checked) and not in 0.30.0, where
+  the reader counts as missing. A history record is a `{"_step", "_t", key}` record: the numeric values
   only, keys that begin with `_` and booleans and text left out, media (`{"_type": ...}`) counted in
   `skipped` by type. A run cut off mid-write keeps the records before the cut. When there is no
   history, the summary's numeric values are the run's one record at step 0.
@@ -925,7 +918,7 @@ appearing as work finishes) and the review.
 | `index/cache.py` | `resolve_cache()` |
 | `settings.py` | `cache`, `agent` (presets, validation, resolution), `remotes.<name>.enabled` |
 
-`ops/admin.py:setup` becomes the entry that builds `Answers` from flags and either runs the flow (a
+`ops/admin.py:setup` is the entry that builds `Answers` from flags and either runs the flow (a
 terminal, no `--yes`) or plans and applies directly.
 
 `plan()` orders the changes project, machine, agents, imports, then the remote ones of `--ssh-share` and
@@ -976,13 +969,12 @@ terminal, no `--yes`) or plans and applies directly.
 
 ## Decisions
 
-- One command, `beamtime setup`, for first setups, teammates, clusters and updates; no separate migrate
-  wizard.
+- One command, `beamtime setup`, for first setups, teammates, clusters and updates.
 - Nothing is written before the review; every answer is a flag; without a terminal nothing is asked
   and nothing outside the project happens unless a flag names it.
 - `cache` is a setting at both levels with placeholders, resolved by one function for every consumer;
   network filesystems are refused for memory, also for the built-in default.
-- `agent` in `beamtime.yaml` holds a preset and overrides; careful is today's behaviour; the knobs are
+- `agent` in `beamtime.yaml` holds a preset and overrides; careful is the default; the knobs are
   guidance and never change what files mean.
 - The rules block is generated from the agent settings; two choices, write it or skip.
 - The MCP command is portable in shared files and never points into a project virtualenv when anything
@@ -990,8 +982,7 @@ terminal, no `--yes`) or plans and applies directly.
 - Imports copy, never move; each imported run records `imported_from`; Beamtime log dirs copy without
   conversion and keep their paths meaningful through moves scoped with `within`.
 - The wizard never calls a model; the `migrate` prompt hands judgment to the user's agent.
-- The command is `beamtime setup` from 0.3 on, without an `init` alias; `beamtime.init()` in the SDK
-  keeps its name.
+- The command is `beamtime setup`; there is no `beamtime init`. `beamtime.init()` is the SDK's call.
 - A current setup reconfigures: the list of answers starting from what is set up, asking only what the
   user picks; a rules block whose settings changed is refreshed there, not reported by `--check`.
 - `agent.proposal_words` (default 150) is guidance: the guide names it, `proposal set` warns beyond it

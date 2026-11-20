@@ -16,17 +16,6 @@ defines how the laptop sees and annotates runs whose files live elsewhere.
 4. **One server, two transports.** The same `beamtime serve` code runs locally and remotely and
    speaks one API, over HTTP for browsers and over stdio for ssh.
 
-## Prior art
-
-| Tool | Remote approach | Writes |
-|---|---|---|
-| TensorBoard | run it on the remote and forward the port; or read `gs://`/`s3://` directly | read-only |
-| W&B, MLflow, Aim server | one central server holds the data; runs send to it | go to the server |
-| VS Code Remote-SSH, Jupyter | a server process on the remote, local UI over ssh | on the remote |
-| raw log copies (rsync) | offline and archive use | two copies, conflicts |
-
-Beamtime follows the common pattern: data stays where it is produced; questions and answers travel.
-
 ## Three modes
 
 | Mode | What runs where | Use |
@@ -79,8 +68,8 @@ The local `serve`, CLI and MCP send each query to every source in scope and comb
   order, local first.
 - **One form names a source in an answer**: `.` for this machine, `@name` for a remote, the form of
   a place. It is the `source` column, `by.source` of an aggregated curve, `meta.source`, and
-  `meta.sources[].name`, and it is what the hints say. (Version 0.2 wrote `local` and a bare name
-  in some of these; a remote that still says `local` in `meta.source` is placed like `.`.)
+  `meta.sources[].name`, and it is what the hints say. A remote's `meta.source` of `local` is placed
+  like `.`.
 - **Aggregates are computed per source**: group and seed means, `importance`, value ranges in `keys`,
   and prediction checks. A proposal belongs to a group and a group to one source, so checks never
   span sources. A query over several sources returns aggregates per source, labelled.
@@ -249,15 +238,15 @@ These methods exist only in the API:
 | `view_files` | read one of a page's view data or code files, for starting a draft from it |
 
 A request may carry `whole: true`, which asks for the answer bounded only by its limit and about
-2 MB instead of the agents' token budget; older remotes ignore it and cut at the budget.
+2 MB instead of the agents' token budget; a remote without it cuts at the budget.
 
-Curves follow the same rule: a newer hub upgrades an older remote's curves to the drawing envelope
-`y`, `lo`, `hi`, `n` when the answer arrives (`answers.upgrade_curve`), before CLI and MCP drop the old fields.
+The hub adds the drawing envelope `y`, `lo`, `hi`, `n` to a remote's curves that lack it
+(`answers.upgrade_curve`), before CLI and MCP drop the variant fields.
 
 Compatibility: the same protocol major version on both sides; minor versions only add. `hello`
-carries the version, so a call to a method an older remote doesn't have (one of the bundle methods above,
-on a remote built before they existed) answers with that version and the upgrade command, e.g. "`@au002a`
-runs beamtime 0.1.1; this needs a newer version for view check: `uv pip install -U beamtime` there".
+carries the version, so a call to a method the remote lacks answers with its version and the upgrade
+command, e.g. "`@au002a` runs beamtime 0.1.1; this needs a newer version for view check:
+`uv pip install -U beamtime` there".
 
 ### Drafts on a remote {#drafts-on-a-remote}
 

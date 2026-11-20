@@ -16,15 +16,6 @@ like W&B but self-hosted and light: one process on a disk, because the files are
 Both roles are the same `beamtime serve`, extended by users, several projects and an upload path. A
 server can play both at once: some projects stored on it, others federated from clusters.
 
-## Prior art
-
-| Tool | Server | Weight |
-|---|---|---|
-| W&B Server | Kubernetes, MySQL, Redis, object storage | heavy |
-| MLflow tracking server | one process, a SQL database, an artifact store | light, widely self-hosted |
-| Aim remote tracking | a gRPC server in front of Aim's storage | light |
-| Beamtime | one process, files on disk, the index as a cache | lighter still; backup is copying a folder |
-
 ## Architecture
 
 - **One process** serves the web UI, the API (HTTP), MCP (HTTP transport) and the upload endpoint.
