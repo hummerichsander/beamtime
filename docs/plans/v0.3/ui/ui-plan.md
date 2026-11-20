@@ -745,7 +745,7 @@ Lines below are at `274fc44`, not the plan's base commit; refresh them if Q31–
   `uv run pytest -q tests/serve/test_browser.py`; by hand the Goal's serve run.
 - **Done:** the changelog lists the Breaking changes below; every Goal check passes; `ticket.py status` shows all done.
 
-### Z32. Wrap-up: loose ends of the UI plan (sonnet + review) — code
+### Z32. Wrap-up: loose ends of the UI plan (sonnet + review) — code — **done**
 
 Line numbers at `3c5a4a4`. Seven small items; commit each on its own (subject `Z32: <item>`), the last
 commit also marks this heading done. Another session may hold uncommitted edits in `CLAUDE.md`,

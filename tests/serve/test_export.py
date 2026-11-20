@@ -96,7 +96,8 @@ def test_an_export_opens_from_disk(chromium, ctx: Context, project: Path, tmp_pa
     assert "preact" in (out / "static" / "THIRD_PARTY_LICENSES.txt").read_text()
     # inlined: a file opened from disk has no server to ask for /static/favicon.svg.
     assert 'data:image/svg+xml;base64,' in (out / "index.html").read_text()
-    run = call("data", {"from": SWEEP, "key": "samples"}, ctx)["entries"][0]["run"]
+    logged = call("data", {"from": SWEEP, "key": "samples"}, ctx)
+    run, last = logged["entries"][0]["run"], logged["meta"]["steps"][-1]
     images = tmp_path / "run"
     call("export", {"group": run, "html": str(images)}, ctx)
     assert any((images / "files").rglob("*.png"))
@@ -123,6 +124,8 @@ def test_an_export_opens_from_disk(chromium, ctx: Context, project: Path, tmp_pa
         page.goto((images / "index.html").as_uri())
         page.wait_for_selector(".images img", timeout=15_000)
         page.wait_for_function("() => [...document.querySelectorAll('.images img')].every(i => i.naturalWidth > 0)")
+        assert page.locator(".scrubber").count() == 0
+        assert page.locator(".images figcaption").first.inner_text().startswith(f"step {last}")
         browser.close()
     assert not errors and not network
 
