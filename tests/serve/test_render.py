@@ -63,6 +63,7 @@ def test_every_widget_renders_cleanly(browser_ok, ctx: Context, project: Path) -
     shot = Path(answer["shots"][0]["file"])
     assert shot.is_file() and shot.stat().st_size > 20_000
     one = call("view render", {"draft": "all", "block": "bar-metric-val-acc-max"}, ctx)
+    assert one["shots"] and one["shots"][0]["file"], one
     assert Path(one["shots"][0]["file"]).name == "bar-metric-val-acc-max-light.jpg"
     assert call("view validate", {"draft": "all"}, ctx)["render"]["rendered"]
 

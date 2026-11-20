@@ -82,6 +82,8 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
             "open that one, or stop it first"
         )
     registration: Registration | None = None
+    # taken before the record exists and the app warms up: a change made during startup must count.
+    before = code_files() if p.watch else {}
     try:
         # uvicorn re-raises the signal that stopped it; SIGTERM must still clean up.
         signal.signal(signal.SIGTERM, stop)
@@ -112,7 +114,7 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
         server = server_class()(config, hub=hub)
         app.state.stop = lambda: server.handle_exit(signal.SIGTERM, None)
         if p.watch:
-            threading.Thread(target=watch_code, args=(server, restart), daemon=True).start()
+            threading.Thread(target=watch_code, args=(server, restart, before), daemon=True).start()
             say("--watch: restarts when Beamtime's code changes.")
         server.run(sockets=[sock])
         return {"kind": "serve", "lines": ["stopped"]}
@@ -346,12 +348,12 @@ def code_files() -> dict[str, int]:
     return out
 
 
-def watch_code(server: Any, restart: threading.Event) -> None:
+def watch_code(server: Any, restart: threading.Event, before: dict[str, int]) -> None:
     """Stop the server for a restart once Beamtime's code changes.
 
     :param server: The uvicorn server.
-    :param restart: Set when a restart is due."""
-    before = code_files()
+    :param restart: Set when a restart is due.
+    :param before: The code files and their mtimes when the serve began."""
     while not server.should_exit:
         time.sleep(WATCH_S)
         if code_files() != before:

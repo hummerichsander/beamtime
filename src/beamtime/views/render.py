@@ -173,6 +173,8 @@ def screenshots(
     :param block: One block's id, or ``None`` for the page.
     :param theme: The theme, part of the file name.
     :return: ``{file, block}`` per screenshot, and what the page shot cut, if anything."""
+    from playwright.sync_api import Error
+
     folder = d.dir.parent.parent / "renders" / d.name
     folder.mkdir(parents=True, exist_ok=True)
     if block is not None:
@@ -181,7 +183,11 @@ def screenshots(
             shot = {"file": None, "block": block, "error": f"no block {block!r} in the draft"}
             return [shot], None
         file = folder / f"{block}-{theme}.jpg"
-        target.first.screenshot(path=str(file), type="jpeg", quality=JPEG_QUALITY)
+        try:
+            target.first.scroll_into_view_if_needed()
+            target.first.screenshot(path=str(file), type="jpeg", quality=JPEG_QUALITY)
+        except Error as e:
+            return [{"file": None, "block": block, "error": str(e)}], None
         return [{"file": str(file), "block": block}], None
     file = folder / f"page-{theme}.jpg"
     full = page.evaluate("document.documentElement.scrollHeight")
@@ -257,8 +263,8 @@ def serving(ctx: Context) -> Iterator[tuple[str, str]]:
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
     thread.start()
-    deadline = time.monotonic() + 10
-    while not server.started and thread.is_alive() and time.monotonic() < deadline:
+    # no cap: a loaded machine can take longer than any fixed wait to start, and the page needs it.
+    while not server.started and thread.is_alive():
         time.sleep(0.02)
     try:
         yield f"http://127.0.0.1:{port}", token
