@@ -117,6 +117,9 @@ def test_an_export_opens_from_disk(chromium, ctx: Context, project: Path, tmp_pa
         frame.locator("canvas").first.wait_for(timeout=15_000)
         assert not page.locator(".custom-error").count()
         assert "not part of this snapshot" not in frame.locator("body").inner_text()
+        loaded = 'async () => (await document.fonts.load("15.5px XCharter")).length'
+        assert page.evaluate(loaded) > 0
+        assert next(f for f in page.frames if f != page.main_frame).evaluate(loaded) > 0
         page.goto((images / "index.html").as_uri())
         page.wait_for_selector(".images img", timeout=15_000)
         page.wait_for_function("() => [...document.querySelectorAll('.images img')].every(i => i.naturalWidth > 0)")

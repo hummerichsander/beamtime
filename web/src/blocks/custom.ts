@@ -210,12 +210,11 @@ export function Custom({ node }: { node: Node }) {
 }
 
 // the frame's page: served, or for an exported page written inline with the kit's script and the
-// styles, since a sandboxed frame of a page opened from disk may load no files.
+// styles and fonts (data: URIs), since a sandboxed frame of a page opened from disk may load no files.
 function frameSource(): Record<string, string> {
   if (!EXPORTED) return { src: staticUrl("kit/frame.html") };
   const inline: { kit: string; css: string } = (globalThis as any).__BT_FRAME__ ?? { kit: "", css: "" };
-  // no fonts: a sandboxed frame of a page opened from disk may load no files.
-  const css = inline.css.replace(/<\/(style)/gi, "<\\/$1").replace(/@font-face\s*\{[^}]*\}/g, "");
+  const css = inline.css.replace(/<\/(style)/gi, "<\\/$1");
   const kit = inline.kit.replace(/<\/(script)/gi, "<\\/$1");
   const srcdoc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>${css}</style></head>`
     + `<body class="kit-frame body"><div id="root"></div><script>${kit}</script></body></html>`;

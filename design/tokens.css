@@ -76,7 +76,7 @@
   --stroke-data: 1.6px; /* Curve width in charts. */
   --stroke-rule: 1px; /* Hairlines and the edges of controls. */
   --stroke-icon: 1.5px; /* Icon stroke, with square caps and mitred joins. */
-  --font-serif: XCharter;
+  --font-serif: XCharter, Charter, "Bitstream Charter", Georgia, serif;
   --font-sans: "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --text-statement: italic 400 23px/1.4 var(--font-serif); /* A proposal statement, the largest serif on the page: italic means proposed. */

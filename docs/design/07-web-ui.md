@@ -289,7 +289,7 @@ Both are taken by the headless renderer, so they need an installed Chromium, Chr
   Placeholder queries of custom blocks are answered for the runs in the page's tables. Browsers don't
   load ES modules from `file://` and a sandboxed frame of such a page may load no files, so the export
   has its own classic-script bundle (`static/export/`), and each custom block's frame carries the kit
-  and styles inline (`srcdoc`). Answers are looked up independent of a chart's width and of defaults,
+  and styles inline (`srcdoc`, fonts as `data:` URIs). Answers are looked up independent of a chart's width and of defaults,
   so the page works at any window size.
 - **`--points`** sets how many points per curve the export stores: a number of buckets (default
   1000), or `all` for every logged point. The export states which it used.

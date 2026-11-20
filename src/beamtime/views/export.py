@@ -6,10 +6,12 @@ an installed browser, which records every call the page makes (``--html``) or ha
 block's downloads (``--figures``)."""
 
 import json
+import re
 import shutil
 import time
 from base64 import b64encode
 from importlib.resources import files
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import quote, unquote, urlsplit
@@ -292,10 +294,10 @@ def write(
     (out / "static" / "export").mkdir(parents=True)
     for name in ("main.js", "main.css"):
         (out / "static" / "export" / name).write_bytes((static / "export" / name).read_bytes())
-    # a custom block's sandboxed frame may load no files from disk: its page carries the kit.
+    # a custom block's sandboxed frame may load no files from disk: its page carries the kit and fonts.
     frame = {
         "kit": (static / "export" / "kit.js").read_text(),
-        "css": (static / "export" / "main.css").read_text(),
+        "css": inline_fonts((static / "export" / "main.css").read_text(), static / "fonts"),
     }
     (out / "static" / "export" / "frame.js").write_text(
         f"window.__BT_FRAME__ = {json.dumps(frame)};\n"
@@ -337,6 +339,20 @@ INDEX = """<!doctype html>
   </body>
 </html>
 """
+
+
+def inline_fonts(css: str, fonts: Traversable) -> str:
+    """Replace the stylesheet's font files by ``data:`` URIs, for a page that may load no files.
+
+    :param css: The stylesheet, with ``url("../fonts/<name>.woff2")`` references.
+    :param fonts: The folder of the font files.
+    :return: The stylesheet with the fonts inline."""
+
+    def data(match: re.Match[str]) -> str:
+        encoded = b64encode((fonts / match[1]).read_bytes()).decode()
+        return f'url("data:font/woff2;base64,{encoded}")'
+
+    return re.sub(r'url\("\.\./fonts/([^"/]+\.woff2)"\)', data, css)
 
 
 def folder_for(out: Path) -> None:
