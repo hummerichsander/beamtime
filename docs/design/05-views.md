@@ -483,7 +483,7 @@ Beamtime owns the look of every view; views never contain colors, fonts or sizes
 | Type | `serif`, `sans`, `mono`; the styles `title`, `heading`, `statement`, `prose`, `caption`, `body`, `small`, `number`, `code` |
 | Shape | `space-1` to `space-4`, `radius`, `radius-pill`, `margin`, `measure`, `measure-short`, `stroke-data`, `stroke-rule`, `stroke-icon` |
 
-The app no longer uses `margin` (sections put their label above the content); the token stays because custom blocks may use it.
+Sections put their label above the content; the app uses no `margin`, which stays for custom blocks.
 
 The web UI, built-in blocks, the chart style and the CSS variables of custom blocks all read the same
 tokens. Type styles are classes in the markup; stylesheets never set a size.

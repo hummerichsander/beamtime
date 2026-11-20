@@ -46,9 +46,11 @@ def distinguishing(per_run: list[dict[str, Any]]) -> Distinct:
     seeds = {k for k in kept if is_seed(k)}
     reducers = {k: sig[k] for k in kept if k not in seeds and len(set(sig[k])) < n}
     dropped = {
-        k: next(a for a, s in reducers.items() if a != k and determines(s, sig[k]))
+        k: a
         for k in kept
-        if k not in seeds and any(a != k and determines(s, sig[k]) for a, s in reducers.items())
+        if k not in seeds
+        and (a := next((a for a, s in reducers.items() if a != k and determines(s, sig[k])), None))
+        is not None
     }
     varying = sorted(f"config.{k}" for k in kept if k not in dropped)
     return Distinct(

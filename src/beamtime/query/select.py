@@ -105,9 +105,9 @@ def known_keys(
 
 
 def live_metric_keys(ctx: Context, hidden: bool = False, depth: Any = "all") -> set[str]:
-    """List the metrics running runs logged since their card was last written.
+    """List the metric keys in the columns of running runs.
 
-    A run rewrites its card every few minutes, so a new metric is in its columns first.
+    A new metric is there before the card lists it.
 
     :param ctx: The query context.
     :param hidden: Whether hidden runs count.

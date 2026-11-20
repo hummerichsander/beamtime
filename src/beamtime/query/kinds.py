@@ -230,7 +230,7 @@ def series_kind(ctx: Context, q: m.Series) -> dict[str, Any]:
         raise QueryError("series: steps is [first, last], e.g. [0, 5000]")
     window = (q.steps[0], q.steps[1]) if q.steps else (None, None)
     if q.x not in ("_step", TIME_KEY, "_elapsed"):
-        check_known(ctx, [parse_field(f"metric.{q.x}.last")], q.hidden)
+        check_known(ctx, [parse_field(f"metric.{q.x}.last")], q.hidden, q.depth)
     if q.by or q.seeds:
         groups = (
             [(cfg, rs) for cfg, rs in seed_groups(runs, q.seeds)]
@@ -507,7 +507,7 @@ def data_kind(ctx: Context, q: m.Data) -> dict[str, Any]:
     steps = sorted({step for _, step, _ in rows})
     extra = {"steps": steps}
     if q.clock is not None:
-        check_known(ctx, [parse_field(f"metric.{q.clock}.last")], q.hidden)
+        check_known(ctx, [parse_field(f"metric.{q.clock}.last")], q.hidden, q.depth)
         extra["clocks"] = data_clocks(ctx, list(by_run), q.clock, steps)
     entries = []
     for run_id, items in by_run.items():

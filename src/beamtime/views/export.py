@@ -294,7 +294,7 @@ def write(
     (out / "static" / "export").mkdir(parents=True)
     for name in ("main.js", "main.css"):
         (out / "static" / "export" / name).write_bytes((static / "export" / name).read_bytes())
-    # a custom block's sandboxed frame may load no files from disk: its page carries the kit and fonts.
+    # a custom block's sandboxed frame may load no files from disk: its page carries kit and fonts.
     frame = {
         "kit": (static / "export" / "kit.js").read_text(),
         "css": inline_fonts((static / "export" / "main.css").read_text(), static / "fonts"),
