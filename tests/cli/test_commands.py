@@ -94,7 +94,7 @@ def test_series_steps_and_query_argument(project: Path) -> None:
     out = beamtime(project, "query", "{groups: {from: tokenizer}}")
     assert "bpe-vs-unigram" in out.stdout
     query = project / "q.yaml"
-    query.write_text("keys:\n  from: tokenizer\n")
+    query.write_text("keys:\n  from: tokenizer\n", encoding="utf-8")
     assert "6 runs" in beamtime(project, "query", str(query)).stdout
 
 

@@ -106,7 +106,7 @@ def test_writes_and_subscriptions(session: Session, project: Path) -> None:
     session.events.clear()
     written = session.ask("note_add", group=SWEEP, type="observation", description="From afar.")
     path = project / "beamtime" / written["result"]["path"]
-    assert path.is_file() and "From afar." in path.read_text()
+    assert path.is_file() and "From afar." in path.read_text(encoding="utf-8")
     while not any(SWEEP in e["changed"] for e in session.events) and time.monotonic() < deadline:
         session.read()
     assert any(e["changed"].get(SWEEP) == ["authored"] for e in session.events)
@@ -163,7 +163,7 @@ def test_cache_comes_from_the_flag_then_the_remotes_setting_then_memory(
 
     own = hello()
     assert own["temporary"] == "yes" and own["refused"] is None
-    (project / "beamtime.yaml").write_text(f"schema: 1\ncache: {tmp_path}/from-setting\n")
+    (project / "beamtime.yaml").write_text(f"schema: 1\ncache: {tmp_path}/from-setting\n", encoding="utf-8")
     assert hello()["path"].startswith(f"{tmp_path}/from-setting/")
     assert hello()["temporary"] is None
     assert hello("--cache", f"{tmp_path}/from-flag")["path"].startswith(f"{tmp_path}/from-flag/")

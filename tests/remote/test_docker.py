@@ -68,16 +68,16 @@ def container(tmp_path_factory: pytest.TempPathFactory):
     port = free_port()
     name = f"beamtime-e2e-{os.getpid()}"
     run("docker", "run", "-d", "--name", name, "-p", f"127.0.0.1:{port}:22",
-        "-v", f"{tmp / 'data'}:/data", "-e", f"KEY={(tmp / 'key.pub').read_text().strip()}", IMAGE)  # fmt: skip
+        "-v", f"{tmp / 'data'}:/data", "-e", f"KEY={(tmp / 'key.pub').read_text(encoding='utf-8').strip()}", IMAGE)  # fmt: skip
     config = tmp / "ssh_config"
     config.write_text(
         f"Host box\n  HostName 127.0.0.1\n  Port {port}\n  User root\n  IdentityFile {key}\n"
         "  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null\n  LogLevel ERROR\n"
-    )
+    , encoding="utf-8")
     bin_dir = tmp / "bin"
     bin_dir.mkdir()
     wrapper = bin_dir / "ssh"
-    wrapper.write_text(f'#!/bin/sh\nexec {shutil.which("ssh")} -F {config} "$@"\n')
+    wrapper.write_text(f'#!/bin/sh\nexec {shutil.which("ssh")} -F {config} "$@"\n', encoding="utf-8")
     wrapper.chmod(0o755)
     env = os.environ | {"PATH": f"{bin_dir}:{os.environ['PATH']}"}
     old_path, os.environ["PATH"] = os.environ["PATH"], env["PATH"]
@@ -122,7 +122,7 @@ def test_over_ssh_reads_merge_and_a_verdict_lands_there(box: Path, ctx: Context)
                              "verdict": verdicts, "overall": "confirmed",
                              "description": "Judged on the laptop."}, ctx)  # fmt: skip
     stored = box / note["path"].removeprefix("@box/")
-    assert stored.is_file() and "Judged on the laptop." in stored.read_text()
+    assert stored.is_file() and "Judged on the laptop." in stored.read_text(encoding="utf-8")
     notes = call("notes", {"from": f"@box/{SWEEP}", "limit": 1}, ctx)["entries"]
     assert notes[0]["type"] == "verdict"
 
@@ -136,8 +136,8 @@ def test_a_view_drafted_here_is_checked_and_saved_there(box: Path, ctx: Context)
     draft = Path(new["file"]).parent
     view = {"schema": 1, "title": "over ssh", "finding": "x",
             "body": [{"data_table": {"id": "fit", "file": "data/fit.csv"}}]}  # fmt: skip
-    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
-    (draft / "data" / "fit.csv").write_text("x,y\n1,2\n")
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
+    (draft / "data" / "fit.csv").write_text("x,y\n1,2\n", encoding="utf-8")
     assert call("view validate", {"draft": "over-ssh", "render": False}, ctx)["ok"]
     saved = call("view save", {"draft": "over-ssh"}, ctx)
     assert (box / saved["path"].removeprefix("@box/")).is_file()
@@ -173,7 +173,7 @@ def test_serve_shows_both_sources(container, project: Path) -> None:
     _, _, env = container
     (project / "beamtime.yaml").write_text(
         "remotes:\n  box: {host: box, path: /data/beamtime}\n"
-    )
+    , encoding="utf-8")
     port = free_port()
     server = subprocess.Popen(
         [sys.executable, "-m", "beamtime.cli", "serve", "--port", str(port)],
@@ -223,7 +223,7 @@ def test_custom_block_follows_live_data_over_ssh(container, project: Path) -> No
         "for step in range(400):\n"
         "    run.log({'live/loss': 1 / (1 + step)}, step=step)\n"
         "    time.sleep(0.2)\nrun.finish()\n"
-    )
+    , encoding="utf-8")
     clean = {k: v for k, v in env.items() if not k.startswith(("BEAMTIME_", "SLURM_"))}
     proc = subprocess.Popen([sys.executable, writer], cwd=root, env=clean | {"BEAMTIME_LOGDIR": str(logdir)})
     try:
@@ -238,12 +238,12 @@ def test_custom_block_follows_live_data_over_ssh(container, project: Path) -> No
             "id": "last", "code": "code/last.js",
             "queries": {"loss": {"series": {"y": ["live/loss"], "points": 50}}},
         }}]}  # fmt: skip
-        (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+        (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
         (draft / "code").mkdir()
-        (draft / "code" / "last.js").write_text(LAST_STEP)
+        (draft / "code" / "last.js").write_text(LAST_STEP, encoding="utf-8")
         local("view save", {"draft": "last"}, remote_ctx)
 
-        (project / "beamtime.yaml").write_text("remotes:\n  box: {host: box, path: /data/beamtime}\n")
+        (project / "beamtime.yaml").write_text("remotes:\n  box: {host: box, path: /data/beamtime}\n", encoding="utf-8")
         port = free_port()
         server = subprocess.Popen(
             [sys.executable, "-m", "beamtime.cli", "serve", "--port", str(port)],

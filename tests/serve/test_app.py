@@ -239,7 +239,7 @@ def test_meta_lists_settings_and_styles(api) -> None:
 def test_the_custom_block_frame_has_its_own_policy(client, static: Path) -> None:
     """The frame may run blob code and be framed by the page; static files allow CORS."""
     (static / "kit").mkdir()
-    (static / "kit" / "frame.html").write_text("<!doctype html>")
+    (static / "kit" / "frame.html").write_text("<!doctype html>", encoding="utf-8")
     frame = client.get("/static/kit/frame.html")
     csp = frame.headers["content-security-policy"]
     assert "script-src 'self' blob:" in csp and "connect-src 'none'" in csp
@@ -274,7 +274,7 @@ def test_project_style_files(api, project: Path) -> None:
     """A project's .mplstyle file is offered, can be set, and draws the PDF; a missing one can't."""
     pytest.importorskip("scienceplots")
     (project / "styles").mkdir()
-    (project / "styles" / "paper.mplstyle").write_text("lines.linewidth: 3\n")
+    (project / "styles" / "paper.mplstyle").write_text("lines.linewidth: 3\n", encoding="utf-8")
     assert "styles/paper.mplstyle" in api("meta").json()["figure_styles"]
     ok = api("set", key="figure_style", value=["science", "styles/paper.mplstyle"])
     assert ok.status_code == 200, ok.json()

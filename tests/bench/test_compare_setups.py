@@ -51,7 +51,7 @@ def host_beamtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     :return: The folder."""
     folder = tmp_path / "host"
     folder.mkdir()
-    (folder / "beamtime").write_text("#!/bin/sh\n")
+    (folder / "beamtime").write_text("#!/bin/sh\n", encoding="utf-8")
     (folder / "beamtime").chmod(0o755)
     monkeypatch.setenv("PATH", f"{folder}{os.pathsep}{os.environ['PATH']}")
     return folder
@@ -94,7 +94,7 @@ def test_tensorboard_data(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> 
 def test_claude_md(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
     """The preamble is the same bytes everywhere; only the data section differs."""
     pytest.importorskip("tensorboard")
-    texts = {n: prepare(n, tmp_path, data_dir, envs).claude_md.read_text() for n in setups.SETUPS}
+    texts = {n: prepare(n, tmp_path, data_dir, envs).claude_md.read_text(encoding="utf-8") for n in setups.SETUPS}
     head, tail = {}, {}
     for name, text in texts.items():
         head[name], _, tail[name] = text.partition("\n## Data\n")
@@ -113,11 +113,11 @@ def test_claude_md_names_a_record(tmp_path: Path, data_dir: Path, envs: setups.E
     with_record = tmp_path / "data"
     shutil.copytree(data_dir, with_record)
     (with_record / "beamtime" / "study" / "proposal").mkdir(parents=True)
-    (with_record / "beamtime" / "study" / "proposal" / "p.yaml").write_text("schema: 1\n")
+    (with_record / "beamtime" / "study" / "proposal" / "p.yaml").write_text("schema: 1\n", encoding="utf-8")
     project = prepare("files", tmp_path, with_record, envs)
 
     assert (project.root / "record" / "study" / "proposal" / "p.yaml").is_file()
-    assert "- `record/<group>/`, next to `runs/`:" in project.claude_md.read_text()
+    assert "- `record/<group>/`, next to `runs/`:" in project.claude_md.read_text(encoding="utf-8")
 
 
 def test_tools_and_mcp(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
@@ -130,7 +130,7 @@ def test_tools_and_mcp(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> Non
     assert mcp.allowed == f"mcp__beamtime__*,{mcp.tools}"
     assert cli.allowed == files.allowed == files.tools
     assert cli.mcp_config is None and files.mcp_config is None
-    server = json.loads(mcp.mcp_config.read_text())["mcpServers"]["beamtime"]
+    server = json.loads(mcp.mcp_config.read_text(encoding="utf-8"))["mcpServers"]["beamtime"]
     assert server["args"] == ["--root", str(mcp.root), "mcp"]
     assert Path(server["command"]).name == "beamtime"
 
@@ -202,7 +202,7 @@ def test_cache_per_session(tmp_path: Path, data_dir: Path, envs: setups.Envs) ->
         assert project.root.parent in cache.parents
         assert any(cache.rglob("*")), "the index is warmed"
         assert project.root.parent in Path(project.env["XDG_CONFIG_HOME"]).parents
-    server = json.loads(m.mcp_config.read_text())["mcpServers"]["beamtime"]
+    server = json.loads(m.mcp_config.read_text(encoding="utf-8"))["mcpServers"]["beamtime"]
     assert server["env"]["BEAMTIME_CACHE"] == m.env["BEAMTIME_CACHE"]
 
 
@@ -214,7 +214,7 @@ def test_warm_indexes_everything(
     long_dir = tmp_path / "long"
     shutil.copytree(data_dir, long_dir)
     metrics = next((long_dir / "beamtime").rglob("_metrics.jsonl"))
-    with metrics.open("a") as f:
+    with metrics.open("a", encoding="utf-8") as f:
         f.writelines(
             json.dumps({"_step": s, "_t": 1.0, "training/loss": 1.0}) + "\n"
             for s in range(1_000_000, 1_100_000)
@@ -235,7 +235,7 @@ def test_warm_indexes_everything(
 def test_data_is_copied(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
     """A session's writes never reach the shared data, and run files keep their times."""
     project = prepare("cli", tmp_path, data_dir, envs)
-    (project.root / "beamtime" / "note.txt").write_text("x")
+    (project.root / "beamtime" / "note.txt").write_text("x", encoding="utf-8")
     card = next((data_dir / "beamtime").rglob("_run.json"))
     copy = project.root / "beamtime" / card.relative_to(data_dir / "beamtime")
 
@@ -251,7 +251,7 @@ def test_make_envs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         calls.append(command)
         if command[:2] == ["uv", "venv"]:
             (Path(command[-1]) / "bin").mkdir(parents=True)
-            (Path(command[-1]) / "bin" / "python").write_text("")
+            (Path(command[-1]) / "bin" / "python").write_text("", encoding="utf-8")
         return CompletedProcess(command, 0)
 
     monkeypatch.setattr(setups.subprocess, "run", fake)
@@ -275,7 +275,7 @@ def test_make_envs_after_failed_install(tmp_path: Path, monkeypatch: pytest.Monk
         calls.append(command)
         if command[:2] == ["uv", "venv"]:
             (Path(command[-1]) / "bin").mkdir(parents=True, exist_ok=True)
-            (Path(command[-1]) / "bin" / "python").write_text("")
+            (Path(command[-1]) / "bin" / "python").write_text("", encoding="utf-8")
         if command[:3] == ["uv", "pip", "install"] and fail[0]:
             raise setups.subprocess.CalledProcessError(1, command)
         return CompletedProcess(command, 0)

@@ -20,12 +20,12 @@ def test_pull_copies_a_group_incrementally(box: Path, ctx: Context) -> None:
     folder = snapshots_dir(ctx) / "box"
     assert first["copied"] > 0 and (folder / SWEEP / "proposal").is_dir()
     assert any((folder / SWEEP).glob("*/_run.json"))
-    record = json.loads((folder / "_snapshot.json").read_text())
+    record = json.loads((folder / "_snapshot.json").read_text(encoding="utf-8"))
     assert record["groups"] == [SWEEP]
     again = call("pull", {"target": f"@box/{SWEEP}"}, ctx)
     assert again["copied"] == 0 and again["grown"] == 0 and again["unchanged"] == first["copied"]
     metrics = next((box / SWEEP).glob("*/_metrics.jsonl"))
-    with metrics.open("a") as f:
+    with metrics.open("a", encoding="utf-8") as f:
         f.write('{"step": 99999, "t": 1.0, "val/acc": 0.5}\n')
     grown = call("pull", {"target": f"box:{SWEEP}"}, ctx)
     assert grown["grown"] == 1
@@ -66,7 +66,7 @@ def test_doctor_and_status_cover_remotes(box: Path, project: Path) -> None:
     (project / "beamtime.yaml").write_text(
         f"remotes:\n  box: {{path: {box}, transport: command, command: '{COMMAND}'}}\n"
         "  gone: {path: /nowhere, transport: command, command: 'false'}\n"
-    )
+    , encoding="utf-8")
     ctx = Context.make(caller="cli")
     rows = {r[0]: r[1:] for r in call("doctor", {}, ctx)["rows"]}
     assert rows["@box beamtime"][0] and rows["@box log dir"][0]

@@ -107,7 +107,7 @@ def to_proposal(proposal: str | Path | dict[str, Any] | None) -> dict[str, Any]:
         case None:
             return {"statement": None}
         case Path():
-            data = yaml.safe_load(proposal.read_text())
+            data = yaml.safe_load(proposal.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
                 raise ValueError(f"proposal file {proposal} must hold a mapping")
             return data

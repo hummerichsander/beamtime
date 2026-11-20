@@ -97,11 +97,11 @@ def test_settings_levels(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     user.parent.mkdir(parents=True)
     user.write_text(
         "remotes:\n  cluster: {host: c, command: bt, cache: /x}\nlogdir: nope\ntheme: dark\n"
-    )
+    , encoding="utf-8")
     (tmp_path / "beamtime.yaml").write_text(
         "schema: 1\nlogdir: runs\nremotes:\n  cluster: {path: /scratch}\nbogus: 1\n"
         "colormap: magma\ncolormap_diverging: RdBu\n"
-    )
+    , encoding="utf-8")
     s = load(tmp_path)
     assert s.get("logdir") == "runs" and s.get("theme") == "dark"
     assert s.get("remotes")["cluster"] == {
@@ -163,7 +163,7 @@ def test_status_counts_visible_runs(ctx: Context, project: Path) -> None:
     """``status`` leaves hidden runs out of its counts."""
     before = sum(call("status", {}, ctx)["runs"].values())
     run = next((project / "beamtime" / "scaling" / "lr-sweep").glob("*/_run.json"))
-    run.write_text(json.dumps(json.loads(run.read_text()) | {"hidden": True}))
+    run.write_text(json.dumps(json.loads(run.read_text(encoding="utf-8")) | {"hidden": True}), encoding="utf-8")
     assert sum(call("status", {}, ctx)["runs"].values()) == before - 1
 
 
@@ -207,7 +207,7 @@ def test_lost_card_says_how_long_the_heartbeat_is_silent(
     assert answer["run"]["status"] == "lost"
     assert abs(answer["run"]["heartbeat_age_s"] - 420) <= 5
     assert "lost (no heartbeat for 7 min)" in render(answer)
-    running = next(p for p in ctx.logdir.rglob("_run.json") if "running" in p.read_text())
+    running = next(p for p in ctx.logdir.rglob("_run.json") if "running" in p.read_text(encoding="utf-8"))
     os.utime(running, None)
     fresh = call("card", {"run": running.parent.name}, ctx)
     assert fresh["run"]["status"] == "running" and "heartbeat_age_s" not in fresh["run"]
@@ -225,7 +225,7 @@ def test_lost_age_in_snapshot(ctx: Context, roles: dict[str, str]) -> None:
 def test_output_collapses_carriage_returns(ctx: Context, roles: dict[str, str]) -> None:
     """Progress bars written with carriage returns show their last state."""
     run = next(p for p in ctx.logdir.rglob(roles["killed"]) if p.is_dir())
-    with (run / "_output.log").open("a") as f:
+    with (run / "_output.log").open("a", encoding="utf-8") as f:
         f.write("progress 10%\rprogress 50%\rprogress 100%\n")
     out = call("output", {"run": roles["killed"], "tail": 1}, ctx)
     assert out["lines"] == ["progress 100%"]
@@ -249,8 +249,8 @@ def test_init_is_idempotent(ctx: Context, project: Path) -> None:
     """init writes beamtime.yaml and the .gitignore block once."""
     call("setup", {"yes": True}, ctx)
     assert call("setup", {"yes": True}, ctx)["lines"] == ["already set up"]
-    assert (project / ".gitignore").read_text().count("# beamtime:") == 1
-    assert "logdir: beamtime" in (project / "beamtime.yaml").read_text()
+    assert (project / ".gitignore").read_text(encoding="utf-8").count("# beamtime:") == 1
+    assert "logdir: beamtime" in (project / "beamtime.yaml").read_text(encoding="utf-8")
 
 
 def test_mv_rm_gc(ctx: Context, roles: dict[str, str]) -> None:
@@ -309,7 +309,7 @@ def test_source_add_list_rm(ctx: Context, project: Path) -> None:
 def test_source_add_to_the_project(ctx: Context, project: Path) -> None:
     """``--project`` writes to the project's ``beamtime.yaml`` instead of the user settings."""
     call("source add", {"name": "box", "remote": "h:/p", "command": "bt", "project": True}, ctx)
-    text = (project / "beamtime.yaml").read_text()
+    text = (project / "beamtime.yaml").read_text(encoding="utf-8")
     assert "box" in text and "remotes" in text
     assert load(project).get("remotes")["box"]["host"] == "h"
 
@@ -317,12 +317,12 @@ def test_source_add_to_the_project(ctx: Context, project: Path) -> None:
 def test_source_add_keeps_the_file_and_checks_the_path(ctx: Context, project: Path) -> None:
     """Adding a remote to ``beamtime.yaml`` keeps its comments; a path that isn't absolute is
     refused."""
-    (project / "beamtime.yaml").write_text("schema: 1\n# our cluster setup\nlogdir: beamtime\n")
+    (project / "beamtime.yaml").write_text("schema: 1\n# our cluster setup\nlogdir: beamtime\n", encoding="utf-8")
     call("source add", {"name": "box", "remote": "h:/p", "command": "bt", "project": True}, ctx)
-    text = (project / "beamtime.yaml").read_text()
+    text = (project / "beamtime.yaml").read_text(encoding="utf-8")
     assert "# our cluster setup" in text and "logdir: beamtime" in text
     call("source rm", {"name": "box"}, ctx)
-    assert "# our cluster setup" in (project / "beamtime.yaml").read_text()
+    assert "# our cluster setup" in (project / "beamtime.yaml").read_text(encoding="utf-8")
     with pytest.raises(OpError, match="absolute"):
         call("source add", {"name": "x", "remote": "h:relative", "command": "bt"}, ctx)
 
@@ -339,7 +339,7 @@ def test_source_probe_expands_the_path_on_the_remote(
     venv = home / "proj" / ".venv" / "bin" / "beamtime"
     venv.parent.mkdir(parents=True)
     (home / "proj" / "beamtime").mkdir()
-    venv.write_text("#!/bin/sh\n")
+    venv.write_text("#!/bin/sh\n", encoding="utf-8")
     venv.chmod(0o755)
     real = subprocess.run
 
@@ -365,7 +365,7 @@ def launcher_on_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     folder = tmp_path / "bin"
     folder.mkdir()
     script = folder / "beamtime"
-    script.write_text('#!/bin/sh\necho "beamtime 0.3.0"\n')
+    script.write_text('#!/bin/sh\necho "beamtime 0.3.0"\n', encoding="utf-8")
     script.chmod(0o755)
     monkeypatch.setenv("PATH", f"{folder}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
@@ -376,7 +376,7 @@ def launcher_on_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_mcp_install_for_cursor(ctx: Context, project: Path, launcher_on_path: Path) -> None:
     """Cursor's project config gets a portable entry that names the workspace."""
     call("mcp install", {"client": "cursor"}, ctx)
-    entry = json.loads((project / ".cursor" / "mcp.json").read_text())["mcpServers"]["beamtime"]
+    entry = json.loads((project / ".cursor" / "mcp.json").read_text(encoding="utf-8"))["mcpServers"]["beamtime"]
     assert entry == {"command": "beamtime", "args": ["--root", "${workspaceFolder}", "mcp"]}
 
 
@@ -441,10 +441,10 @@ def test_naming_a_run(ctx: Context, roles: dict) -> None:
 def test_set_writes_beamtime_yaml_and_keeps_the_rest(ctx: Context, project: Path) -> None:
     """Settings from the UI land in beamtime.yaml; other keys and comments stay."""
     path = project / "beamtime.yaml"
-    path.write_text("schema: 1\n# where runs go\nlogdir: beamtime\nfigure_style:\n  - science\n")
+    path.write_text("schema: 1\n# where runs go\nlogdir: beamtime\nfigure_style:\n  - science\n", encoding="utf-8")
     call("set", {"key": "figure_style", "value": "[science, ieee]"}, ctx)
     call("set", {"key": "theme_mode", "value": "dark"}, ctx)
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     assert "# where runs go\nlogdir: beamtime\n" in text
     assert "figure_style: [science, ieee]\n" in text and text.count("figure_style") == 1
     assert ctx.settings.get("figure_style") == ["science", "ieee"]
@@ -466,15 +466,15 @@ def test_instructions_block(project: Path) -> None:
     from beamtime.guide.rules import END, START
 
     ctx = Context.make(caller="cli")
-    (project / "AGENTS.md").write_text("# My rules\n\nBe brief.\n")
+    (project / "AGENTS.md").write_text("# My rules\n\nBe brief.\n", encoding="utf-8")
     call("setup", {"instructions": True, "yes": True}, ctx)
-    text = (project / "AGENTS.md").read_text()
+    text = (project / "AGENTS.md").read_text(encoding="utf-8")
     assert text.startswith("# My rules\n\nBe brief.\n") and text.count(START) == 1
     assert "`guide`" in text and "@<name>/<group>" in text
     stale = text.replace("`guide` lists its topics", "Read the old guide")
-    (project / "AGENTS.md").write_text(stale + "\nMine after.\n")
+    (project / "AGENTS.md").write_text(stale + "\nMine after.\n", encoding="utf-8")
     lines = call("setup", {"instructions": True, "yes": True}, ctx)["lines"]
-    again = (project / "AGENTS.md").read_text()
+    again = (project / "AGENTS.md").read_text(encoding="utf-8")
     assert any("updated" in line for line in lines)
     assert again.count(START) == 1 and again.endswith("Mine after.\n")
     assert "`guide` lists its topics; read the one you" in again
@@ -493,7 +493,7 @@ def test_mcp_install_instructions_go_to_the_clients_file(
 
     lines = call("mcp install", {"client": "gemini", "instructions": True}, ctx)["lines"]
     assert any("GEMINI.md" in line for line in lines)
-    assert (project / "GEMINI.md").read_text().count(START) == 1
+    assert (project / "GEMINI.md").read_text(encoding="utf-8").count(START) == 1
     assert not (project / "AGENTS.md").exists()
     assert (project / ".gemini" / "settings.json").is_file()
 
@@ -518,10 +518,10 @@ def test_init_and_mcp_install_work_without_a_local_log_dir(
 
     init = call("setup", {"instructions": True, "yes": True}, ctx)
     assert any("AGENTS.md" in line for line in init["lines"])
-    assert "@<name>/<group>" in (root / "AGENTS.md").read_text()
+    assert "@<name>/<group>" in (root / "AGENTS.md").read_text(encoding="utf-8")
 
     installed = call("mcp install", {"client": "cursor"}, ctx)
-    config = json.loads((root / ".cursor" / "mcp.json").read_text())
+    config = json.loads((root / ".cursor" / "mcp.json").read_text(encoding="utf-8"))
     assert config["mcpServers"]["beamtime"]["args"] == ["--root", "${workspaceFolder}", "mcp"]
     assert not any("error" in line.lower() for line in installed["lines"])
 
@@ -680,19 +680,19 @@ def hide(run_json: Path, **fields: object) -> None:
 
     :param run_json: The run's ``_run.json``.
     :param fields: Fields to set."""
-    run_json.write_text(json.dumps(json.loads(run_json.read_text()) | {"hidden": True} | fields))
+    run_json.write_text(json.dumps(json.loads(run_json.read_text(encoding="utf-8")) | {"hidden": True} | fields), encoding="utf-8")
 
 
 def test_promote_brings_a_hidden_run_back(ctx: Context, project: Path) -> None:
     """``run promote`` writes a visibility version; the run then shows and the card says so."""
     run_json = next((project / "beamtime" / "scaling" / "lr-sweep").glob("*/_run.json"))
-    run = json.loads(run_json.read_text())["id"]
+    run = json.loads(run_json.read_text(encoding="utf-8"))["id"]
     hide(run_json)
     before = len(call("runs", {"from": "scaling/lr-sweep", "limit": 100}, ctx)["rows"])
     assert call("card", {"run": run}, ctx)["run"]["hidden"] is True
     answer = call("run promote", {"runs": [run], "reason": "checked", "author": "me"}, ctx)
     written = project / "beamtime" / answer["path"]
-    text = written.read_text()
+    text = written.read_text(encoding="utf-8")
     assert "hidden: false" in text and "author: me" in text and "reason: checked" in text
     assert len(call("runs", {"from": "scaling/lr-sweep", "limit": 100}, ctx)["rows"]) == before + 1
     assert call("card", {"run": run}, ctx)["run"]["hidden"] is False
@@ -708,7 +708,7 @@ def test_promote_refuses_group(ctx: Context) -> None:
 def test_promote_visible_run(ctx: Context, project: Path) -> None:
     """A visible run is reported and gets no file."""
     run_json = next((project / "beamtime" / "scaling" / "lr-sweep").glob("*/_run.json"))
-    run = json.loads(run_json.read_text())["id"]
+    run = json.loads(run_json.read_text(encoding="utf-8"))["id"]
     answer = call("run promote", {"runs": [run]}, ctx)
     assert answer["lines"] == [f"{run} is already visible"] and answer["path"] is None
     assert not (run_json.parent / "visibility").exists()
@@ -718,10 +718,10 @@ def test_promote_warns_on_edited_proposal(ctx: Context, project: Path) -> None:
     """A proposal version edited after the hidden run recorded it gives a warning line."""
     group = project / "beamtime" / "scaling" / "lr-sweep"
     run_json = next(group.glob("*/_run.json"))
-    run = json.loads(run_json.read_text())["id"]
+    run = json.loads(run_json.read_text(encoding="utf-8"))["id"]
     hide(run_json)
     version = next((group / "proposal").glob("*.yaml"))
-    version.write_text(version.read_text() + "# edited\n")
+    version.write_text(version.read_text(encoding="utf-8") + "# edited\n", encoding="utf-8")
     answer = call("run promote", {"runs": [run]}, ctx)
     assert any(line.startswith("warning:") and "edited" in line for line in answer["lines"])
 
@@ -735,4 +735,4 @@ def test_status_hints_at_old_hidden_runs(ctx: Context, project: Path) -> None:
     hide(runs[1], created_at=(now - timedelta(days=8)).isoformat())
     answer = call("status", {}, ctx)["hidden"]
     assert answer["count"] == 2 and answer["older"] == 1
-    assert answer["old"] == [json.loads(runs[1].read_text())["id"]]
+    assert answer["old"] == [json.loads(runs[1].read_text(encoding="utf-8"))["id"]]

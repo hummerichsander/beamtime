@@ -43,8 +43,8 @@ def test_shape(made: tuple[Path, int]) -> None:
     for name in data.RECORD:
         assert not list(logdir.rglob(name))
     for r in runs:
-        assert '"proposals": {}' in (r / "_run.json").read_text()
-        assert '"proposal_hashes": {}' in (r / "_run.json").read_text()
+        assert '"proposals": {}' in (r / "_run.json").read_text(encoding="utf-8")
+        assert '"proposal_hashes": {}' in (r / "_run.json").read_text(encoding="utf-8")
 
 
 def test_no_answers_left(made: tuple[Path, int]) -> None:
@@ -52,7 +52,7 @@ def test_no_answers_left(made: tuple[Path, int]) -> None:
     logdir, _ = made
     for path in logdir.rglob("*"):
         if path.is_file():
-            text = path.read_text(errors="replace")
+            text = path.read_text(errors="replace", encoding="utf-8")
             for needle in ("3e-4 gives", "verdict", "unigram beats"):
                 assert needle not in text, f"{needle!r} in {path}"
 

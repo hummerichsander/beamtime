@@ -221,12 +221,12 @@ def ssh_share_changes(host: str, config: Path, label: str) -> list["Change"]:
 
         def append() -> str:
             # read again: an earlier change of the same apply may have appended a block.
-            old = config.read_text() if config.is_file() else ""
+            old = config.read_text(encoding="utf-8") if config.is_file() else ""
             if mark in old.splitlines():
                 return "already there"
             config.parent.mkdir(mode=0o700, exist_ok=True)
             gap = "" if not old or old.endswith("\n\n") else "\n" if old.endswith("\n") else "\n\n"
-            with config.open("a") as f:
+            with config.open("a", encoding="utf-8") as f:
                 f.write(gap + block)
             config.chmod(0o600)
             return "appended"
@@ -252,4 +252,4 @@ def read_lines(path: Path) -> list[str]:
 
     :param path: The file.
     :return: Its lines."""
-    return path.read_text().splitlines() if path.is_file() else []
+    return path.read_text(encoding="utf-8").splitlines() if path.is_file() else []

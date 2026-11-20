@@ -320,7 +320,7 @@ def test_mlflow_duplicate_step(logdir: Path) -> None:
         (1, 0.5, None),
     ]
     d = write_run(logdir, "imported/scaling", dup, {"kind": "mlflow", "path": str(MLRUNS)})
-    lines = (d / c.METRICS).read_text().splitlines()
+    lines = (d / c.METRICS).read_text(encoding="utf-8").splitlines()
     assert [json.loads(line)["loss"] for line in lines] == [2.0, 1.0, 0.5]
 
 
@@ -488,9 +488,9 @@ def test_tb_scalars(tmp_path: Path) -> None:
 def test_tb_hparams(tmp_path: Path) -> None:
     """``hparams.yaml`` beside the events is the config; an unreadable one is no config."""
     write_events(tmp_path / "events.out.tfevents.1", event(1.0, 0, simple("loss", 1.0)))
-    (tmp_path / "hparams.yaml").write_text("lr: 0.001\nlayers: 4\nname: mlp\n")
+    (tmp_path / "hparams.yaml").write_text("lr: 0.001\nlayers: 4\nname: mlp\n", encoding="utf-8")
     assert only(tmp_path).config == {"lr": 0.001, "layers": 4, "name": "mlp"}
-    (tmp_path / "hparams.yaml").write_text("{unclosed")
+    (tmp_path / "hparams.yaml").write_text("{unclosed", encoding="utf-8")
     assert only(tmp_path).config == {}
 
 
@@ -503,7 +503,7 @@ def test_tb_lightning_versions(logdir: Path, tmp_path: Path) -> None:
             start(1700000000.0 + n),
             event(1700000010.0 + n, 0, simple("train_loss", 1.0 + n)),
         )
-        (root / f"version_{n}" / "hparams.yaml").write_text(f"seed: {n}\n")
+        (root / f"version_{n}" / "hparams.yaml").write_text(f"seed: {n}\n", encoding="utf-8")
     assert tb_source.detect(root).n == 2
     found = list(tb_source.runs(root))
     assert [(r.name, r.group, r.config) for r in found] == [
@@ -786,7 +786,7 @@ def beamtime_run(group: Path, run_id: str, proposals: dict[str, str] | None = No
         "proposals": proposals or {},
         "proposal_hashes": dict.fromkeys(proposals or {}, "0123456789abcdef"),
     }
-    (d / c.RUN).write_text(json.dumps(info))
+    (d / c.RUN).write_text(json.dumps(info), encoding="utf-8")
     return d
 
 
@@ -946,7 +946,7 @@ def test_import_library_blocks(tmp_path: Path, home: Path) -> None:
     block.mkdir(parents=True)
     (block / "20260101-000000-b1b1.yaml").write_text(
         "schema: 1\nname: pm\ndescription: d\ncode: code/pm.js\n"
-    )
+    , encoding="utf-8")
     copy_logdir(dest, src, "demo")
     ctx = Context.make(root=dest.parent)
     found = Library(ctx=ctx, path="imported/demo/a").get("pm", "20260101-000000-b1b1")
@@ -960,11 +960,11 @@ def test_import_skips_machine_files_and_trash(tmp_path: Path) -> None:
     beamtime_run(src / "a", "20260101-000000-aaaaaaaa")
     beamtime_run(src / "_trash" / "20260101-000000" / "b", "20260101-000001-bbbbbbbb")
     (src / ".beamtime").mkdir()
-    (src / ".beamtime" / "x").write_text("x")
-    (src / "_moves.jsonl").write_text("")
+    (src / ".beamtime" / "x").write_text("x", encoding="utf-8")
+    (src / "_moves.jsonl").write_text("", encoding="utf-8")
     notes = src / "a" / "notes"
     notes.mkdir()
-    (notes / "20260101-000000-n1n1.md").write_text("---\ntype: observation\n---\nbody\n")
+    (notes / "20260101-000000-n1n1.md").write_text("---\ntype: observation\n---\nbody\n", encoding="utf-8")
     assert copy_logdir(dest, src, "demo") == Copied(runs=1, skipped=0)
     names = {
         p.relative_to(dest / "imported" / "demo").as_posix()
@@ -990,7 +990,7 @@ def test_import_citations_stay_apart(imported_synth: tuple[Context, Context, Pat
     (notes / "20990101-000000-n1n1.md").write_text(
         "---\nschema: 1\ntype: observation\ndescription: native\n---\n"
         "See [[scaling/lr-sweep#converges]].\n"
-    )
+    , encoding="utf-8")
     answer = call("check", {"group": "imported/demo/scaling/lr-sweep"}, project)
     (converges,) = [p for p in answer["predictions"] if p["name"] == "converges"]
     assert converges["cited_by"]
@@ -1007,8 +1007,8 @@ def test_notes_come_in_as_observations_on_the_log_dir(
     :param tmp_path: The test's temporary directory."""
     src = tmp_path / "notes"
     src.mkdir()
-    (src / "a.md").write_text("intro\n\n## Learning rate sweep\n\nlr 3e-4 wins.\n")
-    (src / "b.md").write_text("no heading here\n")
+    (src / "a.md").write_text("intro\n\n## Learning rate sweep\n\nlr 3e-4 wins.\n", encoding="utf-8")
+    (src / "b.md").write_text("no heading here\n", encoding="utf-8")
     (src / "blob.bin").write_bytes(b"\x00\x01\x02")
     ctx = Context.make(root=logdir.parent)
 
@@ -1020,7 +1020,7 @@ def test_notes_come_in_as_observations_on_the_log_dir(
     rows = {n["description"]: n for n in listed["entries"]}
     assert set(rows) == {"Learning rate sweep", "b.md"}
     assert {n["type"] for n in rows.values()} == {"observation"}
-    text = (logdir / done.notes[0]).read_text()
+    text = (logdir / done.notes[0]).read_text(encoding="utf-8")
     assert "lr 3e-4 wins." in text and "author:" in text and "user:" in text
 
 
@@ -1031,6 +1031,6 @@ def test_notes_take_a_single_file(home: Path, logdir: Path, tmp_path: Path) -> N
     :param logdir: The log dir.
     :param tmp_path: The test's temporary directory."""
     f = tmp_path / "NOTES.md"
-    f.write_text("# Journal\n\nfirst\n")
+    f.write_text("# Journal\n\nfirst\n", encoding="utf-8")
     done = notes_source.import_notes(Context.make(root=logdir.parent), [f])
     assert len(done.notes) == 1 and not done.skipped

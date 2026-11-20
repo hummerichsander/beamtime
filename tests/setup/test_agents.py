@@ -35,7 +35,7 @@ def launcher(folder: Path, name: str, *, serve: bool = True) -> Path:
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / name
     word = "" if serve else " (no serve extra)"
-    path.write_text(f'#!/bin/sh\necho "beamtime 0.3.0{word}"\n')
+    path.write_text(f'#!/bin/sh\necho "beamtime 0.3.0{word}"\n', encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
     return path
 
@@ -228,9 +228,9 @@ def test_every_client_registers(uv_project: tuple[Path, PythonEnv], home: Path) 
         assert path.is_file(), client.name
         assert change.where == ("project" if client.shared else "machine")
         if client.name == "codex":
-            assert "[mcp_servers.beamtime]" in path.read_text()
+            assert "[mcp_servers.beamtime]" in path.read_text(encoding="utf-8")
         else:
-            assert "beamtime" in json.loads(path.read_text())[client.key]
+            assert "beamtime" in json.loads(path.read_text(encoding="utf-8"))[client.key]
 
 
 @posix
@@ -241,15 +241,15 @@ def test_entry_shapes(uv_project: tuple[Path, PythonEnv], home: Path) -> None:
     register(client_named("opencode"), root, env, home=home).run()
     register(client_named("cursor"), root, env, home=home).run()
     uv = ["uv", "run", "--project", "."]
-    vscode = json.loads((root / ".vscode" / "mcp.json").read_text())["servers"]["beamtime"]
+    vscode = json.loads((root / ".vscode" / "mcp.json").read_text(encoding="utf-8"))["servers"]["beamtime"]
     assert vscode == {
         "type": "stdio",
         "command": "uv",
         "args": [*uv[1:], "beamtime", "--root", "${workspaceFolder}", "mcp"],
     }
-    opencode = json.loads((root / "opencode.json").read_text())["mcp"]["beamtime"]
+    opencode = json.loads((root / "opencode.json").read_text(encoding="utf-8"))["mcp"]["beamtime"]
     assert opencode == {"type": "local", "command": [*uv, "beamtime", "mcp"], "enabled": True}
-    cursor = json.loads((root / ".cursor" / "mcp.json").read_text())["mcpServers"]["beamtime"]
+    cursor = json.loads((root / ".cursor" / "mcp.json").read_text(encoding="utf-8"))["mcpServers"]["beamtime"]
     assert cursor["args"][-3:] == ["--root", "${workspaceFolder}", "mcp"]
 
 
@@ -259,9 +259,9 @@ def test_mcp_json_merges(uv_project: tuple[Path, PythonEnv], home: Path) -> None
     root, env = uv_project
     (root / ".mcp.json").write_text(
         json.dumps({"mcpServers": {"other": {"command": "x"}}, "keep": 1})
-    )
+    , encoding="utf-8")
     register(client_named("claude-code"), root, env, home=home).run()
-    config = json.loads((root / ".mcp.json").read_text())
+    config = json.loads((root / ".mcp.json").read_text(encoding="utf-8"))
     assert config["keep"] == 1 and config["mcpServers"]["other"] == {"command": "x"}
     assert config["mcpServers"]["beamtime"]["command"] == "uv"
 
@@ -275,11 +275,11 @@ def test_codex_table_replaced(uv_project: tuple[Path, PythonEnv], home: Path) ->
     path.write_text(
         'model = "o3"\n\n[mcp_servers.beamtime]\ncommand = "old"\nargs = []\n\n'
         '[mcp_servers.other]\ncommand = "keep"\n'
-    )
+    , encoding="utf-8")
     codex = client_named("codex")
     for _ in range(2):
         register(codex, root, env, home=home).run()
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     assert text.count("[mcp_servers.beamtime]") == 1 and 'command = "old"' not in text
     assert 'model = "o3"' in text and '[mcp_servers.other]\ncommand = "keep"' in text
     assert f'"--root", "{root}"' in text
@@ -290,7 +290,7 @@ def test_codex_appends_to_a_new_file(uv_project: tuple[Path, PythonEnv], home: P
     """Without a config, Codex's file holds just the table."""
     root, env = uv_project
     register(client_named("codex"), root, env, home=home).run()
-    text = (home / ".codex" / "config.toml").read_text()
+    text = (home / ".codex" / "config.toml").read_text(encoding="utf-8")
     assert text.startswith("[mcp_servers.beamtime]\ncommand = ")
 
 
@@ -302,10 +302,10 @@ def test_bad_client_json(name: str, uv_project: tuple[Path, PythonEnv], home: Pa
     client = client_named(name)
     path = root / client.config if client.shared else home / client.config.removeprefix("~/")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("{ not valid")
+    path.write_text("{ not valid", encoding="utf-8")
     with pytest.raises(ConfigError, match=path.name):
         register(client, root, env, home=home).run()
-    assert path.read_text() == "{ not valid"
+    assert path.read_text(encoding="utf-8") == "{ not valid"
 
 
 @posix
@@ -319,7 +319,7 @@ def test_machine_scope(pip_project: tuple[Path, PythonEnv], home: Path) -> None:
         assert change.where == "machine"
         change.run()
         assert not (root / client.config).exists()
-        data = json.loads(machine_config(client, home).read_text())
+        data = json.loads(machine_config(client, home).read_text(encoding="utf-8"))
         if name == "claude-code":
             data = data["projects"][str(root)]
         entry = data[client.key]["beamtime"]
@@ -332,9 +332,9 @@ def test_machine_scope_keeps_claude_json(pip_project: tuple[Path, PythonEnv], ho
     """Claude Code's local scope sits beside the other projects in ~/.claude.json."""
     root, env = pip_project
     path = home / ".claude.json"
-    path.write_text(json.dumps({"projects": {"/elsewhere": {"x": 1}}, "userID": "u"}))
+    path.write_text(json.dumps({"projects": {"/elsewhere": {"x": 1}}, "userID": "u"}), encoding="utf-8")
     register(client_named("claude-code"), root, env, home=home).run()
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     assert data["projects"]["/elsewhere"] == {"x": 1} and data["userID"] == "u"
 
 
@@ -360,7 +360,7 @@ def test_windsurf_and_codex_name_the_root(uv_project: tuple[Path, PythonEnv], ho
     root, env = uv_project
     register(client_named("windsurf"), root, env, home=home).run()
     path = home / ".codeium" / "windsurf" / "mcp_config.json"
-    args = json.loads(path.read_text())["mcpServers"]["beamtime"]["args"]
+    args = json.loads(path.read_text(encoding="utf-8"))["mcpServers"]["beamtime"]["args"]
     assert args[-3:] == ["--root", str(root), "mcp"]
 
 
@@ -382,11 +382,11 @@ def test_rules_change(tmp_path: Path) -> None:
     """The rules block goes into the client's file, keeps the user's text and reports the release."""
     agent = Settings().agent
     file = tmp_path / "GEMINI.md"
-    file.write_text("# Mine\n")
+    file.write_text("# Mine\n", encoding="utf-8")
     change = rules_change(client_named("gemini"), tmp_path, agent, ["setup"])
     assert change.before is None and change.where == "project" and change.after
     assert change.run() == "added"
-    text = file.read_text()
+    text = file.read_text(encoding="utf-8")
     assert text.startswith("# Mine\n") and text.count(START) == text.count(END) == 1
     again = rules_change(client_named("gemini"), tmp_path, agent, ["setup"])
     assert again.before == again.after and again.run() == "unchanged"
@@ -399,7 +399,7 @@ def test_before_says_registered_only_for_beamtime(
 ) -> None:
     """A config holding only other servers is not "registered"; one with beamtime is."""
     root, env = uv_project
-    (root / ".mcp.json").write_text(json.dumps({"mcpServers": {"other": {"command": "x"}}}))
+    (root / ".mcp.json").write_text(json.dumps({"mcpServers": {"other": {"command": "x"}}}), encoding="utf-8")
     claude = client_named("claude-code")
     change = register(claude, root, env, home=home)
     assert change.before is None

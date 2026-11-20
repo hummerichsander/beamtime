@@ -26,7 +26,7 @@ def task() -> run.Task:
 def test_project_writes_rules(task: run.Task, tmp_path: Path) -> None:
     """The project's CLAUDE.md holds the marked rules block, rendered from its settings."""
     root, _ = run.project(task, tmp_path, None)
-    text = (root / "CLAUDE.md").read_text()
+    text = (root / "CLAUDE.md").read_text(encoding="utf-8")
 
     assert text.startswith(START) and text.rstrip().endswith(END)
     assert "{{" not in text
@@ -37,11 +37,11 @@ def test_guide_override_replaces_block(task: run.Task, tmp_path: Path) -> None:
     """``instructions.md`` of a guide folder replaces the text between the markers."""
     guide = tmp_path / "guide"
     guide.mkdir()
-    (guide / "instructions.md").write_text("Custom rules.\n")
+    (guide / "instructions.md").write_text("Custom rules.\n", encoding="utf-8")
 
     root, _ = run.project(task, tmp_path / "run", guide)
 
-    assert (root / "CLAUDE.md").read_text() == f"{START}\nCustom rules.\n{END}\n"
+    assert (root / "CLAUDE.md").read_text(encoding="utf-8") == f"{START}\nCustom rules.\n{END}\n"
 
 
 def test_summary_counts_rounds_through_tools_more(tmp_path: Path) -> None:
@@ -57,7 +57,7 @@ def test_summary_counts_rounds_through_tools_more(tmp_path: Path) -> None:
         for i, (name, args) in enumerate(uses)
     ]
     transcript = tmp_path / "transcript.jsonl"
-    transcript.write_text("\n".join(json.dumps(e) for e in events))
+    transcript.write_text("\n".join(json.dumps(e) for e in events), encoding="utf-8")
 
     got = run.summary(transcript)
 

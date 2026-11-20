@@ -158,7 +158,7 @@ class Answers(msgspec.Struct, kw_only=True):
             agents=[a.client for a in registered],
             rules=any(a.has_block for a in registered) if registered else True,
             git="none"
-            if ignore.is_file() and BLOCK_HEADS["none"] in ignore.read_text()
+            if ignore.is_file() and BLOCK_HEADS["none"] in ignore.read_text(encoding="utf-8")
             else "record",
         )
 
@@ -498,7 +498,9 @@ class Planner:
         line = f"/{path.relative_to(self.git_root())}" if exclude else None
         linked = path.is_symlink()
         excluded = (
-            exclude is not None and exclude.is_file() and line in exclude.read_text().splitlines()
+            exclude is not None
+            and exclude.is_file()
+            and line in exclude.read_text(encoding="utf-8").splitlines()
         )
         if linked and (exclude is None or excluded):
             return None
@@ -512,9 +514,9 @@ class Planner:
                 os.symlink(target, path, target_is_directory=True)
             if exclude is not None and not excluded:
                 exclude.parent.mkdir(parents=True, exist_ok=True)
-                text = exclude.read_text() if exclude.is_file() else ""
+                text = exclude.read_text(encoding="utf-8") if exclude.is_file() else ""
                 sep = "" if not text or text.endswith("\n") else "\n"
-                exclude.write_text(f"{text}{sep}{line}\n")
+                exclude.write_text(f"{text}{sep}{line}\n", encoding="utf-8")
             return "linked"
 
         after = f"{self.logdir} -> {target}"
@@ -542,7 +544,7 @@ class Planner:
         if not self.inside:
             return None
         path = self.root / ".gitignore"
-        old = path.read_text() if path.is_file() else ""
+        old = path.read_text(encoding="utf-8") if path.is_file() else ""
         text = gitignore_text(old, self.logdir, self.answers.git)
         if text == old:
             return None
@@ -556,7 +558,7 @@ class Planner:
         )
 
         def run() -> str:
-            path.write_text(text)
+            path.write_text(text, encoding="utf-8")
             return "written"
 
         return Change(
@@ -726,7 +728,9 @@ class Planner:
                 and (not updating or "skills" in a.update)
                 and any(
                     not (self.root / ".claude" / "skills" / n / "SKILL.md").is_file()
-                    or (self.root / ".claude" / "skills" / n / "SKILL.md").read_text()
+                    or (self.root / ".claude" / "skills" / n / "SKILL.md").read_text(
+                        encoding="utf-8"
+                    )
                     != skill_text(n)
                     for n in SKILLS
                 )
@@ -950,7 +954,7 @@ class Planner:
         import yaml
 
         try:
-            data = yaml.safe_load(path.read_text())
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
         except yaml.YAMLError:
             return {}
         return data if isinstance(data, dict) else {}

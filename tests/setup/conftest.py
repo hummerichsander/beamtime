@@ -34,11 +34,11 @@ def project_tree(tmp_path: Path) -> Path:
     :return: The project root."""
     root = tmp_path / "project"
     (root / "jobs").mkdir(parents=True)
-    (root / "train.py").write_text("import lightning as L\n")
+    (root / "train.py").write_text("import lightning as L\n", encoding="utf-8")
     (root / "jobs" / "train.sbatch").write_text(
         "#!/bin/bash\n#SBATCH --nodes=1\nrsync -a out/ juwels:results/\n"
-    )
-    (root / "pyproject.toml").write_text("[project]\nname = 'demo'\n[tool.uv]\n")
+    , encoding="utf-8")
+    (root / "pyproject.toml").write_text("[project]\nname = 'demo'\n[tool.uv]\n", encoding="utf-8")
     packages = root / ".venv" / "lib" / "python3.11" / "site-packages"
     for dist in (f"beamtime-{__version__}", "starlette-0.40.0", "uvicorn-0.30.0"):
         (packages / f"{dist}.dist-info").mkdir(parents=True)
@@ -60,7 +60,7 @@ def tools(tmp_path: Path):
         folder = tmp_path / "bin"
         folder.mkdir(exist_ok=True)
         for name in names:
-            (folder / name).write_text("#!/bin/sh\n")
+            (folder / name).write_text("#!/bin/sh\n", encoding="utf-8")
             (folder / name).chmod(0o755)
         return str(folder)
 

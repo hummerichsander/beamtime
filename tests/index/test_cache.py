@@ -51,7 +51,7 @@ def mount_nfs(tmp_path: Path, where: Path) -> None:
 
     :param tmp_path: Pytest's temporary directory.
     :param where: The mount point."""
-    (tmp_path / "mounts").write_text(f"server:/export {where.resolve()} nfs rw 0 0\n")
+    (tmp_path / "mounts").write_text(f"server:/export {where.resolve()} nfs rw 0 0\n", encoding="utf-8")
 
 
 def test_expand_path() -> None:
@@ -141,7 +141,7 @@ def test_serve_with_memory_shares_one_index(clean: Path) -> None:
     run.mkdir(parents=True)
     (run / "_run.json").write_text(
         json.dumps({"schema": 1, "id": run.name, "name": "a", "status": "finished"})
-    )
+    , encoding="utf-8")
     ctx = Context(root=clean.parent, root_reason="--root", settings=configured("memory"), logdir=clean)
     daemon = Daemon(logdir=clean, settings=ctx.settings)
     own = share_memory(ctx, daemon)
@@ -178,7 +178,7 @@ def test_serve_with_memory_is_found_by_via_serve(clean: Path, tmp_path: Path) ->
     try:
         assert daemon.cache == runtime_dir(clean)
         assert daemon_status(daemon.cache)["port"] == server.server_port
-        (daemon.cache / TOKEN_FILE).write_text("secret\n")
+        (daemon.cache / TOKEN_FILE).write_text("secret\n", encoding="utf-8")
         ctx = Context(
             root=tmp_path, root_reason="test", settings=settings, logdir=clean, caller="cli"
         )
@@ -242,7 +242,7 @@ def test_memory_reads_go_through_the_running_serve(clean: Path, tmp_path: Path) 
     daemon = Daemon(logdir=clean, settings=settings, port=server.server_port, poll_s=0.05)
     assert daemon.start()
     try:
-        (daemon.cache / TOKEN_FILE).write_text("secret\n")
+        (daemon.cache / TOKEN_FILE).write_text("secret\n", encoding="utf-8")
         ctx = Context(
             root=tmp_path, root_reason="test", settings=settings, logdir=clean, caller="cli"
         )
@@ -276,7 +276,7 @@ def test_routed_wait_outlasts_its_own_timeout(
 
     monkeypatch.setattr(via_serve.urllib.request, "urlopen", urlopen)
     try:
-        (daemon.cache / TOKEN_FILE).write_text("secret\n")
+        (daemon.cache / TOKEN_FILE).write_text("secret\n", encoding="utf-8")
         ctx = Context(root=tmp_path, root_reason="test", settings=settings, logdir=clean, caller="cli")
         assert via_serve.call(ctx, "wait", {"timeout": 300.0}) is None
         assert timeouts[0] > 300.0
@@ -287,11 +287,11 @@ def test_routed_wait_outlasts_its_own_timeout(
 def test_invalid_cache_setting_is_reported(tmp_path: Path) -> None:
     """A cache that is not a string is ignored with a problem."""
     path = tmp_path / "beamtime.yaml"
-    path.write_text("schema: 1\ncache: [a, b]\n")
+    path.write_text("schema: 1\ncache: [a, b]\n", encoding="utf-8")
     problems: list[str] = []
     assert read_level(path, "project", problems) == {}
     assert "cache" in problems[0]
-    path.write_text("schema: 1\ncache: memory\n")
+    path.write_text("schema: 1\ncache: memory\n", encoding="utf-8")
     assert read_level(path, "project", problems) == {"cache": "memory"}
 
 

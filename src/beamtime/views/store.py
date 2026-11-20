@@ -54,7 +54,7 @@ def read(file: Path, *, source: str) -> m.View:
     import yaml
 
     try:
-        data = yaml.safe_load(file.read_text())
+        data = yaml.safe_load(file.read_text(encoding="utf-8"))
     except yaml.YAMLError as e:
         raise SchemaError(f"{source}: not valid YAML: {e}") from None
     return m.parse(data, source=source)
@@ -68,7 +68,9 @@ def drafts(ctx: Context) -> Path:
     base = ctx.root / ".beamtime"
     if not (ignore := base / ".gitignore").exists():
         base.mkdir(parents=True, exist_ok=True)
-        ignore.write_text("# Beamtime's drafts and renders; not part of the project.\n*\n")
+        ignore.write_text(
+            "# Beamtime's drafts and renders; not part of the project.\n*\n", encoding="utf-8"
+        )
     return base / "drafts"
 
 
@@ -123,7 +125,7 @@ def write_draft_meta(
     meta = {"schema": 1, "group": group, "from": origin, "created": time.time()}
     if blocks:
         meta["blocks"] = blocks
-    (folder / DRAFT_META).write_text(json.dumps(meta) + "\n")
+    (folder / DRAFT_META).write_text(json.dumps(meta) + "\n", encoding="utf-8")
 
 
 def draft_meta(folder: Path) -> dict[str, Any]:
@@ -131,7 +133,7 @@ def draft_meta(folder: Path) -> dict[str, Any]:
 
     :param folder: The draft's folder.
     :return: ``{group, from, created}``, and ``blocks`` for an examples draft."""
-    return json.loads((folder / DRAFT_META).read_text())
+    return json.loads((folder / DRAFT_META).read_text(encoding="utf-8"))
 
 
 def check_name(name: str, *, new: bool = False) -> str:
@@ -277,7 +279,7 @@ def code_text(ctx: Context, ref: dict[str, Any]) -> dict[str, Any]:
         raise OpError(f"no code file {rel!r} (code lives in the log dir or the drafts)", code=4)
     if folder / "code" not in file.parents or file.suffix != ".js" or not file.is_file():
         raise OpError(f"no code file {rel!r} (code files are code/<name>.js)", code=4)
-    return {"kind": "code", "path": rel, "code": file.read_text()}
+    return {"kind": "code", "path": rel, "code": file.read_text(encoding="utf-8")}
 
 
 def declared_of(view: m.View) -> list[dict[str, Any]] | None:

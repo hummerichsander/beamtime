@@ -50,7 +50,7 @@ class Manifest:
         :param path: The ``_manifest.json`` file.
         :return: The manifest."""
         try:
-            d = json.loads(path.read_text())
+            d = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return cls()
         return cls(

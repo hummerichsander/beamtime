@@ -73,7 +73,7 @@ def read_table(path: Path) -> tuple[list[str], list[list[Any]]]:
             # a blank line is no row, as in pandas; editors often leave one at the end.
             rows = [[number_or_text(v) for v in row] for row in body if row]
         case ".json":
-            data = json.loads(path.read_text())
+            data = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(data, dict) and "columns" in data and isinstance(data["columns"], dict):
                 data = data["columns"]
             if isinstance(data, dict) and all(isinstance(v, list) for v in data.values()):

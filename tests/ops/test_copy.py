@@ -99,7 +99,7 @@ def test_copy_updates_proposal_membership(ctx: Context) -> None:
         ctx.logdir, "proj/source", proposals={".": "own-1", "proj/source": source_version}
     )
     (source / c.PROPOSAL / "own-1.yaml").parent.mkdir(exist_ok=True)
-    (source / c.PROPOSAL / "own-1.yaml").write_text("schema: 1\nstatement: own claim\n")
+    (source / c.PROPOSAL / "own-1.yaml").write_text("schema: 1\nstatement: own claim\n", encoding="utf-8")
     answer = call("cp", {"source": source.name, "dest": "proj/dest"}, ctx)
     info = read_run_info(ctx.logdir / answer["path"])
     assert info.proposals["."] == "own-1"
@@ -315,7 +315,7 @@ def test_a_crash_before_the_rename_leaves_nothing_visible_and_gc_removes_it(ctx:
     """A ``cp`` working directory that never got renamed is invisible, and ``gc`` clears it."""
     stray = ctx.logdir / "proj" / f"{TEMP_PREFIX}leftover"
     stray.mkdir(parents=True)
-    (stray / "file.txt").write_text("partial")
+    (stray / "file.txt").write_text("partial", encoding="utf-8")
     found = call("runs", {"from": "proj"}, ctx)
     assert all("leftover" not in row[0] for row in found["rows"])
     preview = call("gc", {}, ctx)
@@ -362,10 +362,10 @@ def test_group_copy_reports_a_name_for_the_destination(ctx: Context) -> None:
 def test_copy_is_no_launch_s_run(ctx: Context) -> None:
     """A copy drops ``key`` and ``job_key``, so resuming its source's key never continues it."""
     source = make_run(ctx.logdir, "proj/a", status="killed")
-    info = json.loads((source / c.RUN).read_text())
+    info = json.loads((source / c.RUN).read_text(encoding="utf-8"))
     write_replaced(source / c.RUN, info | {"key": "k", "job_key": "slurm:1"})
     answer = call("cp", {"source": source.name, "dest": "proj/a"}, ctx)
-    copied = json.loads((ctx.logdir / answer["path"] / c.RUN).read_text())
+    copied = json.loads((ctx.logdir / answer["path"] / c.RUN).read_text(encoding="utf-8"))
     assert "key" not in copied and copied["job_key"] is None
 
 
@@ -416,7 +416,7 @@ def test_resume_warns_about_a_relative_dirpath_in_the_config(ctx: Context) -> No
             {"name": "last.ckpt", "uri": str(work / "ckpt" / "last.ckpt"), "kind": "checkpoint"}
         ],
     )
-    info = json.loads((source / c.RUN).read_text())
+    info = json.loads((source / c.RUN).read_text(encoding="utf-8"))
     write_replaced(source / c.RUN, info | {"cwd": str(work)})
     write_replaced(
         source / c.CONFIG, {"schema": 1, "callbacks": {"checkpoint": {"dirpath": "ckpt"}}}

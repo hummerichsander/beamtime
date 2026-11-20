@@ -43,7 +43,7 @@ def run_id(logdir: Path) -> str:
 
     :param logdir: The log dir.
     :return: The id of the generator's baseline role."""
-    return next(iter(json.loads((logdir / "_synth.json").read_text())["roles"].values()))
+    return next(iter(json.loads((logdir / "_synth.json").read_text(encoding="utf-8"))["roles"].values()))
 
 
 def name_run(index: Index, run_id: str, name: str) -> None:

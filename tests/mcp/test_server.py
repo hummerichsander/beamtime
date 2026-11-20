@@ -290,7 +290,7 @@ def test_mcp_tools_setting_per_project(project: Path, tmp_path: Path) -> None:
     other = tmp_path / "all"
     other.mkdir()
     (other / ".git").mkdir()
-    (other / "beamtime.yaml").write_text("agent: {mcp_tools: all}\n")
+    (other / "beamtime.yaml").write_text("agent: {mcp_tools: all}\n", encoding="utf-8")
 
     async def work(s):
         return [t.name for t in (await s.list_tools()).tools]
@@ -305,7 +305,7 @@ def test_mcp_tools_setting_reaches_instructions_and_prompts(project: Path, tmp_p
     other = tmp_path / "all"
     other.mkdir()
     (other / ".git").mkdir()
-    (other / "beamtime.yaml").write_text("agent: {mcp_tools: all}\n")
+    (other / "beamtime.yaml").write_text("agent: {mcp_tools: all}\n", encoding="utf-8")
 
     async def work(s):
         return (await s.get_prompt("view", {"group": "scaling"})).messages[0].content.text
@@ -399,11 +399,11 @@ def test_record_writes_and_prompts(project: Path) -> None:
     for result in (saved, yaml_text, note, theory, memory, shown):
         assert not result.is_error, result.content[0].text
     path = project / "beamtime" / json.loads(saved.content[0].text)["path"]
-    assert "author: m" in path.read_text()
+    assert "author: m" in path.read_text(encoding="utf-8")
     note_path = project / "beamtime" / json.loads(note.content[0].text)["path"]
-    assert "author: agent" in note_path.read_text()
+    assert "author: agent" in note_path.read_text(encoding="utf-8")
     theory_path = project / "beamtime" / json.loads(theory.content[0].text)["path"]
-    assert "type: theory" in theory_path.read_text()
+    assert "type: theory" in theory_path.read_text(encoding="utf-8")
     assert bad.is_error and "one line" in bad.content[0].text
     assert json.loads(shown.content[0].text)["chain"][-1]["group"] == "agent"
     texts = [p.messages[0].content.text for p in prompts]
@@ -479,7 +479,7 @@ def test_mcp_runs_without_a_registry(
 ) -> None:
     """A runtime base that can't be written costs the record, not the server."""
     blocker = tmp_path / "file"
-    blocker.write_text("")
+    blocker.write_text("", encoding="utf-8")
     monkeypatch.setenv("BEAMTIME_RUNTIME", str(blocker / "rt"))
     monkeypatch.setenv("BEAMTIME_CACHE", str(tmp_path / "cache"))
     errlog = tmp_path / "err.txt"
@@ -488,7 +488,7 @@ def test_mcp_runs_without_a_registry(
         params = StdioServerParameters(
             command=str(BEAMTIME), args=["mcp"], cwd=str(project), env=dict(os.environ)
         )
-        with errlog.open("w") as errfile:
+        with errlog.open("w", encoding="utf-8") as errfile:
             async with stdio_client(params, errlog=errfile) as (read, write):
                 async with ClientSession(read, write) as s:
                     await s.initialize()
@@ -496,7 +496,7 @@ def test_mcp_runs_without_a_registry(
 
     result = anyio.run(main)
     assert not result.is_error
-    assert "not listed in the process registry" in errlog.read_text()
+    assert "not listed in the process registry" in errlog.read_text(encoding="utf-8")
 
 
 def test_mcp_call_survives_a_failed_registry_update(
@@ -511,7 +511,7 @@ def test_mcp_call_survives_a_failed_registry_update(
         params = StdioServerParameters(
             command=str(BEAMTIME), args=["mcp"], cwd=str(project), env=dict(os.environ)
         )
-        with errlog.open("w") as errfile:
+        with errlog.open("w", encoding="utf-8") as errfile:
             async with stdio_client(params, errlog=errfile) as (read, write):
                 async with ClientSession(read, write) as s:
                     await s.initialize()
@@ -520,7 +520,7 @@ def test_mcp_call_survives_a_failed_registry_update(
 
     result = anyio.run(main)
     assert not result.is_error
-    assert "not listed in the process registry" in errlog.read_text()
+    assert "not listed in the process registry" in errlog.read_text(encoding="utf-8")
 
 
 def test_mcp_without_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

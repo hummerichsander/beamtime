@@ -209,7 +209,7 @@ def test_stale_status_ignored(project: Path, start) -> None:
 
     cache = resolve_cache((project / "beamtime").resolve()).path
     cache.mkdir(parents=True, exist_ok=True)
-    (cache / "serve.json").write_text(json.dumps({"pid": 1, "port": 9, "version": "0"}))
+    (cache / "serve.json").write_text(json.dumps({"pid": 1, "port": 9, "version": "0"}), encoding="utf-8")
     assert daemon_status(cache) is None
     start("--no-ui")
     [record] = records("index")
@@ -279,7 +279,7 @@ def test_stdio_registers_as_remote_with_the_ssh_peer(project: Path, start, monke
 def test_stdio_runs_without_a_registry(project: Path, start, monkeypatch, tmp_path: Path) -> None:
     """A runtime base that can't be written costs the record, not the session."""
     blocker = tmp_path / "file"
-    blocker.write_text("")
+    blocker.write_text("", encoding="utf-8")
     monkeypatch.setenv("BEAMTIME_RUNTIME", str(blocker / "rt"))
     proc = start("--stdio", "--logdir", str(project / "beamtime"), stdin=subprocess.PIPE)
     proc.stdin.write('{"id": 1, "op": "hello"}\n')
@@ -412,7 +412,7 @@ def test_shutdown_replies_first(project: Path, start) -> None:
         pytest.skip("the frontend is not built")
     proc = start("--port", "0")
     [record] = records("serve")
-    token = (Path(record["cache"]) / "serve.token").read_text().strip()
+    token = (Path(record["cache"]) / "serve.token").read_text(encoding="utf-8").strip()
     request = Request(
         f"http://127.0.0.1:{record['port']}/api/shutdown",
         data=b"{}", headers={"authorization": f"Bearer {token}"}, method="POST",

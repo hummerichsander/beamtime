@@ -49,10 +49,10 @@ def draft_view(ctx: Context, project: Path, group: str, name: str, nodes: list[d
     :param nodes: Nodes in YAML form."""
     call("view new", {"group": group, "name": name}, ctx)
     file = project / ".beamtime" / "drafts" / name / "view.yaml"
-    data = yaml.safe_load(file.read_text())
+    data = yaml.safe_load(file.read_text(encoding="utf-8"))
     data["finding"] = "x"
     data["body"] = nodes + data["body"]
-    file.write_text(yaml.safe_dump(data))
+    file.write_text(yaml.safe_dump(data), encoding="utf-8")
 
 
 def library_block(ctx: Context, project: Path) -> Path:
@@ -63,11 +63,11 @@ def library_block(ctx: Context, project: Path) -> Path:
     :return: The block draft's folder."""
     call("view new", {"group": SWEEP, "from": "custom", "name": "pm"}, ctx)
     file = project / ".beamtime" / "drafts" / "pm" / "view.yaml"
-    file.write_text(file.read_text().replace("TODO: the result in one sentence.", "x"))
+    file.write_text(file.read_text(encoding="utf-8").replace("TODO: the result in one sentence.", "x"), encoding="utf-8")
     call("view save", {"draft": "pm"}, ctx)
     call("block promote", {"group": SWEEP, "block_id": "phase-map", "name": "phase-map"}, ctx)
     folder = project / ".beamtime" / "drafts" / "blocks" / "phase-map"
-    (folder / "block.yaml").write_text(GENERAL)
+    (folder / "block.yaml").write_text(GENERAL, encoding="utf-8")
     call("block save", {"draft": "phase-map"}, ctx)
     return folder
 
@@ -107,9 +107,9 @@ def test_nearer_blocks_win(ctx: Context, project: Path) -> None:
         (where / "blocks" / "pm").mkdir(parents=True)
         (where / "blocks" / "pm" / "20261030-000000-aaaa.yaml").write_text(
             f"name: pm\ndescription: {desc}\ncode: code/pm.js\n"
-        )
+        , encoding="utf-8")
     (logdir / "blocks" / "line").mkdir()
-    (logdir / "blocks" / "line" / "20261030-000000-aaaa.yaml").write_text("name: line\ncode: x\n")
+    (logdir / "blocks" / "line" / "20261030-000000-aaaa.yaml").write_text("name: line\ncode: x\n", encoding="utf-8")
     assert Library(ctx=ctx, path=SWEEP).get("pm").block.description == "group"
     assert Library(ctx=ctx, path=".").get("pm").block.description == "root"
     assert Library(ctx=ctx, path=SWEEP).names == ["pm"]
@@ -141,11 +141,11 @@ def test_promote_validate_save_and_reuse(ctx: Context, project: Path) -> None:
                                                             "metric.val/acc.max"]  # fmt: skip
     assert "export default" in code_text(ctx, node["props"]["code"])["code"]
     saved = sorted((project / "beamtime" / "scaling" / "view").glob("*.yaml"))[-1]
-    assert yaml.safe_load(saved.read_text())["uses"] == {"phase-map": version}
+    assert yaml.safe_load(saved.read_text(encoding="utf-8"))["uses"] == {"phase-map": version}
 
     # a newer version: the view keeps its pin until it is upgraded.
     code = folder / "code" / "phase-map.js"
-    code.write_text(code.read_text().replace("Stronger color", "A stronger color"))
+    code.write_text(code.read_text(encoding="utf-8").replace("Stronger color", "A stronger color"), encoding="utf-8")
     call("block save", {"draft": "phase-map"}, ctx)
     rows = call("view outdated", {}, ctx)["rows"]
     assert [r[:3] for r in rows] == [["scaling", "phase-map", version]]
@@ -159,7 +159,7 @@ def test_block_checks(ctx: Context, project: Path) -> None:
     """Promoted drafts need a description and examples; hard-coded keys and copies are named."""
     call("view new", {"group": SWEEP, "from": "custom", "name": "pm"}, ctx)
     file = project / ".beamtime" / "drafts" / "pm" / "view.yaml"
-    file.write_text(file.read_text().replace("TODO: the result in one sentence.", "x"))
+    file.write_text(file.read_text(encoding="utf-8").replace("TODO: the result in one sentence.", "x"), encoding="utf-8")
     call("view save", {"draft": "pm"}, ctx)
     with pytest.raises(OpError, match="no custom block 'nope'.*phase-map"):
         call("block promote", {"group": SWEEP, "block_id": "nope", "name": "pm"}, ctx)
@@ -173,18 +173,18 @@ def test_block_checks(ctx: Context, project: Path) -> None:
 
     folder = project / ".beamtime" / "drafts" / "blocks" / "pm"
     (folder / "block.yaml").write_text(GENERAL.replace("name: phase-map", "name: pm")
-                                       .replace("code/phase-map.js", "code/pm.js"))  # fmt: skip
+                                       .replace("code/phase-map.js", "code/pm.js"), encoding="utf-8")  # fmt: skip
     code = folder / "code" / "pm.js"
-    code.write_text(code.read_text() + "\nconst fixed = 'val/acc';\n")
+    code.write_text(code.read_text(encoding="utf-8") + "\nconst fixed = 'val/acc';\n", encoding="utf-8")
     findings = call("block validate", {"draft": "pm", "render": False}, ctx)["findings"]
     assert {"level": "error", "block": "pm", "message": "'val/acc' is hard-coded in the code",
             "fix": "make it a param, or read it from the query's columns"} in findings  # fmt: skip
     with pytest.raises(OpError, match="has errors"):
         call("block save", {"draft": "pm"}, ctx)
-    code.write_text(code.read_text().replace("const fixed = 'val/acc';", ""))
+    code.write_text(code.read_text(encoding="utf-8").replace("const fixed = 'val/acc';", ""), encoding="utf-8")
     call("block save", {"draft": "pm"}, ctx)
     call("block fork", {"name": "pm", "new_name": "pm2"}, ctx)
-    forked = yaml.safe_load((folder.parent / "pm2" / "block.yaml").read_text())
+    forked = yaml.safe_load((folder.parent / "pm2" / "block.yaml").read_text(encoding="utf-8"))
     assert forked["derived_from"].startswith("pm@") and forked["name"] == "pm2"
     findings = call("block validate", {"draft": "pm2", "render": False}, ctx)["findings"]
     assert any(f["message"] == "pm declares the same queries" for f in findings)
@@ -196,7 +196,7 @@ def test_a_missing_block_shows_the_default(ctx: Context, project: Path) -> None:
     """A view naming a block the page can't find falls back to the default, saying why."""
     folder = project / "beamtime" / SWEEP / "view"
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "20261030-100000-abcd.yaml").write_text("schema: 1\nbody: [{phase-mapp: {}}]\n")
+    (folder / "20261030-100000-abcd.yaml").write_text("schema: 1\nbody: [{phase-mapp: {}}]\n", encoding="utf-8")
     shown = page_view(ctx, SWEEP)
     assert shown["source"] == "default" and "no block 'phase-mapp'" in shown["invalid"]
 
@@ -221,7 +221,7 @@ def test_export_and_import_through_git(ctx: Context, project: Path, tmp_path: Pa
     answer = call("block import", {"group": "scaling", "from": f"file://{repo}@v1"}, ctx)
     assert answer["blocks"] == ["phase-map"]
     home = project / "beamtime" / "scaling" / "blocks" / "phase-map"
-    origin = json.loads((home / "_imported.json").read_text())
+    origin = json.loads((home / "_imported.json").read_text(encoding="utf-8"))
     assert origin["ref"] == "v1" and len(origin["commit"]) == 40
     found = Library(ctx=ctx, path=SWEEP).get("phase-map")
     assert found.group == "scaling" and found.version == version_file.rsplit("/", 1)[-1][:-5]
@@ -229,7 +229,7 @@ def test_export_and_import_through_git(ctx: Context, project: Path, tmp_path: Pa
     assert call("block import", {"group": "scaling", "from": str(repo)}, ctx)["lines"][0] == (
         "phase-map: 0 new file(s)"
     )
-    (repo / version_file).write_text((repo / version_file).read_text() + "# edited\n")
+    (repo / version_file).write_text((repo / version_file).read_text(encoding="utf-8") + "# edited\n", encoding="utf-8")
     with pytest.raises(OpError, match="other content"):
         call("block import", {"group": "scaling", "from": str(repo)}, ctx)
     with pytest.raises(OpError, match="no blocks/ folder"):

@@ -78,7 +78,7 @@ class Daemon:
             "started": self.started,
             "heartbeat": time.time(),
         }
-        (self.cache / SERVE_JSON).write_text(json.dumps(status))
+        (self.cache / SERVE_JSON).write_text(json.dumps(status), encoding="utf-8")
 
     def loop(self) -> None:
         """Wait for the log dir, index everything once, then poll for changes until stopped."""

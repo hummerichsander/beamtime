@@ -36,7 +36,7 @@ def rows(run: Path) -> list[dict[str, Any]]:
 
     :param run: The run folder.
     :return: One dict per line of ``_metrics.jsonl``."""
-    return [json.loads(line) for line in (run / "_metrics.jsonl").read_text().splitlines()]
+    return [json.loads(line) for line in (run / "_metrics.jsonl").read_text(encoding="utf-8").splitlines()]
 
 
 def status(run: Path) -> str:
@@ -44,7 +44,7 @@ def status(run: Path) -> str:
 
     :param run: The run folder.
     :return: The status of its card."""
-    return json.loads((run / "_run.json").read_text())["status"]
+    return json.loads((run / "_run.json").read_text(encoding="utf-8"))["status"]
 
 
 def values(run: Path, key: str) -> list[tuple[int, float]]:
@@ -159,13 +159,13 @@ def test_sweep_endings(sweep_runs: list[Path]) -> None:
     for run in failed + killed:
         assert 0.3 * 1000 - 50 <= rows(run)[-1]["_step"] <= 0.9 * 1000
     for run in failed:
-        assert any(e in (run / "_output.log").read_text() for e in wide.ERRORS)
+        assert any(e in (run / "_output.log").read_text(encoding="utf-8") for e in wide.ERRORS)
 
 
 def test_sweep_recipe(sweep_runs: list[Path]) -> None:
     """The finished runs' final val/loss is the recipe plus noise of sd 0.02."""
     residuals = [
-        last_val(r) - wide.expected_loss(json.loads((r / "_config.json").read_text()))
+        last_val(r) - wide.expected_loss(json.loads((r / "_config.json").read_text(encoding="utf-8")))
         for r in sweep_runs
         if status(r) == "finished"
     ]
@@ -297,7 +297,7 @@ def started(run: Path) -> datetime:
 
     :param run: The run folder.
     :return: The time of its card."""
-    text = json.loads((run / "_run.json").read_text())["created_at"]
+    text = json.loads((run / "_run.json").read_text(encoding="utf-8"))["created_at"]
     return datetime.fromisoformat(text)
 
 
@@ -306,7 +306,7 @@ def ended(run: Path) -> datetime:
 
     :param run: The run folder.
     :return: The time of its card."""
-    return datetime.fromisoformat(json.loads((run / "_run.json").read_text())["ended_at"])
+    return datetime.fromisoformat(json.loads((run / "_run.json").read_text(encoding="utf-8"))["ended_at"])
 
 
 def seed_of(run: Path) -> int:
@@ -314,7 +314,7 @@ def seed_of(run: Path) -> int:
 
     :param run: The run folder.
     :return: Its ``config.seed``."""
-    return json.loads((run / "_config.json").read_text())["seed"]
+    return json.loads((run / "_config.json").read_text(encoding="utf-8"))["seed"]
 
 
 @pytest.fixture
@@ -346,12 +346,12 @@ def test_study_runs(study: Path) -> None:
     """Eighteen runs, three optimizers by seeds 0 to 5, all record the one proposal version."""
     (proposal,) = (study / "proposal").iterdir()
     runs = sorted(iter_runs(study))
-    cards = [json.loads((r / "_run.json").read_text()) for r in runs]
+    cards = [json.loads((r / "_run.json").read_text(encoding="utf-8")) for r in runs]
 
     assert len(runs) == 18
     assert {
         (c["optimizer"], c["seed"])
-        for c in (json.loads((r / "_config.json").read_text()) for r in runs)
+        for c in (json.loads((r / "_config.json").read_text(encoding="utf-8")) for r in runs)
     } == {(o, s) for o in wide.OPTIMIZERS for s in range(6)}
     assert all(card["proposals"] == {"study/optimizer": proposal.stem} for card in cards)
     assert {status(r) for r in runs} == {"finished"}
@@ -363,7 +363,7 @@ def yaml_predictions(proposal: Path) -> list[dict[str, Any]]:
 
     :param proposal: The proposal file.
     :return: One dict per prediction."""
-    return yaml.safe_load(proposal.read_text())["predictions"]
+    return yaml.safe_load(proposal.read_text(encoding="utf-8"))["predictions"]
 
 
 def test_note_before_second_batch(study: Path) -> None:

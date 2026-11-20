@@ -181,9 +181,9 @@ def make_project(base: Path, home: Path, path: str) -> Scan:
     :return: The scan."""
     root = base / "egnn-md"
     (root / "jobs").mkdir(parents=True)
-    (root / "train.py").write_text("import lightning as L\n")
-    (root / "jobs" / "train.sbatch").write_text("#SBATCH --nodes=1\nrsync -a out/ juwels:r/\n")
-    (root / "pyproject.toml").write_text("[project]\nname = 'egnn'\n[tool.uv]\n")
+    (root / "train.py").write_text("import lightning as L\n", encoding="utf-8")
+    (root / "jobs" / "train.sbatch").write_text("#SBATCH --nodes=1\nrsync -a out/ juwels:r/\n", encoding="utf-8")
+    (root / "pyproject.toml").write_text("[project]\nname = 'egnn'\n[tool.uv]\n", encoding="utf-8")
     (root / ".venv" / "lib" / "python3.12" / "site-packages").mkdir(parents=True)
     for version in ("version_0", "version_1"):
         file = root / "lightning_logs" / version / "events.out.tfevents.1700000000.host"
@@ -191,14 +191,14 @@ def make_project(base: Path, home: Path, path: str) -> Scan:
     for name in ("offline-run-20260105_101500-a1b2c3d4", "offline-run-20260106_080000-e5f6a7b8"):
         (root / "wandb" / name).mkdir(parents=True)
         (root / "wandb" / name / "run.wandb").write_bytes(b"")
-    (root / "NOTES.md").write_text("# Notes\nresults so far\n")
+    (root / "NOTES.md").write_text("# Notes\nresults so far\n", encoding="utf-8")
     (root / "notebook").mkdir()
-    (root / "notebook" / "a.md").write_text("one\n")
-    (root / "notebook" / "b.md").write_text("two\n")
-    (root / "CLAUDE.md").write_text("Keep results in NOTES.md.\n")
+    (root / "notebook" / "a.md").write_text("one\n", encoding="utf-8")
+    (root / "notebook" / "b.md").write_text("two\n", encoding="utf-8")
+    (root / "CLAUDE.md").write_text("Keep results in NOTES.md.\n", encoding="utf-8")
     (root / ".claude").mkdir()
     (home / ".ssh").mkdir(parents=True)
-    (home / ".ssh" / "config").write_text("Host juwels\n  User jdoe\nHost lab-gpu\n")
+    (home / ".ssh" / "config").write_text("Host juwels\n  User jdoe\nHost lab-gpu\n", encoding="utf-8")
     return scan(root, home=home, mounts=Path("/nonexistent"), env={"DISPLAY": ":0", "PATH": path})
 
 
@@ -220,8 +220,8 @@ def beamtime_logdir(tmp_path: Path) -> Path:
     :return: The log dir."""
     other = tmp_path / "egnn-v1"
     (other / "beamtime" / "g" / "r1").mkdir(parents=True)
-    (other / "beamtime.yaml").write_text("logdir: beamtime\n")
-    (other / "beamtime" / "g" / "r1" / "_run.json").write_text("{}")
+    (other / "beamtime.yaml").write_text("logdir: beamtime\n", encoding="utf-8")
+    (other / "beamtime" / "g" / "r1" / "_run.json").write_text("{}", encoding="utf-8")
     return other / "beamtime"
 
 
@@ -439,7 +439,7 @@ def tree(root: Path, home: Path) -> dict[str, str]:
             ):
                 continue
             out[f"{name}/{rel}"] = (
-                p.read_text(errors="replace").replace(str(root), "ROOT").replace(str(home), "HOME")
+                p.read_text(errors="replace", encoding="utf-8").replace(str(root), "ROOT").replace(str(home), "HOME")
             )
     out["runs"] = str(len(list(root.rglob("_run.json"))))
     out["notes"] = str(len(list(root.glob("*/notes/*"))))
@@ -478,7 +478,7 @@ def test_existing_agent_style_is_the_default(tmp_path: Path, home: Path) -> None
     root.mkdir()
     (root / "beamtime.yaml").write_text(
         yaml.safe_dump({"agent": {"style": "hands-on", "seeds": 5, "main_metric": "val/loss"}})
-    )
+    , encoding="utf-8")
     found = scan(root, home=home, mounts=Path("/nonexistent"), env={"DISPLAY": ":0", "PATH": ""})
     answers = Answers.defaults(found)
     fill(found, answers)
@@ -533,7 +533,7 @@ def hands_on(tmp_path: Path, home: Path) -> Scan:
     root.mkdir()
     (root / "beamtime.yaml").write_text(
         yaml.safe_dump({"agent": {"style": "hands-on", "seeds": 5, "main_metric": "val/loss"}})
-    )
+    , encoding="utf-8")
     return scan(root, home=home, mounts=Path("/nonexistent"), env={"DISPLAY": ":0", "PATH": ""})
 
 
@@ -544,7 +544,7 @@ def written_agent(found: Scan, answers: Answers) -> dict:
     :param answers: The answers.
     :return: The ``agent`` mapping in ``beamtime.yaml``."""
     apply(plan(found, answers, which=fake_which))
-    return yaml.safe_load((found.root / "beamtime.yaml").read_text())["agent"]
+    return yaml.safe_load((found.root / "beamtime.yaml").read_text(encoding="utf-8"))["agent"]
 
 
 def same_command(found: Scan, answers: Answers) -> bool:
@@ -613,7 +613,7 @@ def test_typed_subfolder_reads_as_its_log_dir(tmp_path: Path, home: Path) -> Non
     """A typed folder inside another log dir offers that log dir's runs and name, as the review."""
     other = beamtime_logdir(tmp_path)
     (other / "g" / "sub" / "r2").mkdir(parents=True)
-    (other / "g" / "sub" / "r2" / "_run.json").write_text("{}")
+    (other / "g" / "sub" / "r2" / "_run.json").write_text("{}", encoding="utf-8")
     root = tmp_path / "p"
     root.mkdir()
     found = scan(root, home=home, mounts=Path("/nonexistent"), env={"DISPLAY": ":0", "PATH": ""})
@@ -712,15 +712,15 @@ def make_mate(base: Path, home: Path, path: str, env: dict[str, str] | None = No
             "lab-gpu": {"path": "~/egnn-md/beamtime"},
         },
     }
-    (root / "beamtime.yaml").write_text(yaml.safe_dump(team, sort_keys=False))
-    (root / "pyproject.toml").write_text("[project]\nname = 'egnn'\n[tool.uv]\n")
+    (root / "beamtime.yaml").write_text(yaml.safe_dump(team, sort_keys=False), encoding="utf-8")
+    (root / "pyproject.toml").write_text("[project]\nname = 'egnn'\n[tool.uv]\n", encoding="utf-8")
     (root / ".venv" / "lib" / "python3.12" / "site-packages").mkdir(parents=True)
-    (root / ".mcp.json").write_text('{"mcpServers": {"beamtime": {"command": "uv"}}}')
-    (root / ".gitignore").write_text(gitignore_text("", "beamtime", "record"))
+    (root / ".mcp.json").write_text('{"mcpServers": {"beamtime": {"command": "uv"}}}', encoding="utf-8")
+    (root / ".gitignore").write_text(gitignore_text("", "beamtime", "record"), encoding="utf-8")
     user_only = sorted(o.name for o in OPS if o.user_only)
     write_block(root / "AGENTS.md", render(resolve_agent({"style": "careful"}), user_only))
     (home / ".ssh").mkdir(parents=True)
-    (home / ".ssh" / "config").write_text("Host juwels\n  User jdoe\n")
+    (home / ".ssh" / "config").write_text("Host juwels\n  User jdoe\n", encoding="utf-8")
     machine = {"DISPLAY": ":0", "PATH": path, **(env or {})}
     return scan(root, home=home, mounts=Path("/nonexistent"), env=machine)
 
@@ -865,7 +865,7 @@ def test_teammate_writes_only_this_machine(mate: Scan, home: Path, monkeypatch) 
         [*MATE_KEYS[:2], (MATE_SSH, DOWN + DOWN + ENTER), *MATE_KEYS[3:], (REVIEW, ENTER)],
     )
     assert done.stuck is None
-    mine = yaml.safe_load((home / ".config" / "beamtime" / "settings.yaml").read_text())
+    mine = yaml.safe_load((home / ".config" / "beamtime" / "settings.yaml").read_text(encoding="utf-8"))
     assert mine["remotes"]["lab-gpu"]["host"] == LAB
     assert mine["remotes"]["juwels"] == {"enabled": False}
     assert (mate.root / ".cursor" / "mcp.json").is_file()
@@ -882,7 +882,7 @@ def test_teammate_for_a_missing_registration_only(tmp_path: Path, home: Path, to
     mine.mkdir(parents=True)
     (mine / "settings.yaml").write_text(
         yaml.safe_dump({"remotes": {"juwels": {"host": "juwels"}, "lab-gpu": {"host": LAB}}})
-    )
+    , encoding="utf-8")
     found = make_mate(tmp_path, home, tools("cursor"))
     assert found.flow == "teammate"
     script = [(MATE_AGENTS, ENTER), (MATE_HOSTS, ENTER), (MATE_SSH, ENTER), (REVIEW, CTRL_C)]
@@ -901,7 +901,7 @@ def test_teammate_keeps_a_team_that_ignores_the_whole_log_dir(
     from beamtime.setup.plan import gitignore_text
 
     found = make_mate(tmp_path, home, tools("cursor"))
-    (found.root / ".gitignore").write_text(gitignore_text("", "beamtime", "none"))
+    (found.root / ".gitignore").write_text(gitignore_text("", "beamtime", "none"), encoding="utf-8")
     done, answers = team(found, [*MATE_KEYS, (REVIEW, CTRL_C)])
     assert answers.git == "none"
     assert ".gitignore" not in [c.label for c in plan(found, answers, which=fake_which)]
@@ -911,7 +911,7 @@ def test_a_team_file_without_log_dir_or_agent_stays_unchanged(tmp_path: Path, ho
     """A beamtime.yaml that names remotes only stays as it is, whatever agents the person picks."""
     found = make_mate(tmp_path, home, tools("cursor"))
     remotes = {"remotes": {"juwels": {"path": "/p"}}}
-    (found.root / "beamtime.yaml").write_text(yaml.safe_dump(remotes))
+    (found.root / "beamtime.yaml").write_text(yaml.safe_dump(remotes), encoding="utf-8")
     answers = Answers.defaults(found)
     answers.agents = ["cursor"]
     assert "beamtime.yaml" not in [c.label for c in plan(found, answers, which=fake_which)]
@@ -932,15 +932,15 @@ def make_cluster(base: Path, home: Path, path: str) -> Scan:
     :return: The scan."""
     root = base / "egnn-md"
     root.mkdir()
-    (root / "beamtime.yaml").write_text("logdir: beamtime\n")
-    (root / ".gitignore").write_text("beamtime/**/_*\n")
+    (root / "beamtime.yaml").write_text("logdir: beamtime\n", encoding="utf-8")
+    (root / ".gitignore").write_text("beamtime/**/_*\n", encoding="utf-8")
     scratch = base / "scratch"
     scratch.mkdir()
     mounts = base / "mounts"
     mounts.write_text(
         f"/dev/sda1 / ext4 rw 0 0\nserver:/h {home.resolve()} nfs4 rw 0 0\n"
         f"gpfs0 {scratch.resolve()} gpfs rw 0 0\n"
-    )
+    , encoding="utf-8")
     env = {**DESK, "PATH": path, "SCRATCH": str(scratch)}
     return scan(root, home=home, mounts=mounts, env=env)
 
@@ -1060,7 +1060,7 @@ def test_cluster_writes_the_link_and_the_cache(cluster: Scan, home: Path, tmp_pa
     assert done.stuck is None
     link = cluster.root / "beamtime"
     assert link.is_symlink() and link.resolve() == (tmp_path / "scratch" / "egnn-md" / "beamtime").resolve()
-    mine = yaml.safe_load((home / ".config" / "beamtime" / "settings.yaml").read_text())
+    mine = yaml.safe_load((home / ".config" / "beamtime" / "settings.yaml").read_text(encoding="utf-8"))
     assert mine["cache"] == "/tmp/{user}/beamtime-cache" and "remotes" not in mine
     assert (cluster.root / "beamtime.yaml").read_bytes() == team_file
     assert "Beamtime is set up on this cluster." in done.output
@@ -1111,11 +1111,11 @@ def upgrade(old: Path, home: Path) -> Scan:
     :return: The scan."""
     (old / "beamtime.yaml").write_text(
         "schema: 1\ncolormap: viridis\nremotes:\n  juwels:\n    path: /p/scratch/egnn/beamtime\n"
-    )
+    , encoding="utf-8")
     (home / ".ssh").mkdir(parents=True)
-    (home / ".ssh" / "config").write_text("Host juwels\n  User jdoe\n")
+    (home / ".ssh" / "config").write_text("Host juwels\n  User jdoe\n", encoding="utf-8")
     (home / ".config" / "beamtime").mkdir(parents=True)
-    (home / ".config" / "beamtime" / "settings.yaml").write_text("remotes:\n  juwels: {}\n")
+    (home / ".config" / "beamtime" / "settings.yaml").write_text("remotes:\n  juwels: {}\n", encoding="utf-8")
     return look(old, home)
 
 
@@ -1242,8 +1242,8 @@ def test_update_writes_and_ends_with_what_changed(
     )
     assert done.stuck is None
     root = upgrade.root
-    assert "colormap" not in (root / "beamtime.yaml").read_text()
-    assert "Written by hand" not in (root / "CLAUDE.md").read_text()
+    assert "colormap" not in (root / "beamtime.yaml").read_text(encoding="utf-8")
+    assert "Written by hand" not in (root / "CLAUDE.md").read_text(encoding="utf-8")
     assert (root / "beamtime" / "imported").is_dir() and (root / "runs-old").is_dir()
     out = done.output
     assert "Beamtime 0.3.0 is set up. Nothing in beamtime/ was rewritten." in out
@@ -1313,9 +1313,9 @@ def handover(tmp_path: Path, home: Path, monkeypatch: pytest.MonkeyPatch) -> Sca
     :return: The scan."""
     root = tmp_path / "p"
     root.mkdir()
-    (root / "beamtime.yaml").write_text("logdir: beamtime\n")
-    (root / "NOTES.md").write_text("# Notes\nresults so far\n")
-    (root / "CLAUDE.md").write_text("Keep results in NOTES.md.\n")
+    (root / "beamtime.yaml").write_text("logdir: beamtime\n", encoding="utf-8")
+    (root / "NOTES.md").write_text("# Notes\nresults so far\n", encoding="utf-8")
+    (root / "CLAUDE.md").write_text("Keep results in NOTES.md.\n", encoding="utf-8")
     monkeypatch.chdir(root)
     return scan(root, home=home, mounts=Path("/nonexistent"), env=DESK)
 
@@ -1481,7 +1481,7 @@ def set_up(root: Path, home: Path, path: str, *words: str) -> Scan:
     :return: The scan of the set-up project."""
     env = {"DISPLAY": ":0", "PATH": path}
     (home / ".ssh").mkdir(parents=True, exist_ok=True)
-    (home / ".ssh" / "config").write_text("Host juwels\n  User jdoe\n")
+    (home / ".ssh" / "config").write_text("Host juwels\n  User jdoe\n", encoding="utf-8")
     first = scan(root, home=home, mounts=Path("/nonexistent"), env=env)
     answers = Answers.from_params(parse(["setup", "--yes", *words]), first)
     apply(plan(first, answers, which=fake_which), lambda text: None)
@@ -1507,8 +1507,8 @@ def edit_agent(scan_: Scan, style: str) -> Scan:
     :param style: The new style.
     :return: The scan after the edit."""
     file = scan_.root / "beamtime.yaml"
-    given = yaml.safe_load(file.read_text())
-    file.write_text(yaml.safe_dump({**given, "agent": {"style": style}}))
+    given = yaml.safe_load(file.read_text(encoding="utf-8"))
+    file.write_text(yaml.safe_dump({**given, "agent": {"style": style}}), encoding="utf-8")
     return dataclasses.replace(scan_, project=scan(scan_.root, home=scan_.home).project)
 
 
@@ -1554,9 +1554,9 @@ def test_saved_after_the_agent_settings_changed(current: Scan) -> None:
 def test_saved_skip_remote(current: Scan, home: Path) -> None:
     """A remote this machine switched off stays off."""
     file = home / ".config" / "beamtime" / "settings.yaml"
-    mine = yaml.safe_load(file.read_text())
+    mine = yaml.safe_load(file.read_text(encoding="utf-8"))
     mine["remotes"]["juwels"]["enabled"] = False
-    file.write_text(yaml.safe_dump(mine))
+    file.write_text(yaml.safe_dump(mine), encoding="utf-8")
     saved = Answers.saved(current)
     assert saved.remotes == [] and saved.skip_remotes == ["juwels"]
     assert plan(current, saved, which=fake_which) == []
@@ -1697,10 +1697,10 @@ def test_setup_without_a_terminal_rewrites_the_edited_rules_only_on_request(
 def test_saved_remote_without_a_host(current: Scan, home: Path) -> None:
     """A remote whose settings name no host (ssh then uses its name) is left as it is."""
     file = home / ".config" / "beamtime" / "settings.yaml"
-    mine = yaml.safe_load(file.read_text())
+    mine = yaml.safe_load(file.read_text(encoding="utf-8"))
     del mine["remotes"]["juwels"]["host"]
     mine["remotes"]["juwels"]["command"] = "beamtime"
-    file.write_text(yaml.safe_dump(mine))
+    file.write_text(yaml.safe_dump(mine), encoding="utf-8")
     assert plan(current, Answers.saved(current), which=fake_which) == []
 
 

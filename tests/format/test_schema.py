@@ -39,6 +39,6 @@ def test_card_without_schema(tmp_path: Path) -> None:
 def test_markdown_without_frontmatter(tmp_path: Path) -> None:
     """Notes need frontmatter."""
     p = tmp_path / "20261025-170200-m4p7.md"
-    p.write_text("# just markdown\n")
+    p.write_text("# just markdown\n", encoding="utf-8")
     with pytest.raises(SchemaError, match="frontmatter"):
         read_markdown_doc(p, kind="note")

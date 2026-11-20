@@ -63,7 +63,7 @@ def network_fs(path: Path) -> str | None:
     :param path: The folder (it may not exist yet).
     :return: The filesystem type if it is one, else ``None``."""
     try:
-        mounts = MOUNTS.read_text().splitlines()
+        mounts = MOUNTS.read_text(encoding="utf-8").splitlines()
     except OSError:
         return None
     target = str(path.resolve())
@@ -272,6 +272,6 @@ def daemon_status(cache: Path) -> dict[str, Any] | None:
     if not FileLock(path=cache / SERVE_LOCK).held_elsewhere():
         return None
     try:
-        return json.loads((cache / SERVE_JSON).read_text())
+        return json.loads((cache / SERVE_JSON).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}

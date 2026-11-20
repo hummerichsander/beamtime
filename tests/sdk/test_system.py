@@ -31,8 +31,8 @@ def rows(logdir: Path) -> tuple[dict, list[dict]]:
     :param logdir: The log dir.
     :return: The run info and the rows."""
     run_dir = next((logdir / "sys").iterdir())
-    info = json.loads((run_dir / "_run.json").read_text())
-    lines = (run_dir / "_metrics.jsonl").read_text().splitlines()
+    info = json.loads((run_dir / "_run.json").read_text(encoding="utf-8"))
+    lines = (run_dir / "_metrics.jsonl").read_text(encoding="utf-8").splitlines()
     return info, [json.loads(line) for line in lines]
 
 
@@ -45,7 +45,7 @@ def fake_gpu(tmp_path: Path) -> dict[str, str]:
 
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    (bin_dir / "nvidia-smi").write_text(FAKE_SMI)
+    (bin_dir / "nvidia-smi").write_text(FAKE_SMI, encoding="utf-8")
     (bin_dir / "nvidia-smi").chmod(0o755)
     return {"PATH": f"{bin_dir}:{os.environ['PATH']}"}
 

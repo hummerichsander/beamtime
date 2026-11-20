@@ -31,7 +31,7 @@ def test_full_run(script: Script, logdir: Path, tmp_path: Path) -> None:
     """A run records metrics, data, config, events, artifacts, proposals and output."""
     group = logdir / "scaling" / "proposal"
     group.mkdir(parents=True)
-    (group / "20261020-140000-q7w3.yaml").write_text("schema: 1\nstatement: g\n")
+    (group / "20261020-140000-q7w3.yaml").write_text("schema: 1\nstatement: g\n", encoding="utf-8")
     (tmp_path / "small.ckpt").write_bytes(b"ckpt")
     proc = script(
         """
@@ -104,7 +104,7 @@ def test_full_run(script: Script, logdir: Path, tmp_path: Path) -> None:
     copied, referenced = read_artifacts(run)
     assert copied.path == "artifacts/small.ckpt" and (run / copied.path).exists()
     assert referenced.uri == str((tmp_path / "small.ckpt").resolve())
-    assert (run / "_env" / "packages.txt").read_text()
+    assert (run / "_env" / "packages.txt").read_text(encoding="utf-8")
 
     log = read_output(run)
     for text in ("hello stdout", "hello stderr", "raw fd write", "from child"):
@@ -420,7 +420,7 @@ def test_broken_run_json_does_not_stop_resolution(script: Script, logdir: Path) 
     """A damaged ``_run.json`` next to the group doesn't keep a new run from starting."""
     garbage = logdir / "toy" / "garbage"
     garbage.mkdir(parents=True)
-    (garbage / "_run.json").write_text("{not json")
+    (garbage / "_run.json").write_text("{not json", encoding="utf-8")
     proc = script(
         'import beamtime\nr = beamtime.init(dir="toy", key="k")\nr.finish()\nprint(r.id)\n'
     )
@@ -503,8 +503,8 @@ def test_a_found_run_that_cannot_continue_starts_a_new_run(script: Script, logdi
         'r.end("killed", exit={"signal": "SIGTERM"})\nprint(r.id)\n'
     )
     old = only_run(logdir)
-    info = json.loads((old / "_run.json").read_text())
-    (old / "_run.json").write_text(json.dumps(info | {"schema": 99}))
+    info = json.loads((old / "_run.json").read_text(encoding="utf-8"))
+    (old / "_run.json").write_text(json.dumps(info | {"schema": 99}), encoding="utf-8")
     proc = script('import beamtime\nr = beamtime.init(key="k")\nr.finish()\nprint(r.id)\n')
     assert proc.returncode == 0, proc.stderr.decode()
     new_id = proc.stdout.decode().strip()
@@ -539,7 +539,7 @@ def test_rank_finds_a_continued_run_by_its_heartbeat(tmp_path: Path) -> None:
     run_dir = tmp_path / "20260101-000000-aaaaaaaa"
     run_dir.mkdir()
     info = {"id": run_dir.name, "job_key": "slurm:9", "status": "running"}
-    (run_dir / "_run.json").write_text(json.dumps(info | {"created_at": "2026-01-01T00:00:00Z"}))
+    (run_dir / "_run.json").write_text(json.dumps(info | {"created_at": "2026-01-01T00:00:00Z"}), encoding="utf-8")
     assert find_by_job_key(tmp_path, "slurm:9") == run_dir
 
 
@@ -578,7 +578,7 @@ def test_rank_finds_run_by_job_key(script: Script, logdir: Path, tmp_path: Path)
     worker.write_text(
         "import time, beamtime\nr = beamtime.init(dir='job')\n"
         "time.sleep(2.5)\nprint('worker output')\nr.finish()\n"
-    )
+    , encoding="utf-8")
     environ = {k: v for k, v in os.environ.items() if not k.startswith("BEAMTIME_")}
     rank1 = subprocess.Popen(
         [sys.executable, str(worker)], env=environ | env | {"SLURM_PROCID": "1"}

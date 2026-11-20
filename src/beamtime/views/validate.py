@@ -378,7 +378,7 @@ def custom_checks(
             level="error", **at, message=f"no code file {n.code!r}", fix=f"put it in {data_dir}"
         )
         return [*out, missing]
-    text = file.read_text()
+    text = file.read_text(encoding="utf-8")
     for message, fix in code.problems(text):
         out.append(Finding(level="error", **at, message=f"{n.code}: {message}", fix=fix))
     for message, fix in code.lints(text):

@@ -138,7 +138,7 @@ def listed() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         if not lock.path.exists():
             continue
         try:
-            record = json.loads(path.read_text())
+            record = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         if not isinstance(record, dict):

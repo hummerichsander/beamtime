@@ -33,11 +33,11 @@ def test_export_folders_are_new_or_earlier_exports(tmp_path: Path) -> None:
     """An export never writes into a folder holding something else."""
     folder_for(tmp_path / "new")
     (tmp_path / "used").mkdir()
-    (tmp_path / "used" / "notes.txt").write_text("mine")
+    (tmp_path / "used" / "notes.txt").write_text("mine", encoding="utf-8")
     with pytest.raises(OpError, match="isn't empty"):
         folder_for(tmp_path / "used")
     (tmp_path / "old").mkdir()
-    (tmp_path / "old" / "_export.json").write_text("{}")
+    (tmp_path / "old" / "_export.json").write_text("{}", encoding="utf-8")
     folder_for(tmp_path / "old")
 
 
@@ -80,9 +80,9 @@ def custom_view(ctx: Context, project: Path) -> None:
     :param project: The project root."""
     call("view new", {"group": SWEEP, "from": "custom", "name": "pm"}, ctx)
     file = project / ".beamtime" / "drafts" / "pm" / "view.yaml"
-    data = yaml.safe_load(file.read_text())
+    data = yaml.safe_load(file.read_text(encoding="utf-8"))
     data["finding"] = "lr 3e-4 is best."
-    file.write_text(yaml.safe_dump(data, sort_keys=False))
+    file.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     call("view save", {"draft": "pm"}, ctx)
 
 
@@ -93,9 +93,9 @@ def test_an_export_opens_from_disk(chromium, ctx: Context, project: Path, tmp_pa
     out = tmp_path / "out"
     answer = call("export", {"group": SWEEP, "html": str(out)}, ctx)
     assert answer["answers"] > 5 and (out / "index.html").is_file()
-    assert "preact" in (out / "static" / "THIRD_PARTY_LICENSES.txt").read_text()
+    assert "preact" in (out / "static" / "THIRD_PARTY_LICENSES.txt").read_text(encoding="utf-8")
     # inlined: a file opened from disk has no server to ask for /static/favicon.svg.
-    assert 'data:image/svg+xml;base64,' in (out / "index.html").read_text()
+    assert 'data:image/svg+xml;base64,' in (out / "index.html").read_text(encoding="utf-8")
     logged = call("data", {"from": SWEEP, "key": "samples"}, ctx)
     run, last = logged["entries"][0]["run"], logged["meta"]["steps"][-1]
     images = tmp_path / "run"
@@ -140,7 +140,7 @@ def test_figures_at_paper_size(chromium, ctx: Context, tmp_path: Path) -> None:
     assert png.is_file()
     width = int.from_bytes(png.read_bytes()[16:20], "big")
     assert width == round(3.3 * 96) * 4
-    assert (out / "line-val-acc.csv").read_text().startswith("x,")
+    assert (out / "line-val-acc.csv").read_text(encoding="utf-8").startswith("x,")
     pytest.importorskip("matplotlib")
     pytest.importorskip("scienceplots")
     assert (out / "line-val-acc.pdf").read_bytes().startswith(b"%PDF")
@@ -165,11 +165,11 @@ def test_a_figure_exports_its_drawing(chromium, ctx: Context, project: Path, tmp
     draft = project / ".beamtime" / "drafts" / "fig"
     block = {"id": "drawing", "title": "Drawing", "code": "code/drawing.js", "queries": {}}
     view = {"schema": 1, "title": "fig", "finding": "x", "body": [{"custom": block}]}
-    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
     (draft / "code").mkdir(exist_ok=True)
-    (draft / "code" / "drawing.js").write_text(FIGURE)
+    (draft / "code" / "drawing.js").write_text(FIGURE, encoding="utf-8")
     call("view save", {"draft": "fig"}, ctx)
     out = tmp_path / "figs"
     call("export", {"group": SWEEP, "figures": str(out)}, ctx)
-    svg = (out / "drawing.svg").read_text()
+    svg = (out / "drawing.svg").read_text(encoding="utf-8")
     assert 'class="curve"' in svg and "lucide" not in svg, svg[:300]

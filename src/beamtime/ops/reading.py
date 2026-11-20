@@ -775,7 +775,7 @@ def export(ctx: Context, answer: dict[str, Any], to: str, x: str = "_step") -> d
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.suffix == ".json":
         kept = {k: v for k, v in budget.envelope_only(answer).items() if k != "meta"}
-        path.write_text(json.dumps(kept, default=str))
+        path.write_text(json.dumps(kept, default=str), encoding="utf-8")
         n = len(answer.get("rows") or answer.get("curves") or [])
         if "columns" in kept:
             header, first = kept["columns"], (kept["rows"] or [None])[0]
@@ -792,7 +792,7 @@ def export(ctx: Context, answer: dict[str, Any], to: str, x: str = "_step") -> d
             header, first = [], None
     else:
         header, rows = table_of(answer, x)
-        with path.open("w", newline="") as f:
+        with path.open("w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(header)
             writer.writerows(rows)
@@ -1199,7 +1199,7 @@ def snapshots(ctx: Context) -> list[dict[str, Any]]:
     out = []
     for record in sorted(snapshots_dir(ctx).glob(f"*/{SNAPSHOT}")):
         try:
-            data = json.loads(record.read_text())
+            data = json.loads(record.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         out.append({"name": f"@{data['source']}", "groups": data["groups"], "at": data["at"]})

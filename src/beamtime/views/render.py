@@ -129,7 +129,9 @@ def rendered(
                 findings.append(error(f"the page didn't finish rendering within {TIME_LIMIT_S} s"))
             out["seconds"] = round(time.monotonic() - started, 2)
             out["rendered"] = True
-            findings += page.evaluate(files(__package__).joinpath("checks.js").read_text())
+            findings += page.evaluate(
+                files(__package__).joinpath("checks.js").read_text(encoding="utf-8")
+            )
             if shoot is not None:
                 out["shots"], cut = shoot(page)
                 if cut is not None:

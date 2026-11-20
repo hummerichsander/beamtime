@@ -58,7 +58,7 @@ def call(ctx: Context, tool: str, params: dict[str, Any]) -> dict[str, Any] | No
     if not status.get("port"):
         return None
     try:
-        token = (cache / TOKEN_FILE).read_text().strip()
+        token = (cache / TOKEN_FILE).read_text(encoding="utf-8").strip()
     except OSError:
         return None
     request = urllib.request.Request(

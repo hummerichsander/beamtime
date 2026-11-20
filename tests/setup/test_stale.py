@@ -38,7 +38,7 @@ def fake_program(folder: Path, name: str, *, output: str = "") -> Path:
     :return: The file."""
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / name
-    path.write_text(f"#!/bin/sh\necho '{output or f'beamtime {__version__}'}'\n")
+    path.write_text(f"#!/bin/sh\necho '{output or f'beamtime {__version__}'}'\n", encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
     return path
 
@@ -48,7 +48,7 @@ def old_rules(name: str) -> str:
 
     :param name: The history file, e.g. ``0.1.0.md``.
     :return: The block's text."""
-    text = (files("beamtime.guide") / "rules" / "history" / name).read_text()
+    text = (files("beamtime.guide") / "rules" / "history" / name).read_text(encoding="utf-8")
     return re.sub(r"\{\{\w+\}\}", "x", text).strip()
 
 
@@ -79,18 +79,18 @@ def old(project_tree: Path, home: Path, bin: Path) -> Path:
     packages = root / ".venv" / "lib" / "python3.11" / "site-packages"
     shutil.rmtree(packages / f"beamtime-{__version__}.dist-info")
     (packages / "beamtime-0.1.1.dist-info").mkdir()
-    (root / "beamtime.yaml").write_text("schema: 1\ncolormap: viridis\n")
+    (root / "beamtime.yaml").write_text("schema: 1\ncolormap: viridis\n", encoding="utf-8")
     (root / "beamtime").mkdir()
     write_block(root / "CLAUDE.md", old_rules("0.1.0.md"))
     skill = root / ".claude" / "skills" / "beamtime-views" / "SKILL.md"
     skill.parent.mkdir(parents=True)
-    skill.write_text("old\n")
+    skill.write_text("old\n", encoding="utf-8")
     (root / ".mcp.json").write_text(
         json.dumps({"mcpServers": {"beamtime": {"command": "/gone/bin/beamtime", "args": ["mcp"]}}})
-    )
+    , encoding="utf-8")
     for name in ("r-1", "r-2"):
         (root / "runs-old" / name).mkdir(parents=True)
-        (root / "runs-old" / name / "_run.json").write_text(json.dumps({"schema": 1, "id": name}))
+        (root / "runs-old" / name / "_run.json").write_text(json.dumps({"schema": 1, "id": name}), encoding="utf-8")
     return root
 
 
@@ -130,7 +130,7 @@ def test_0_2_0_setup_names_its_release(old: Path, home: Path) -> None:
     write_block(old / "CLAUDE.md", old_rules("0.2.0.md"))
     (old / ".mcp.json").unlink()
     shutil.rmtree(old / ".claude")
-    (old / "beamtime.yaml").write_text("schema: 1\n")
+    (old / "beamtime.yaml").write_text("schema: 1\n", encoding="utf-8")
     shutil.rmtree(old / "runs-old")
     packages = old / ".venv" / "lib" / "python3.11" / "site-packages"
     shutil.rmtree(packages / "beamtime-0.1.1.dist-info")
@@ -146,7 +146,7 @@ def test_current_and_rule_less_projects_are_not_stale(old: Path, home: Path) -> 
     (old / ".mcp.json").unlink()
     shutil.rmtree(old / ".claude")
     shutil.rmtree(old / "runs-old")
-    (old / "beamtime.yaml").write_text("schema: 1\n")
+    (old / "beamtime.yaml").write_text("schema: 1\n", encoding="utf-8")
     packages = old / ".venv" / "lib" / "python3.11" / "site-packages"
     shutil.rmtree(packages / "beamtime-0.1.1.dist-info")
     (packages / f"beamtime-{__version__}.dist-info").mkdir()
@@ -171,11 +171,11 @@ def test_edited_block_unticked(old: Path, home: Path) -> None:
 def test_mcp_that_starts_and_is_picked_is_current(old: Path, home: Path, bin: Path) -> None:
     """An entry that starts and equals this release's pick is not stale; one that differs is."""
     entry = {"command": "uv", "args": ["run", "--project", ".", "beamtime", "mcp", "--root", "."]}
-    (old / ".mcp.json").write_text(json.dumps({"mcpServers": {"beamtime": entry}}))
+    (old / ".mcp.json").write_text(json.dumps({"mcpServers": {"beamtime": entry}}), encoding="utf-8")
     assert "mcp" not in [s.item for s in look(old, home).stale]
     other = fake_program(bin, "mine")
     entry = {"command": str(other), "args": ["mcp"]}
-    (old / ".mcp.json").write_text(json.dumps({"mcpServers": {"beamtime": entry}}))
+    (old / ".mcp.json").write_text(json.dumps({"mcpServers": {"beamtime": entry}}), encoding="utf-8")
     mcp = next(s for s in look(old, home).stale if s.item == "mcp")
     assert mcp.before == f"Claude Code: {other} mcp is not what this release picks"
 
@@ -203,10 +203,10 @@ def test_check_exits_3_then_0_after_yes(
 
     main(["--root", str(old), "setup", "--yes"])
     capsys.readouterr()
-    assert START in (old / "CLAUDE.md").read_text() and "0.1.0" not in (old / "CLAUDE.md").read_text()
-    assert "colormap" not in (old / "beamtime.yaml").read_text()
+    assert START in (old / "CLAUDE.md").read_text(encoding="utf-8") and "0.1.0" not in (old / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "colormap" not in (old / "beamtime.yaml").read_text(encoding="utf-8")
     assert (old / "beamtime" / "imported").is_dir()
-    assert json.loads((old / ".mcp.json").read_text())["mcpServers"]["beamtime"]["command"] == "uv"
+    assert json.loads((old / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["beamtime"]["command"] == "uv"
 
     main(["--root", str(old), "setup", "--check"])
     assert capsys.readouterr().out.strip() == "nothing is stale"

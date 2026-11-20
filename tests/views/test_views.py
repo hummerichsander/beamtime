@@ -177,24 +177,24 @@ def test_view_ops_and_the_page(ctx: Context, project: Path) -> None:
     answer = call("view new", {"group": SWEEP, "from": "sweep"}, ctx)
     draft = Path(answer["file"])
     assert draft == project / ".beamtime" / "drafts" / "lr-sweep" / "view.yaml"
-    assert (project / ".beamtime" / ".gitignore").read_text().strip().endswith("*")
+    assert (project / ".beamtime" / ".gitignore").read_text(encoding="utf-8").strip().endswith("*")
     with pytest.raises(OpError, match="exists.*continue it"):
         call("view new", {"group": SWEEP, "from": "sweep"}, ctx)
-    text = draft.read_text()
+    text = draft.read_text(encoding="utf-8")
     assert "metric.val/acc.max" in text and "config.lr" in text
 
     result = call("view validate", {"draft": "lr-sweep", "render": False}, ctx)
     assert result["ok"], result["findings"]
     assert {f["message"] for f in result["findings"]} == {"no finding"}
 
-    draft.write_text(text.replace("metric.val/acc.max", "metric.val/accc.max", 1))
+    draft.write_text(text.replace("metric.val/acc.max", "metric.val/accc.max", 1), encoding="utf-8")
     result = call("view validate", {"draft": "lr-sweep", "render": False}, ctx)
     assert not result["ok"]
     assert any("did you mean" in f["message"].lower() for f in result["findings"])
     with pytest.raises(OpError, match="errors"):
         call("view save", {"draft": "lr-sweep"}, ctx)
 
-    draft.write_text(text.replace("TODO: the result", "lr 3e-4 is best"))
+    draft.write_text(text.replace("TODO: the result", "lr 3e-4 is best"), encoding="utf-8")
     assert page_view(ctx, SWEEP)["source"] == "default"
     saved = call("view save", {"draft": "lr-sweep", "message": "first"}, ctx)
     shown = page_view(ctx, SWEEP)
@@ -220,7 +220,7 @@ def test_broken_version_falls_back(ctx: Context, project: Path) -> None:
     """An invalid view version shows the default with a notice instead of breaking the page."""
     folder = project / "beamtime" / SWEEP / "view"
     folder.mkdir()
-    (folder / "20261027-100000-abcd.yaml").write_text("schema: 1\nbody: [{nope: {}}]\n")
+    (folder / "20261027-100000-abcd.yaml").write_text("schema: 1\nbody: [{nope: {}}]\n", encoding="utf-8")
     shown = page_view(ctx, SWEEP)
     assert shown["source"] == "default" and "no block 'nope'" in shown["invalid"]
     assert shown["view"]["children"][0]["id"] == "invalid-view"
@@ -230,11 +230,11 @@ def test_data_files_are_hashed_on_save(ctx: Context, project: Path) -> None:
     """A draft's data file is stored under its content hash and read through the file query."""
     call("view new", {"group": SWEEP, "from": "sweep", "name": "fit"}, ctx)
     folder = project / ".beamtime" / "drafts" / "fit"
-    (folder / "data" / "fit.csv").write_text("lr,acc\n0.001,0.9\n0.01,0.8\n")
-    data = yaml.safe_load((folder / "view.yaml").read_text())
+    (folder / "data" / "fit.csv").write_text("lr,acc\n0.001,0.9\n0.01,0.8\n", encoding="utf-8")
+    data = yaml.safe_load((folder / "view.yaml").read_text(encoding="utf-8"))
     data["finding"] = "x"
     data["body"].append({"data_table": {"id": "fit", "file": "data/fit.csv"}})
-    (folder / "view.yaml").write_text(yaml.safe_dump(data))
+    (folder / "view.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
     answer = call("file", {"view": SWEEP, "path": "data/fit.csv", "draft": "fit"}, ctx)
     assert answer["rows"] == [[0.001, 0.9], [0.01, 0.8]]
     call("view save", {"draft": "fit"}, ctx)
@@ -257,7 +257,7 @@ def test_view_data_copies_and_describes(ctx: Context, project: Path) -> None:
     call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
     source = project / "external" / "x.csv"
     source.parent.mkdir()
-    source.write_text("a,b\n1,2\n3,4\n5,6\n7,8\n")
+    source.write_text("a,b\n1,2\n3,4\n5,6\n7,8\n", encoding="utf-8")
     answer = call("view data", {"draft": "d", "file": "external/x.csv"}, ctx)
     copy = project / ".beamtime" / "drafts" / "d" / "data" / "x.csv"
     assert copy.read_bytes() == source.read_bytes()
@@ -271,7 +271,7 @@ def test_view_data_copies_and_describes(ctx: Context, project: Path) -> None:
 def test_view_data_quotes_awkward_column_names(ctx: Context, project: Path) -> None:
     """Column names that would break a YAML flow list are quoted in the lines to paste."""
     call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
-    (project / "q.csv").write_text("a: b,#c,[d],e,time (s)\n1,2,3,4,5\n")
+    (project / "q.csv").write_text("a: b,#c,[d],e,time (s)\n1,2,3,4,5\n", encoding="utf-8")
     text = "\n".join(call("view data", {"draft": "d", "file": "q.csv"}, ctx)["lines"])
     flow = '["a: b", "#c", "[d]", e, "time (s)"]'
     assert f"data_table: {{file: data/q.csv, columns: {flow}}}" in text
@@ -281,7 +281,7 @@ def test_view_data_quotes_awkward_column_names(ctx: Context, project: Path) -> N
 def test_view_data_sizes_are_not_rounded_down(ctx: Context, project: Path) -> None:
     """A 16.5 MB file is reported as 16.5 MB, not as 16 MB over a 16 MB limit."""
     call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
-    (project / "big.csv").write_text("a\n" + "1\n" * (33 << 18))
+    (project / "big.csv").write_text("a\n" + "1\n" * (33 << 18), encoding="utf-8")
     with pytest.raises(OpError, match=r"16\.5 MB, over the 16 MB"):
         call("view data", {"draft": "d", "file": "big.csv"}, ctx)
 
@@ -290,7 +290,7 @@ def test_view_data_refuses_outside_files(ctx: Context, project: Path) -> None:
     """A file outside the project is refused with the user's ``cp`` command."""
     call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
     outside = project.parent / "x.csv"
-    outside.write_text("a\n1\n")
+    outside.write_text("a\n1\n", encoding="utf-8")
     for file in ("/etc/hosts", "../x.csv", str(outside), "~/x.csv"):
         with pytest.raises(OpError, match="outside the project"):
             call("view data", {"draft": "d", "file": file}, ctx)
@@ -307,8 +307,8 @@ def test_view_data_names(ctx: Context, project: Path) -> None:
     """The same name with other content is refused naming ``--name``; the same content is a no-op."""
     call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
     one, two = project / "one.csv", project / "two.csv"
-    one.write_text("a\n1\n")
-    two.write_text("a\n2\n")
+    one.write_text("a\n1\n", encoding="utf-8")
+    two.write_text("a\n2\n", encoding="utf-8")
     call("view data", {"draft": "d", "file": "one.csv", "name": "t.csv"}, ctx)
     call("view data", {"draft": "d", "file": "one.csv", "name": "t.csv"}, ctx)
     with pytest.raises(OpError, match="--name"):
@@ -322,11 +322,11 @@ def test_view_data_names(ctx: Context, project: Path) -> None:
 def test_view_data_refuses_other_shapes(ctx: Context, project: Path) -> None:
     """A JSON file that is no table and a ``--name`` with another suffix are usage errors."""
     call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
-    (project / "n.json").write_text("[1, 2, 3]")
+    (project / "n.json").write_text("[1, 2, 3]", encoding="utf-8")
     with pytest.raises(OpError, match="no table") as e:
         call("view data", {"draft": "d", "file": "n.json"}, ctx)
     assert e.value.code == 2
-    (project / "t.csv").write_text("a,b\n1,2\n")
+    (project / "t.csv").write_text("a,b\n1,2\n", encoding="utf-8")
     with pytest.raises(OpError, match="suffix .csv") as e:
         call("view data", {"draft": "d", "file": "t.csv", "name": "t.json"}, ctx)
     assert e.value.code == 2
@@ -344,11 +344,11 @@ def test_view_data_checks_format_and_size(
         call("view data", {"draft": "d", "file": "t.xlsx"}, ctx)
     with pytest.raises(OpError, match="no file nope.csv"):
         call("view data", {"draft": "d", "file": "nope.csv"}, ctx)
-    (project / "semi.csv").write_text("a;b\n1;2\n")
+    (project / "semi.csv").write_text("a;b\n1;2\n", encoding="utf-8")
     with pytest.raises(OpError, match="semicolon|;-separated"):
         call("view data", {"draft": "d", "file": "semi.csv"}, ctx)
     big = project / "big.csv"
-    big.write_text("a\n" + "1\n" * 50)
+    big.write_text("a\n" + "1\n" * 50, encoding="utf-8")
     monkeypatch.setattr("beamtime.query.files.MAX_BYTES", 40)
     with pytest.raises(OpError, match="downsample"):
         call("view data", {"draft": "d", "file": "big.csv"}, ctx)
@@ -362,13 +362,13 @@ def test_view_data_checks_format_and_size(
 def test_view_data_page_reads_the_copy(ctx: Context, project: Path) -> None:
     """The pasted snippet validates and the saved page shows the same table."""
     call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
-    (project / "t.csv").write_text("a,b\n1,2\n3,4\n")
+    (project / "t.csv").write_text("a,b\n1,2\n3,4\n", encoding="utf-8")
     call("view data", {"draft": "d", "file": "t.csv"}, ctx)
     folder = project / ".beamtime" / "drafts" / "d"
-    data = yaml.safe_load((folder / "view.yaml").read_text())
+    data = yaml.safe_load((folder / "view.yaml").read_text(encoding="utf-8"))
     data["finding"] = "x"
     data["body"].append({"data_table": {"id": "t", "file": "data/t.csv", "columns": ["b", "a"]}})
-    (folder / "view.yaml").write_text(yaml.safe_dump(data))
+    (folder / "view.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
     result = call("view validate", {"draft": "d", "render": False}, ctx)
     assert not [f for f in result["findings"] if f["level"] == "error"]
     call("view save", {"draft": "d"}, ctx)
@@ -446,7 +446,7 @@ body:
     call("view new", {"group": SWEEP, "name": "queued"}, ctx)
     draft = project / ".beamtime" / "drafts" / "queued" / "view.yaml"
     for extra, warns in (("expected: [sgd]", False), ("baseline: sgd", True)):
-        draft.write_text(text % extra)
+        draft.write_text(text % extra, encoding="utf-8")
         result = call("view validate", {"draft": "queued", "render": False}, ctx)
         assert result["ok"], result["findings"]
         assert any("no runs in scope" in f["message"] for f in result["findings"]) is warns
@@ -467,7 +467,7 @@ def test_data_example_saves(ctx: Context, project: Path) -> None:
     """The data example saves to a page whose two data references are hashed and answer."""
     call("view new", {"group": SWEEP, "from": "data", "name": "dx"}, ctx)
     file = project / ".beamtime" / "drafts" / "dx" / "view.yaml"
-    file.write_text(file.read_text().replace("TODO: the result in one sentence.", "x"))
+    file.write_text(file.read_text(encoding="utf-8").replace("TODO: the result in one sentence.", "x"), encoding="utf-8")
     call("view save", {"draft": "dx"}, ctx)
     nodes = {n["id"]: n for n in walk(page_view(ctx, SWEEP)["view"])}
     refs = [
@@ -492,7 +492,7 @@ def test_a_data_file_that_is_still_the_examples_gets_a_warning(ctx: Context, pro
     found = warned()
     assert {f["id"] for f in found} == {"reference-table", "reference-chart"}
     assert all("view_data dw" in f["fix"] for f in found)
-    file.write_text(file.read_text() + "1,1,mine\n")
+    file.write_text(file.read_text(encoding="utf-8") + "1,1,mine\n", encoding="utf-8")
     assert not warned()
 
 
@@ -547,9 +547,9 @@ def test_header_follows_the_views_lead_metric(ctx: Context) -> None:
     save_page(Context.make(caller="view"), SWEEP, {}, "T", "F")
     folder = ctx.logdir / SWEEP / "view"
     newest = sorted(folder.glob("*.yaml"))[-1]
-    data = yaml.safe_load(newest.read_text())
+    data = yaml.safe_load(newest.read_text(encoding="utf-8"))
     data["metrics"] = {"train/loss": {"higher_is_better": False, "label": "Training loss"}}
-    (folder / "20991231-000000-zzzz.yaml").write_text(yaml.safe_dump(data))
+    (folder / "20991231-000000-zzzz.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
     best = summary_of(ctx, SWEEP)["summary"]
     assert (best["metric"], best["stat"], best["label"]) == ("train/loss", "min", "Training loss")
 
@@ -791,7 +791,7 @@ def test_ui_changes_on_a_broken_view_say_how_to_repair(ctx: Context, project: Pa
 
     folder = project / "beamtime" / SWEEP / "view"
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "20261031-100000-abcd.yaml").write_text("body: [unclosed\n")
+    (folder / "20261031-100000-abcd.yaml").write_text("body: [unclosed\n", encoding="utf-8")
     ui = Context.make(caller="view")
     with pytest.raises(OpError, match="is broken"):
         save_page(ui, SWEEP, {}, "T", "F")
@@ -896,7 +896,7 @@ def test_save_as_view_writes_the_pins(ctx: Context) -> None:
     from beamtime.ops.views import save_page
 
     def newest() -> dict:
-        return yaml.safe_load(sorted((ctx.logdir / SWEEP / "view").glob("*.yaml"))[-1].read_text())
+        return yaml.safe_load(sorted((ctx.logdir / SWEEP / "view").glob("*.yaml"))[-1].read_text(encoding="utf-8"))
 
     ui = Context.make(caller="view")
     pins = [{"y": "train/loss", "higher": False}, {"y": "val/acc", "higher": False}]
@@ -918,12 +918,12 @@ def test_unpinning_everything_keeps_the_labels(ctx: Context, project: Path) -> N
     shown = {"val/acc": {"label": "Accuracy", "unit": "%"}, "train/loss": {"scale": "log"}}
     call("view new", {"group": SWEEP, "from": "sweep", "name": "mine"}, ctx)
     file = project / ".beamtime" / "drafts" / "mine" / "view.yaml"
-    data = yaml.safe_load(file.read_text()) | {"finding": "x", "metrics": shown}
-    file.write_text(yaml.safe_dump(data | {"main_metrics": ["val/acc"]}))
+    data = yaml.safe_load(file.read_text(encoding="utf-8")) | {"finding": "x", "metrics": shown}
+    file.write_text(yaml.safe_dump(data | {"main_metrics": ["val/acc"]}), encoding="utf-8")
     call("view save", {"draft": "mine"}, ctx)
 
     save_page(Context.make(caller="view"), SWEEP, {"main": []}, "T", "F")
-    saved = yaml.safe_load(sorted((ctx.logdir / SWEEP / "view").glob("*.yaml"))[-1].read_text())
+    saved = yaml.safe_load(sorted((ctx.logdir / SWEEP / "view").glob("*.yaml"))[-1].read_text(encoding="utf-8"))
     assert saved["main_metrics"] == [] and saved["metrics"] == shown
 
 
@@ -1037,7 +1037,7 @@ def test_custom_code_lints_warn(ctx: Context, tmp_path: Path, code_text: str, me
     """Each custom-code lint fires as a warning on its own; the code still validates."""
     (tmp_path / "code").mkdir()
     module = "export default function render(root) { " + code_text + " }\n"
-    (tmp_path / "code/c.js").write_text(module)
+    (tmp_path / "code/c.js").write_text(module, encoding="utf-8")
     body = "[{custom: {id: c, code: code/c.js, libs: [d3], queries: {runs: {runs: {select: [run.id]}}}}}]"
     findings = lint(ctx, body, data_dir=tmp_path)
     assert not [f for f in findings if f.level == "error"], findings
@@ -1052,7 +1052,7 @@ def test_chart_frames_and_live_data_pass_the_code_lints() -> None:
 
     figure = "export default function render(root) { bt.useData('runs'); bt.chart.Figure(root, { svg: '<svg/>' }); }"
     assert code.lints(figure) == [] and code.opens_with_heading(figure) is False
-    phase = files("beamtime.guide").joinpath("examples/code/phase-map.js").read_text()
+    phase = files("beamtime.guide").joinpath("examples/code/phase-map.js").read_text(encoding="utf-8")
     assert code.lints(phase) == [] and code.problems(phase) == []
 
 
@@ -1060,10 +1060,10 @@ def test_save_leaves_out_line_settings_at_their_default(ctx: Context, project: P
     """A draft authoring smooth: 0 saves without it, like the web UI; the scale stays explicit."""
     call("view new", {"group": SWEEP, "from": "sweep"}, ctx)
     draft = project / ".beamtime" / "drafts" / "lr-sweep" / "view.yaml"
-    data = yaml.safe_load(draft.read_text())
+    data = yaml.safe_load(draft.read_text(encoding="utf-8"))
     line = next(p for b, p in yaml_walk(data["body"]) if b == "line")
     line.update({"smooth": 0, "scale": "linear", "band": "minmax"})
-    draft.write_text(yaml.safe_dump(data, sort_keys=False))
+    draft.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     call("view save", {"draft": "lr-sweep"}, ctx)
     saved = yaml.safe_load(call("view show", {"group": SWEEP}, ctx)["yaml"])
     props = next(p for b, p in yaml_walk(saved["body"]) if b == "line" and p["id"] == line["id"])
@@ -1091,7 +1091,7 @@ def plain(name: str, text: str = "a,b\n1,2\n") -> Callable[[Path], None]:
     :param name: The file name below ``data/``.
     :param text: Its content.
     :return: The step, called with the draft's folder."""
-    return lambda folder: (folder / "data" / name).write_text(text)
+    return lambda folder: (folder / "data" / name).write_text(text, encoding="utf-8")
 
 
 DATA_FILE_CASES = [
@@ -1173,7 +1173,7 @@ def test_data_file_findings(
     (tmp_path / "code").mkdir()
     (tmp_path / "code/c.js").write_text(
         "export default function render(root) { bt.useData('t'); }\n"
-    )
+    , encoding="utf-8")
     if setup:
         setup(tmp_path)
     body = (
@@ -1209,7 +1209,7 @@ def test_placeholder_file_path_is_left_to_the_query_run(ctx: Context, tmp_path: 
     (tmp_path / "code").mkdir()
     (tmp_path / "code/c.js").write_text(
         "export default function render(root) { bt.useData('t'); }\n"
-    )
+    , encoding="utf-8")
     findings = lint(ctx, CUSTOM_FILE.format(ref="$name"), data_dir=tmp_path, draft="d")
     assert not [f for f in findings if f.level == "error"], findings
 
@@ -1217,7 +1217,7 @@ def test_placeholder_file_path_is_left_to_the_query_run(ctx: Context, tmp_path: 
 def test_view_data_quotes_names_yaml_reads_as_other_types(ctx: Context, project: Path) -> None:
     """Column names YAML would read as numbers, booleans or null stay strings in the lines to paste."""
     call("view new", {"group": SWEEP, "from": "sweep", "name": "d"}, ctx)
-    (project / "y.csv").write_text("x,2020,1e-3,true,null,on\n1,2,3,4,5,6\n")
+    (project / "y.csv").write_text("x,2020,1e-3,true,null,on\n1,2,3,4,5,6\n", encoding="utf-8")
     lines = call("view data", {"draft": "d", "file": "y.csv"}, ctx)["lines"]
     line = next(s for s in lines if s.startswith("data_table:"))
     flow = yaml.safe_load(line)["data_table"]["columns"]
@@ -1242,7 +1242,7 @@ def test_default_view_merges_on_the_groups_seed_key(ctx: Context) -> None:
             card, preview = card_and_preview(rows, status="finished", duration_s=1.0)
             write_replaced(run_dir / c.CARD, card)
             write_replaced(run_dir / c.PREVIEW, preview)
-            (run_dir / c.METRICS).write_text("".join(json.dumps(r) + "\n" for r in rows))
+            (run_dir / c.METRICS).write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     lines = lambda name: [  # noqa: E731
         n for n in m.walk(default_view(ctx, name).body) if isinstance(n, m.Line)
     ]
@@ -1272,7 +1272,7 @@ def make_group(ctx: Context, group: str, configs: list[dict[str, Any]], nested: 
         card, preview = card_and_preview(rows, status="finished", duration_s=1.0)
         write_replaced(run_dir / c.CARD, card)
         write_replaced(run_dir / c.PREVIEW, preview)
-        (run_dir / c.METRICS).write_text("".join(json.dumps(r) + "\n" for r in rows))
+        (run_dir / c.METRICS).write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
 
 
 def charts_of(ctx: Context, group: str) -> list[m.Line]:

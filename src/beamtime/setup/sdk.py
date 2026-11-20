@@ -96,6 +96,6 @@ def install(commands: list[list[str]], root: Path, requirements: Path | None) ->
         subprocess.run(command, cwd=root, check=True)
     if requirements is None:
         return
-    lines = requirements.read_text().splitlines() if requirements.is_file() else []
+    lines = requirements.read_text(encoding="utf-8").splitlines() if requirements.is_file() else []
     if not any(re.match(r"beamtime\b(?![-_.])", line) for line in lines):
-        requirements.write_text("\n".join([*lines, "beamtime"]) + "\n")
+        requirements.write_text("\n".join([*lines, "beamtime"]) + "\n", encoding="utf-8")

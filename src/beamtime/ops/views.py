@@ -98,7 +98,7 @@ def write_draft_files(
     from beamtime.views.validate import inside
 
     (folder / "data").mkdir(parents=True)
-    (folder / store.VIEW_FILE).write_text(text)
+    (folder / store.VIEW_FILE).write_text(text, encoding="utf-8")
     for ref in data_refs(text):
         if inside(folder, ref) and (content := fetch(ref)) is not None:
             write_created(folder / ref, content)
@@ -263,7 +263,7 @@ def current_yaml(
         try:
             view = store.read(files[-1], source=files[-1].name)
         except SchemaError:
-            return files[-1].read_text(), f"version {files[-1].stem} (invalid)"
+            return files[-1].read_text(encoding="utf-8"), f"version {files[-1].stem} (invalid)"
         data = m.to_yaml_form(view)
         # pins stay, so editing a view never upgrades its library blocks unasked.
         for k in ("author", "user", "message"):
@@ -318,7 +318,7 @@ def check(ctx: Context, d: store.Draft) -> tuple[m.View | None, list[dict[str, A
     from beamtime.views.validate import static
 
     try:
-        data = yaml.safe_load(d.file.read_text())
+        data = yaml.safe_load(d.file.read_text(encoding="utf-8"))
     except yaml.YAMLError as e:
         return None, [{"level": "error", "message": f"draft {d.name}: not valid YAML: {e}"}]
     view, findings = static(
@@ -336,7 +336,7 @@ def bundle(ctx: Context, d: store.Draft) -> dict[str, Any]:
     :return: ``{draft, yaml, files, blocks}``; files are base64 by their path in the draft."""
     from beamtime.views.validate import inside
 
-    text = d.file.read_text()
+    text = d.file.read_text(encoding="utf-8")
     refs = [ref for ref in data_refs(text) if inside(d.dir, ref) and (d.dir / ref).is_file()]
     files = packed(d.dir, refs)
     return {"draft": d.name, "yaml": text, "files": files, "blocks": bundle_blocks(ctx, d.blocks)}
@@ -426,7 +426,7 @@ def bundled(ctx: Context, group: str, body: dict[str, Any]) -> Iterator[Context]
             folder = store.drafts(here) / store.check_name(str(body["draft"]))
             unpack(folder, body.get("files") or {})
             (folder / "data").mkdir(exist_ok=True)
-            (folder / store.VIEW_FILE).write_text(str(text))
+            (folder / store.VIEW_FILE).write_text(str(text), encoding="utf-8")
             store.write_draft_meta(folder, group=group, origin="a bundle", blocks=blocks)
         for name, b in (body.get("blocks") or {}).items():
             folder = drafts_dir(here) / store.check_name(blocks[name])
@@ -748,7 +748,7 @@ def show(ctx: Context, p: r.ViewShowParams) -> dict[str, Any]:
     file = files[-1] if p.version is None else store.view_dir(ctx, path) / f"{p.version}.yaml"
     if file not in files:
         raise OpError(f"no view version {p.version!r} in {path}", code=4)
-    text = file.read_text()
+    text = file.read_text(encoding="utf-8")
     return {
         "kind": "view show",
         "group": path,
@@ -772,7 +772,7 @@ def history(ctx: Context, p: r.ViewHistoryParams) -> dict[str, Any]:
     entries = []
     for file in reversed(store.saved(ctx, path)):
         try:
-            data = yaml.safe_load(file.read_text()) or {}
+            data = yaml.safe_load(file.read_text(encoding="utf-8")) or {}
         except yaml.YAMLError:
             data = {}
         entries.append(

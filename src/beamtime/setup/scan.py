@@ -343,7 +343,7 @@ def ignores(top: Path, logdir: Path) -> bool:
     :return: ``True`` for an entry such as ``beamtime/`` or ``/beamtime``."""
     try:
         name = logdir.relative_to(top.resolve()).as_posix()
-        lines = (top / ".gitignore").read_text().splitlines()
+        lines = (top / ".gitignore").read_text(encoding="utf-8").splitlines()
     except (OSError, ValueError):
         return False
     return any(line.strip().strip("/").removesuffix("/**").strip("/") == name for line in lines)
@@ -356,7 +356,7 @@ def read_env(root: Path, env: Mapping[str, str]) -> PythonEnv | None:
     :param env: The environment variables (``CONDA_PREFIX``).
     :return: The environment, or ``None`` when the project has none."""
     pyproject = root / "pyproject.toml"
-    text = pyproject.read_text(errors="replace") if pyproject.is_file() else ""
+    text = pyproject.read_text(errors="replace", encoding="utf-8") if pyproject.is_file() else ""
     venv = next((root / d for d in (".venv", "venv") if (root / d).is_dir()), None)
     conda = env.get("CONDA_PREFIX")
     if (root / "uv.lock").is_file() or "[tool.uv" in text:
@@ -483,7 +483,7 @@ def parse_ssh_config(path: Path, home: Path, hosts: list[SshHost], seen: set[Pat
         return
     seen.add(path)
     try:
-        lines = path.read_text(errors="replace").splitlines()
+        lines = path.read_text(errors="replace", encoding="utf-8").splitlines()
     except OSError:
         return
     names: list[str] = []
@@ -525,7 +525,7 @@ def fs_type(path: Path, mounts: Path) -> str | None:
     :param mounts: A ``/proc/mounts``-style file.
     :return: The type of the deepest mount containing the path, or ``None`` without the file."""
     try:
-        lines = mounts.read_text().splitlines()
+        lines = mounts.read_text(encoding="utf-8").splitlines()
     except OSError:
         return None
     target = str(path.resolve())
@@ -628,7 +628,7 @@ def find_conflicts(root: Path) -> tuple[Conflict, ...]:
     for name in dict.fromkeys(c.rules for c in CLIENTS if c.rules):
         if not (path := root / name).is_file():
             continue
-        text = path.read_text(errors="replace")
+        text = path.read_text(errors="replace", encoding="utf-8")
         block = find_block(text)
         offset = 0
         for number, line in enumerate(text.splitlines(keepends=True), start=1):

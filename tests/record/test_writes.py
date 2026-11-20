@@ -39,7 +39,7 @@ def test_proposal_set_new_folder(ctx: Context) -> None:
     """A proposal can be written before the first run, into a folder that is created."""
     out = call("proposal set", {"group": "warmup/sweep", "proposal": PROPOSAL, "author": "a"}, ctx)
     path = ctx.logdir / out["path"]
-    saved = yaml.safe_load(path.read_text())
+    saved = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert saved["schema"] == 1 and saved["author"] == "a" and saved["user"]
     assert saved["predictions"][0]["name"] == "no-spike"
     shown = call("proposal show", {"group": "warmup/sweep"}, ctx)
@@ -105,7 +105,7 @@ def test_frozen_versions_are_superseded(ctx: Context) -> None:
         {"group": "scaling/lr-sweep", "proposal": new, "reason": "metric renamed"},
         ctx,
     )
-    saved = yaml.safe_load((ctx.logdir / out["path"]).read_text())
+    saved = yaml.safe_load((ctx.logdir / out["path"]).read_text(encoding="utf-8"))
     assert saved["supersedes"] == {"version": before, "reason": "metric renamed"}
     assert not any("has logged" in line for line in out["lines"])
     shown = call("proposal show", {"group": "scaling/lr-sweep"}, ctx)
@@ -132,7 +132,7 @@ def with_words(project: Path, group: str, statement: str, limit: int) -> list[st
     :param statement: The statement.
     :param limit: The project's ``agent.proposal_words``.
     :return: The answer's lines."""
-    (project / "beamtime.yaml").write_text(f"agent: {{proposal_words: {limit}}}\n")
+    (project / "beamtime.yaml").write_text(f"agent: {{proposal_words: {limit}}}\n", encoding="utf-8")
     ctx = Context.make(caller="cli")
     return call("proposal set", {"group": group, "proposal": {"statement": statement}}, ctx)["lines"]
 

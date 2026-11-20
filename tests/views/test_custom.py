@@ -145,13 +145,13 @@ def test_validation_reports_bad_custom_blocks(ctx: Context, project: Path) -> No
     call("view new", {"group": SWEEP, "name": "bad"}, ctx)
     folder = project / ".beamtime" / "drafts" / "bad"
     (folder / "code").mkdir()
-    (folder / "code" / "net.js").write_text(GOOD + "fetch('x');")
+    (folder / "code" / "net.js").write_text(GOOD + "fetch('x');", encoding="utf-8")
     (folder / "view.yaml").write_text("""schema: 1
 finding: x
 body:
   - custom: {id: missing, code: code/none.js}
   - custom: {id: lib, code: code/net.js, libs: [plotly], queries: {q: {plots: {}}}}
-""")
+""", encoding="utf-8")
     findings = call("view validate", {"draft": "bad", "render": False}, ctx)["findings"]
     messages = {(f["id"], f["message"].split(" (")[0]) for f in findings if f["level"] == "error"}
     assert ("missing", "no code file 'code/none.js'") in messages
@@ -194,9 +194,9 @@ def draft_with_file(ctx: Context, project: Path, name: str, text: str = FILE_VIE
     call("view new", {"group": SWEEP, "name": name}, ctx)
     folder = project / ".beamtime" / "drafts" / name
     (folder / "code").mkdir()
-    (folder / "code" / "c.js").write_text(GOOD)
-    (folder / "data" / "fit.csv").write_text("lr,acc\n0.1,0.5\n")
-    (folder / "view.yaml").write_text(text)
+    (folder / "code" / "c.js").write_text(GOOD, encoding="utf-8")
+    (folder / "data" / "fit.csv").write_text("lr,acc\n0.1,0.5\n", encoding="utf-8")
+    (folder / "view.yaml").write_text(text, encoding="utf-8")
     return folder
 
 
@@ -212,8 +212,8 @@ def test_custom_file_query_survives_save(ctx: Context, project: Path) -> None:
     assert ref.startswith("data/") and ref.endswith("-fit.csv")
     assert (ctx.logdir / SWEEP / "view" / ref).is_file()
     saved = list((ctx.logdir / SWEEP / "view").glob("*.yaml"))
-    assert ref in max(saved).read_text()
-    data = yaml.safe_load(max(saved).read_text())
+    assert ref in max(saved).read_text(encoding="utf-8")
+    data = yaml.safe_load(max(saved).read_text(encoding="utf-8"))
     _, findings = static(ctx, SWEEP, data, source="saved")
     assert not [f for f in findings if f.level == "error"], findings
     call("view new", {"group": SWEEP, "name": "fit2"}, ctx)
@@ -226,7 +226,7 @@ def test_shared_data_file_is_stored_once(ctx: Context, project: Path) -> None:
     call("view save", {"draft": "twice"}, ctx)
     stored = list((ctx.logdir / SWEEP / "view" / "data").iterdir())
     assert len(stored) == 1
-    text = max((ctx.logdir / SWEEP / "view").glob("*.yaml")).read_text()
+    text = max((ctx.logdir / SWEEP / "view").glob("*.yaml")).read_text(encoding="utf-8")
     assert text.count(f"data/{stored[0].name}") == 2
 
 
@@ -238,7 +238,7 @@ def test_file_placeholder_is_not_copied(ctx: Context, project: Path) -> None:
     (folder / "data" / "fit.csv").unlink()
     call("view save", {"draft": "ph"}, ctx)
     assert not (ctx.logdir / SWEEP / "view" / "data").exists()
-    assert "path: $name" in max((ctx.logdir / SWEEP / "view").glob("*.yaml")).read_text()
+    assert "path: $name" in max((ctx.logdir / SWEEP / "view").glob("*.yaml")).read_text(encoding="utf-8")
 
 
 def test_file_refs_skip_library_blocks_and_placeholders() -> None:
@@ -262,11 +262,11 @@ def test_file_query_outside_the_draft_is_not_bundled_or_saved(
 ) -> None:
     """A custom file query that leaves the draft is neither packed for a remote nor saved."""
     secret = tmp_path / "secret.csv"
-    secret.write_text("k,v\n1,2\n")
+    secret.write_text("k,v\n1,2\n", encoding="utf-8")
     ref = str(secret) if outside == "ABSOLUTE" else outside
     text = FILE_VIEW.replace("  - data_table: {id: dt, file: data/fit.csv}\n", "")
     folder = draft_with_file(ctx, project, "esc", text.replace("path: data/fit.csv", f"path: {ref}"))
-    (folder.parent / "secret.csv").write_text("k,v\n1,2\n")
+    (folder.parent / "secret.csv").write_text("k,v\n1,2\n", encoding="utf-8")
     assert set(bundle(ctx, store.draft(ctx, "esc"))["files"]) == {"code/c.js"}
     with pytest.raises(OpError):
         call("view save", {"draft": "esc"}, ctx)
@@ -278,9 +278,9 @@ def test_view_new_writes_no_file_outside_the_draft(ctx: Context, project: Path) 
     draft_with_file(ctx, project, "fit")
     call("view save", {"draft": "fit"}, ctx)
     saved = max((ctx.logdir / SWEEP / "view").glob("*.yaml"))
-    (ctx.logdir / SWEEP / "secret.csv").write_text("k,v\n1,2\n")
-    text = re.sub(r"path: data/[^}]*", "path: ../secret.csv", saved.read_text())
+    (ctx.logdir / SWEEP / "secret.csv").write_text("k,v\n1,2\n", encoding="utf-8")
+    text = re.sub(r"path: data/[^}]*", "path: ../secret.csv", saved.read_text(encoding="utf-8"))
     saved.chmod(0o644)
-    saved.write_text(text)
+    saved.write_text(text, encoding="utf-8")
     call("view new", {"group": SWEEP, "name": "fit2"}, ctx)
     assert not (project / ".beamtime" / "drafts" / "secret.csv").exists()

@@ -26,8 +26,8 @@ def logdir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     generate(out, seed=0, now=datetime.now(timezone.utc))
     view = out / "scaling" / "view" / "data"
     view.mkdir(parents=True)
-    (view / "3f9a21c0-fit.csv").write_text("lr,acc\n0.001,0.9\n0.003,0.85\n")
-    (view / "aa11bb22-fit.json").write_text(json.dumps({"columns": {"a": [1, 2]}}))
+    (view / "3f9a21c0-fit.csv").write_text("lr,acc\n0.001,0.9\n0.003,0.85\n", encoding="utf-8")
+    (view / "aa11bb22-fit.json").write_text(json.dumps({"columns": {"a": [1, 2]}}), encoding="utf-8")
     return out
 
 
@@ -37,7 +37,7 @@ def roles(logdir: Path) -> dict[str, str]:
 
     :param logdir: The log dir.
     :return: Role to run id."""
-    return json.loads((logdir / "_synth.json").read_text())["roles"]
+    return json.loads((logdir / "_synth.json").read_text(encoding="utf-8"))["roles"]
 
 
 @pytest.fixture(scope="module")
@@ -221,7 +221,7 @@ def brute_series(logdir: Path, run_id: str, key: str) -> list[tuple[int, float]]
     :param key: The metric key.
     :return: ``(step, value)`` in file order."""
     (path,) = logdir.glob(f"**/{run_id}/_metrics.jsonl")
-    rows = (json.loads(line) for line in path.read_text().splitlines())
+    rows = (json.loads(line) for line in path.read_text(encoding="utf-8").splitlines())
     return [(r["_step"], r[key]) for r in rows if key in r]
 
 
@@ -706,7 +706,7 @@ def test_csv_dialect(tmp_path: Path) -> None:
         ("a,a\n1,2\n", r"'a' twice"),
     ]:
         file = tmp_path / "t.csv"
-        file.write_text(text)
+        file.write_text(text, encoding="utf-8")
         with pytest.raises(QueryError, match=message):
             read_table(file)
 
@@ -714,14 +714,14 @@ def test_csv_dialect(tmp_path: Path) -> None:
 def test_semicolon_inside_quotes(tmp_path: Path) -> None:
     """A quoted header cell containing a semicolon in a comma CSV is fine."""
     file = tmp_path / "t.csv"
-    file.write_text('"a;b",c\n1,2\n')
+    file.write_text('"a;b",c\n1,2\n', encoding="utf-8")
     assert read_table(file) == (["a;b", "c"], [[1, 2]])
 
 
 def test_ragged_csv_row(tmp_path: Path) -> None:
     """A row with the wrong number of cells names its line."""
     file = tmp_path / "t.csv"
-    file.write_text("a,b\n1,2\n3\n")
+    file.write_text("a,b\n1,2\n3\n", encoding="utf-8")
     with pytest.raises(QueryError, match=r"t.csv line 3: 1 cells, the header has 2"):
         read_table(file)
 
@@ -729,7 +729,7 @@ def test_ragged_csv_row(tmp_path: Path) -> None:
 def test_csv_blank_lines(tmp_path: Path) -> None:
     """A blank line, often left at the end by an editor, is no row and no error."""
     file = tmp_path / "t.csv"
-    file.write_text("a,b\n1,2\n\n3,4\n\n")
+    file.write_text("a,b\n1,2\n\n3,4\n\n", encoding="utf-8")
     assert read_table(file) == (["a", "b"], [[1, 2], [3, 4]])
 
 
@@ -1191,10 +1191,10 @@ def hide(tmp_path: Path, fresh_logdir):
     run_dir = next(
         r for r in sorted((logdir / "scaling" / "lr-sweep").iterdir()) if (r / "_run.json").exists()
     )
-    info = json.loads((run_dir / "_run.json").read_text())
-    (run_dir / "_run.json").write_text(json.dumps(info | {"hidden": True}))
-    config = json.loads((run_dir / "_config.json").read_text())
-    (run_dir / "_config.json").write_text(json.dumps(config | {"hidden_only": 1}))
+    info = json.loads((run_dir / "_run.json").read_text(encoding="utf-8"))
+    (run_dir / "_run.json").write_text(json.dumps(info | {"hidden": True}), encoding="utf-8")
+    config = json.loads((run_dir / "_config.json").read_text(encoding="utf-8"))
+    (run_dir / "_config.json").write_text(json.dumps(config | {"hidden_only": 1}), encoding="utf-8")
     index = Index(logdir=logdir, cache=tmp_path / "cache")
     index.catch_up(".", budget_s=float("inf"))
 

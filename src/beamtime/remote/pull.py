@@ -42,7 +42,7 @@ def snapshot_of(ctx: Context, name: str) -> tuple[Path, dict[str, Any]] | None:
     :return: Its log dir copy and record, or ``None`` without one."""
     folder = snapshots_dir(ctx) / name
     try:
-        return folder, json.loads((folder / SNAPSHOT).read_text())
+        return folder, json.loads((folder / SNAPSHOT).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
 
@@ -112,7 +112,7 @@ def pull(ctx: Context, name: str, group: str) -> dict[str, Any]:
         "host": client.spec.host or name,
         "path": client.spec.path,
     }
-    (folder / SNAPSHOT).write_text(json.dumps(info) + "\n")
+    (folder / SNAPSHOT).write_text(json.dumps(info) + "\n", encoding="utf-8")
     lines = [
         f"@{name}:{group} → {folder}",
         f"{copied} copied, {grown} grown, {same} unchanged ({moved / 1e6:.1f} MB)",
@@ -146,7 +146,7 @@ def drop(ctx: Context, name: str, group: str) -> dict[str, Any]:
         shutil.rmtree(folder)
         return {"kind": "pull", "lines": [f"removed the snapshot of @{name}"], "meta": {}}
     shutil.rmtree(folder / group, ignore_errors=True)
-    (folder / SNAPSHOT).write_text(json.dumps(record | {"groups": groups}) + "\n")
+    (folder / SNAPSHOT).write_text(json.dumps(record | {"groups": groups}) + "\n", encoding="utf-8")
     return {"kind": "pull", "lines": [f"removed @{name}:{group} from the snapshot"], "meta": {}}
 
 

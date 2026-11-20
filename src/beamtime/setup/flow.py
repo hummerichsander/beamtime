@@ -271,7 +271,7 @@ def read_lines(path: Path) -> list[str]:
 
     :param path: The file.
     :return: The lines."""
-    return path.read_text().splitlines() if path.is_file() else []
+    return path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
 
 
 def flow_steps(

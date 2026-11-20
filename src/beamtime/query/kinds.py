@@ -578,7 +578,7 @@ def data_entry(run_id: str, run_dir: Path, record: dict[str, Any]) -> dict[str, 
         out["file"] = str(run_dir / path)
         if record.get("kind") == "table" and path.endswith(".json"):
             try:
-                out["columns"] = json.loads((run_dir / path).read_text())["columns"]
+                out["columns"] = json.loads((run_dir / path).read_text(encoding="utf-8"))["columns"]
             except (OSError, ValueError, KeyError):
                 pass
     return out

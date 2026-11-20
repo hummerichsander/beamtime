@@ -150,7 +150,7 @@ def read_command(path: Path, keys: list[str]) -> list[str] | None:
         if path.suffix == ".toml":
             import tomllib
 
-            data: Any = tomllib.loads(path.read_text())
+            data: Any = tomllib.loads(path.read_text(encoding="utf-8"))
         else:
             data = read_json(path)
     except (OSError, ValueError, ConfigError):
@@ -193,7 +193,8 @@ def stale_skills(root: Path) -> Stale | None:
     current = [
         n
         for n in SKILLS
-        if (file := folder / n / "SKILL.md").is_file() and file.read_text() == skill_text(n)
+        if (file := folder / n / "SKILL.md").is_file()
+        and file.read_text(encoding="utf-8") == skill_text(n)
     ]
     if len(current) == len(SKILLS):
         return None
@@ -225,7 +226,7 @@ def moved_keys(root: Path) -> list[str]:
     if not file.is_file():
         return []
     try:
-        data = yaml.safe_load(file.read_text())
+        data = yaml.safe_load(file.read_text(encoding="utf-8"))
     except yaml.YAMLError:
         return []
     return [k for k in MOVED if k in data] if isinstance(data, dict) else []

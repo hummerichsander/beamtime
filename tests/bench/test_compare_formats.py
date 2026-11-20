@@ -42,7 +42,7 @@ def read_csv(path: Path) -> tuple[list[str], list[list[str]]]:
 
     :param path: The file.
     :return: The header and the rows."""
-    with path.open(newline="") as f:
+    with path.open(newline="", encoding="utf-8") as f:
         header, *rows = csv.reader(f)
     return header, rows
 
@@ -74,10 +74,10 @@ def test_files_config_equals_record(made: tuple[Path, Path, dict[str, str]]) -> 
     """``config.json`` is ``_config.json`` without ``schema``."""
     logdir, out, _ = made
     for run in iter_runs(logdir):
-        want = json.loads((run / "_config.json").read_text())
+        want = json.loads((run / "_config.json").read_text(encoding="utf-8"))
         want.pop("schema")
         got = json.loads(
-            (out / "runs" / run.parent.relative_to(logdir) / run.name / "config.json").read_text()
+            (out / "runs" / run.parent.relative_to(logdir) / run.name / "config.json").read_text(encoding="utf-8")
         )
         assert got == want
 
@@ -133,7 +133,7 @@ def test_files_resumed_run_has_one_row_per_step(made: tuple[Path, Path, dict[str
     run = next(r for r in iter_runs(logdir) if r.name == roles["resumed"].split("/")[-1])
     _, cells = read_csv(out / "runs" / run.parent.relative_to(logdir) / run.name / "metrics.csv")
     steps = [int(line[0]) for line in cells]
-    raw = [json.loads(t)["_step"] for t in (run / "_metrics.jsonl").read_text().splitlines()]
+    raw = [json.loads(t)["_step"] for t in (run / "_metrics.jsonl").read_text(encoding="utf-8").splitlines()]
 
     assert len(raw) > len(set(raw))
     assert steps == sorted(set(steps))
@@ -271,10 +271,10 @@ def test_tensorboard_nested_hparams(made: tuple[Path, Path, dict[str, str]], tb_
     logdir, _, _ = made
     checked = 0
     for run in iter_runs(logdir):
-        config = json.loads((run / "_config.json").read_text())
+        config = json.loads((run / "_config.json").read_text(encoding="utf-8"))
         config.pop("schema")
         folder = tb_made / "tb" / run.parent.relative_to(logdir) / run.name
-        assert yaml.safe_load((folder / "hparams.yaml").read_text()) == config
+        assert yaml.safe_load((folder / "hparams.yaml").read_text(encoding="utf-8")) == config
 
         content = read_events(folder).PluginTagToContent("hparams")["_hparams_/session_start_info"]
         info = plugin_data_pb2.HParamsPluginData.FromString(content).session_start_info
@@ -341,7 +341,7 @@ def test_record_export_skips_runs(study: tuple[Path, Path], tmp_path: Path) -> N
     shutil.copytree(study[0], logdir)
     run = next(iter_runs(logdir))
     (run / "notes").mkdir()
-    (run / "notes" / "stray.md").write_text("not record\n")
+    (run / "notes" / "stray.md").write_text("not record\n", encoding="utf-8")
     formats.export_record(logdir, tmp_path / "out")
 
     assert not list((tmp_path / "out").rglob("stray.md"))

@@ -28,7 +28,7 @@ def seed_of(run_dir: Path) -> int:
 
     :param run_dir: The run directory.
     :return: ``config.seed``."""
-    return json.loads((run_dir / "_config.json").read_text())["seed"]
+    return json.loads((run_dir / "_config.json").read_text(encoding="utf-8"))["seed"]
 
 
 def set_hidden(run_dir: Path, hidden: bool) -> None:

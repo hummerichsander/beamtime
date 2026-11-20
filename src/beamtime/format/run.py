@@ -402,8 +402,8 @@ def read_output(run_dir: Path, *, rank: int = 0) -> str:
     :param rank: The rank; 0 is the main process.
     :return: The output text."""
     head, tail, prev = (run_dir / n for n in c.output_names(rank))
-    text = head.read_text(errors="replace") if head.exists() else ""
-    tails = [p.read_text(errors="replace") for p in (prev, tail) if p.exists()]
+    text = head.read_text(errors="replace", encoding="utf-8") if head.exists() else ""
+    tails = [p.read_text(errors="replace", encoding="utf-8") for p in (prev, tail) if p.exists()]
     if tails and (m := SEGMENT.match(tails[0])) and (n := int(m[1])) > 1:
         gap = "1" if n == 2 else f"1–{n - 1}"
         text += f"[… beamtime: output segments {gap} not kept …]\n"

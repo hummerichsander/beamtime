@@ -77,8 +77,8 @@ def show(ctx: Context, p: r.BlockShowParams) -> dict[str, Any]:
         found = Library(ctx=ctx, path=path).get(p.name, p.version)
     except SchemaError as e:
         raise OpError(str(e), code=4) from None
-    text = (found.folder / f"{found.version}.yaml").read_text()
-    source = (found.folder / found.block.code).read_text()
+    text = (found.folder / f"{found.version}.yaml").read_text(encoding="utf-8")
+    source = (found.folder / found.block.code).read_text(encoding="utf-8")
     return {
         "kind": "block show",
         "name": p.name,
@@ -210,7 +210,7 @@ def new_draft(
     if folder.exists():
         raise OpError(f"block draft {name!r} exists at {folder}; edit it, or pick another name")
     write_created(folder / block.code, source)
-    (folder / BLOCK_FILE).write_text(block_yaml(block))
+    (folder / BLOCK_FILE).write_text(block_yaml(block), encoding="utf-8")
     store.write_draft_meta(folder, group=group, origin=origin)
     return folder
 
@@ -450,7 +450,7 @@ def check(
 
     out += [dataclasses.replace(f, block=block.name) for f in custom_checks(custom, {}, folder)]
     if (file := folder / block.code).is_file():
-        out += hard_coded(ctx, group, file.read_text(), block, at)
+        out += hard_coded(ctx, group, file.read_text(encoding="utf-8"), block, at)
     out += duplicates(ctx, group, block, at)
     if not any(f.level == "error" for f in out):
         out += examples_check(ctx, folder.name, group, block)
@@ -581,7 +581,7 @@ def examples_draft(ctx: Context, draft: str, group: str, block: BlockDef) -> sto
     name = f"{store.EXAMPLES}{draft}"
     folder = store.drafts(ctx) / name
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / store.VIEW_FILE).write_text(m.dump(examples_view(block)))
+    (folder / store.VIEW_FILE).write_text(m.dump(examples_view(block)), encoding="utf-8")
     store.write_draft_meta(folder, group=group, origin=f"block {draft}", blocks={block.name: draft})
     return store.draft(ctx, name)
 
@@ -672,7 +672,7 @@ def import_blocks(ctx: Context, p: r.BlockImportParams) -> dict[str, Any]:
             check_block_name(name)
             copied = copy_tree(folder / name, home / name)
             record = json.dumps(origin | {"at": time.time()})
-            (home / name / "_imported.json").write_text(record + "\n")
+            (home / name / "_imported.json").write_text(record + "\n", encoding="utf-8")
             lines.append(f"{name}: {len(copied)} new file(s)")
             for f in sorted(versions_of(home / name)):
                 try:

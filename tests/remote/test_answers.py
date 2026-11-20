@@ -372,7 +372,7 @@ def emitted() -> set[str]:
     found: set[str] = set()
     for sub in ("ops", "query", "record"):
         for f in (Path(beamtime.__file__).parent / sub).rglob("*.py"):
-            text = f.read_text()
+            text = f.read_text(encoding="utf-8")
             found |= set(re.findall(r'"kind": "([a-z ]+)"', text))
             found |= set(
                 re.findall(r'(?:written|drafted|answer)\(\s*(?:ctx,\s*)?"([a-z ]+)"', text)
@@ -411,7 +411,7 @@ def old_series() -> dict:
     """Read the series answer a 0.2 remote gave, pinned once by hand.
 
     :return: The answer, in the old shape."""
-    return json.loads(OLD_SERIES.read_text())
+    return json.loads(OLD_SERIES.read_text(encoding="utf-8"))
 
 
 def test_upgrade_old_remote_series() -> None:

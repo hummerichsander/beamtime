@@ -76,7 +76,7 @@ def make_batch(
                 "reps": 1,
             }
         )
-    )
+    , encoding="utf-8")
     for task in TASKS:
         for setup in SETUPS:
             if (task, setup) in skip:
@@ -93,9 +93,9 @@ def make_batch(
                 if edit:
                     rec, grade = edit(name, rec, grade)
                 (folder / name).mkdir()
-                (folder / name / "record.json").write_text(json.dumps(rec))
+                (folder / name / "record.json").write_text(json.dumps(rec), encoding="utf-8")
                 if grade is not None:
-                    (folder / name / "grade.json").write_text(json.dumps(grade))
+                    (folder / name / "grade.json").write_text(json.dumps(grade), encoding="utf-8")
     return folder
 
 
@@ -129,7 +129,7 @@ def test_report_files(tmp_path: Path) -> None:
         "tokens-vs-score.svg",
     ]
     assert all(p.stat().st_size > 0 for p in files)
-    text = (tmp_path / "out" / "results.md").read_text()
+    text = (tmp_path / "out" / "results.md").read_text(encoding="utf-8")
     assert MODEL in text and "2.9.9" in text and "2026-05-04" in text and "7, 8, 9" in text
     head = "| task | setup | n | tokens | uncached | cost | seconds | turns | tool calls | score |"
     head += " correct |"
@@ -246,7 +246,7 @@ def test_two_models(
     monkeypatch.setattr(sys, "argv", ["tables.py", str(sonnet), str(haiku), "--out", str(out)])
     tables.main()
     printed = capsys.readouterr().out
-    text = (out / "models.md").read_text()
+    text = (out / "models.md").read_text(encoding="utf-8")
 
     assert (out / "sonnet" / "results.md").exists() and (out / "haiku" / "results.md").exists()
     assert (out / "haiku" / "tokens-vs-score.svg").exists() and "models.md" in printed
@@ -268,7 +268,7 @@ def test_no_latex_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_no_rc_overrides() -> None:
     """The report modules never touch rc params or pass keywords that shadow them."""
     for module in (figures, tables):
-        source = Path(module.__file__).read_text()
+        source = Path(module.__file__).read_text(encoding="utf-8")
         for word in ("rcParams", "rc_context", "fontsize", "linewidth", "color=", "cmap", "plt.rc"):
             assert word not in source, f"{module.__name__} uses {word}"
 

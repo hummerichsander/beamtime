@@ -27,11 +27,11 @@ def away(box: Path, ctx: Context) -> Context:
     call("pull", {"target": f"box:{GROUP}"}, ctx)
     ctx.sources.close()
     folder = snapshots_dir(ctx) / "box"
-    record = json.loads((folder / "_snapshot.json").read_text())
+    record = json.loads((folder / "_snapshot.json").read_text(encoding="utf-8"))
     record["at"] = then = time.time() - 30 * DAY
-    (folder / "_snapshot.json").write_text(json.dumps(record))
+    (folder / "_snapshot.json").write_text(json.dumps(record), encoding="utf-8")
 
-    roles = json.loads((box / "_synth.json").read_text())["roles"]
+    roles = json.loads((box / "_synth.json").read_text(encoding="utf-8"))["roles"]
     run = next(p for p in (folder / GROUP).iterdir() if p.name == roles["running"])
     os.utime(run / "_run.json", (then - 10, then - 10))
     metrics = run / "_metrics.jsonl"
@@ -52,7 +52,7 @@ def test_digest_runs_on_a_snapshot_at_its_time(away: Context, box: Path) -> None
 
 def test_diagnose_judges_a_stall_at_the_snapshots_time(away: Context, box: Path) -> None:
     """A run silent for an hour before the snapshot is stalled, not lost, though the pull is old."""
-    roles = json.loads((box / "_synth.json").read_text())["roles"]
+    roles = json.loads((box / "_synth.json").read_text(encoding="utf-8"))["roles"]
     a = answer("diagnose", {"from": f"@box/{GROUP}"}, away)
     flagged = {e["run"].split("/")[-1]: e for e in a["entries"]}
     entry = flagged[roles["running"]]

@@ -55,7 +55,7 @@ def train(project: Path, lr: float, seed: int) -> None:
     :param lr: The learning rate.
     :param seed: The seed."""
     script = project / "train.py"
-    script.write_text(textwrap.dedent(TRAIN))
+    script.write_text(textwrap.dedent(TRAIN), encoding="utf-8")
     env = {k: v for k, v in os.environ.items() if not k.startswith(("BEAMTIME_", "SLURM_"))}
     done = subprocess.run(
         [sys.executable, str(script), str(lr), str(seed)],
@@ -154,7 +154,7 @@ def test_own_proposal_of_a_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         "import beamtime\n"
         "with beamtime.init(dir='single', proposal='Loss falls.') as run:\n"
         "    run.log({'loss': 1.0}, step=0)\n"
-    )
+    , encoding="utf-8")
     env = {k: v for k, v in os.environ.items() if not k.startswith(("BEAMTIME_", "SLURM_"))}
     subprocess.run([sys.executable, str(script)], cwd=project, env=env, check=True, timeout=60)
     ctx = Context.make()

@@ -74,14 +74,14 @@ def test_note_add_reads_stdin(project: Path) -> None:
     )  # fmt: skip
     assert out.returncode == 0, out.stderr
     path = project / "beamtime" / json.loads(out.stdout)["path"]
-    assert "Clear gain." in path.read_text() and "unigram-wins:" in path.read_text()
+    assert "Clear gain." in path.read_text(encoding="utf-8") and "unigram-wins:" in path.read_text(encoding="utf-8")
     notes = beamtime(project, "notes", "tokenizer", "--types", "verdict").stdout
     assert "verdict confirmed on" in notes and "Unigram wins." in notes
 
 
 def test_proposal_set_from_file_and_errors(project: Path) -> None:
     """A proposal file is saved; validation errors exit with 3."""
-    (project / "p.yaml").write_text("statement: More data helps.\nplan: {runs: 3}\n")
+    (project / "p.yaml").write_text("statement: More data helps.\nplan: {runs: 3}\n", encoding="utf-8")
     out = beamtime(project, "proposal", "set", "data/size", "p.yaml")
     assert out.returncode == 0 and out.stdout.startswith("wrote data/size/proposal/")
     bad = beamtime(project, "proposal", "set", "data/size", stdin="statment: typo\n")
@@ -125,9 +125,9 @@ def test_theory_type_and_verdict_boundary(project: Path) -> None:
 def test_run_promote_command(project: Path) -> None:
     """``run promote`` is a two-word command; a hidden run shows on the card and leaves after it."""
     run_json = next((project / "beamtime/scaling/long-context").glob("*/_run.json"))
-    info = json.loads(run_json.read_text())
+    info = json.loads(run_json.read_text(encoding="utf-8"))
     old = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
-    run_json.write_text(json.dumps(info | {"hidden": True, "created_at": old}))
+    run_json.write_text(json.dumps(info | {"hidden": True, "created_at": old}), encoding="utf-8")
     run = info["id"]
 
     card = beamtime(project, "card", run)

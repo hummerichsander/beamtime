@@ -74,7 +74,7 @@ def write_remotes(root: Path, remotes: dict[str, Path]) -> None:
             f"    command: {COMMAND}",
             "    transport: command",
         ]
-    (root / "beamtime.yaml").write_text("\n".join(lines) + "\n")
+    (root / "beamtime.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 @pytest.fixture

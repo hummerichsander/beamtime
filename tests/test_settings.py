@@ -44,10 +44,10 @@ def test_proposal_words(home: Path) -> None:
     assert {name: preset["proposal_words"] for name, preset in PRESETS.items()} == {
         name: 150 for name in PRESETS
     }
-    (home / "beamtime.yaml").write_text("agent: {proposal_words: 80}\n")
+    (home / "beamtime.yaml").write_text("agent: {proposal_words: 80}\n", encoding="utf-8")
     agent = load(home).agent
     assert agent.proposal_words == 80 and agent.source["proposal_words"] == "project"
-    (home / "beamtime.yaml").write_text("agent: {proposal_words: 0}\n")
+    (home / "beamtime.yaml").write_text("agent: {proposal_words: 0}\n", encoding="utf-8")
     s = load(home)
     assert s.agent.proposal_words == 150
     assert any("proposal_words" in problem for problem in s.problems)
@@ -57,7 +57,7 @@ def test_preset_with_override(home: Path) -> None:
     """A style resolves to its preset, single keys override it, each with its provenance."""
     (home / "beamtime.yaml").write_text(
         "agent: {style: hands-on, seeds: 5, main_metric: val/loss, direction: min}\n"
-    )
+    , encoding="utf-8")
     s = load(home)
     agent = s.agent
     assert not s.problems
@@ -71,7 +71,7 @@ def test_preset_with_override(home: Path) -> None:
 
 def test_custom_starts_from_careful(home: Path) -> None:
     """The ``custom`` style starts from careful's values."""
-    (home / "beamtime.yaml").write_text("agent: {style: custom, launch_runs: never}\n")
+    (home / "beamtime.yaml").write_text("agent: {style: custom, launch_runs: never}\n", encoding="utf-8")
     agent = load(home).agent
     assert agent.style == "custom"
     assert agent.launch_runs == "never"
@@ -82,9 +82,9 @@ def test_custom_starts_from_careful(home: Path) -> None:
 def test_mcp_tools_is_core_in_every_style_and_checked(home: Path) -> None:
     """The default is ``core`` in every style; a bad value names both choices."""
     assert all(preset["mcp_tools"] == "core" for preset in PRESETS.values())
-    (home / "beamtime.yaml").write_text("agent: {style: analysis, mcp_tools: all}\n")
+    (home / "beamtime.yaml").write_text("agent: {style: analysis, mcp_tools: all}\n", encoding="utf-8")
     assert load(home).agent.mcp_tools == "all"
-    (home / "beamtime.yaml").write_text("agent: {mcp_tools: some}\n")
+    (home / "beamtime.yaml").write_text("agent: {mcp_tools: some}\n", encoding="utf-8")
     s = load(home)
     assert any("core" in p and "all" in p for p in s.problems) and s.agent.mcp_tools == "core"
 
@@ -93,7 +93,7 @@ def test_agent_in_user_file_is_a_problem(home: Path) -> None:
     """``agent`` belongs to the project: in the user file it is reported and ignored."""
     path = user_settings_path()
     path.parent.mkdir(parents=True)
-    path.write_text("agent: {style: hands-on}\n")
+    path.write_text("agent: {style: hands-on}\n", encoding="utf-8")
     s = load(home)
     assert any("belongs in the project" in p for p in s.problems)
     assert s.agent.style == "careful"
@@ -116,7 +116,7 @@ def test_agent_in_user_file_is_a_problem(home: Path) -> None:
 )
 def test_agent_values_checked(home: Path, text: str, key: str) -> None:
     """An unknown knob or a value out of range is a problem, and the preset value is used."""
-    (home / "beamtime.yaml").write_text(f"agent: {text}\n")
+    (home / "beamtime.yaml").write_text(f"agent: {text}\n", encoding="utf-8")
     s = load(home)
     assert any(key in p for p in s.problems)
     assert s.agent.seeds == 3 and s.agent.significance == 0.95
@@ -125,7 +125,7 @@ def test_agent_values_checked(home: Path, text: str, key: str) -> None:
 
 def test_agent_not_a_mapping(home: Path) -> None:
     """A non-mapping ``agent`` is reported and ignored."""
-    (home / "beamtime.yaml").write_text("agent: hands-on\n")
+    (home / "beamtime.yaml").write_text("agent: hands-on\n", encoding="utf-8")
     s = load(home)
     assert any("agent is a mapping" in p for p in s.problems)
     assert s.agent.style == "careful"
@@ -135,10 +135,10 @@ def test_disabled_project_remote(home: Path) -> None:
     """``enabled: false`` in the user file merges over a project remote key by key."""
     (home / "beamtime.yaml").write_text(
         "remotes:\n  gpu: {host: g, path: /a}\n  cpu: {host: c, path: /b}\n"
-    )
+    , encoding="utf-8")
     path = user_settings_path()
     path.parent.mkdir(parents=True)
-    path.write_text("remotes:\n  gpu: {enabled: false}\n")
+    path.write_text("remotes:\n  gpu: {enabled: false}\n", encoding="utf-8")
     s = load(home)
     assert not s.problems
     assert set(s.remotes) == {"cpu"}
@@ -148,7 +148,7 @@ def test_disabled_project_remote(home: Path) -> None:
 
 def test_enabled_must_be_a_bool(home: Path) -> None:
     """A non-boolean ``enabled`` is reported and the remote stays enabled."""
-    (home / "beamtime.yaml").write_text("remotes:\n  gpu: {host: g, path: /a, enabled: no_}\n")
+    (home / "beamtime.yaml").write_text("remotes:\n  gpu: {host: g, path: /a, enabled: no_}\n", encoding="utf-8")
     s = load(home)
     assert any("enabled is true or false" in p for p in s.problems)
     assert set(s.remotes) == {"gpu"}
@@ -159,10 +159,10 @@ def test_disabled_remote_hidden_from_status_shown_in_lists(ctx: Context, project
     and ``settings``."""
     (project / "beamtime.yaml").write_text(
         "remotes:\n  gpu: {host: g, path: /a}\n  cpu: {host: c, path: /b}\n"
-    )
+    , encoding="utf-8")
     path = user_settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("remotes:\n  gpu: {enabled: false}\n")
+    path.write_text("remotes:\n  gpu: {enabled: false}\n", encoding="utf-8")
     ctx = Context.make(caller="cli")
     assert call("status", {}, ctx)["remotes"] == ["cpu"]
     assert ctx.remotes == ["cpu"]

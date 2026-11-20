@@ -28,8 +28,8 @@ def test_log_files_rotate(tmp_path: Path) -> None:
     files.close()
     head = (tmp_path / "_output.log").read_bytes()
     assert len(head) == 200 and head.startswith(b"line 00")
-    prev = (tmp_path / "_output.tail.prev.log").read_text()
-    tail = (tmp_path / "_output.tail.log").read_text()
+    prev = (tmp_path / "_output.tail.prev.log").read_text(encoding="utf-8")
+    tail = (tmp_path / "_output.tail.log").read_text(encoding="utf-8")
     assert prev.startswith("[beamtime: output segment ") and tail.endswith("line 29 padding\n")
     text = read_output(tmp_path)
     assert "not kept" in text and text.endswith("line 29 padding\n")
@@ -211,7 +211,7 @@ def start(script: Script, code: str, tmp_path: Path, logdir: Path) -> subprocess
     import textwrap
 
     path = tmp_path / "train.py"
-    path.write_text(textwrap.dedent(code))
+    path.write_text(textwrap.dedent(code), encoding="utf-8")
     environ = {k: v for k, v in os.environ.items() if not k.startswith("BEAMTIME_")}
     environ |= {"BEAMTIME_LOGDIR": str(logdir), "PYTHONUNBUFFERED": "1"}
     return subprocess.Popen(
@@ -257,8 +257,8 @@ def test_leftover_temp_files_are_ignored(script: Script, logdir: Path) -> None:
     """A writer killed mid-replace leaves a temp file next to the intact original."""
     script("import beamtime\nbeamtime.init().log({'x': 1})\n")
     run = only_run(logdir)
-    (run / "._run.json.tmp").write_text('{"schema": 1, "id": "half')
-    (run / "._run_card.json.tmp").write_text("")
+    (run / "._run.json.tmp").write_text('{"schema": 1, "id": "half', encoding="utf-8")
+    (run / "._run_card.json.tmp").write_text("", encoding="utf-8")
     from beamtime.format.run import read_card
 
     assert read_run_info(run).status == "finished" and read_card(run).metrics["x"].count == 1

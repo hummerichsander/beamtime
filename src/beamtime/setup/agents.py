@@ -435,7 +435,7 @@ def read_json(path: Path) -> dict[str, Any]:
     :param path: The file.
     :return: The content; empty when the file is missing or empty.
     :raises ConfigError: When the file is not a JSON object."""
-    if not path.exists() or not (text := path.read_text()).strip():
+    if not path.exists() or not (text := path.read_text(encoding="utf-8")).strip():
         return {}
     try:
         data = json.loads(text)
@@ -528,7 +528,7 @@ def read_toml(path: Path) -> bool:
 
     if not path.exists():
         return False
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     try:
         tomllib.loads(text)
     except tomllib.TOMLDecodeError as e:
@@ -542,7 +542,7 @@ def put_toml(path: Path, command: list[str]) -> None:
     :param path: The file.
     :param command: The command with its arguments."""
     read_toml(path)
-    text = path.read_text() if path.exists() else ""
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
     table = (
         f"[mcp_servers.beamtime]\ncommand = {json.dumps(command[0])}\n"
         f"args = {json.dumps(command[1:])}\n"
@@ -563,5 +563,5 @@ def write_file(path: Path, text: str) -> None:
     :param text: The content."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.beamtime")
-    tmp.write_text(text)
+    tmp.write_text(text, encoding="utf-8")
     tmp.replace(path)

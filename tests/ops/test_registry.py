@@ -129,7 +129,7 @@ def test_every_read_renders(ctx: Context, roles: dict[str, str]) -> None:
     """Each read operation answers with its kind, and its text is never the raw dict."""
     data = ctx.logdir / "scaling" / "view" / "data"
     data.mkdir(parents=True)
-    (data / "3f9a21c0-fit.csv").write_text("lr,acc\n0.001,0.9\n0.003,0.85\n")
+    (data / "3f9a21c0-fit.csv").write_text("lr,acc\n0.001,0.9\n0.003,0.85\n", encoding="utf-8")
     calls = READS | {
         "card": {"run": roles["diverging"]},
         "output": {"run": roles["diverging"]},

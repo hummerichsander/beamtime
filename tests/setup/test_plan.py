@@ -79,15 +79,15 @@ def scene(request, tmp_path: Path, home: Path) -> Scan:
         case "teammate":
             (root / "beamtime.yaml").write_text(
                 yaml.safe_dump({"logdir": "runs", "remotes": {"juwels": {"path": "/p"}}})
-            )
+            , encoding="utf-8")
         case "cluster":
             (tmp_path / "bin").mkdir()
-            (tmp_path / "bin" / "sbatch").write_text("#!/bin/sh\n")
+            (tmp_path / "bin" / "sbatch").write_text("#!/bin/sh\n", encoding="utf-8")
             (tmp_path / "bin" / "sbatch").chmod(0o755)
             env = {"PATH": str(tmp_path / "bin")}
         case "update":
             (root / "beamtime" / "g" / "r1").mkdir(parents=True)
-            (root / "beamtime" / "g" / "r1" / "_run.json").write_text("{}")
+            (root / "beamtime" / "g" / "r1" / "_run.json").write_text("{}", encoding="utf-8")
     found = look(root, home, **env)
     assert found.flow == request.param
     return dataclasses.replace(found, stale=STALE if request.param == "update" else ())
@@ -147,7 +147,7 @@ def test_logdir_outside_the_project(tmp_path: Path, home: Path) -> None:
     """A log dir outside the root stays an absolute path."""
     root = tmp_path / "project"
     root.mkdir()
-    (root / "beamtime.yaml").write_text(f"logdir: {tmp_path / 'scratch'}\n")
+    (root / "beamtime.yaml").write_text(f"logdir: {tmp_path / 'scratch'}\n", encoding="utf-8")
     assert Answers.defaults(look(root, home)).logdir == str(tmp_path / "scratch")
 
 
@@ -335,17 +335,17 @@ def test_yes_writes_everything_in_order(project: Path, home: Path, tmp_path: Pat
     apply(changes, lines.append)
     assert len(lines) == len(changes)
 
-    given = yaml.safe_load((project / "beamtime.yaml").read_text())
+    given = yaml.safe_load((project / "beamtime.yaml").read_text(encoding="utf-8"))
     assert given["logdir"] == "beamtime" and given["remotes"] == {"juwels": {"path": "~/egnn/bt"}}
     assert given["agent"] == {"style": "hands-on", "seeds": 5, "main_metric": "val/loss"}
-    mine = yaml.safe_load((home / ".config" / "beamtime" / "settings.yaml").read_text())
+    mine = yaml.safe_load((home / ".config" / "beamtime" / "settings.yaml").read_text(encoding="utf-8"))
     assert mine["cache"] == "memory" and mine["remotes"] == {"juwels": {"host": "jdoe@login"}}
     assert (project / "beamtime").is_symlink() and scratch.is_dir()
-    assert "/beamtime" in (project / ".git" / "info" / "exclude").read_text().splitlines()
-    assert "beamtime/**/_*" in (project / ".gitignore").read_text()
-    server = json.loads((project / ".mcp.json").read_text())["mcpServers"]["beamtime"]
+    assert "/beamtime" in (project / ".git" / "info" / "exclude").read_text(encoding="utf-8").splitlines()
+    assert "beamtime/**/_*" in (project / ".gitignore").read_text(encoding="utf-8")
+    server = json.loads((project / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["beamtime"]
     assert server["command"] == "uv"
-    assert "Beamtime is the record" in (project / "CLAUDE.md").read_text()
+    assert "Beamtime is the record" in (project / "CLAUDE.md").read_text(encoding="utf-8")
     assert (project / ".claude" / "skills").is_dir()
     runs = list(iter_runs(scratch))
     assert len(runs) == 1 and "imported/" in str(runs[0])
@@ -363,7 +363,7 @@ def test_defaults_not_written(project: Path, home: Path) -> None:
     changes = make_plan(project, home)
     assert [c.label for c in changes] == ["beamtime.yaml", ".gitignore"]
     apply(changes)
-    given = yaml.safe_load((project / "beamtime.yaml").read_text())
+    given = yaml.safe_load((project / "beamtime.yaml").read_text(encoding="utf-8"))
     assert given == {"schema": 1, "logdir": "beamtime"}
     assert not (home / ".config").exists()
     assert make_plan(project, home) == []
@@ -371,14 +371,14 @@ def test_defaults_not_written(project: Path, home: Path) -> None:
 
 def test_gitignore_upgrade(project: Path, home: Path) -> None:
     """An old ``beamtime/`` line becomes the marked block where it stood; a rerun and a switch keep one block."""
-    (project / ".gitignore").write_text("node_modules/\nbeamtime/\n.env\n")
+    (project / ".gitignore").write_text("node_modules/\nbeamtime/\n.env\n", encoding="utf-8")
     apply(make_plan(project, home))
-    lines = (project / ".gitignore").read_text().splitlines()
+    lines = (project / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert lines[0] == "node_modules/" and lines[-1] == ".env"
     assert "beamtime/" not in lines and lines.count("beamtime/**/artifacts/") == 1
     assert lines.index("# end beamtime") < lines.index(".env")
     apply(make_plan(project, home, "--git", "none"))
-    text = (project / ".gitignore").read_text()
+    text = (project / ".gitignore").read_text(encoding="utf-8")
     assert text.count("# beamtime:") == 1 and "beamtime/\n" in text and "**" not in text
     assert text.endswith(".env\n") and make_plan(project, home, "--git", "none") == []
 
@@ -390,7 +390,7 @@ def test_agent_values_are_checked_and_converted(project: Path, home: Path) -> No
         with pytest.raises(ValueError, match=f"--agent-set {pair}.*{word}"):
             make_plan(project, home, "--agent-set", pair)
     apply(make_plan(project, home, "--agent-set", "seeds=5,significance=0.9,seed_key=123"))
-    agent = yaml.safe_load((project / "beamtime.yaml").read_text())["agent"]
+    agent = yaml.safe_load((project / "beamtime.yaml").read_text(encoding="utf-8"))["agent"]
     assert agent == {"style": "careful", "seeds": 5, "significance": 0.9, "seed_key": "123"}
 
 
@@ -398,10 +398,10 @@ def test_a_projects_own_agent_settings_stay(project: Path, home: Path) -> None:
     """Without a flag for the style the project's ``agent`` is kept, and the rules follow it."""
     (project / "beamtime.yaml").write_text(
         "schema: 1\nlogdir: beamtime\nagent:\n  style: analysis\n"
-    )
+    , encoding="utf-8")
     apply(make_plan(project, home, "--agents", "claude-code"))
-    assert "style: analysis" in (project / "beamtime.yaml").read_text()
-    assert "Never launch" not in (project / "CLAUDE.md").read_text()
+    assert "style: analysis" in (project / "beamtime.yaml").read_text(encoding="utf-8")
+    assert "Never launch" not in (project / "CLAUDE.md").read_text(encoding="utf-8")
 
 
 def test_sdk_step(project: Path, home: Path) -> None:
@@ -429,7 +429,7 @@ def test_sdk_refusals(tmp_path: Path, home: Path) -> None:
     root.mkdir()
     with pytest.raises(ValueError, match="no Python environment"):
         make_plan(root, home, "--sdk")
-    (root / "pyproject.toml").write_text("[tool.uv]\n")
+    (root / "pyproject.toml").write_text("[tool.uv]\n", encoding="utf-8")
     (root / ".venv" / "lib" / "python3.8" / "site-packages").mkdir(parents=True)
     with pytest.raises(ValueError, match="3.10 or newer"):
         make_plan(root, home, "--sdk")
@@ -498,15 +498,15 @@ def test_import_of_a_folder_in_a_log_dir_goes_through_its_root(
     """A group inside another project's log dir imports that log dir whole; a run goes alone; the project's own log dir is refused."""
     other = tmp_path / "other"
     (other / "beamtime" / "g").mkdir(parents=True)
-    (other / "beamtime.yaml").write_text("logdir: beamtime\n")
+    (other / "beamtime.yaml").write_text("logdir: beamtime\n", encoding="utf-8")
     for name in ("r1", "r2"):
         run = other / "beamtime" / "g" / name
         run.mkdir()
-        (run / "_run.json").write_text(json.dumps({"schema": 1, "id": name, "proposals": {}}))
+        (run / "_run.json").write_text(json.dumps({"schema": 1, "id": name, "proposals": {}}), encoding="utf-8")
         (run / "checkpoint.bin").write_bytes(b"x" * 2000)
     (other / "beamtime" / "h").mkdir()
     (other / "beamtime" / "h" / "r3").mkdir()
-    (other / "beamtime" / "h" / "r3" / "_run.json").write_text('{"schema": 1, "id": "r3"}')
+    (other / "beamtime" / "h" / "r3" / "_run.json").write_text('{"schema": 1, "id": "r3"}', encoding="utf-8")
 
     (change,) = make_plan(project, home, "--import", str(other / "beamtime" / "g"))[-1:]
     assert "inside this log dir, so all of it is imported" in change.after
@@ -529,8 +529,8 @@ def test_import_of_a_project_goes_through_its_log_dir(
     """A project folder imports its log dir, so groups keep their paths; this project is refused."""
     other = tmp_path / "other"
     (other / "runs" / "g" / "r1").mkdir(parents=True)
-    (other / "beamtime.yaml").write_text("logdir: runs\n")
-    (other / "runs" / "g" / "r1" / "_run.json").write_text('{"schema": 1, "id": "r1"}')
+    (other / "beamtime.yaml").write_text("logdir: runs\n", encoding="utf-8")
+    (other / "runs" / "g" / "r1" / "_run.json").write_text('{"schema": 1, "id": "r1"}', encoding="utf-8")
 
     (change,) = make_plan(project, home, "--import", str(other))[-1:]
     assert "is a project, so its log dir is imported" in change.after
@@ -544,7 +544,7 @@ def test_import_of_a_project_goes_through_its_log_dir(
 
 def test_notes_come_in_as_written_unless_an_agent_takes_them(project: Path, home: Path) -> None:
     """Notes files become notes after the log dir exists; ``--migrate-with`` leaves them to the agent."""
-    (project / "NOTES.md").write_text("# Findings\n\nlr 1e-3 diverges.\n")
+    (project / "NOTES.md").write_text("# Findings\n\nlr 1e-3 diverges.\n", encoding="utf-8")
     assert not any(
         c.label == "notes"
         for c in make_plan(
@@ -554,12 +554,12 @@ def test_notes_come_in_as_written_unless_an_agent_takes_them(project: Path, home
     changes = make_plan(project, home, "--import-notes", "NOTES.md")
     assert changes[-1].label == "notes" and changes[-1].after == "1 notes, as written"
     apply(changes)
-    assert any(p.read_text().count("lr 1e-3") for p in (project / "beamtime").rglob("*.md"))
+    assert any(p.read_text(encoding="utf-8").count("lr 1e-3") for p in (project / "beamtime").rglob("*.md"))
 
 
 def test_review_groups_by_where(project: Path, home: Path) -> None:
     """The review names where each change lands and shows what was there before."""
-    (project / ".gitignore").write_text("beamtime/\n")
+    (project / ".gitignore").write_text("beamtime/\n", encoding="utf-8")
     text = review(make_plan(project, home, "--cache", "memory", "--import", str(CSV / "train.csv")))
     assert [x for x in text if x and not x.startswith(" ")] == [
         "the project (shared through git)", "this machine", "imports"

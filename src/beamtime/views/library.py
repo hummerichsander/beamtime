@@ -79,7 +79,7 @@ def read_def(file: Path, *, source: str) -> BlockDef:
     import yaml
 
     try:
-        data = yaml.safe_load(file.read_text())
+        data = yaml.safe_load(file.read_text(encoding="utf-8"))
         if (schema := (data or {}).get("schema", 1)) != 1:
             raise SchemaError(f"{source}: no reader for block schema {schema}")
         return msgspec.convert(data, BlockDef)

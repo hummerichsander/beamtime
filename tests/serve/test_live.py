@@ -103,7 +103,7 @@ def test_daemon_reports_changed_runs_and_groups(project: Path) -> None:
         wait_for(lambda: seen)
         seen.clear()
         run = next(r for r in iter_runs(logdir / "scaling" / "long-context")
-                   if json.loads((r / "_run.json").read_text())["status"] == "running")  # fmt: skip
+                   if json.loads((r / "_run.json").read_text(encoding="utf-8"))["status"] == "running")  # fmt: skip
         with (run / "_metrics.jsonl").open("ab") as f:
             f.write(json_line({"_step": 9999, "_t": time.time(), "train/loss": 0.5}))
         (run / "_run.json").touch()
@@ -115,7 +115,7 @@ def test_daemon_reports_changed_runs_and_groups(project: Path) -> None:
         notes.mkdir(exist_ok=True)
         (notes / "20261027-120000-abcd.md").write_text(
             "---\nschema: 1\ntype: observation\ndescription: x\nauthor: t\nuser: t\n---\nx\n"
-        )
+        , encoding="utf-8")
         wait_for(lambda: any("tokenizer" in d and "authored" in d["tokenizer"] for d in seen))
 
         seen.clear()
@@ -123,12 +123,12 @@ def test_daemon_reports_changed_runs_and_groups(project: Path) -> None:
         notes.mkdir(exist_ok=True)
         (notes / "20261027-120000-efgh.md").write_text(
             "---\nschema: 1\ntype: observation\ndescription: x\nauthor: t\nuser: t\n---\nx\n"
-        )
+        , encoding="utf-8")
         wait_for(lambda: any(rel in d and "authored" in d[rel] for d in seen))
 
         seen.clear()
         proposal = logdir / "scaling" / "lr-sweep" / "proposal"
-        (proposal / "20261027-120000-wxyz.yaml").write_text("schema: 1\nstatement: x\n")
+        (proposal / "20261027-120000-wxyz.yaml").write_text("schema: 1\nstatement: x\n", encoding="utf-8")
         wait_for(lambda: any(
             "scaling/lr-sweep" in d and "authored" in d["scaling/lr-sweep"] for d in seen
         ))

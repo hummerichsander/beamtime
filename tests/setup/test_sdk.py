@@ -108,13 +108,13 @@ def test_pip_appends_a_requirements_line_once(
 ) -> None:
     """The requirements line is added after the install, and a second run leaves it alone."""
     requirements = tmp_path / "requirements.txt"
-    requirements.write_text("numpy\nbeamtime-extras\n")
+    requirements.write_text("numpy\nbeamtime-extras\n", encoding="utf-8")
     change = sdk_change(env_of("pip", tmp_path), "0.3.0", False, root=tmp_path)
 
     change.run()
     change.run()
 
-    assert requirements.read_text() == "numpy\nbeamtime-extras\nbeamtime\n"
+    assert requirements.read_text(encoding="utf-8") == "numpy\nbeamtime-extras\nbeamtime\n"
     assert len(calls) == 2
 
 

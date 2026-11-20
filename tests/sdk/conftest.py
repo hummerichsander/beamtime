@@ -37,7 +37,7 @@ def script(tmp_path: Path, logdir: Path) -> Script:
         name: str = "train.py",
     ) -> subprocess.CompletedProcess:
         path = tmp_path / name
-        path.write_text(textwrap.dedent(code))
+        path.write_text(textwrap.dedent(code), encoding="utf-8")
         environ = {
             k: v
             for k, v in os.environ.items()

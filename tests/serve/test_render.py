@@ -51,7 +51,7 @@ def draft(ctx: Context, project: Path, name: str, text: str) -> None:
     :param name: The draft's name.
     :param text: Its YAML."""
     call("view new", {"group": SWEEP, "name": name}, ctx)
-    (project / ".beamtime" / "drafts" / name / "view.yaml").write_text(text)
+    (project / ".beamtime" / "drafts" / name / "view.yaml").write_text(text, encoding="utf-8")
 
 
 def test_every_widget_renders_cleanly(browser_ok, ctx: Context, project: Path) -> None:
@@ -96,15 +96,15 @@ def test_custom_blocks_render_in_their_frame(browser_ok, ctx: Context, project: 
     assert answer["rendered"], answer
     assert answer["findings"] == [], answer["findings"]
     folder = project / ".beamtime" / "drafts" / "pm"
-    (folder / "code" / "throws.js").write_text("export default function render(root) { throw new Error('boom'); }\n")
-    (folder / "code" / "empty.js").write_text("export default function render(root) {}\n")
+    (folder / "code" / "throws.js").write_text("export default function render(root) { throw new Error('boom'); }\n", encoding="utf-8")
+    (folder / "code" / "empty.js").write_text("export default function render(root) {}\n", encoding="utf-8")
     (folder / "view.yaml").write_text("""schema: 1
 finding: x
 body:
   - custom: {id: throws, code: code/throws.js}
   - custom: {id: empty, code: code/empty.js}
   - stat: {title: Runs, aggregate: count}
-""")
+""", encoding="utf-8")
     findings = call("view render", {"draft": "pm"}, ctx)["findings"]
     assert any(f.get("message", "").startswith("console: [block throws] Error: boom") for f in findings), findings
     assert {"level": "error", "id": "empty", "block": "custom", "message": "the custom block draws nothing"} in findings
@@ -124,10 +124,10 @@ def test_block_examples_render(browser_ok, ctx: Context, project: Path) -> None:
 
     call("view new", {"group": SWEEP, "from": "custom", "name": "pm"}, ctx)
     file = project / ".beamtime" / "drafts" / "pm" / "view.yaml"
-    file.write_text(file.read_text().replace("TODO: the result in one sentence.", "x"))
+    file.write_text(file.read_text(encoding="utf-8").replace("TODO: the result in one sentence.", "x"), encoding="utf-8")
     call("view save", {"draft": "pm"}, ctx)
     call("block promote", {"group": SWEEP, "block_id": "phase-map", "name": "phase-map"}, ctx)
-    (project / ".beamtime" / "drafts" / "blocks" / "phase-map" / "block.yaml").write_text(GENERAL)
+    (project / ".beamtime" / "drafts" / "blocks" / "phase-map" / "block.yaml").write_text(GENERAL, encoding="utf-8")
     answer = call("block validate", {"draft": "phase-map"}, ctx)
     assert answer["render"]["rendered"] and answer["ok"], answer["findings"]
 

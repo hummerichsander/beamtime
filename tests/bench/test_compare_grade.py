@@ -186,7 +186,7 @@ def project(tmp_path: Path) -> Path:
     :param tmp_path: An empty folder.
     :return: The folder."""
     (tmp_path / "fig.png").write_bytes(PNG)
-    (tmp_path / "table.csv").write_text(TABLE.format(a=IDS[0], b=IDS[1], c=IDS[2]))
+    (tmp_path / "table.csv").write_text(TABLE.format(a=IDS[0], b=IDS[1], c=IDS[2]), encoding="utf-8")
     return tmp_path
 
 
@@ -229,7 +229,7 @@ def test_typical_wrong_answer(tasks: dict[str, grade.Task], project: Path, task_
     if task_id == "table":
         (project / "table.csv").write_text(
             TABLE.format(a=IDS[0], b=IDS[1], c=IDS[2]).replace("0.0003,1,no,yes", "0.0003,1,no,no")
-        )
+        , encoding="utf-8")
     result = grade.grade(tasks[task_id], reply(WRONG[task_id]), TRUTH[task_id], project)
     assert result.score < 1.0 and not result.correct, result.checks
 
@@ -279,7 +279,7 @@ def test_unknown_check_kind(tmp_path: Path) -> None:
     """A task file with a misspelt check kind fails on load instead of scoring 0."""
     (tmp_path / "x.yaml").write_text(
         "prompt: p\nanswer: '{}'\ntime_limit_s: 1\nchecks:\n  a: {kind: equals, truth: a}\n"
-    )
+    , encoding="utf-8")
     with pytest.raises(ValueError, match="equals"):
         grade.load_tasks(tmp_path)
 
@@ -289,7 +289,7 @@ def test_text_tolerance(tmp_path: Path) -> None:
     (tmp_path / "x.yaml").write_text(
         "prompt: p\nanswer: '{}'\ntime_limit_s: 1\nchecks:\n"
         "  a: {kind: close, truth: a, abs: 1e-4}\n"
-    )
+    , encoding="utf-8")
     with pytest.raises(ValueError, match=r"a\.abs"):
         grade.load_tasks(tmp_path)
 
@@ -533,7 +533,7 @@ def test_table_checks(tasks: dict[str, grade.Task], project: Path) -> None:
     good = TABLE.format(a=IDS[0], b=IDS[1], c=IDS[2])
 
     def checks(text: str) -> dict[str, float]:
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8")
         return grade.grade(table, reply({"file": "table.csv"}), truth, project).checks
 
     assert set(checks(good).values()) == {1.0}
@@ -620,7 +620,7 @@ def test_shipped_truth_shapes(
         f"{'' if r['val_acc'] is None else repr(r['val_acc'])}"
         for r in rows
     ]
-    (project / "table.csv").write_text("\n".join(lines) + "\n")
+    (project / "table.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
     for task_id in ("table", "chart"):
         assert grade.grade(tasks[task_id], reply(CORRECT[task_id]), truth[task_id], project).correct
 
@@ -681,7 +681,7 @@ def test_keyed_check_in_a_task(tmp_path: Path) -> None:
     (tmp_path / "x.yaml").write_text(
         "prompt: p\nanswer: '{}'\ntime_limit_s: 1\ndata: wide\nchecks:\n"
         "  runs: {kind: keyed, truth: runs, key: id, field: step, abs: 0}\n"
-    )
+    , encoding="utf-8")
     task = grade.load_tasks(tmp_path)["x"]
     truth = {"runs": rows(("a", 10), ("b", 20))}
 
@@ -699,7 +699,7 @@ def test_keyed_checks_share_an_answer_key(tmp_path: Path) -> None:
         "prompt: p\nanswer: '{}'\ntime_limit_s: 1\ndata: wide\nchecks:\n"
         "  step: {kind: keyed, answer: runs, truth: runs, key: id, field: step, abs: 0}\n"
         "  loss: {kind: keyed, answer: runs, truth: runs, key: id, field: loss, abs: 0.000001}\n"
-    )
+    , encoding="utf-8")
     task = grade.load_tasks(tmp_path)["x"]
     truth = {"runs": [{"id": "a", "step": 10, "loss": 0.5}, {"id": "b", "step": 20, "loss": 0.25}]}
     answer = [{"id": "a", "step": 10, "loss": 0.5}, {"id": "b", "step": 21, "loss": 0.25}]

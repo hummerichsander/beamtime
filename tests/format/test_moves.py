@@ -39,7 +39,7 @@ def test_typed_path_is_native(tmp_path: Path) -> None:
 def test_unreadable_lines_are_skipped(tmp_path: Path) -> None:
     """Damaged lines don't stop the readable ones."""
     moves.record(tmp_path, "a", "b")
-    with (tmp_path / "_moves.jsonl").open("a") as f:
+    with (tmp_path / "_moves.jsonl").open("a", encoding="utf-8") as f:
         f.write('not json\n{"from": "c"}\n{"from": "c", "to": "d", "within": 3}\n')
     assert moves.read(tmp_path) == [moves.Move("a", "b", None)]
 

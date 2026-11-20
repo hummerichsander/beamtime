@@ -20,7 +20,7 @@ def git_repo(path: Path) -> Path:
     subprocess.run(["git", "init", "-q"], cwd=path, check=True)
     subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=path, check=True)
     subprocess.run(["git", "config", "user.name", "t"], cwd=path, check=True)
-    (path / "a.py").write_text("x = 1\n")
+    (path / "a.py").write_text("x = 1\n", encoding="utf-8")
     subprocess.run(["git", "add", "a.py"], cwd=path, check=True)
     # a fixed date, so two repos made in different seconds get the same commit.
     date = {"GIT_AUTHOR_DATE": "2026-01-01T00:00:00", "GIT_COMMITTER_DATE": "2026-01-01T00:00:00"}
@@ -36,7 +36,7 @@ def test_git_info_untracked_file_counts_as_dirty(tmp_path: Path) -> None:
     clean, clean_diff = env.git_info(repo)
     assert clean["dirty"] is False and clean["untracked"] == [] and clean["diff_sha"] is None
     assert clean_diff is None
-    (repo / "b.py").write_text("y = 2\n")
+    (repo / "b.py").write_text("y = 2\n", encoding="utf-8")
     info, diff = env.git_info(repo)
     assert info["dirty"] is True
     assert info["untracked"] == ["b.py"]
@@ -48,10 +48,10 @@ def test_git_info_leaves_out_the_log_dir(tmp_path: Path) -> None:
     """Runs written into an untracked log dir inside the checkout don't make it dirty."""
     repo = git_repo(tmp_path / "repo")
     (repo / "beamtime" / "exp" / "run-1").mkdir(parents=True)
-    (repo / "beamtime" / "exp" / "run-1" / "_run.json").write_text("{}")
+    (repo / "beamtime" / "exp" / "run-1" / "_run.json").write_text("{}", encoding="utf-8")
     info, _ = env.git_info(repo, repo / "beamtime")
     assert info["dirty"] is False and info["untracked"] == [] and info["diff_sha"] is None
-    (repo / "new.py").write_text("y = 2\n")
+    (repo / "new.py").write_text("y = 2\n", encoding="utf-8")
     info, _ = env.git_info(repo, repo / "beamtime")
     assert info["untracked"] == ["new.py"]
 
@@ -60,19 +60,19 @@ def test_git_info_diff_sha_matches_across_checkouts_with_the_same_change(tmp_pat
     """Two checkouts of the same commit with the same uncommitted change compare equal."""
     a, b = git_repo(tmp_path / "a"), git_repo(tmp_path / "b")
     for repo in (a, b):
-        (repo / "a.py").write_text("x = 2\n")
+        (repo / "a.py").write_text("x = 2\n", encoding="utf-8")
     info_a, _ = env.git_info(a)
     info_b, _ = env.git_info(b)
     assert info_a["commit"] == info_b["commit"]
     assert info_a["diff_sha"] == info_b["diff_sha"]
-    (b / "a.py").write_text("x = 3\n")
+    (b / "a.py").write_text("x = 3\n", encoding="utf-8")
     info_c, _ = env.git_info(b)
     assert info_c["diff_sha"] != info_b["diff_sha"]
 
 
 def test_beamtime_yaml_sets_the_root_and_logdir(tmp_path: Path, monkeypatch) -> None:
     """``beamtime.yaml`` above the working directory is the root; ``logdir`` is read."""
-    (tmp_path / "beamtime.yaml").write_text("schema: 1\nlogdir: runs\n")
+    (tmp_path / "beamtime.yaml").write_text("schema: 1\nlogdir: runs\n", encoding="utf-8")
     (tmp_path / "src" / "deep").mkdir(parents=True)
     monkeypatch.chdir(tmp_path / "src" / "deep")
     monkeypatch.delenv("BEAMTIME_LOGDIR", raising=False)
@@ -98,7 +98,7 @@ def test_env_logdir_wins(tmp_path: Path, monkeypatch) -> None:
 
 def test_absolute_dir(tmp_path: Path, monkeypatch) -> None:
     """An absolute dir below a log dir keeps that log dir; elsewhere it is the log dir."""
-    (tmp_path / "beamtime.yaml").write_text("schema: 1\n")
+    (tmp_path / "beamtime.yaml").write_text("schema: 1\n", encoding="utf-8")
     monkeypatch.setenv("BEAMTIME_LOGDIR", str(tmp_path / "ignored"))
     loc = locate(tmp_path / "beamtime" / "sweep")
     assert loc.logdir == logdir_of(tmp_path) and loc.relative == "sweep"
@@ -193,7 +193,7 @@ def test_proposal_argument(tmp_path: Path, monkeypatch) -> None:
     assert to_proposal("Warmup helps.") == {"statement": "Warmup helps."}
     assert to_proposal({"statement": "x", "confidence": 0.5})["confidence"] == 0.5
     f = tmp_path / "p.yaml"
-    f.write_text("statement: from file\n")
+    f.write_text("statement: from file\n", encoding="utf-8")
     assert to_proposal(str(f)) == {"statement": "from file"}
     assert to_proposal(None) == {"statement": None}
     monkeypatch.setenv("BEAMTIME_PROPOSAL", str(f))

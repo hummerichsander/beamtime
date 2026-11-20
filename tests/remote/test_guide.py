@@ -13,7 +13,7 @@ def test_guide_remote_settings(ctx: Context, box: Path) -> None:
 
     :param ctx: The local context with ``box`` as a source.
     :param box: The remote's log dir."""
-    (box.parent / "beamtime.yaml").write_text("agent: {style: hands-on, seeds: 7}\n")
+    (box.parent / "beamtime.yaml").write_text("agent: {style: hands-on, seeds: 7}\n", encoding="utf-8")
     local = answer("guide", {}, ctx)["text"]
     remote = answer("guide", {"group": f"@box/{SWEEP}"}, ctx)["text"]
     assert "You may launch runs." in remote and "7 seeds per point" in remote

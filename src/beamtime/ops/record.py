@@ -113,7 +113,7 @@ def proposal_show(ctx: Context, p: r.GroupParams) -> dict[str, Any]:
                     "reason": supersedes.reason if supersedes else None,
                 }
             )
-        text = (target.dir / c.PROPOSAL / f"{versions[-1]}.yaml").read_text()
+        text = (target.dir / c.PROPOSAL / f"{versions[-1]}.yaml").read_text(encoding="utf-8")
     return {
         "kind": "proposal",
         "group": target.rel,
@@ -423,7 +423,7 @@ def read_input(
         path = Path(file).expanduser()
         if not path.is_file():
             raise OpError(f"no file {file!r}", code=4)
-        return parse_text(path.read_text()), path.name
+        return parse_text(path.read_text(encoding="utf-8")), path.name
     if given is None:
         raise OpError(f"give a file, or {name} (on the command line, stdin works too)", code=2)
     return (parse_text(given) if isinstance(given, str) else given), name

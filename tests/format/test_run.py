@@ -156,9 +156,9 @@ def test_imported_from(golden: Path, finished: Path, tmp_path: Path) -> None:
     )
     run = tmp_path / "run"
     shutil.copytree(finished, run)
-    d = json.loads((run / "_run.json").read_text())
+    d = json.loads((run / "_run.json").read_text(encoding="utf-8"))
     d["imported_from"] = {"kind": "mlflow", "path": "/x/mlruns/0/3f2a", "id": "3f2a"}
-    (run / "_run.json").write_text(json.dumps(d))
+    (run / "_run.json").write_text(json.dumps(d), encoding="utf-8")
     assert read_run_info(run).imported_from == d["imported_from"]
 
 
@@ -166,26 +166,26 @@ def test_hidden_reads_false_for_golden_runs(golden: Path) -> None:
     """No golden run has a ``hidden`` key, so every one reads as visible."""
     runs = list(iter_runs(golden))
     assert runs and all(not read_run_info(r).hidden for r in runs)
-    assert all('"hidden"' not in (r / "_run.json").read_text() for r in runs)
+    assert all('"hidden"' not in (r / "_run.json").read_text(encoding="utf-8") for r in runs)
 
 
 def test_run_hidden_newest_version_wins(finished: Path, tmp_path: Path) -> None:
     """``visibility/`` overrides the flag, and the newest valid version counts."""
     run = tmp_path / "run"
     shutil.copytree(finished, run)
-    d = json.loads((run / "_run.json").read_text())
+    d = json.loads((run / "_run.json").read_text(encoding="utf-8"))
     d["hidden"] = True
-    (run / "_run.json").write_text(json.dumps(d))
+    (run / "_run.json").write_text(json.dumps(d), encoding="utf-8")
     assert read_run_info(run).hidden and run_hidden(run, read_run_info(run)) and run_hidden(run, d)
     folder = run / "visibility"
     folder.mkdir()
     (folder / "20261101-100000-aaaa.yaml").write_text(
         "schema: 1\nhidden: false\nauthor: a\nuser: u\n"
-    )
+    , encoding="utf-8")
     assert not run_hidden(run, d)
     (folder / "20261101-110000-bbbb.yaml").write_text(
         "schema: 1\nhidden: true\nauthor: a\nuser: u\n"
-    )
+    , encoding="utf-8")
     assert run_hidden(run, read_run_info(run))
 
 
@@ -193,12 +193,12 @@ def test_run_hidden_damaged_version(finished: Path, tmp_path: Path) -> None:
     """A damaged newest ``visibility/`` file falls back to ``_run.json`` and never raises."""
     run = tmp_path / "run"
     shutil.copytree(finished, run)
-    d = json.loads((run / "_run.json").read_text())
+    d = json.loads((run / "_run.json").read_text(encoding="utf-8"))
     d["hidden"] = True
     folder = run / "visibility"
     folder.mkdir()
     for text in ("{{ not yaml", "schema: 99\nhidden: false\n", "schema: 1\nhidden: maybe\n"):
-        (folder / "20261101-100000-aaaa.yaml").write_text(text)
+        (folder / "20261101-100000-aaaa.yaml").write_text(text, encoding="utf-8")
         assert run_hidden(run, d)
         assert not run_hidden(run, {})
 
@@ -211,6 +211,6 @@ def test_run_hidden_skips_damaged_newest(finished: Path, tmp_path: Path) -> None
     folder.mkdir()
     (folder / "20261101-100000-aaaa.yaml").write_text(
         "schema: 1\nhidden: false\nauthor: a\nuser: u\n"
-    )
-    (folder / "20261101-110000-bbbb.yaml").write_text("{{ not yaml")
+    , encoding="utf-8")
+    (folder / "20261101-110000-bbbb.yaml").write_text("{{ not yaml", encoding="utf-8")
     assert not run_hidden(run, {"hidden": True})

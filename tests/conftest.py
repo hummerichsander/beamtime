@@ -158,4 +158,4 @@ def roles(project: Path) -> dict[str, str]:
 
     :param project: The project root.
     :return: Role to run id."""
-    return json.loads((project / "beamtime" / "_synth.json").read_text())["roles"]
+    return json.loads((project / "beamtime" / "_synth.json").read_text(encoding="utf-8"))["roles"]

@@ -323,7 +323,7 @@ def read_query(text: str) -> Any:
             raise ValueError(
                 f"no query file {text!r}; pass a file or an object like {{runs: {{}}}}"
             )
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
     return yaml.safe_load(text) if not text.lstrip().startswith("{") else json_or_yaml(text)
 
 

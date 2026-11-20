@@ -145,7 +145,7 @@ def template(name: str) -> str:
 
     :param name: ``rules.md`` or ``history/<release>.md``.
     :return: The text."""
-    return (files(__package__) / "rules" / name).read_text()
+    return (files(__package__) / "rules" / name).read_text(encoding="utf-8")
 
 
 def read_block(file: Path) -> str | None:

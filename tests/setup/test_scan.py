@@ -40,10 +40,10 @@ def write_record(logdir: Path) -> None:
     :param logdir: The log dir."""
     for d in ("g/proposal", "g/r1/notes", "memory"):
         (logdir / d).mkdir(parents=True)
-    (logdir / "g" / "r1" / "_run.json").write_text("{}")
-    (logdir / "g" / "proposal" / "p1.yaml").write_text("x: 1")
-    (logdir / "g" / "r1" / "notes" / "n1.md").write_text("x")
-    (logdir / "memory" / "m1.md").write_text("x")
+    (logdir / "g" / "r1" / "_run.json").write_text("{}", encoding="utf-8")
+    (logdir / "g" / "proposal" / "p1.yaml").write_text("x: 1", encoding="utf-8")
+    (logdir / "g" / "r1" / "notes" / "n1.md").write_text("x", encoding="utf-8")
+    (logdir / "memory" / "m1.md").write_text("x", encoding="utf-8")
 
 
 def test_flow_first(tmp_path, home):
@@ -61,7 +61,7 @@ def test_flow_logdir_only(tmp_path, home):
 
 
 def test_project_counts(tmp_path, home):
-    (tmp_path / "beamtime.yaml").write_text("logdir: runs\n")
+    (tmp_path / "beamtime.yaml").write_text("logdir: runs\n", encoding="utf-8")
     write_record(tmp_path / "runs")
     p = run(tmp_path, home).project
     assert (p.settings, p.has_logdir) == (True, True)
@@ -70,35 +70,35 @@ def test_project_counts(tmp_path, home):
 
 
 def test_flow_current_and_teammate(tmp_path, home):
-    (tmp_path / "beamtime.yaml").write_text(yaml.safe_dump({"remotes": {"juwels": {"path": "/p"}}}))
+    (tmp_path / "beamtime.yaml").write_text(yaml.safe_dump({"remotes": {"juwels": {"path": "/p"}}}), encoding="utf-8")
     assert run(tmp_path, home).flow == "teammate"
 
     settings = home / ".config" / "beamtime" / "settings.yaml"
     settings.parent.mkdir(parents=True)
-    settings.write_text(yaml.safe_dump({"remotes": {"juwels": {"host": "juwels"}}}))
+    settings.write_text(yaml.safe_dump({"remotes": {"juwels": {"host": "juwels"}}}), encoding="utf-8")
     assert run(tmp_path, home).flow == "current"
 
-    settings.write_text(yaml.safe_dump({"remotes": {"juwels": {"enabled": False}}}))
+    settings.write_text(yaml.safe_dump({"remotes": {"juwels": {"enabled": False}}}), encoding="utf-8")
     assert run(tmp_path, home).flow == "current"
 
 
 def test_flow_teammate_by_an_unregistered_agent(tmp_path, home, tools):
     """An installed agent client without Beamtime makes a teammate, however complete the project."""
-    (tmp_path / "beamtime.yaml").write_text("logdir: beamtime\n")
+    (tmp_path / "beamtime.yaml").write_text("logdir: beamtime\n", encoding="utf-8")
     env = {**DESK, "PATH": tools("cursor")}
     s = run(tmp_path, home, env=env)
     assert s.flow == "teammate" and not s.agents[0].registered
     (tmp_path / ".cursor").mkdir()
-    (tmp_path / ".cursor" / "mcp.json").write_text('{"mcpServers": {"beamtime": {}}}')
+    (tmp_path / ".cursor" / "mcp.json").write_text('{"mcpServers": {"beamtime": {}}}', encoding="utf-8")
     s = run(tmp_path, home, env=env)
     assert s.flow == "current" and s.agents[0].registered
-    (tmp_path / ".cursor" / "mcp.json").write_text("{not json")
+    (tmp_path / ".cursor" / "mcp.json").write_text("{not json", encoding="utf-8")
     assert run(tmp_path, home, env=env).flow == "teammate"
 
 
 def test_flow_ignores_an_agent_that_is_not_installed(tmp_path, home):
     """A project file of a client that isn't on this machine asks nothing."""
-    (tmp_path / "beamtime.yaml").write_text("logdir: beamtime\n")
+    (tmp_path / "beamtime.yaml").write_text("logdir: beamtime\n", encoding="utf-8")
     (tmp_path / ".cursor").mkdir()
     s = run(tmp_path, home)
     assert s.agents and s.flow == "current"
@@ -108,7 +108,7 @@ def test_flow_cluster_by_scheduler(tmp_path, home):
     bin = tmp_path / "bin"
     bin.mkdir()
     sbatch = bin / "sbatch"
-    sbatch.write_text("#!/bin/sh\n")
+    sbatch.write_text("#!/bin/sh\n", encoding="utf-8")
     sbatch.chmod(0o755)
     s = run(tmp_path, home, env={**DESK, "PATH": str(bin)})
     assert (s.scheduler, s.flow) == ("slurm", "cluster")
@@ -123,14 +123,14 @@ def test_flow_cluster_by_display(tmp_path, home, monkeypatch):
 
 def test_flow_cluster_by_network_home(tmp_path, home):
     mounts = tmp_path / "mounts"
-    mounts.write_text(f"/dev/sda1 / ext4 rw 0 0\nserver:/h {home.resolve()} nfs4 rw 0 0\n")
+    mounts.write_text(f"/dev/sda1 / ext4 rw 0 0\nserver:/h {home.resolve()} nfs4 rw 0 0\n", encoding="utf-8")
     s = run(tmp_path, home, mounts=mounts)
     assert s.flow == "cluster"
 
 
 def test_cluster_wins_over_teammate(tmp_path, home, monkeypatch):
     monkeypatch.setattr(sys, "platform", "linux")
-    (tmp_path / "beamtime.yaml").write_text(yaml.safe_dump({"remotes": {"a": {}}}))
+    (tmp_path / "beamtime.yaml").write_text(yaml.safe_dump({"remotes": {"a": {}}}), encoding="utf-8")
     assert run(tmp_path, home, env={"PATH": ""}).flow == "cluster"
 
 
@@ -144,7 +144,7 @@ def test_disks(tmp_path, home):
         f"tmpfs /tmp tmpfs rw 0 0\n"
         f"/dev/sda2 {home.resolve()} ext4 rw 0 0\n"
         f"server:/s {scratch.resolve()} lustre rw 0 0\n"
-    )
+    , encoding="utf-8")
     disks = {
         d.label: d
         for d in run(tmp_path, home, mounts=mounts, env={**DESK, "SCRATCH": str(scratch)}).disks
@@ -163,7 +163,7 @@ def test_env_uv(project_tree, home):
 def test_env_version_without_import(project_tree, home, monkeypatch):
     packages = project_tree / ".venv" / "lib" / "python3.11" / "site-packages"
     (packages / "beamtime").mkdir()
-    (packages / "beamtime" / "__init__.py").write_text("raise RuntimeError('imported')\n")
+    (packages / "beamtime" / "__init__.py").write_text("raise RuntimeError('imported')\n", encoding="utf-8")
     monkeypatch.syspath_prepend(str(packages))
     monkeypatch.delitem(sys.modules, "beamtime", raising=False)
     assert run(project_tree, home).env.beamtime_version == __version__
@@ -201,7 +201,7 @@ def test_env_conda(tmp_path, home):
 
 def test_env_none_and_requirements_only(tmp_path, home):
     assert run(tmp_path, home).env is None
-    (tmp_path / "requirements.txt").write_text("numpy\n")
+    (tmp_path / "requirements.txt").write_text("numpy\n", encoding="utf-8")
     env = run(tmp_path, home).env
     assert (env.tool, env.path, env.python) == ("pip", None, None)
 
@@ -211,7 +211,7 @@ def test_framework_and_job_scripts(project_tree, home):
     ssh.mkdir()
     (ssh / "config").write_text(
         "Host juwels\n  HostName juwels.fz-juelich.de\n  User me\nHost other\n"
-    )
+    , encoding="utf-8")
     s = run(project_tree, home)
     assert s.framework == "lightning"
     [job] = s.job_scripts
@@ -221,17 +221,17 @@ def test_framework_and_job_scripts(project_tree, home):
 def test_framework_none_and_deep_files_ignored(tmp_path, home):
     deep = tmp_path / "a" / "b" / "c"
     deep.mkdir(parents=True)
-    (deep / "train.py").write_text("import pytorch_lightning\n")
-    (deep / "x.sbatch").write_text("#SBATCH -n 1\n")
+    (deep / "train.py").write_text("import pytorch_lightning\n", encoding="utf-8")
+    (deep / "x.sbatch").write_text("#SBATCH -n 1\n", encoding="utf-8")
     s = run(tmp_path, home)
     assert s.framework is None and s.job_scripts == ()
-    (tmp_path / "a" / "train.py").write_text("from pytorch_lightning import Trainer\n")
+    (tmp_path / "a" / "train.py").write_text("from pytorch_lightning import Trainer\n", encoding="utf-8")
     assert run(tmp_path, home).framework == "lightning"
 
 
 def test_job_script_in_shell_file(tmp_path, home):
-    (tmp_path / "run.sh").write_text("#!/bin/bash\n#PBS -l nodes=1\n")
-    (tmp_path / "plain.sh").write_text("#!/bin/bash\necho hi\n")
+    (tmp_path / "run.sh").write_text("#!/bin/bash\n#PBS -l nodes=1\n", encoding="utf-8")
+    (tmp_path / "plain.sh").write_text("#!/bin/bash\necho hi\n", encoding="utf-8")
     assert [(j.path, j.scheduler) for j in run(tmp_path, home).job_scripts] == [("run.sh", "pbs")]
 
 
@@ -242,7 +242,7 @@ def test_ssh_wildcards(tmp_path, home):
         "Host juwels jw-*\n  HostName jwlogin.example.org\n  User me\n"
         "Host !bad ok?\n"
         "Host=eq\n  hostname=eq.example.org\n"
-    )
+    , encoding="utf-8")
     hosts = run(tmp_path, home).ssh_hosts
     assert [(h.name, h.hostname, h.user) for h in hosts] == [
         ("juwels", "jwlogin.example.org", "me"),
@@ -253,10 +253,10 @@ def test_ssh_wildcards(tmp_path, home):
 def test_ssh_include(tmp_path, home):
     ssh = home / ".ssh"
     (ssh / "config.d").mkdir(parents=True)
-    (ssh / "config").write_text("Include config.d/*\nInclude ~/.ssh/loop\nHost main\n")
-    (ssh / "config.d" / "a").write_text("Host alpha\n  User x\n")
-    (ssh / "config.d" / "b").write_text("Host beta\n")
-    (ssh / "loop").write_text(f"Include {ssh / 'config'}\nHost looped\n")
+    (ssh / "config").write_text("Include config.d/*\nInclude ~/.ssh/loop\nHost main\n", encoding="utf-8")
+    (ssh / "config.d" / "a").write_text("Host alpha\n  User x\n", encoding="utf-8")
+    (ssh / "config.d" / "b").write_text("Host beta\n", encoding="utf-8")
+    (ssh / "loop").write_text(f"Include {ssh / 'config'}\nHost looped\n", encoding="utf-8")
     assert [h.name for h in run(tmp_path, home).ssh_hosts] == ["alpha", "beta", "looped", "main"]
 
 
@@ -274,13 +274,13 @@ def test_git(tmp_path, home):
         )
 
     git("init", "-b", "work")
-    (tmp_path / ".gitignore").write_text("beamtime/\n")
+    (tmp_path / ".gitignore").write_text("beamtime/\n", encoding="utf-8")
     git("add", ".")
     git("commit", "-m", "x")
     s = run(tmp_path, home)
     assert (s.git.branch, s.git.clean, s.git.logdir_ignored) == ("work", True, True)
     assert s.git.root == tmp_path
-    (tmp_path / "new.py").write_text("x = 1\n")
+    (tmp_path / "new.py").write_text("x = 1\n", encoding="utf-8")
     assert run(tmp_path, home).git.clean is False
 
 
@@ -300,8 +300,8 @@ def test_scan_is_fast_on_a_large_tree(tmp_path, home):
         d = tmp_path / f"d{i}" / "sub"
         d.mkdir(parents=True)
         for j in range(25):
-            (d / f"f{j}.py").write_text("import numpy\n" * 20)
-            (tmp_path / f"d{i}" / f"g{j}.txt").write_text("x")
+            (d / f"f{j}.py").write_text("import numpy\n" * 20, encoding="utf-8")
+            (tmp_path / f"d{i}" / f"g{j}.txt").write_text("x", encoding="utf-8")
     write_record(tmp_path / "beamtime")
     assert sum(1 for _ in tmp_path.rglob("*") if _.is_file()) >= 2000
     start = time.perf_counter()
@@ -327,12 +327,12 @@ def rules_file(path: Path, preface: str = "") -> str:
     :return: The block."""
     block = render(Settings().agent, ["setup", "serve", "settings"])
     write_block(path, block)
-    path.write_text(preface + path.read_text())
+    path.write_text(preface + path.read_text(encoding="utf-8"), encoding="utf-8")
     return block
 
 
 def test_agents_by_project_files_and_path(tmp_path, home, tools):
-    (tmp_path / ".mcp.json").write_text("{}")
+    (tmp_path / ".mcp.json").write_text("{}", encoding="utf-8")
     rules_file(tmp_path / "CLAUDE.md")
     found = {a.client: a for a in run(tmp_path, home, env={"PATH": tools("codex")}).agents}
     assert set(found) == {"claude-code", "codex"}
@@ -353,7 +353,7 @@ def test_agents_user_wide_config_and_shared_rules_file(tmp_path, home):
 
 
 def test_agents_old_and_edited_blocks(tmp_path, home):
-    old = (files("beamtime.guide") / "rules" / "history" / "0.1.0.md").read_text()
+    old = (files("beamtime.guide") / "rules" / "history" / "0.1.0.md").read_text(encoding="utf-8")
     write_block(tmp_path / "GEMINI.md", old.strip())
     write_block(tmp_path / "CLAUDE.md", "Written by hand.")
     found = {a.client: a for a in run(tmp_path, home).agents}
@@ -362,15 +362,15 @@ def test_agents_old_and_edited_blocks(tmp_path, home):
 
 
 def test_no_agents(tmp_path, home):
-    (tmp_path / "AGENTS.md").write_text("notes\n")
+    (tmp_path / "AGENTS.md").write_text("notes\n", encoding="utf-8")
     assert run(tmp_path, home).agents == ()
 
 
 def test_conflicts(tmp_path, home):
     (tmp_path / "CLAUDE.md").write_text(
         "# Rules\nKeep results in NOTES.md.\nBe kind.\nThe Experiment Log is in docs/\n"
-    )
-    (tmp_path / "AGENTS.md").write_text("Our results go in a spreadsheet.\nLab notebook: wiki\n")
+    , encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("Our results go in a spreadsheet.\nLab notebook: wiki\n", encoding="utf-8")
     assert run(tmp_path, home).conflicts == (
         ("CLAUDE.md", 2, "Keep results in NOTES.md."),
         ("CLAUDE.md", 4, "The Experiment Log is in docs/"),
@@ -381,7 +381,7 @@ def test_conflicts(tmp_path, home):
 
 def test_conflict_outside_block(tmp_path, home):
     block = START + "\nExperiment log lines belong in Beamtime. Keep results in Beamtime.\n" + END
-    (tmp_path / "CLAUDE.md").write_text(f"top: keep notes in a diary\n{block}\nlab notebook\n")
+    (tmp_path / "CLAUDE.md").write_text(f"top: keep notes in a diary\n{block}\nlab notebook\n", encoding="utf-8")
     lines = [(c.line, c.text) for c in run(tmp_path, home).conflicts]
     assert lines == [(1, "top: keep notes in a diary"), (5, "lab notebook")]
 
@@ -422,7 +422,7 @@ def test_past_work_mlflow_db_at_the_root(tmp_path, home):
 
 def test_own_logdir_not_offered(tmp_path, home):
     touch(tmp_path, "beamtime/g/r1/_run.json", "runs/g/r1/_run.json")
-    (tmp_path / "beamtime.yaml").write_text("logdir: runs\n")
+    (tmp_path / "beamtime.yaml").write_text("logdir: runs\n", encoding="utf-8")
     touch(tmp_path, "beamtime/g/r2/_run.json")
     kinds = [(p.found.kind, p.found.path) for p in run(tmp_path, home).past]
     assert kinds == []
@@ -430,7 +430,7 @@ def test_own_logdir_not_offered(tmp_path, home):
 
 def test_own_nested_logdir_not_offered(tmp_path, home):
     touch(tmp_path, "exp/tb/events.out.tfevents.1", "exp/beamtime/g/_run.json")
-    (tmp_path / "beamtime.yaml").write_text("logdir: exp/beamtime\n")
+    (tmp_path / "beamtime.yaml").write_text("logdir: exp/beamtime\n", encoding="utf-8")
     assert [p.found.path for p in run(tmp_path, home).past] == [tmp_path / "exp" / "tb"]
 
 
@@ -454,7 +454,7 @@ def test_past_work_from_other_logdirs(tmp_path, home, monkeypatch):
     other, root = tmp_path / "elsewhere", tmp_path / "project"
     touch(other, "g/r1/_run.json", "g/r2/_run.json")
     touch(root, "mine/g/r1/_run.json")
-    (root / "beamtime.yaml").write_text("logdir: mine\n")
+    (root / "beamtime.yaml").write_text("logdir: mine\n", encoding="utf-8")
     known(tmp_path, monkeypatch, other, root / "mine")
     (past,) = run(root, home).past
     assert past.other and (past.found.kind, past.found.n) == ("beamtime", 2)

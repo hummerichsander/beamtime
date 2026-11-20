@@ -44,5 +44,5 @@ def test_missing_folder_has_no_versions(tmp_path: Path) -> None:
     """A folder without versions has no current one."""
     assert versions(tmp_path / "view") == [] and newest(tmp_path / "view") is None
     (tmp_path / "view").mkdir()
-    (tmp_path / "view" / "draft.yaml").write_text("schema: 1\n")
+    (tmp_path / "view" / "draft.yaml").write_text("schema: 1\n", encoding="utf-8")
     assert newest(tmp_path / "view") is None

@@ -136,7 +136,7 @@ def test_edited_frozen_file_is_invalid(tmp_path: Path) -> None:
     index.catch_up(".", budget_s=float("inf"))
     target = Target(index=index, rel=SWEEP, run_id=None)
     path = newest(target.dir / "proposal")
-    path.write_text(path.read_text().replace("value: 0.9", "value: 0.5"))
+    path.write_text(path.read_text(encoding="utf-8").replace("value: 0.9", "value: 0.5"), encoding="utf-8")
     result = evaluate(target, path.stem)
     index.close()
     assert result["result"] == "invalid" and "edited after runs recorded it" in result["problem"]

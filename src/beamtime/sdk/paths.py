@@ -57,7 +57,7 @@ def logdir_of(root: Path) -> Path:
     if (settings := root / SETTINGS).is_file():
         import yaml
 
-        data = yaml.safe_load(settings.read_text()) or {}
+        data = yaml.safe_load(settings.read_text(encoding="utf-8")) or {}
         name = data.get("logdir") or DEFAULT_LOGDIR
     return (root / Path(name).expanduser()).resolve()
 

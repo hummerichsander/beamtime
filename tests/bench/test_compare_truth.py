@@ -154,7 +154,7 @@ def test_final_is_last_logged_value(made: Made) -> None:
     runs = truth.load_runs(made.files, made.logdir)
     last_row_empty = 0
     for r in truth.sweep_runs(runs):
-        with (made.files / "runs" / r.group / r.id / "metrics.csv").open() as f:
+        with (made.files / "runs" / r.group / r.id / "metrics.csv").open(encoding="utf-8") as f:
             rows = list(csv.DictReader(f))
         key = next(k for k in truth.ACCURACY if k in rows[0])
         logged = [row[key] for row in rows if row[key] != ""]

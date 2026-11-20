@@ -342,7 +342,11 @@ def run_diff(ctx: Context, body: dict[str, Any]) -> dict[str, Any]:
     path = find_run(ctx, run_id) / ENV_DIR / "git.diff"
     if not path.is_file():
         raise OpError(f"run {run_id!r} recorded no git diff", code=4)
-    return {"kind": "diff", "run": run_id, "text": path.read_text(errors="replace")}
+    return {
+        "kind": "diff",
+        "run": run_id,
+        "text": path.read_text(errors="replace", encoding="utf-8"),
+    }
 
 
 def locate(ctx: Context, run_id: str, rel: str) -> Path | None:

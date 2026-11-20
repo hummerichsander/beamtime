@@ -62,7 +62,7 @@ def test_writes_land_on_the_remote(box: Path, ctx: Context, project: Path) -> No
                                "description": "Seen from the laptop."}, ctx)  # fmt: skip
     assert answer["path"].startswith(f"@box/{SWEEP}/notes/")
     written = box / answer["path"].removeprefix("@box/")
-    assert "Seen from the laptop." in written.read_text()
+    assert "Seen from the laptop." in written.read_text(encoding="utf-8")
     assert not (project / "beamtime" / answer["path"].removeprefix("@box/")).exists()
     notes = call("notes", {"from": ".", "limit": 5}, ctx)["entries"]
     assert (
@@ -214,7 +214,7 @@ def test_a_hung_remote_is_left_out_of_listings(
     """A remote that shakes hands but never answers delays a listing by the timeout, no more."""
     from beamtime.remote import route
 
-    (tmp_path / "hung.py").write_text(HUNG)
+    (tmp_path / "hung.py").write_text(HUNG, encoding="utf-8")
     hung = Spec(name="hung", path=".", command=f"{sys.executable} {tmp_path / 'hung.py'}",
                 transport="command")  # fmt: skip
     ctx.sources.clients.update(Sources([hung]).clients)
@@ -233,7 +233,7 @@ def test_closing_fails_waiting_requests(tmp_path: Path) -> None:
 
     from beamtime.remote.client import RemoteClient, Unreachable
 
-    (tmp_path / "hung.py").write_text(HUNG)
+    (tmp_path / "hung.py").write_text(HUNG, encoding="utf-8")
     client = RemoteClient(spec=Spec(name="hung", path=".", transport="command",
                                     command=f"{sys.executable} {tmp_path / 'hung.py'}"))  # fmt: skip
     with pytest.raises(Unreachable, match="didn't answer runs within"):
@@ -284,7 +284,7 @@ class OldRemote:
         :param params: Its parameters.
         :return: The answer, in the old shape."""
         path = Path(__file__).parent / "fixtures" / "series-0.2.json"
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
 
     def close(self) -> None:
         """Hold no connection."""

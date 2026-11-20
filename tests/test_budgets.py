@@ -81,7 +81,7 @@ def imports(entry: str) -> tuple[set[str], set[str]]:
 
     static, lazy, todo = {entry}, set(), [entry]
     while todo:
-        text = (STATIC / todo.pop()).read_text()
+        text = (STATIC / todo.pop()).read_text(encoding="utf-8")
         for f in re.findall(r'(?:from|import)\s*"\./(?:\.\./)?((?:chunks/)?[\w.-]+\.js)"', text):
             f = f if f.startswith("chunks/") else f"chunks/{f}"
             if f not in static:
@@ -113,7 +113,7 @@ def test_shell_bundle_budget() -> None:
     for lib in ("uplot", "md"):
         assert any(lib in f for f in lazy) and not any(lib in f for f in static), lib
     md = next(f for f in lazy if "md" in f)
-    assert re.search(r'import\("\./katex-[\w-]+\.js"\)', (STATIC / md).read_text())
+    assert re.search(r'import\("\./katex-[\w-]+\.js"\)', (STATIC / md).read_text(encoding="utf-8"))
 
 
 def test_kit_bundle_budget() -> None:

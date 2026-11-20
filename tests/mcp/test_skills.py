@@ -16,7 +16,7 @@ def test_mcp_install_writes_skills_that_name_topics(ctx: Context, project: Path)
     """Each skill names its guide topics and carries no line of their text, so it can't go stale."""
     call("mcp install", {"client": "cursor", "skills": True}, ctx)
     for name, (_, topics) in SKILLS.items():
-        text = (project / ".claude" / "skills" / name / "SKILL.md").read_text()
+        text = (project / ".claude" / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
         assert text.startswith(f"---\nname: {name}\n")
         for topic in topics:
             assert f"`beamtime guide {topic}`" in text
@@ -39,9 +39,9 @@ def test_build_plugin_writes_the_layout(tmp_path: Path) -> None:
 
     script = Path(__file__).parents[2] / "scripts" / "build-plugin"
     runpy.run_path(str(script), run_name="build")["build"](tmp_path / "plugin")
-    manifest = json.loads((tmp_path / "plugin" / ".claude-plugin" / "plugin.json").read_text())
+    manifest = json.loads((tmp_path / "plugin" / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
     assert manifest["name"] == "beamtime"
     for name in SKILLS:
         assert (tmp_path / "plugin" / "skills" / name / "SKILL.md").exists()
-    config = json.loads((tmp_path / "plugin" / ".mcp.json").read_text())
+    config = json.loads((tmp_path / "plugin" / ".mcp.json").read_text(encoding="utf-8"))
     assert config["mcpServers"]["beamtime"]["args"] == ["mcp"]

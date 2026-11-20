@@ -30,7 +30,7 @@ def write_metrics_at(run: Path, t: float) -> None:
 
     :param run: The run directory.
     :param t: The modification time, Unix seconds."""
-    with (run / "_metrics.jsonl").open("a") as f:
+    with (run / "_metrics.jsonl").open("a", encoding="utf-8") as f:
         f.write("\n")
     os.utime(run / "_metrics.jsonl", (t, t))
 
@@ -170,8 +170,8 @@ def test_wait_times_out_and_reports_what_changed(ctx: Context, roles: dict[str, 
 
     def finish() -> None:
         time.sleep(0.5)
-        info = json.loads((running / "_run.json").read_text())
-        (running / "_run.json").write_text(json.dumps(info | {"status": "finished"}))
+        info = json.loads((running / "_run.json").read_text(encoding="utf-8"))
+        (running / "_run.json").write_text(json.dumps(info | {"status": "finished"}), encoding="utf-8")
 
     thread = threading.Thread(target=finish)
     thread.start()
@@ -249,9 +249,9 @@ def test_diagnose_flags_a_card_without_metrics_as_missing(ctx: Context) -> None:
         ctx,
     )["rows"][0]
     run = next(p for p in ctx.logdir.rglob(run_id) if p.is_dir())
-    card = json.loads((run / "_run_card.json").read_text())
+    card = json.loads((run / "_run_card.json").read_text(encoding="utf-8"))
     wanted = sorted(card["metrics"])
-    (run / "_run_card.json").write_text(json.dumps({**card, "metrics": {}}))
+    (run / "_run_card.json").write_text(json.dumps({**card, "metrics": {}}), encoding="utf-8")
     # the index rereads an ended run only when its _run.json changed.
     os.utime(run / "_run.json", (time.time() + 1, time.time() + 1))
     flagged = {
@@ -315,7 +315,7 @@ def test_to_writes_a_table_outside_the_budget(ctx: Context) -> None:
     exports = ctx.root / ".beamtime" / "exports"
     a = call("runs", {"by": ["config.lr"], "select": ["metric.val/acc.last"], "to": "lr.csv"}, ctx)
     assert a["kind"] == "export" and a["path"] == str(exports / "lr.csv")
-    header, *rows = (exports / "lr.csv").read_text().splitlines()
+    header, *rows = (exports / "lr.csv").read_text(encoding="utf-8").splitlines()
     assert (
         header
         == "runs,config.lr,metric.val/acc.last.mean,metric.val/acc.last.std,metric.val/acc.last.n"
@@ -333,7 +333,7 @@ def read_export(ctx: Context, name: str) -> tuple[list[str], list[list[str]]]:
     :param name: The file name below ``.beamtime/exports/``.
     :return: The header and the rows."""
     path = ctx.root / ".beamtime" / "exports" / name
-    header, *rows = list(csv.reader(path.read_text().splitlines()))
+    header, *rows = list(csv.reader(path.read_text(encoding="utf-8").splitlines()))
     return header, rows
 
 
@@ -346,7 +346,7 @@ def test_to_csv_one_row_per_run_and_step(ctx: Context) -> None:
     assert len(rows) == a["rows"] > 500
     assert a["columns"] == header and [str(v) for v in a["first_row"]] == rows[0]
     out = call("series", query | {"to": "sub/curves.json"}, ctx)
-    data = json.loads((ctx.root / ".beamtime" / "exports" / "sub" / "curves.json").read_text())
+    data = json.loads((ctx.root / ".beamtime" / "exports" / "sub" / "curves.json").read_text(encoding="utf-8"))
     assert len(data["curves"]) == out["rows"] == 17
     assert (
         out["columns"] == list(data["curves"][0])
@@ -427,7 +427,7 @@ def test_series_json_carries_the_envelope_only(ctx: Context) -> None:
     query = {"from": "scaling/lr-sweep", "y": ["train/loss"], "points": 10}
     for name, extra in (("down", {}), ("grouped", {"by": ["config.lr"]})):
         call("series", query | extra | {"to": f"{name}.json"}, ctx)
-        curve = json.loads((exports / f"{name}.json").read_text())["curves"][0]
+        curve = json.loads((exports / f"{name}.json").read_text(encoding="utf-8"))["curves"][0]
         assert {"y", "lo", "hi", "n"} <= set(curve) and not old & set(curve)
 
 
@@ -476,7 +476,7 @@ def test_status_memory_has_the_text(ctx: Context) -> None:
 def test_status_memory_unreadable(ctx: Context) -> None:
     """A memory file that does not parse leaves the text out and keeps the version."""
     newest_file = max((ctx.logdir / "memory").iterdir())
-    newest_file.write_text("no frontmatter here\n")
+    newest_file.write_text("no frontmatter here\n", encoding="utf-8")
     memory = call("status", {}, ctx)["memory"]
     assert memory["version"] == newest_file.stem and memory["text"] is None
 
@@ -498,7 +498,7 @@ def test_series_json_first_row_keeps_curve_fields(ctx: Context) -> None:
     """A grouped JSON export's first row takes the first point of the point arrays only."""
     query = {"from": "scaling/lr-sweep", "y": ["train/loss"], "by": ["config.lr"], "points": 10}
     a = call("series", query | {"to": "g.json"}, ctx)
-    curve = json.loads((ctx.root / ".beamtime" / "exports" / "g.json").read_text())["curves"][0]
+    curve = json.loads((ctx.root / ".beamtime" / "exports" / "g.json").read_text(encoding="utf-8"))["curves"][0]
     first = dict(zip(a["columns"], a["first_row"], strict=True))
     assert first["runs"] == curve["runs"] and first["by"] == curve["by"]
     assert first["y"] == curve["y"][0]

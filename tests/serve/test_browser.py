@@ -85,19 +85,19 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     page.wait_for_selector(".notes .note-title:has-text('Edited in the browser.')")
     page.wait_for_timeout(500)
     added = set(notes_dir.iterdir()) - before
-    assert len(added) == 1 and "supersedes:" in added.pop().read_text()
+    assert len(added) == 1 and "supersedes:" in added.pop().read_text(encoding="utf-8")
 
     # the type menu supersedes too, keeping the body and evidence; only the type line changes.
     # (nth=0 is the group's verdict note, whose type is fixed; nth=1 is a plain observation.)
-    old_path = next(p for p in notes_dir.iterdir() if "type: observation" in p.read_text())
-    old_text = old_path.read_text()
+    old_path = next(p for p in notes_dir.iterdir() if "type: observation" in p.read_text(encoding="utf-8"))
+    old_text = old_path.read_text(encoding="utf-8")
     before = set(notes_dir.iterdir())
     page.click('.notes .note >> nth=1 >> button[aria-label="Change the note\'s type"]')
     page.click(".menu-list button:has-text('theory')")
     page.wait_for_timeout(500)
     added = set(notes_dir.iterdir()) - before
     assert len(added) == 1
-    new_text = added.pop().read_text()
+    new_text = added.pop().read_text(encoding="utf-8")
     assert "type: theory" in new_text
     # the body and the description are byte-identical; the evidence still names the same run
     # (its YAML shorthand may be rewritten, since this goes through the op layer, not the raw file).
@@ -116,7 +116,7 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     page.click(".new-note button[type=submit]")
     page.wait_for_selector(".notes .note-title:has-text('Try a warmup.')")
     added = set(notes_dir.iterdir()) - before
-    text = added.pop().read_text()
+    text = added.pop().read_text(encoding="utf-8")
     assert "type: idea" in text and "Maybe **500** steps." in text
 
     # deleting asks once, then moves the note to the trash.
@@ -153,7 +153,7 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     series: list[str] = []
     page.on("request", lambda r: r.url.endswith("/api/series") and series.append(r.url))
     run_dir = next(project.glob(f"beamtime/**/{running}"))
-    lines = (run_dir / "_metrics.jsonl").read_text().splitlines()
+    lines = (run_dir / "_metrics.jsonl").read_text(encoding="utf-8").splitlines()
     step = json.loads(lines[-1])["_step"]
     with (run_dir / "_metrics.jsonl").open("ab") as f:
         for i in range(1, 50):
@@ -179,12 +179,12 @@ def test_custom_blocks_share_hover_downloads_and_expand(project: Path, page) -> 
     sweep = "scaling/lr-sweep"
     call("view new", {"group": sweep, "from": "custom", "name": "pm"}, ctx)
     file = project / ".beamtime" / "drafts" / "pm" / "view.yaml"
-    data = yaml.safe_load(file.read_text())
+    data = yaml.safe_load(file.read_text(encoding="utf-8"))
     data["finding"] = "x"
     data["body"].append(
         {"table": {"id": "runs", "columns": ["run.name", "config.lr", "config.seed"]}}
     )
-    file.write_text(yaml.safe_dump(data, sort_keys=False))
+    file.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     call("view save", {"draft": "pm"}, ctx)
     script = Path(sys.executable).parent / "beamtime"
     proc = subprocess.Popen(
@@ -232,9 +232,9 @@ def test_live_page_fixture_follows_a_running_writer(live_page) -> None:
     live_page.goto("/f/local/live")
     live_page.page.wait_for_selector(".chart canvas")
     metrics = next((live_page.project / "beamtime" / "live").glob("*/_metrics.jsonl"))
-    before = len(metrics.read_text().splitlines())
+    before = len(metrics.read_text(encoding="utf-8").splitlines())
     deadline = time.time() + 10
-    while len(metrics.read_text().splitlines()) <= before:
+    while len(metrics.read_text(encoding="utf-8").splitlines()) <= before:
         assert time.time() < deadline, "no metrics arrived after the page opened"
         live_page.page.wait_for_timeout(200)
     live_page.stop_writer()
@@ -373,9 +373,9 @@ def test_custom_blocks_follow_live_data(live_page) -> None:
             }
         ],
     }
-    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
     (draft / "code").mkdir()
-    (draft / "code" / "last.js").write_text(LAST_STEP)
+    (draft / "code" / "last.js").write_text(LAST_STEP, encoding="utf-8")
     call("view save", {"draft": "last"}, ctx)
 
     asked: list[str] = []
@@ -422,7 +422,7 @@ def test_a_scorecard_keeps_queued_rows_and_a_new_run_appears_in_its_row(live_pag
         "baseline": "live",
     }
     view = {"schema": 1, "title": "live", "finding": "x", "body": [{"scorecard": scorecard}]}
-    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
     call("view save", {"draft": "score"}, ctx)
 
     live_page.goto("/f/local/live")
@@ -469,7 +469,7 @@ def test_a_chart_waits_for_the_first_value_of_a_running_run(
         draft = project / ".beamtime" / "drafts" / "loss"
         body = [{"line": {"id": "loss", "title": "waiting/loss", "y": "waiting/loss"}}]
         view = {"schema": 1, "title": "waiting", "finding": "x", "body": body}
-        (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+        (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
         call("view save", {"draft": "loss"}, ctx)
 
         page.goto(server.replace("/f/local", "/f/local/waiting"))
@@ -519,7 +519,7 @@ def test_nested_configs_read_well_everywhere(server: str, page, project: Path) -
     ctx = Context.make()
     call("view new", {"group": group, "name": "nested"}, ctx)
     draft = project / ".beamtime" / "drafts" / "nested"
-    view = yaml.safe_load((draft / "view.yaml").read_text())
+    view = yaml.safe_load((draft / "view.yaml").read_text(encoding="utf-8"))
     columns = [
         "run.name",
         "config.hydrantic",
@@ -527,7 +527,7 @@ def test_nested_configs_read_well_everywhere(server: str, page, project: Path) -
         "config.hparams.egnn.vector_channels",
     ]
     view["body"].append({"table": {"id": "nested", "title": "Nested", "columns": columns}})
-    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
     call("view save", {"draft": "nested"}, ctx)
 
     page.goto(f"{base}/f/local/{group}?token={token}")
@@ -619,7 +619,7 @@ def test_a_single_point_is_drawn(server: str, page, project: Path) -> None:
             },
         ],
     }
-    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
     call("view save", {"draft": "single"}, ctx)
 
     page.goto(f"{server.split('/f/local')[0]}/f/local/{group}?token={server.split('token=')[1]}")
@@ -672,7 +672,7 @@ def test_a_band_on_a_log_axis_reaches_the_bottom(server: str, page, project: Pat
         "where": {"config.arm": "small"},
     }
     view = {"schema": 1, "title": "band", "finding": "x", "body": [{"line": line}]}
-    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
     call("view save", {"draft": "band"}, ctx)
 
     page.goto(f"{server.split('/f/local')[0]}/f/local/{group}?token={server.split('token=')[1]}")
@@ -851,7 +851,7 @@ def test_main_metrics_are_pinned_in_the_ui(server: str, page, project: Path) -> 
     assert "Main (1)" in titles()[0]
     assert page.locator(".save-view").count() == 0
     saved = sorted((project / "beamtime" / "realistic" / "egnn-bench" / "view").glob("*.yaml"))[-1]
-    assert "main_metrics: [training/loss]" in saved.read_text().split("body:")[0]
+    assert "main_metrics: [training/loss]" in saved.read_text(encoding="utf-8").split("body:")[0]
 
     # charts draw only once in view; at 500px the first one sits below the fold.
     page.set_viewport_size({"width": 1280, "height": 900})
@@ -897,7 +897,7 @@ def test_hiding_works_outside_grids_and_add_a_chart_follows_the_charts(
             {"table": {"id": "runs", "columns": ["run.name"]}},
         ],
     }
-    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
     call("view save", {"draft": "loose"}, ctx)
 
     page.goto(f"{server.split('/f/local')[0]}/f/local/{group}?token={server.split('token=')[1]}")
@@ -1018,9 +1018,9 @@ def figure_view(project: Path, group: str, code: str, queries: dict, table: bool
     if table:
         body.append({"table": {"id": "runs", "columns": ["run.name", "config.lr"]}})
     view = {"schema": 1, "title": "fig", "finding": "x", "body": body}
-    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
     (draft / "code").mkdir(exist_ok=True)
-    (draft / "code" / "curves.js").write_text(code)
+    (draft / "code" / "curves.js").write_text(code, encoding="utf-8")
     call("view save", {"draft": "fig"}, ctx)
 
 
@@ -1210,9 +1210,9 @@ def lifecycle(project: Path, roles: dict, tmp_path: Path) -> dict[str, str]:
 
     def edit(run_id: str, change) -> Path:
         path = next((project / "beamtime").glob(f"**/{run_id}/_run.json"))
-        info = json.loads(path.read_text())
+        info = json.loads(path.read_text(encoding="utf-8"))
         change(info)
-        path.write_text(json.dumps(info))
+        path.write_text(json.dumps(info), encoding="utf-8")
         return path.parent
 
     killed, dirty = roles["realistic_killed"], roles["realistic_dirty"]
@@ -1222,7 +1222,7 @@ def lifecycle(project: Path, roles: dict, tmp_path: Path) -> dict[str, str]:
     other = next(
         p.parent.name
         for p in (project / "beamtime" / "realistic" / "egnn-bench").glob("*/_run.json")
-        if json.loads(p.read_text())["git"]["dirty"] and p.parent.name != dirty
+        if json.loads(p.read_text(encoding="utf-8"))["git"]["dirty"] and p.parent.name != dirty
     )
     edit(other, lambda info: info["git"].update(diff_sha="e5f6a7b8"))
     kept = tmp_path / "best.ckpt"
@@ -1231,7 +1231,7 @@ def lifecycle(project: Path, roles: dict, tmp_path: Path) -> dict[str, str]:
         {"name": "best.ckpt", "uri": str(kept), "size": 7, "kind": "checkpoint"},
         {"name": "lost.ckpt", "uri": str(tmp_path / "lost.ckpt"), "size": 7, "kind": "checkpoint"},
     ]
-    (run_dir / "_artifacts.jsonl").write_text("".join(json.dumps(a) + "\n" for a in artifacts))
+    (run_dir / "_artifacts.jsonl").write_text("".join(json.dumps(a) + "\n" for a in artifacts), encoding="utf-8")
     copy = call("cp", {"source": dirty, "dest": "realistic/copies"}, Context.make())["id"]
     index_fully(project / "beamtime")
     return {"killed": killed, "dirty": dirty, "copy": copy}
@@ -1299,8 +1299,8 @@ def hidden_run(project: Path, roles: dict) -> dict[str, str]:
 
     run_id = roles["realistic_killed"]
     path = next((project / "beamtime").glob(f"**/{run_id}/_run.json"))
-    info = json.loads(path.read_text())
-    path.write_text(json.dumps(info | {"hidden": True}))
+    info = json.loads(path.read_text(encoding="utf-8"))
+    path.write_text(json.dumps(info | {"hidden": True}), encoding="utf-8")
     index_fully(project / "beamtime")
     return {"id": run_id, "group": path.parent.parent.relative_to(project / "beamtime").as_posix()}
 
@@ -1409,7 +1409,7 @@ def lengths(project: Path, tmp_path: Path) -> str:
         "    for step in range(0, last + 1, last // 20):\n"
         "        run.log({'train/loss': 1 / (1 + step)}, step=step)\n"
         "    run.finish()\n"
-    )
+    , encoding="utf-8")
     env = {k: v for k, v in os.environ.items() if not k.startswith(("BEAMTIME_", "SLURM_"))}
     env |= {"BEAMTIME_LOGDIR": str(project / "beamtime")}
     subprocess.run([sys.executable, script], cwd=project, env=env, check=True)
@@ -1488,14 +1488,14 @@ def table_view(project: Path, group: str, tables: dict[str, int], folded: bool =
     call("view new", {"group": group, "name": "tables"}, ctx)
     body = []
     for name, n in tables.items():
-        (project / f"{name}.csv").write_text("a,b\n" + "".join(f"{i},{i * i}\n" for i in range(n)))
+        (project / f"{name}.csv").write_text("a,b\n" + "".join(f"{i},{i * i}\n" for i in range(n)), encoding="utf-8")
         call("view data", {"draft": "tables", "file": f"{name}.csv"}, ctx)
         body.append({"data_table": {"id": name, "file": f"data/{name}.csv"}})
     body += [{"line": {"id": f"c{i}", "y": "val/acc"}} for i in range(charts)]
     if folded:
         body.append({"section": {"id": "later", "title": "Later", "open": False, "children": [{"data_table": {"id": "inner", "file": f"data/{next(iter(tables))}.csv"}}]}})
     view = {"schema": 1, "title": "tables", "finding": "x", "body": body}
-    (project / ".beamtime" / "drafts" / "tables" / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (project / ".beamtime" / "drafts" / "tables" / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
     call("view save", {"draft": "tables"}, ctx)
 
 
@@ -1540,7 +1540,7 @@ def images_view(project: Path, group: str, step: int | None = None) -> None:
     call("view new", {"group": group, "name": "pictures"}, ctx)
     block = {"id": "samples", "key": "samples"} | ({"step": step} if step is not None else {})
     view = {"schema": 1, "title": "pictures", "finding": "x", "body": [{"images": block}]}
-    (project / ".beamtime" / "drafts" / "pictures" / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (project / ".beamtime" / "drafts" / "pictures" / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
     call("view save", {"draft": "pictures"}, ctx)
 
 
@@ -1655,7 +1655,7 @@ def write_pictures(project: Path, tmp_path: Path, steps: int, pause: float, name
     :param name: The run's name.
     :return: The writer process."""
     script = tmp_path / f"pictures-{name}.py"
-    script.write_text(PICTURES)
+    script.write_text(PICTURES, encoding="utf-8")
     env = {k: v for k, v in os.environ.items() if not k.startswith(("BEAMTIME_", "SLURM_"))}
     env |= {"BEAMTIME_LOGDIR": str(project / "beamtime"), "PYTHONUNBUFFERED": "1"}
     return subprocess.Popen([sys.executable, script, str(steps), str(pause), name], cwd=tmp_path, env=env)

@@ -47,6 +47,6 @@ def write_skills(root: Path) -> list[Path]:
     for name in SKILLS:
         path = root / ".claude" / "skills" / name / "SKILL.md"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(skill_text(name))
+        path.write_text(skill_text(name), encoding="utf-8")
         written.append(path)
     return written

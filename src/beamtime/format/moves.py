@@ -46,7 +46,7 @@ def read(logdir: Path) -> list[Move]:
     if not path.is_file():
         return []
     out: list[Move] = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         try:
             entry = json.loads(line)
             within = entry.get("within")

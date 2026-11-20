@@ -18,7 +18,7 @@ from beamtime.views import model as m
 
 PARTS = files("beamtime.guide") / "parts"
 NAMES = ["index", *TOPICS]
-TEXTS = {name: (PARTS / f"{name}.md").read_text() for name in NAMES}
+TEXTS = {name: (PARTS / f"{name}.md").read_text(encoding="utf-8") for name in NAMES}
 LONGEST = 125
 SWEEP = "scaling/lr-sweep"
 WEB = Path(__file__).parents[2] / "web" / "src"
@@ -119,7 +119,7 @@ def test_kit_names_exist_in_the_frontend() -> None:
     """Every ``bt.<group>.<Name>`` the kit parts name is in the kit's source."""
     if not WEB.is_dir():
         pytest.skip("no web sources")
-    source = "".join(f.read_text() for f in WEB.rglob("*.ts"))
+    source = "".join(f.read_text(encoding="utf-8") for f in WEB.rglob("*.ts"))
     for name in ("kit", "kit-api", "charts", "type"):
         for path in re.findall(r"\bbt\.((?:[a-zA-Z]+\.)*[a-zA-Z]+)", TEXTS[name]):
             assert path.split(".")[-1] in source, f"{name}: bt.{path}"
@@ -138,9 +138,9 @@ def test_type_topic_names_real_classes_with_their_families() -> None:
     for name in ("index", "kit", "kit-api", "anti-patterns", "checklist"):
         assert "guide type" in TEXTS[name] or "`type`" in TEXTS[name], name
 
-    groups = json.loads((design / "tokens.json").read_text())["type"]["groups"]
+    groups = json.loads((design / "tokens.json").read_text(encoding="utf-8"))["type"]["groups"]
     family = {s["name"]: g["name"].lower() for g in groups for s in g["styles"]}
-    css = (design / "tokens.css").read_text() + (design / "components.css").read_text()
+    css = (design / "tokens.css").read_text(encoding="utf-8") + (design / "components.css").read_text(encoding="utf-8")
     rows = re.findall(r"^\| `(\w+)` \| ([a-z ]+?)\b", text, re.M)
     assert {"body", "heading", "small", "num", "number", "prose", "caption", "code"} <= {n for n, _ in rows}
     for name, font in rows:
@@ -191,7 +191,7 @@ def with_agent(project: Path, agent: str) -> Context:
     :param project: The project root.
     :param agent: The YAML value of ``agent``.
     :return: The context."""
-    (project / "beamtime.yaml").write_text(f"agent: {agent}\n")
+    (project / "beamtime.yaml").write_text(f"agent: {agent}\n", encoding="utf-8")
     return Context.make(caller="cli")
 
 
@@ -322,18 +322,18 @@ def test_data_files_recipe(ctx: Context, project: Path) -> None:
 
     source = project / "results" / "fit.csv"
     source.parent.mkdir()
-    source.write_text("lr,pred_acc\n0.0001,0.52\n0.001,0.71\n0.01,0.64\n")
+    source.write_text("lr,pred_acc\n0.0001,0.52\n0.001,0.71\n0.01,0.64\n", encoding="utf-8")
     call("view new", {"group": SWEEP, "name": "fit"}, ctx)
     answer = call("view data", {"draft": "fit", "file": "results/fit.csv", "name": "fit.csv"}, ctx)
     assert answer["ref"] == "data/fit.csv" and answer["columns"] == ["lr", "pred_acc"]
 
     draft = project / ".beamtime" / "drafts" / "fit"
-    view = yaml.safe_load((draft / "view.yaml").read_text())
+    view = yaml.safe_load((draft / "view.yaml").read_text(encoding="utf-8"))
     view["finding"] = "lr 1e-3 is predicted best"
     view["body"].append({"section": {"id": "fit", "title": "fit", "children": blocks}})
-    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (draft / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
     (draft / "code").mkdir(exist_ok=True)
-    (draft / "code" / "fit-chart.js").write_text(script)
+    (draft / "code" / "fit-chart.js").write_text(script, encoding="utf-8")
 
     result = call("view validate", {"draft": "fit", "render": False}, ctx)
     assert result["ok"], result["findings"]

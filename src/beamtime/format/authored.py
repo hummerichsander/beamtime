@@ -50,7 +50,7 @@ def read_yaml_doc(path: Path, *, kind: str) -> AuthoredDoc:
     :param kind: ``proposal``, ``view`` or ``block``.
     :return: The document."""
 
-    return _doc(path, load_yaml(path.read_text()), "", kind)
+    return _doc(path, load_yaml(path.read_text(encoding="utf-8")), "", kind)
 
 
 def read_markdown_doc(path: Path, *, kind: str) -> AuthoredDoc:
@@ -59,7 +59,7 @@ def read_markdown_doc(path: Path, *, kind: str) -> AuthoredDoc:
     :param path: The file.
     :param kind: ``note`` or ``memory``.
     :return: The document with its frontmatter as ``meta`` and the rest as ``body``."""
-    meta, body = split_frontmatter(path.read_text(), source=str(path))
+    meta, body = split_frontmatter(path.read_text(encoding="utf-8"), source=str(path))
     return _doc(path, meta, body, kind)
 
 

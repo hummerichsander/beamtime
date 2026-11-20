@@ -34,7 +34,7 @@ def load_token(cache: Path) -> str:
     :return: The token."""
     path = cache / TOKEN_FILE
     try:
-        return path.read_text().strip()
+        return path.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
         pass
     cache.mkdir(parents=True, exist_ok=True)

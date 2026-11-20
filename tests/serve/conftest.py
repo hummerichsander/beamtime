@@ -33,8 +33,8 @@ def static(tmp_path: Path) -> Path:
     :return: The static directory."""
     d = tmp_path / "static"
     d.mkdir()
-    (d / "index.html").write_text("<!doctype html><title>Beamtime</title>")
-    (d / "app.js").write_text("console.log(1)")
+    (d / "index.html").write_text("<!doctype html><title>Beamtime</title>", encoding="utf-8")
+    (d / "app.js").write_text("console.log(1)", encoding="utf-8")
     return d
 
 
@@ -174,7 +174,7 @@ def live_page(project: Path, tmp_path: Path, server: str, page: Any) -> Iterator
     :param page: The browser page.
     :return: The handle; the writer is stopped at teardown."""
     script, stop = tmp_path / "writer.py", tmp_path / "stop"
-    script.write_text(textwrap.dedent(WRITER))
+    script.write_text(textwrap.dedent(WRITER), encoding="utf-8")
     env = {k: v for k, v in os.environ.items() if not k.startswith(("BEAMTIME_", "SLURM_"))}
     env |= {"BEAMTIME_LOGDIR": str(project / "beamtime"), "PYTHONUNBUFFERED": "1"}
     writer = subprocess.Popen([sys.executable, script, stop], cwd=project, env=env)

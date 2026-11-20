@@ -108,7 +108,7 @@ def read(name: str, agent: AgentSettings) -> str:
     :param name: The file in ``parts/``.
     :param agent: The project's agent settings; ``{{agent.<key>}}`` takes the knob's value.
     :return: Its Markdown."""
-    text = (files(__package__) / "parts" / name).read_text()
+    text = (files(__package__) / "parts" / name).read_text(encoding="utf-8")
     text = re.sub(r"\{\{agent\.(\w+)\}\}", lambda mt: value_of(agent, mt.group(1)), text)
     return re.sub(r"\n{3,}", "\n\n", text)
 
@@ -211,7 +211,7 @@ def examples() -> str:
         "",
     ]
     for name in EXAMPLES:
-        text = (files(__package__) / "examples" / f"{name}.yaml").read_text()
+        text = (files(__package__) / "examples" / f"{name}.yaml").read_text(encoding="utf-8")
         comment = " ".join(line.lstrip("# ") for line in text.splitlines() if line.startswith("#"))
         out.append(f"- **{name}**: {comment.split(': ', 1)[-1]}")
     out += ["", "`guide examples <name>` shows one; add `group` to fill it with a group's keys."]
@@ -231,7 +231,7 @@ def example(name: str | None, ctx: Context, group: str | None) -> str:
 
     if name not in EXAMPLES:
         raise OpError(f"no example {name!r}; examples: {', '.join(EXAMPLES)}", code=4)
-    template = (files(__package__) / "examples" / f"{name}.yaml").read_text()
+    template = (files(__package__) / "examples" / f"{name}.yaml").read_text(encoding="utf-8")
     values = GENERIC if group is None else values_of(ctx, group)
     text = re.sub(r"\{\{(\w+)\}\}", lambda mt: values.get(mt.group(1), ""), template)
     data = yaml.safe_load(text)

@@ -29,7 +29,7 @@ def imports(path: Path) -> set[str]:
 
     :param path: A Python file.
     :return: The imported module names."""
-    tree = ast.parse(path.read_text(), feature_version=(3, 10))
+    tree = ast.parse(path.read_text(encoding="utf-8"), feature_version=(3, 10))
     names = set()
     for node in module_level(tree):
         if isinstance(node, ast.Import):
@@ -64,7 +64,7 @@ def test_only_place_parses_the_source_prefix() -> None:
     found = [
         path.relative_to(SRC).as_posix()
         for path in SRC.rglob("*.py")
-        if pattern.search(path.read_text())
+        if pattern.search(path.read_text(encoding="utf-8"))
     ]
     assert found == ["format/place.py"]
 
@@ -76,7 +76,7 @@ def test_lower_layers_never_import_the_frontends(package: str) -> None:
     :param package: A package below the frontends."""
     banned = ("beamtime.cli", "beamtime.mcp")
     for path in (SRC / package).rglob("*.py"):
-        for node in ast.walk(ast.parse(path.read_text())):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Import):
                 names = [a.name for a in node.names]
             elif isinstance(node, ast.ImportFrom) and node.level == 0:

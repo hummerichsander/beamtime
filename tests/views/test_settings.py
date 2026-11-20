@@ -15,7 +15,7 @@ from beamtime.views.compile import compile_view
 from beamtime.views.settings import SEEDS_FIELD, SETTINGS, line_defaults, settle, wire_props
 
 FIXTURE = Path(__file__).parents[2] / "web" / "test" / "fixtures" / "chart-settings.json"
-CASES = json.loads(FIXTURE.read_text())
+CASES = json.loads(FIXTURE.read_text(encoding="utf-8"))
 
 EVERYTHING: dict[str, Any] = {
     "y": ["val/loss", "val/acc"],

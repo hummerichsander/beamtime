@@ -63,7 +63,7 @@ def test_render_record_required_and_conventions() -> None:
 def test_release_of_history() -> None:
     """The texts of 0.1.0 and 0.2.0 are named by the newest release that wrote them."""
     for name, release in RELEASES.items():
-        text = (HISTORY / name).read_text()
+        text = (HISTORY / name).read_text(encoding="utf-8")
         assert release_of(text) == release
         assert release_of(f"{START}\n{text.strip()}\n{END}\n") == release
 
@@ -100,7 +100,7 @@ def test_write_block_keeps_outside_text(tmp_path: Path) -> None:
     """The block is added, replaced and left alone; text around it stays byte for byte."""
     file = tmp_path / "AGENTS.md"
     assert write_block(file, "old") == "added"
-    assert file.read_text() == f"{START}\nold\n{END}\n"
+    assert file.read_text(encoding="utf-8") == f"{START}\nold\n{END}\n"
 
     outside = "# Mine  \n\n\ttabs and trailing space \n"
     file.write_bytes(f"{outside}\n{START}\nold\n{END}\n\n\nAfter\n\n".encode())
@@ -113,9 +113,9 @@ def test_write_block_keeps_outside_text(tmp_path: Path) -> None:
 def test_write_block_appends_to_text(tmp_path: Path) -> None:
     """A file without a block gets one after a blank line."""
     file = tmp_path / "CLAUDE.md"
-    file.write_text("# Mine\n")
+    file.write_text("# Mine\n", encoding="utf-8")
     write_block(file, "rules")
-    assert file.read_text() == f"# Mine\n\n{START}\nrules\n{END}\n"
+    assert file.read_text(encoding="utf-8") == f"# Mine\n\n{START}\nrules\n{END}\n"
     assert read_block(tmp_path / "missing.md") is None
 
 

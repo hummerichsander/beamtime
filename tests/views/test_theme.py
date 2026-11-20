@@ -24,7 +24,7 @@ def write(root: Path, file: str, **theme) -> None:
     :param root: The project root.
     :param file: The theme's file name without ``.json``.
     :param theme: The theme's fields."""
-    (root / "themes" / f"{file}.json").write_text(json.dumps({"schema": 1, **theme}))
+    (root / "themes" / f"{file}.json").write_text(json.dumps({"schema": 1, **theme}), encoding="utf-8")
 
 
 def test_default_pair_comes_from_the_tokens(root: Path) -> None:

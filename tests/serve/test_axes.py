@@ -31,7 +31,7 @@ def show(project, server: str, page, group: str, body: list[dict]) -> None:
     ctx = Context.make()
     call("view new", {"group": group, "name": "axes"}, ctx)
     view = {"schema": 1, "title": "axes", "finding": "x", "body": body}
-    (project / ".beamtime" / "drafts" / "axes" / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False))
+    (project / ".beamtime" / "drafts" / "axes" / "view.yaml").write_text(yaml.safe_dump(view, sort_keys=False), encoding="utf-8")
     call("view save", {"draft": "axes"}, ctx)
     base, token = server.split("/f/local")[0], server.split("token=")[1]
     page.goto(f"{base}/f/local/{group}?token={token}")

@@ -296,11 +296,13 @@ def write(
         (out / "static" / "export" / name).write_bytes((static / "export" / name).read_bytes())
     # a custom block's sandboxed frame may load no files from disk: its page carries kit and fonts.
     frame = {
-        "kit": (static / "export" / "kit.js").read_text(),
-        "css": inline_fonts((static / "export" / "main.css").read_text(), static / "fonts"),
+        "kit": (static / "export" / "kit.js").read_text(encoding="utf-8"),
+        "css": inline_fonts(
+            (static / "export" / "main.css").read_text(encoding="utf-8"), static / "fonts"
+        ),
     }
     (out / "static" / "export" / "frame.js").write_text(
-        f"window.__BT_FRAME__ = {json.dumps(frame)};\n"
+        f"window.__BT_FRAME__ = {json.dumps(frame)};\n", encoding="utf-8"
     )
     for name in ("katex.css", "THIRD_PARTY_LICENSES.txt"):
         (out / "static" / name).write_bytes((static / name).read_bytes())
@@ -313,13 +315,15 @@ def write(
     taken = time.time()
     snapshot = {"path": path, "taken": taken, "points": points, "version": version("beamtime"),
                 "calls": calls}  # fmt: skip
-    (out / "snapshot.js").write_text(f"window.__BT_SNAPSHOT__ = {json.dumps(snapshot)};\n")
+    (out / "snapshot.js").write_text(
+        f"window.__BT_SNAPSHOT__ = {json.dumps(snapshot)};\n", encoding="utf-8"
+    )
     title = "the log dir" if path == "." else path
     # a file opened from disk has no server to ask for /static/favicon.svg.
     favicon = b64encode((static / "favicon.svg").read_bytes()).decode()
-    (out / "index.html").write_text(INDEX.format(title=title, favicon=favicon))
+    (out / "index.html").write_text(INDEX.format(title=title, favicon=favicon), encoding="utf-8")
     marker = {"schema": 1, "path": path, "taken": taken, "points": points}
-    (out / MARKER).write_text(json.dumps(marker) + "\n")
+    (out / MARKER).write_text(json.dumps(marker) + "\n", encoding="utf-8")
 
 
 INDEX = """<!doctype html>

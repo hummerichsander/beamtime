@@ -91,8 +91,8 @@ def test_registering_is_not_stale() -> None:
     """A record without a lock file, and a young lock without a record, are left alone."""
     folder = procs_dir()
     folder.mkdir(parents=True)
-    (folder / "mcp-1-aaaaaa.json").write_text(json.dumps({"kind": "mcp", "started": 1}))
-    (folder / "mcp-2-bbbbbb.lock").write_text("")
+    (folder / "mcp-1-aaaaaa.json").write_text(json.dumps({"kind": "mcp", "started": 1}), encoding="utf-8")
+    (folder / "mcp-2-bbbbbb.lock").write_text("", encoding="utf-8")
     assert listed() == ([], [])
     assert sorted(p.name for p in folder.iterdir()) == ["mcp-1-aaaaaa.json", "mcp-2-bbbbbb.lock"]
     old = time.time() - 120
@@ -113,10 +113,10 @@ def test_broken_record_skipped() -> None:
     """An unreadable or half-written record is skipped, not raised."""
     folder = procs_dir()
     folder.mkdir(parents=True)
-    (folder / "mcp-1-aaaaaa.json").write_text('{"kind": "mc')
-    (folder / "mcp-1-aaaaaa.lock").write_text("")
-    (folder / "mcp-3-cccccc.json").write_text("[1]")
-    (folder / "mcp-3-cccccc.lock").write_text("")
+    (folder / "mcp-1-aaaaaa.json").write_text('{"kind": "mc', encoding="utf-8")
+    (folder / "mcp-1-aaaaaa.lock").write_text("", encoding="utf-8")
+    (folder / "mcp-3-cccccc.json").write_text("[1]", encoding="utf-8")
+    (folder / "mcp-3-cccccc.lock").write_text("", encoding="utf-8")
     with register("serve", port=1):
         live, stale = listed()
     assert [r["kind"] for r in live] == ["serve"] and stale == []

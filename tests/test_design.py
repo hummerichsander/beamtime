@@ -31,20 +31,20 @@ def test_tokens_css_is_current() -> None:
 
 def test_favicons_follow_the_system_theme_and_are_bundled() -> None:
     """The mark's rest and live icons recolor in dark mode, the live one loops and stops under reduced motion, and both ship."""
-    tokens = (ROOT / "design" / "tokens.css").read_text()
+    tokens = (ROOT / "design" / "tokens.css").read_text(encoding="utf-8")
     light, dark = re.findall(r"--accent: (#\w+)", tokens)[:2]
     static = ROOT / "src" / "beamtime" / "serve" / "static"
     for name in ("favicon.svg", "favicon-live.svg"):
-        svg = (ROOT / "design" / name).read_text()
+        svg = (ROOT / "design" / name).read_text(encoding="utf-8")
         assert "@media (prefers-color-scheme: dark)" in svg
         assert f"stroke: {light};" in svg and f"stroke: {dark};" in svg
         assert (static / name).read_bytes() == (ROOT / "design" / name).read_bytes()
-    live = (ROOT / "design" / "favicon-live.svg").read_text()
+    live = (ROOT / "design" / "favicon-live.svg").read_text(encoding="utf-8")
     assert "2.8s" in live and "infinite" in live
     assert re.search(r"prefers-reduced-motion: reduce\)\s*{[^}]*animation: none", live)
-    assert "animation" not in (ROOT / "design" / "favicon.svg").read_text()
+    assert "animation" not in (ROOT / "design" / "favicon.svg").read_text(encoding="utf-8")
     assert script("build-tokens", "--check").returncode == 0
-    index = (static / "index.html").read_text()
+    index = (static / "index.html").read_text(encoding="utf-8")
     assert '<link rel="icon" href="/static/favicon.svg"' in index
 
 
@@ -57,20 +57,20 @@ def test_app_css_has_no_raw_values() -> None:
 def test_the_check_finds_raw_values(tmp_path: Path) -> None:
     """Raw colors and pixel font sizes fail; tokens and relative sizes don't."""
     css = tmp_path / "x.css"
-    css.write_text("a { color: #fff; font-size: 12.5px; }\nb { font: 700 13px serif; }\n")
+    css.write_text("a { color: #fff; font-size: 12.5px; }\nb { font: 700 13px serif; }\n", encoding="utf-8")
     done = script("check-design", css)
     assert done.returncode == 1
     assert all(w in done.stderr for w in ("#fff", "12.5px", "13px"))
-    css.write_text("a { color: var(--ink); font-size: 0.8em; font: var(--text-small); inline-size: 12px; }\n")
+    css.write_text("a { color: var(--ink); font-size: 0.8em; font: var(--text-small); inline-size: 12px; }\n", encoding="utf-8")
     assert script("check-design", css).returncode == 0
 
 
 def test_every_component_has_its_page_and_gallery_entry() -> None:
     """The gallery shows every component, and each has its rules and markup."""
-    text = GALLERY.read_text()
+    text = GALLERY.read_text(encoding="utf-8")
     for name in COMPONENTS:
         assert f'id="{name}"' in text
-        page = (ROOT / "design" / "components" / f"{name}.md").read_text()
+        page = (ROOT / "design" / "components" / f"{name}.md").read_text(encoding="utf-8")
         assert "```html" in page, name
 
 
@@ -138,7 +138,7 @@ def test_the_gallery_renders_in_both_themes(browser, tmp_path: Path) -> None:
             seen[theme] = state
     assert seen["light"]["background"] != seen["dark"]["background"]
     assert seen["light"]["ink"] != seen["dark"]["ink"]
-    tokens = (ROOT / "design" / "tokens.css").read_text()
+    tokens = (ROOT / "design" / "tokens.css").read_text(encoding="utf-8")
     # the same values the tokens give; rgb() here, hex there.
     paper = re.search(r"--paper: #(\w{2})(\w{2})(\w{2})", tokens).groups()
     assert seen["light"]["background"] == "rgb({}, {}, {})".format(*(int(c, 16) for c in paper))

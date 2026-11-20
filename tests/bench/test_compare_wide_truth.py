@@ -354,15 +354,15 @@ def test_old_from_note(made: Made, tmp_path: Path) -> None:
     record = tmp_path / "record"
     shutil.copytree(made.root / "record", record)
     memory = next((record / "memory").glob("*.md"))
-    memory.write_text(memory.read_text().replace("inconclusive", "refuted"))
+    memory.write_text(memory.read_text(encoding="utf-8").replace("inconclusive", "refuted"), encoding="utf-8")
 
     assert wide_truth.stale_verdicts(made.runs, tmp_path) == made.truth["stale-verdicts"]
 
     folder = record / STUDY / "notes"
     older = next(folder.glob("*.md"))
     (folder / "99999999-000000-zzzz.md").write_text(
-        older.read_text().replace("sgd-under: confirmed", "sgd-under: inconclusive")
-    )
+        older.read_text(encoding="utf-8").replace("sgd-under: confirmed", "sgd-under: inconclusive")
+    , encoding="utf-8")
     changed = wide_truth.stale_verdicts(made.runs, tmp_path)["changed"]
 
     assert [x["name"] for x in changed] == ["lion-beats-adamw"]
@@ -370,7 +370,7 @@ def test_old_from_note(made: Made, tmp_path: Path) -> None:
 
 def test_independent_of_beamtime() -> None:
     """The wide truth reads the export only: no beamtime import beyond what ``truth`` already uses."""
-    source = (COMPARE / "wide_truth.py").read_text()
+    source = (COMPARE / "wide_truth.py").read_text(encoding="utf-8")
 
     assert "beamtime" not in source
     assert wide_truth.compute.__module__ == "wide_truth"

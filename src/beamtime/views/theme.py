@@ -34,14 +34,14 @@ def tokens() -> dict[str, Any]:
     """Read the design tokens.
 
     :return: The contents of ``tokens.json``."""
-    return json.loads(TOKENS.read_text())
+    return json.loads(TOKENS.read_text(encoding="utf-8"))
 
 
 def colormaps() -> dict[str, dict[str, list[str]]]:
     """Read the colormaps sampled from matplotlib.
 
     :return: ``sequential`` and ``diverging``, each a colormap's name to its colors."""
-    data = json.loads(COLORMAPS.read_text())
+    data = json.loads(COLORMAPS.read_text(encoding="utf-8"))
     return {kind: data[kind] for kind in DEFAULT_COLORMAPS}
 
 

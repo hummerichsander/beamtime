@@ -53,7 +53,7 @@ def ssh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     :return: The log of the calls, one line each."""
     bin_dir = tmp_path / "fakebin"
     bin_dir.mkdir()
-    (bin_dir / "ssh").write_text(FAKE_SSH)
+    (bin_dir / "ssh").write_text(FAKE_SSH, encoding="utf-8")
     (bin_dir / "ssh").chmod(0o755)
     log = tmp_path / "ssh.log"
     log.touch()
@@ -78,7 +78,7 @@ def test_probe_reports_each_host(ssh: Path) -> None:
     )
     assert "older than 3.11" in found["old_python"].detail
     assert "Could not resolve" in found["gone"].detail
-    assert ssh.read_text().count("BatchMode=yes") == 6
+    assert ssh.read_text(encoding="utf-8").count("BatchMode=yes") == 6
 
 
 def test_probe_timeout(ssh: Path) -> None:
@@ -99,7 +99,7 @@ def test_probe_line_runs_in_a_shell(ssh: Path, tmp_path: Path, monkeypatch: pyte
     (home / "proj" / "beamtime").mkdir()
     for name, text in (("beamtime", "beamtime 0.2.2"), ("python3", "Python 3.12.1")):
         tool = venv.parent.parent / name if name == "python3" else venv / name
-        tool.write_text(f"#!/bin/sh\necho '{text}'\n")
+        tool.write_text(f"#!/bin/sh\necho '{text}'\n", encoding="utf-8")
         tool.chmod(0o755)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("SCRATCH", str(home))
@@ -127,9 +127,9 @@ def test_install_pins_version(ssh: Path, project: Path, home: Path) -> None:  # 
     install = changes[-1]
     assert install.where == "remote" and install.label == "juwels"
     assert f"beamtime[serve]=={__version__}" in install.after
-    assert ssh.read_text() == ""
+    assert ssh.read_text(encoding="utf-8") == ""
     apply(changes)
-    line = ssh.read_text().splitlines()[-1]
+    line = ssh.read_text(encoding="utf-8").splitlines()[-1]
     assert line.endswith(f"jdoe@login python3 -m pip install --user 'beamtime[serve]=={__version__}'")
     assert "BatchMode=yes" in line
 
@@ -145,13 +145,13 @@ def test_ssh_block_once(ssh: Path, project: Path, home: Path) -> None:  # noqa: 
     """The block lands once, marked, below what the file had; a second plan adds none."""
     config = home / ".ssh" / "config"
     config.parent.mkdir()
-    config.write_text("Host other\n  User me")
+    config.write_text("Host other\n  User me", encoding="utf-8")
     first = make_plan(project, home, "--remote", "juwels", "--ssh-share", "juwels")
     shared = [c for c in first if c.label == "~/.ssh/config"]
     assert len(shared) == 1 and shared[0].where == "machine"
     apply(first)
     apply(make_plan(project, home, "--remote", "juwels", "--ssh-share", "juwels"))
-    text = config.read_text()
+    text = config.read_text(encoding="utf-8")
     assert text.count("# beamtime: one login per session for juwels") == 1
     assert text.startswith("Host other\n  User me\n\n# beamtime:")
     assert "  ControlPath ~/.ssh/cm-%r@%h-%p\n  ControlPersist 12h\n" in text
@@ -205,13 +205,13 @@ def test_ssh_share_of_one_host_twice(ssh: Path, project: Path, home: Path) -> No
     """Two names for one host plan one block; blocks for two hosts stay a blank line apart."""
     config = home / ".ssh" / "config"
     config.parent.mkdir()
-    config.write_text("Host jw\n  User me\n")
+    config.write_text("Host jw\n  User me\n", encoding="utf-8")
     changes = make_plan(
         project, home, "--remote", "juwels=jw", "--remote", "other",
         "--ssh-share", "juwels", "--ssh-share", "jw", "--ssh-share", "other",
     )  # fmt: skip
     assert [c.after for c in changes if c.where == "remote"] == ["ssh -fN jw", "ssh -fN other"]
     apply(changes)
-    text = config.read_text()
+    text = config.read_text(encoding="utf-8")
     assert text.count("# beamtime: one login per session for jw") == 1
     assert "ControlPersist 12h\n\n# beamtime: one login per session for other\n" in text

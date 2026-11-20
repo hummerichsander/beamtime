@@ -274,7 +274,7 @@ def load(folder_dir: Path, version: str) -> Proposal:
 
     path = folder_dir / c.PROPOSAL / f"{version}.yaml"
     try:
-        data = load_yaml(path.read_text())
+        data = load_yaml(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         raise RecordError(f"no proposal version {version} in {folder_dir.name}/proposal") from None
     except yaml.YAMLError as e:

@@ -243,7 +243,7 @@ def read_level(path: Path, level: Level, problems: list[str]) -> dict[str, Any]:
     import yaml
 
     try:
-        data = yaml.safe_load(path.read_text()) or {}
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError as e:
         problems.append(f"{path}: not valid YAML ({e}); ignored")
         return {}
@@ -438,7 +438,7 @@ def replace_entry(path: Path, key: str, entry: str) -> Path:
     from beamtime.format.io import write_bytes_replaced
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = path.read_text() if path.is_file() else "schema: 1\n"
+    text = path.read_text(encoding="utf-8") if path.is_file() else "schema: 1\n"
     lines = text.splitlines(keepends=True)
     start = next(
         (i for i, line in enumerate(lines) if re.match(rf"{re.escape(key)}\s*:", line)), None
@@ -468,7 +468,7 @@ def write_remote(path: Path, name: str, conf: dict[str, Any]) -> Path:
     :return: The file."""
     import yaml
 
-    data = (yaml.safe_load(path.read_text()) or {}) if path.is_file() else {}
+    data = (yaml.safe_load(path.read_text(encoding="utf-8")) or {}) if path.is_file() else {}
     remotes = dict(data.get("remotes") or {})
     remotes[name] = {k: v for k, v in conf.items() if v is not None}
     return write_key(path, "remotes", remotes)
@@ -484,7 +484,7 @@ def remove_remote(path: Path, name: str) -> bool:
 
     if not path.is_file():
         return False
-    remotes = dict((yaml.safe_load(path.read_text()) or {}).get("remotes") or {})
+    remotes = dict((yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("remotes") or {})
     if remotes.pop(name, None) is None:
         return False
     write_key(path, "remotes", remotes)

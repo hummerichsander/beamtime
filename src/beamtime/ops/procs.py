@@ -141,7 +141,7 @@ def shutdown_request(x: dict[str, Any]) -> bool:
     :param x: The serve's row.
     :return: Whether the serve accepted."""
     try:
-        token = (Path(x["cache"]) / TOKEN_FILE).read_text().strip()
+        token = (Path(x["cache"]) / TOKEN_FILE).read_text(encoding="utf-8").strip()
         request = urllib.request.Request(
             f"http://127.0.0.1:{x['port']}/api/shutdown",
             data=b"{}",
@@ -220,7 +220,7 @@ def legacy_record(path: Path) -> dict[str, Any]:
     :param path: The ``serve.json``.
     :return: A record with ``schema`` 0."""
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         data = {}
     cache = path.parent
@@ -281,7 +281,7 @@ def url(record: dict[str, Any]) -> str | None:
     if not (port := record.get("port")):
         return None
     try:
-        token = (Path(record["cache"]) / TOKEN_FILE).read_text().strip()
+        token = (Path(record["cache"]) / TOKEN_FILE).read_text(encoding="utf-8").strip()
     except (OSError, KeyError, TypeError):
         token = ""
     return f"http://localhost:{port}/f/local" + (f"?token={token}" if token else "")
@@ -320,7 +320,7 @@ def ssh_rows() -> list[dict[str, Any]]:
     from beamtime.setup.remotes import SSH_MARK
 
     try:
-        lines = (Path.home() / ".ssh" / "config").read_text().splitlines()
+        lines = (Path.home() / ".ssh" / "config").read_text(encoding="utf-8").splitlines()
     except OSError:
         return []
     hosts = [line[len(SSH_MARK) :].strip() for line in lines if line.startswith(SSH_MARK)]

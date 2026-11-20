@@ -333,8 +333,8 @@ def test_run_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert call["command"][call["command"].index("--model") + 1] == MODEL
     assert record["status"] == "ok" and record["claude_version"] == "9.9.9"
     assert record["tools"] == {"Read": 1}
-    assert json.loads((folder / "record.json").read_text()) == record
-    assert (folder / "transcript.jsonl").read_text() == transcript(fake.events)
+    assert json.loads((folder / "record.json").read_text(encoding="utf-8")) == record
+    assert (folder / "transcript.jsonl").read_text(encoding="utf-8") == transcript(fake.events)
 
 
 def test_run_session_timeout_and_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -354,7 +354,7 @@ def test_run_session_timeout_and_error(tmp_path: Path, monkeypatch: pytest.Monke
         monkeypatch.setattr(subprocess, "Popen", fake.popen)
         record = sessions.run_session(job, task, project, folder, model=MODEL, version="v")
         assert record["status"] == status
-    assert json.loads((tmp_path / "a" / "record.json").read_text())["tokens"]["total"] == 10
+    assert json.loads((tmp_path / "a" / "record.json").read_text(encoding="utf-8"))["tokens"]["total"] == 10
 
 
 # the exit is seen only at a poll every 0.5 s, so a 1 s limit left a loaded machine one poll to
@@ -372,7 +372,7 @@ def test_session_children_are_stopped(
     :param status: The session's status.
     :param limit: The session's time limit in seconds."""
     claude = tmp_path / "claude"
-    claude.write_text(f'#!/bin/sh\n(sleep 3; touch "$PWD/stray") &\n{script}\n')
+    claude.write_text(f'#!/bin/sh\n(sleep 3; touch "$PWD/stray") &\n{script}\n', encoding="utf-8")
     claude.chmod(0o755)
     monkeypatch.setattr(sessions, "CLAUDE", str(claude))
     task = grade.Task(id="x", prompt="p", answer="a", checks={}, time_limit_s=limit, setups=["files"])
@@ -402,7 +402,7 @@ def test_result_ends_session(
     :param status: The session's status."""
     lines = transcript(events).replace("'", "'\\''")
     claude = tmp_path / "claude"
-    claude.write_text(f"#!/bin/sh\n(sleep 30) &\nprintf '%s' '{lines}'\nwait\n")
+    claude.write_text(f"#!/bin/sh\n(sleep 30) &\nprintf '%s' '{lines}'\nwait\n", encoding="utf-8")
     claude.chmod(0o755)
     monkeypatch.setattr(sessions, "CLAUDE", str(claude))
     task = grade.Task(id="x", prompt="p", answer="a", checks={}, time_limit_s=4, setups=["files"])
@@ -441,9 +441,9 @@ def test_crash_is_not_scored_but_max_turns_is(batch: "Batch") -> None:
     sessions.grade_batch(batch.dir)
 
     assert not (crashed / "grade.json").exists()
-    assert json.loads((crashed / "record.json").read_text())["ungraded"] == "crashed"
-    assert json.loads((turns / "grade.json").read_text())["score"] == 0
-    assert json.loads((batch.dir / "batch.json").read_text())["ungraded"] == {"crashed": 1}
+    assert json.loads((crashed / "record.json").read_text(encoding="utf-8"))["ungraded"] == "crashed"
+    assert json.loads((turns / "grade.json").read_text(encoding="utf-8"))["score"] == 0
+    assert json.loads((batch.dir / "batch.json").read_text(encoding="utf-8"))["ungraded"] == {"crashed": 1}
     assert not batch.root.exists()
 
 
@@ -470,7 +470,7 @@ class Batch:
         self.dir = tmp_path / "runs" / "compare-20260101-000000"
         self.dir.mkdir(parents=True)
         self.root.mkdir(parents=True)
-        (self.dir / "batch.json").write_text(json.dumps({"model": MODEL, "root": str(self.root)}))
+        (self.dir / "batch.json").write_text(json.dumps({"model": MODEL, "root": str(self.root)}), encoding="utf-8")
 
     def add(self, task: str, events: list[dict[str, Any]], status: str = "ok") -> Path:
         """Add a session with a project holding a PNG.
@@ -482,9 +482,9 @@ class Batch:
         name = f"{task}-files-7-0"
         folder = self.dir / name
         folder.mkdir()
-        (folder / "transcript.jsonl").write_text(transcript(events))
+        (folder / "transcript.jsonl").write_text(transcript(events), encoding="utf-8")
         record = {"task": task, "setup": "files", "seed": 7, "rep": 0, "status": status}
-        (folder / "record.json").write_text(json.dumps(record))
+        (folder / "record.json").write_text(json.dumps(record), encoding="utf-8")
         project = self.root / "sessions" / name / "proj"
         project.mkdir(parents=True)
         (project / "fig.png").write_bytes(PNG)
@@ -512,8 +512,8 @@ def test_grade_batch(batch: Batch) -> None:
     timed = batch.add("chart", [init()], status="timeout")
     sessions.grade_batch(batch.dir)
 
-    assert json.loads((ok / "grade.json").read_text())["correct"] is True
-    timeout = json.loads((timed / "grade.json").read_text())
+    assert json.loads((ok / "grade.json").read_text(encoding="utf-8"))["correct"] is True
+    timeout = json.loads((timed / "grade.json").read_text(encoding="utf-8"))
     assert timeout["score"] == 0 and not timeout["correct"]
     assert not batch.root.exists()
 
@@ -523,7 +523,7 @@ def test_answer_file_and_notes(batch: Batch) -> None:
     text = 'Saved.\n```json\n{"file": "fig.png"}\n```'
     folder = batch.add("chart", [init(), result(text)])
     sessions.grade_batch(batch.dir, keep=True)
-    got = json.loads((folder / "grade.json").read_text())
+    got = json.loads((folder / "grade.json").read_text(encoding="utf-8"))
 
     assert (folder / "answer.png").read_bytes() == PNG
     assert got["score"] == 1 and got["notes"]["judge1"] == "ok 1"
@@ -564,19 +564,19 @@ def test_failed_judge_leaves_session_ungraded(
     text = 'Saved.\n```json\n{"file": "fig.png"}\n```'
     chart = batch.add("chart", [init(), result(text)])
     sessions.grade_batch(batch.dir)
-    record = json.loads((chart / "record.json").read_text())
+    record = json.loads((chart / "record.json").read_text(encoding="utf-8"))
 
     assert not (chart / "grade.json").exists()
     assert record["ungraded"] == "judge failed" and "marks for" in record["judge_error"]
-    assert json.loads((batch.dir / "batch.json").read_text())["ungraded"] == {"judge failed": 1}
+    assert json.loads((batch.dir / "batch.json").read_text(encoding="utf-8"))["ungraded"] == {"judge failed": 1}
     assert (batch.root / "sessions" / chart.name / "proj").is_dir()
 
     monkeypatch.setattr(grade, "judge_chart", working)
     sessions.grade_batch(batch.dir)
 
-    assert json.loads((chart / "grade.json").read_text())["score"] == 1
-    assert "ungraded" not in json.loads((chart / "record.json").read_text())
-    assert json.loads((batch.dir / "batch.json").read_text())["ungraded"] == {}
+    assert json.loads((chart / "grade.json").read_text(encoding="utf-8"))["score"] == 1
+    assert "ungraded" not in json.loads((chart / "record.json").read_text(encoding="utf-8"))
+    assert json.loads((batch.dir / "batch.json").read_text(encoding="utf-8"))["ungraded"] == {}
 
 
 def test_timeout_scores_zero_with_an_answer(batch: Batch) -> None:
@@ -584,7 +584,7 @@ def test_timeout_scores_zero_with_an_answer(batch: Batch) -> None:
     folder = batch.add("best-config", [init(), result()], status="timeout")
     sessions.grade_batch(batch.dir)
 
-    assert json.loads((folder / "grade.json").read_text())["score"] == 0
+    assert json.loads((folder / "grade.json").read_text(encoding="utf-8"))["score"] == 0
 
 
 def test_usage_limit_error_is_not_scored(batch: Batch) -> None:
@@ -616,14 +616,14 @@ def test_run_batch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     )
     sessions.main()
     (batch,) = (tmp_path / "runs").iterdir()
-    meta = json.loads((batch / "batch.json").read_text())
+    meta = json.loads((batch / "batch.json").read_text(encoding="utf-8"))
     folder = batch / "best-config-files-7-0"
     run = [c for c in fake.calls if "--version" not in c["command"] and "-p" in c["command"]]
 
     assert meta["model"] == MODEL and meta["claude_version"] == "9.9.9 (Claude Code)"
     assert run[-1]["command"][run[-1]["command"].index("--model") + 1] == MODEL
     assert {p.name for p in folder.iterdir()} == {"record.json", "grade.json", "transcript.jsonl"}
-    assert 0 <= json.loads((folder / "grade.json").read_text())["score"] <= 1
+    assert 0 <= json.loads((folder / "grade.json").read_text(encoding="utf-8"))["score"] <= 1
     assert not Path(meta["root"]).exists()
 
 
@@ -760,4 +760,4 @@ def test_other_dataset_session_and_grade(batch: Batch, monkeypatch: pytest.Monke
 
     assert prepared == [batch.root / "data-other" / "7"]
     assert asked == ["other"]
-    assert json.loads((folder / "grade.json").read_text())["score"] == 1.0
+    assert json.loads((folder / "grade.json").read_text(encoding="utf-8"))["score"] == 1.0

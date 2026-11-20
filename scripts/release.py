@@ -52,7 +52,9 @@ def main() -> None:
     parser.add_argument("--smoke-only", type=Path, help="only install this wheel and try it")
     parser.add_argument("--notes", action="store_true", help="print this version's changelog")
     args = parser.parse_args()
-    version = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+    version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "version"
+    ]
     if args.notes:
         print(notes(version))
         return
@@ -143,7 +145,7 @@ def notes(version: str) -> str:
 
     :param version: The version.
     :return: The section's text."""
-    text = (ROOT / "CHANGELOG.md").read_text()
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     if (m := re.search(rf"^## {re.escape(version)}\n(.*?)(?=^## |\Z)", text, re.M | re.S)) is None:
         fail(f"CHANGELOG.md has no section for {version}")
     return m.group(1).strip()

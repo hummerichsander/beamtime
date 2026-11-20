@@ -108,7 +108,7 @@ def test_full_ingest_matches_the_files(index: Index, logdir: Path) -> None:
     assert db.execute("SELECT count(*) FROM notes").fetchone()[0] == 6
     links = {tuple(r) for r in db.execute("SELECT kind, target FROM links")}
     assert ("prediction", "scaling/lr-sweep#converges") in links
-    roles = json.loads((logdir / "_synth.json").read_text())["roles"]
+    roles = json.loads((logdir / "_synth.json").read_text(encoding="utf-8"))["roles"]
     assert ("run", roles["diverging"]) in links
     assert db.execute("SELECT count(*) FROM events WHERE kind='requeue_requested'").fetchone()[0]
 
@@ -116,7 +116,7 @@ def test_full_ingest_matches_the_files(index: Index, logdir: Path) -> None:
 def test_incremental_ingest(index: Index, logdir: Path) -> None:
     """Appended lines, including a partial one, are picked up on the next catch-up."""
     index.catch_up(".", budget_s=float("inf"))
-    roles = json.loads((logdir / "_synth.json").read_text())["roles"]
+    roles = json.loads((logdir / "_synth.json").read_text(encoding="utf-8"))["roles"]
     run = next(p for p in iter_runs(logdir) if p.name == roles["running"])
     metrics = run / "_metrics.jsonl"
     with metrics.open("ab") as f:
@@ -139,17 +139,17 @@ def test_resume_truncates_older_attempt(index: Index, logdir: Path) -> None:
     resumed = [
         r
         for r in iter_runs(logdir)
-        if len(json.loads((r / "_run.json").read_text())["attempts"]) > 1
+        if len(json.loads((r / "_run.json").read_text(encoding="utf-8"))["attempts"]) > 1
     ]
     assert resumed and run
 
 
 def test_resume_records_the_queue_gap(index: Index, logdir: Path) -> None:
     """The gap between a resumed attempt's start and the previous attempt's last line is cached."""
-    run_id = json.loads((logdir / "_synth.json").read_text())["roles"]["resumed"]
+    run_id = json.loads((logdir / "_synth.json").read_text(encoding="utf-8"))["roles"]["resumed"]
     run_dir = next(p for p in iter_runs(logdir) if p.name == run_id)
     index.catch_up(".", budget_s=float("inf"))
-    events = [json.loads(line) for line in (run_dir / "_events.jsonl").read_text().splitlines()]
+    events = [json.loads(line) for line in (run_dir / "_events.jsonl").read_text(encoding="utf-8").splitlines()]
     started = next(
         e["_t"] for e in events if e["kind"] == "attempt_started" and e.get("resume_step")
     )
@@ -169,9 +169,9 @@ def test_resume_records_the_queue_gap(index: Index, logdir: Path) -> None:
 def test_late_attempt_event_and_implicit_resume(index: Index, logdir: Path) -> None:
     """A decreasing step waits for its event while running; otherwise it is a resume."""
     run = next(iter_runs(logdir / "tokenizer"))
-    info = json.loads((run / "_run.json").read_text())
+    info = json.loads((run / "_run.json").read_text(encoding="utf-8"))
     info["status"] = "running"
-    (run / "_run.json").write_text(json.dumps(info))
+    (run / "_run.json").write_text(json.dumps(info), encoding="utf-8")
     index.catch_up(".", budget_s=float("inf"))
     size = (run / "_metrics.jsonl").stat().st_size
     with (run / "_metrics.jsonl").open("ab") as f:
@@ -312,7 +312,7 @@ def test_ensure_streams_ingests_one_run(index: Index, logdir: Path) -> None:
 def test_ensure_running_run(index: Index, logdir: Path) -> None:
     """A running run whose streams grew between two queries is ingested again, not served stale."""
     index.catch_up(".", budget_s=float("inf"))
-    roles = json.loads((logdir / "_synth.json").read_text())["roles"]
+    roles = json.loads((logdir / "_synth.json").read_text(encoding="utf-8"))["roles"]
     run = next(p for p in iter_runs(logdir) if p.name == roles["running"])
     assert not index.ensure_streams(run.name)
     with (run / "_metrics.jsonl").open("ab") as f:
@@ -360,7 +360,7 @@ def test_drop_keeps_the_lag_of_the_runs_left() -> None:
 def test_damaged_run_is_skipped(index: Index, logdir: Path) -> None:
     """A run with a broken _run.json is reported, the others are indexed."""
     run = next(iter_runs(logdir / "tokenizer"))
-    (run / "_run.json").write_text("{broken")
+    (run / "_run.json").write_text("{broken", encoding="utf-8")
     fresh = index.catch_up(".", budget_s=float("inf"))
     assert len(fresh.damaged) == 1 and run.name in fresh.damaged[0]
 
@@ -413,7 +413,7 @@ def test_last_logged_no_metrics(index: Index, logdir: Path) -> None:
 def test_last_logged_tracks_appends(index: Index, logdir: Path) -> None:
     """The metrics file's mtime is stored on ingest and follows appended lines."""
     index.catch_up(".", budget_s=float("inf"))
-    roles = json.loads((logdir / "_synth.json").read_text())["roles"]
+    roles = json.loads((logdir / "_synth.json").read_text(encoding="utf-8"))["roles"]
     run = next(p for p in iter_runs(logdir) if p.name == roles["running"])
     metrics = run / "_metrics.jsonl"
     query = "SELECT metrics_mtime FROM runs WHERE id = ?"
@@ -471,8 +471,8 @@ def test_rebuild_clears_columns_before_the_new_schema_shows(
 def test_hidden_flag_is_indexed(index: Index, logdir: Path) -> None:
     """``runs.hidden`` follows the run's flag."""
     run = next(iter_runs(logdir / "scaling" / "lr-sweep"))
-    info = json.loads((run / "_run.json").read_text())
-    (run / "_run.json").write_text(json.dumps(info | {"hidden": True}))
+    info = json.loads((run / "_run.json").read_text(encoding="utf-8"))
+    (run / "_run.json").write_text(json.dumps(info | {"hidden": True}), encoding="utf-8")
     index.catch_up(".", budget_s=float("inf"))
     assert index.store.run(run.name)["hidden"] == 1
     assert index.store.db.execute("SELECT count(*) FROM runs WHERE hidden = 1").fetchone()[0] == 1
@@ -481,8 +481,8 @@ def test_hidden_flag_is_indexed(index: Index, logdir: Path) -> None:
 def test_promotion_is_ingested(index: Index, logdir: Path) -> None:
     """A ``visibility/`` file flips ``runs.hidden`` on the next catch-up, without a reindex."""
     run = next(iter_runs(logdir / "scaling" / "lr-sweep"))
-    info = json.loads((run / "_run.json").read_text())
-    (run / "_run.json").write_text(json.dumps(info | {"hidden": True}))
+    info = json.loads((run / "_run.json").read_text(encoding="utf-8"))
+    (run / "_run.json").write_text(json.dumps(info | {"hidden": True}), encoding="utf-8")
     index.catch_up(".", budget_s=float("inf"))
     assert index.store.run(run.name)["hidden"] == 1
     time.sleep(0.01)
@@ -490,6 +490,6 @@ def test_promotion_is_ingested(index: Index, logdir: Path) -> None:
     folder.mkdir()
     (folder / "20261101-100000-aaaa.yaml").write_text(
         "schema: 1\nhidden: false\nauthor: a\nuser: u\n"
-    )
+    , encoding="utf-8")
     index.catch_up(".", budget_s=float("inf"))
     assert index.store.run(run.name)["hidden"] == 0

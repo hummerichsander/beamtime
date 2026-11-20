@@ -56,7 +56,7 @@ def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (tmp_path / "home").mkdir()
     root = tmp_path / "proj"
     (root / "beamtime").mkdir(parents=True)
-    (root / "beamtime.yaml").write_text("{}\n")
+    (root / "beamtime.yaml").write_text("{}\n", encoding="utf-8")
     return root
 
 
@@ -181,8 +181,8 @@ def test_stale_serve_json_is_removed(isolated: Path, project_ctx: Context, tmp_p
     """A serve.json whose lock is free is reported once and deleted; the token stays."""
     cache = tmp_path / "cache" / "abc"
     cache.mkdir(parents=True)
-    (cache / "serve.json").write_text(json.dumps({"pid": 7, "port": 9, "logdir": "/x"}))
-    (cache / "serve.token").write_text("tok")
+    (cache / "serve.json").write_text(json.dumps({"pid": 7, "port": 9, "logdir": "/x"}), encoding="utf-8")
+    (cache / "serve.token").write_text("tok", encoding="utf-8")
     first = ps(project_ctx, NoParams())
     assert [x["pid"] for x in first["stale"]] == [7] and first["groups"]["serve"] == []
     assert not (cache / "serve.json").exists() and (cache / "serve.token").exists()
@@ -289,7 +289,7 @@ def ssh_config(tmp_path: Path, hosts: list[str], plain: list[str] = ()) -> None:
     ssh.mkdir(exist_ok=True)
     text = "".join(f"Host {h}\n  User x\n\n" for h in plain)
     text += "".join(f"{SSH_MARK} {h}\nHost {h}\n\n" for h in hosts)
-    (ssh / "config").write_text(text)
+    (ssh / "config").write_text(text, encoding="utf-8")
 
 
 def fake_ssh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script: str) -> Path:
@@ -302,7 +302,7 @@ def fake_ssh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script: str) -> Pa
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     fake = bin_dir / "ssh"
-    fake.write_text(f"#!/bin/sh\n{script}\n")
+    fake.write_text(f"#!/bin/sh\n{script}\n", encoding="utf-8")
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     return bin_dir
@@ -366,7 +366,7 @@ def test_unmarked_hosts_ignored(
     log = tmp_path / "checked"
     fake_ssh(tmp_path, monkeypatch, f'echo "$3" >> {log}\n' + UP)
     ps(project_ctx, NoParams())
-    assert log.read_text().split() == ["up"]
+    assert log.read_text(encoding="utf-8").split() == ["up"]
 
 
 def test_not_an_mcp_tool_or_api_method() -> None:
