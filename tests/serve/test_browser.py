@@ -1067,6 +1067,15 @@ def test_figure_gets_the_chart_frame(project: Path, server: str, page) -> None:
     page.set_viewport_size({"width": 1000, "height": 900})
     page.wait_for_timeout(800)
     assert len(series) == series_before, "hover and a resize redraw without asking for data again"
+    # a slow runner can land the hover and resize redraws late: wait until each figure shows its width, unhovered.
+    inner.wait_for_function(
+        """() => [...document.querySelectorAll('.chart-plot')].every((el) => {
+            const svg = el.querySelector('svg');
+            return svg && Number(svg.getAttribute('width')) === Math.round(el.getBoundingClientRect().width)
+                && !svg.querySelector("path.curve[data-hot='1']");
+        })""",
+        timeout=15_000,
+    )
 
     draws = lambda fig: int(
         inner.evaluate(f"document.querySelectorAll('.chart-plot')[{fig}].dataset.draws")
