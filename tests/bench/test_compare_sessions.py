@@ -357,21 +357,25 @@ def test_run_session_timeout_and_error(tmp_path: Path, monkeypatch: pytest.Monke
     assert json.loads((tmp_path / "a" / "record.json").read_text())["tokens"]["total"] == 10
 
 
+# the exit is seen only at a poll every 0.5 s, so a 1 s limit left a loaded machine one poll to
+# start the shell; the exiting case gets 2 s, still short of the child's 3 s.
 @pytest.mark.parametrize(
-    ("script", "status"), [("sleep 30", "timeout"), ("echo '{}'; exit 0", "error")]
+    ("script", "status", "limit"),
+    [("sleep 30", "timeout", 1), ("echo '{}'; exit 0", "error", 2)],
 )
 def test_session_children_are_stopped(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script: str, status: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, script: str, status: str, limit: int
 ) -> None:
     """A child the session left running neither holds it to its time limit nor outlives it.
 
     :param script: What the stand-in ``claude`` does after starting the child.
-    :param status: The session's status."""
+    :param status: The session's status.
+    :param limit: The session's time limit in seconds."""
     claude = tmp_path / "claude"
     claude.write_text(f'#!/bin/sh\n(sleep 3; touch "$PWD/stray") &\n{script}\n')
     claude.chmod(0o755)
     monkeypatch.setattr(sessions, "CLAUDE", str(claude))
-    task = grade.Task(id="x", prompt="p", answer="a", checks={}, time_limit_s=1, setups=["files"])
+    task = grade.Task(id="x", prompt="p", answer="a", checks={}, time_limit_s=limit, setups=["files"])
     project = setups.planned("files", tmp_path / "s")
     project.root.mkdir(parents=True)
     folder = tmp_path / "out"
