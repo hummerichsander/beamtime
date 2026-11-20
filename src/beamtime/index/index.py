@@ -12,14 +12,19 @@ from beamtime.format import constants as c
 from beamtime.format.tree import is_reserved
 from beamtime.index.cache import INDEX_LOCK, FileLock, daemon_status, resolve_cache
 from beamtime.index.columns import open_columns
-from beamtime.index.ingest import Ingester, authored_mtime, mtime, read_notes
+from beamtime.index.ingest import (
+    MTIME_SLACK_S,
+    Ingester,
+    authored_mtime,
+    mtime,
+    read_notes,
+    settled,
+)
 from beamtime.index.store import Store
 
 if TYPE_CHECKING:
     from beamtime.settings import Settings
 
-# mtimes can be a second coarse; folders changed around a walk are listed again.
-MTIME_SLACK_S = 2.0
 ENSURE_TIMEOUT_S = 30.0
 AUTHORED = (c.PROPOSAL, c.MEMORY, c.VIEW)
 
@@ -197,7 +202,7 @@ class Index:
                     folder = Path(d) / c.NOTES
                     entries = read_notes(folder, self.logdir) if notes else []
                     self.store.replace_notes(rel, None, entries)
-                    self.store.set_folder(rel, notes_mtime=notes)
+                    self.store.set_folder(rel, notes_mtime=settled(notes))
                 if changed is not None and row is not None:
                     touch(changed, rel, "authored")
             if changed is not None:

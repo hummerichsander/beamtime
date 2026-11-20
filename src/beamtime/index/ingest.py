@@ -18,6 +18,8 @@ from beamtime.index.columns import TIME_KEY, ColumnWriter
 from beamtime.index.store import Store
 
 CHUNK = 64 * 1024 * 1024
+# mtimes can be a second coarse; folders changed around a walk are listed again.
+MTIME_SLACK_S = 2.0
 _decoder = msgspec.json.Decoder()
 
 
@@ -107,6 +109,9 @@ class Ingester:
         :param run_dir: The run directory."""
         run_id = run_dir.name
         rel = run_dir.relative_to(self.logdir)
+        # times before contents, so a file replaced during the read looks changed on the next poll.
+        run_mtime = mtime(run_dir / c.RUN)
+        authored = settled(authored_mtime(str(run_dir)))
         info = read_json(run_dir / c.RUN)
         schema_of(info, kind="run", path=run_dir / c.RUN)
         fields: dict[str, Any] = {
@@ -118,9 +123,9 @@ class Ingester:
             "ended_at": info.get("ended_at"),
             "tags": info.get("tags") or [],
             "info": info,
-            "heartbeat": mtime(run_dir / c.RUN),
+            "heartbeat": run_mtime,
             "hidden": int(run_hidden(run_dir, info)),
-            "run_mtime": mtime(run_dir / c.RUN),
+            "run_mtime": run_mtime,
         }
         if (t := mtime(run_dir / c.CONFIG)) is not None:
             config = read_json(run_dir / c.CONFIG)
@@ -129,7 +134,7 @@ class Ingester:
         if (t := mtime(run_dir / c.CARD)) is not None:
             fields["card"] = read_json(run_dir / c.CARD)
             fields["card_mtime"] = t
-        fields["notes_mtime"] = authored_mtime(str(run_dir))
+        fields["notes_mtime"] = authored
         with self.store.transaction():
             self.store.upsert_run(run_id, fields)
             if mtime(run_dir / c.NOTES) is not None:
@@ -295,6 +300,17 @@ def authored_mtime(run_dir: str) -> float | None:
         if t is not None
     ]
     return max(times) if times else None
+
+
+def settled(t: float | None) -> float | None:
+    """Keep a folder's modification time only once later writes would change it.
+
+    Writes within one clock tick (a second on some file systems) leave a folder's time as it
+    was, so a folder read that recently is read again on the next poll.
+
+    :param t: The folder's modification time, read before its contents.
+    :return: The time, or ``None`` while it is within ``MTIME_SLACK_S`` of now."""
+    return None if t is not None and t > time.time() - MTIME_SLACK_S else t
 
 
 def given_name(run_dir: Path) -> str | None:

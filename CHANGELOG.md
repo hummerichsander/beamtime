@@ -26,6 +26,10 @@
   from the runs it had indexed and left the others out: `series` missed curves and windowed fields were empty.
   A query now ingests the streams of every run it reads, whatever the budget; "N runs not yet indexed" counts
   only runs the answer didn't read.
+- **Fixed** a promotion, rename or note written while the index read that run (or within one clock tick of
+  the folder's last change, common on Linux) could stay unindexed until the run changed again: a promoted run
+  kept counting as hidden in its group. The index now reads a run's times before its files and reads a
+  folder changed in the last 2 s again on the next catch-up.
 - **Added** `run.started` as an alias of `run.created_at` in `select`, `sort` and `where` (the column keeps the name
   as typed), and a bare `metric.<key>` means `metric.<key>.last`; a key whose last segment is a statistic's name
   still needs the explicit `.last` (`metric.loss.min.last`).

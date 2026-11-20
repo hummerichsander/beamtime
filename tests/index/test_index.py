@@ -493,3 +493,60 @@ def test_promotion_is_ingested(index: Index, logdir: Path) -> None:
     , encoding="utf-8")
     index.catch_up(".", budget_s=float("inf"))
     assert index.store.run(run.name)["hidden"] == 0
+
+
+def hide(run: Path) -> None:
+    """Set a run's hidden flag in its ``_run.json``.
+
+    :param run: The run directory."""
+    info = json.loads((run / "_run.json").read_text(encoding="utf-8"))
+    (run / "_run.json").write_text(json.dumps(info | {"hidden": True}), encoding="utf-8")
+
+
+def promote(run: Path) -> None:
+    """Write a promotion the way ``run promote`` does: a temporary file renamed into place.
+
+    :param run: The run directory."""
+    from beamtime.format.io import write_created
+
+    write_created(run / "visibility" / "20261101-100000-aaaa.yaml", b"schema: 1\nhidden: false\n")
+
+
+def test_a_promotion_during_ingest_is_ingested_next(
+    index: Index, logdir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A promotion landing while the run is ingested, after its visibility was read, is not lost."""
+    import beamtime.index.ingest as ingest
+
+    run = next(iter_runs(logdir / "scaling" / "lr-sweep"))
+    hide(run)
+    index.catch_up(".", budget_s=float("inf"))
+    read = ingest.run_hidden
+
+    def racing(run_dir: Path, info: dict) -> bool:
+        hidden = read(run_dir, info)
+        if run_dir == run:
+            promote(run)
+        return hidden
+
+    monkeypatch.setattr(ingest, "run_hidden", racing)
+    (run / "visibility").mkdir()
+    index.catch_up(".", budget_s=float("inf"))
+    monkeypatch.setattr(ingest, "run_hidden", read)
+    index.catch_up(".", budget_s=float("inf"))
+    assert index.store.run(run.name)["hidden"] == 0
+
+
+def test_a_promotion_within_one_clock_tick_is_ingested(index: Index, logdir: Path) -> None:
+    """A promotion that leaves ``visibility/``'s time as it was (one coarse tick) is still ingested."""
+    run = next(iter_runs(logdir / "scaling" / "lr-sweep"))
+    hide(run)
+    folder = run / "visibility"
+    folder.mkdir()
+    index.catch_up(".", budget_s=float("inf"))
+    assert index.store.run(run.name)["hidden"] == 1
+    st = folder.stat()
+    promote(run)
+    os.utime(folder, ns=(st.st_atime_ns, st.st_mtime_ns))
+    index.catch_up(".", budget_s=float("inf"))
+    assert index.store.run(run.name)["hidden"] == 0
