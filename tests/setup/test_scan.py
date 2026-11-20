@@ -17,6 +17,7 @@ from beamtime import __version__
 from beamtime.guide.rules import END, RELEASES, START, render, write_block
 from beamtime.settings import Settings
 from beamtime.setup.scan import PythonEnv, scan
+from tests.test_budgets import timed
 
 DESK = {"DISPLAY": ":0", "PATH": ""}
 NO_MOUNTS = Path("/nonexistent/mounts")
@@ -290,6 +291,7 @@ def test_git_without_commits_and_no_ignore(tmp_path, home):
     assert (git.branch, git.clean, git.logdir_ignored) == ("fresh", True, False)
 
 
+@timed
 def test_scan_is_fast_on_a_large_tree(tmp_path, home):
     for i in range(40):
         d = tmp_path / f"d{i}" / "sub"
