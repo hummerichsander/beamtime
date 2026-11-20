@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from pathlib import Path
 
 import msgspec
@@ -322,3 +324,44 @@ def test_web_answers_keep_the_old_curve_fields(api, client) -> None:
     headers = {"authorization": f"Bearer {TOKEN}", "x-beamtime-caller": "cli"}
     lean = client.post("/api/series", json=params, headers=headers).json()["curves"][0]
     assert {"y", "lo", "hi", "n"} <= set(lean) and not {"last", "min", "max", "count"} & set(lean)
+
+
+RACE = """
+import sys
+import threading
+
+import msgspec
+
+from beamtime.ops.registry import METHODS
+from beamtime.serve.api import warm_types
+from beamtime.views import model as m
+
+warm_types()
+types = [op.params for op in METHODS if op.params is not None] + [m.View, *m.BLOCKS.values()]
+data = [(t, dict.fromkeys(t.__struct_encode_fields__)) for t in types]
+sys.setswitchinterval(1e-6)
+barrier = threading.Barrier(8)
+
+
+def work(k):
+    barrier.wait()
+    for t, d in data[k::2] + data:
+        try:
+            msgspec.convert(d, type=t, strict=False)
+        except msgspec.ValidationError:
+            pass
+
+
+threads = [threading.Thread(target=work, args=(i % 2,)) for i in range(8)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+"""
+
+
+def test_threads_converting_at_once_do_not_crash_the_serve() -> None:
+    """Once the types are warm, threads converting the same structs for the first time at once
+    don't crash the process; cold, this script segfaults most of the time."""
+    for _ in range(3):
+        assert subprocess.run([sys.executable, "-c", RACE]).returncode == 0

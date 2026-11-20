@@ -25,6 +25,26 @@ READ_LIMIT = 4 << 20
 ROUTED = {m.tool for m in METHODS if m.routed and not m.local and not m.user_only}
 
 
+def warm_types() -> None:
+    """Build msgspec's type info of every struct the API converts, before threads answer calls.
+
+    msgspec builds a struct's type info on its first use, and a second thread converting the same
+    struct meanwhile reads it half-built and crashes the process with a segfault."""
+    import msgspec
+
+    from beamtime.query.models import KINDS
+    from beamtime.record.proposals import Proposal
+    from beamtime.views import model as m
+    from beamtime.views.figure import Figure
+    from beamtime.views.library import BlockDef
+    from beamtime.views.theme import ThemeFile
+
+    params = [op.params for op in METHODS if op.params is not None]
+    files = [m.View, Figure, BlockDef, Proposal, ThemeFile]
+    for t in [*params, *KINDS.values(), *m.BLOCKS.values(), *files]:
+        msgspec.json.Decoder(t)
+
+
 def dispatch(ctx: Context, method: str, body: dict[str, Any]) -> dict[str, Any] | bytes:
     """Answer one API call.
 

@@ -24,7 +24,7 @@ from starlette.staticfiles import StaticFiles
 
 from beamtime.format.place import Place
 from beamtime.ops.context import Context, OpError
-from beamtime.serve.api import STATIC, dispatch, locate
+from beamtime.serve.api import STATIC, dispatch, locate, warm_types
 from beamtime.serve.live import Hub
 
 if TYPE_CHECKING:
@@ -40,6 +40,7 @@ def build(*, ctx: Context, hub: Hub, static: Path = STATIC) -> Starlette:
     :param hub: The live-update hub the daemon reports to.
     :param static: The bundled frontend.
     :return: The app, without the token guard."""
+    warm_types()
 
     async def api(request: Request) -> Response:
         method = request.path_params["method"]

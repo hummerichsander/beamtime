@@ -48,6 +48,9 @@ class Remote:
         """Answer requests until the input ends.
 
         :param lines: The requests, one JSON object per line."""
+        from beamtime.serve.api import warm_types
+
+        warm_types()
         watcher = threading.Thread(target=self.watch, name="beamtime-watch", daemon=True)
         watcher.start()
         with ThreadPoolExecutor(WORKERS, thread_name_prefix="beamtime-stdio") as pool:
