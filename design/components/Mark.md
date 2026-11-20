@@ -3,7 +3,7 @@
 Beamtime's mark: three slanted strokes, `///`, in `accent`. It names the product in the top bar and the favicon; it is a brand sign, never a status sign.
 
 - Two poses. **Rest**: the three strokes evenly spaced. **Gathered**: the middle stroke 2 and the right one 4 units to the left, so the three sit close together; class `gathered` holds it (the gallery shows it this way).
-- Motion, "gather left": on hover and once on page load the middle and right strokes move to the gathered pose and back (420ms each way, ease in-out). Under `prefers-reduced-motion` they jump to the pose on hover and there is no load motion.
+- Motion, "gather left": on hover of the mark or of the top bar's project link (also on keyboard focus of the link) and once on page load the middle and right strokes move to the gathered pose and back (420ms each way, ease in-out). Under `prefers-reduced-motion` they jump to the pose and there is no load motion.
 - Sizes: 16px in the top bar, with the 24 `viewBox` kept; larger only on a page that shows the product (about, empty app). Always in `accent`, never recolored by a state.
 - The favicon is the rest pose in `accent` (light and dark). `favicon-live.svg` shows the gathered pose and loops gathered, rest, gathered every 2.8s in browsers that animate SVG icons; where they don't, the gathered pose stays. Both are generated from the tokens by `scripts/build-tokens`.
 - Decorative: `aria-hidden`; the product name next to it carries the meaning.

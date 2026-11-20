@@ -118,7 +118,7 @@ These qualities are made concrete as budgets and rules, and checked like correct
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Top bar**: the `///` mark (`ui/mark.ts`, [`design/components/Mark.md`](../../design/components/Mark.md)) and the project name, one link; the mark gathers left on hover and once on page load. Then the command palette (⌘K), the state of each source (local, connected or
+- **Top bar**: the `///` mark (`ui/mark.ts`, [`design/components/Mark.md`](../../design/components/Mark.md)) and the project name, one link; the mark gathers left when the link is hovered or focused and once on page load. Then the command palette (⌘K), the state of each source (local, connected or
   unreachable remotes), a light/dark/theme switch, settings.
 - **Sidebar**: the group tree, one top-level entry per source ([layer 4](04-remotes.md#naming-remote-groups)),
   with run counts and status dots (running, failed, lost). It loads lazily and can be filtered.

@@ -1,4 +1,4 @@
-// Beamtime's mark, `///`: three slanted strokes that gather left on hover and once on load (design/components/Mark.md).
+// Beamtime's mark, `///`: three slanted strokes that gather left on hover (also of the project link) and once on load (design/components/Mark.md).
 
 import { html } from "htm/preact";
 

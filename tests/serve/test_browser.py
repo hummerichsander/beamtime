@@ -280,13 +280,20 @@ def test_the_title_and_favicon_show_a_running_run(live_page) -> None:
 
 
 def test_the_top_bar_mark_gathers_on_hover(server: str, page) -> None:
-    """The mark sits in the project link, gathers left on hover and holds still under reduced motion."""
+    """The mark sits in the project link, gathers left on hovering the mark or the name and holds still under reduced motion."""
     page.goto(server)
     page.wait_for_selector(".topbar .project .mark")
     shift = "() => new DOMMatrix(getComputedStyle(document.querySelector('.topbar .mark-3')).transform).e"
     page.wait_for_timeout(1200)
     assert page.evaluate(shift) == 0
     page.hover(".topbar .mark")
+    page.wait_for_timeout(700)
+    assert page.evaluate(shift) == -4
+    page.mouse.move(600, 600)
+    page.wait_for_timeout(700)
+    assert page.evaluate(shift) == 0
+    width = page.eval_on_selector(".topbar .project", "el => el.getBoundingClientRect().width")
+    page.hover(".topbar .project", position={"x": width - 4, "y": 8})
     page.wait_for_timeout(700)
     assert page.evaluate(shift) == -4
     page.emulate_media(reduced_motion="reduce")

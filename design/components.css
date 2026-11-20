@@ -23,8 +23,8 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .mark path { transform-box: fill-box; transition: transform 420ms ease-in-out; }
 .mark-2 { animation: mark-gather-2 840ms ease-in-out; }
 .mark-3 { animation: mark-gather-3 840ms ease-in-out; }
-.mark:hover .mark-2, .mark.gathered .mark-2 { transform: translateX(-2px); }
-.mark:hover .mark-3, .mark.gathered .mark-3 { transform: translateX(-4px); }
+:is(.mark:hover, .mark.gathered, .project:is(:hover, :focus-visible) .mark) .mark-2 { transform: translateX(-2px); }
+:is(.mark:hover, .mark.gathered, .project:is(:hover, :focus-visible) .mark) .mark-3 { transform: translateX(-4px); }
 @keyframes mark-gather-2 { 50% { transform: translateX(-2px); } }
 @keyframes mark-gather-3 { 50% { transform: translateX(-4px); } }
 @media (prefers-reduced-motion: reduce) {
