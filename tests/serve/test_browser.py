@@ -305,6 +305,24 @@ def test_the_top_bar_mark_gathers_on_hover(server: str, page) -> None:
     assert page.evaluate(shift) == -4
 
 
+def test_the_top_bar_mark_gathers_on_keyboard_focus(server: str, page) -> None:
+    """Tabbing onto the project link gathers the mark left and tabbing off lets it rest."""
+    page.goto(server)
+    page.wait_for_selector(".topbar .project .mark")
+    shift = "() => new DOMMatrix(getComputedStyle(document.querySelector('.topbar .mark-3')).transform).e"
+    page.wait_for_timeout(1200)
+    for _ in range(10):
+        if page.evaluate("document.activeElement.matches('.topbar .project')"):
+            break
+        page.keyboard.press("Tab")
+    assert page.evaluate("document.activeElement.matches('.topbar .project')")
+    page.wait_for_timeout(700)
+    assert page.evaluate(shift) == -4
+    page.keyboard.press("Tab")
+    page.wait_for_timeout(700)
+    assert page.evaluate(shift) == 0
+
+
 LAST_STEP = """
 const { html } = bt.preact;
 
