@@ -11,6 +11,8 @@ from beamtime import __version__
 def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point HOME, the XDG directories and the index cache at a folder of the test, so nothing real is touched.
 
+    ``DISPLAY`` is set so a scan of the process's environment sees a desk machine on Linux too.
+
     :param tmp_path: The test's temporary directory.
     :param monkeypatch: The environment patcher.
     :return: The fake home directory."""
@@ -20,6 +22,7 @@ def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(home / ".config"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(home / ".cache"))
     monkeypatch.setenv("BEAMTIME_CACHE", str(home / ".cache" / "beamtime"))
+    monkeypatch.setenv("DISPLAY", ":0")
     return home
 
 

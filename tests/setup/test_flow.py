@@ -45,6 +45,7 @@ RULES, IMPORT = "Tell agents that Beamtime is the record?", "Bring in past work?
 GIT, SDK = "Keep the research record in git?", "Add the Beamtime SDK to this project's environment?"
 REVIEW = "Ready. Nothing has been written yet."
 HANDOFF = "Hand the notes and memory to your agent now?"
+DESK = {"DISPLAY": ":0", "PATH": ""}
 posix = pytest.mark.skipif(sys.platform == "win32", reason="needs a pseudo-terminal")
 
 
@@ -940,7 +941,7 @@ def make_cluster(base: Path, home: Path, path: str) -> Scan:
         f"/dev/sda1 / ext4 rw 0 0\nserver:/h {home.resolve()} nfs4 rw 0 0\n"
         f"gpfs0 {scratch.resolve()} gpfs rw 0 0\n"
     )
-    env = {"PATH": path, "SCRATCH": str(scratch)}
+    env = {**DESK, "PATH": path, "SCRATCH": str(scratch)}
     return scan(root, home=home, mounts=mounts, env=env)
 
 
@@ -1316,7 +1317,7 @@ def handover(tmp_path: Path, home: Path, monkeypatch: pytest.MonkeyPatch) -> Sca
     (root / "NOTES.md").write_text("# Notes\nresults so far\n")
     (root / "CLAUDE.md").write_text("Keep results in NOTES.md.\n")
     monkeypatch.chdir(root)
-    return scan(root, home=home, mounts=Path("/nonexistent"), env={"PATH": ""})
+    return scan(root, home=home, mounts=Path("/nonexistent"), env=DESK)
 
 
 def on_path(*names: str) -> Callable[[str], str | None]:
@@ -1416,7 +1417,7 @@ def test_wizard_leaves_notes_to_the_agent_and_asks_after_the_write(
     from beamtime.setup.flow import Step
 
     (handover.root / "beamtime.yaml").unlink()
-    found = scan(handover.root, home=handover.home, mounts=Path("/nonexistent"), env={"PATH": ""})
+    found = scan(handover.root, home=handover.home, mounts=Path("/nonexistent"), env=DESK)
     answers = Answers.defaults(found)
     answers.agents, answers.import_notes = ["claude-code"], ["NOTES.md"]
     monkeypatch.setattr(flow, "intro", lambda *a: None)
