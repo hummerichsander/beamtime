@@ -1,11 +1,22 @@
 import pytest
 
+from tests.serve.conftest import wait_until
 from tests.serve.test_axes import BENCH, show
 
 pytest.importorskip("playwright.sync_api")
 
 LOSS = {"y": "validation/loss"}
 OPEN = ".chart-settings:popover-open"
+
+# the open panel at rest: placed, its opening transition done and in the same place as one frame before.
+PANEL_AT_REST = """() => {
+  const el = document.querySelector('.chart-settings:popover-open');
+  if (!el || el.getAnimations().length) return false;
+  const rect = JSON.stringify(el.getBoundingClientRect());
+  const same = window.__panel === rect;
+  window.__panel = rect;
+  return same;
+}"""
 
 # a rectangle's edges, for the panel and for the chart frame it must not cover.
 RECTS = """(frame) => {
@@ -35,13 +46,19 @@ def grid_of_three(project, server: str, page) -> None:
 
 
 def x_titles(page) -> list[str]:
-    """Wait for all three charts to be drawn and read their x axis titles.
+    """Read the x axis titles of the drawn charts.
 
     :param page: The Playwright page.
     :return: The titles, in page order."""
-    page.wait_for_function("() => document.querySelectorAll('.chart-frame .uplot').length === 3")
-    page.wait_for_timeout(500)
     return page.locator(".chart-frame .uplot").evaluate_all("(els) => els.map((e) => e.dataset.xlabel)")
+
+
+def panel_rests(page) -> None:
+    """Wait until the open settings panel has come to rest.
+
+    :param page: The Playwright page."""
+    page.evaluate("delete window.__panel")
+    page.wait_for_function(PANEL_AT_REST, timeout=10_000)
 
 
 def open_settings(page, n: int) -> None:
@@ -53,8 +70,7 @@ def open_settings(page, n: int) -> None:
     frame.scroll_into_view_if_needed()
     frame.hover(position={"x": frame.bounding_box()["width"] - 10, "y": 10})
     frame.locator("button[aria-label='Chart settings']").click()
-    page.wait_for_selector(OPEN)
-    page.wait_for_timeout(500)
+    panel_rests(page)
 
 
 def test_the_panel_sits_beside_its_chart(server: str, page, project) -> None:
@@ -73,13 +89,13 @@ def test_the_panel_docks_to_the_edge_on_a_narrow_screen(server: str, page, proje
     """At 600 px neither side has room: the panel sits against the right edge, on screen, and follows a resize."""
     grid_of_three(project, server, page)
     page.set_viewport_size({"width": 600, "height": 900})
-    page.wait_for_timeout(500)
     open_settings(page, 0)
     r = page.locator(".chart-frame").nth(0).evaluate(RECTS)
     assert r["p"][2] == pytest.approx(r["w"] - 8, abs=1) and r["p"][0] >= 0, r
     assert 0 <= r["p"][1] and r["p"][3] <= r["h"], r
     page.set_viewport_size({"width": 520, "height": 900})
-    page.wait_for_timeout(300)
+    page.wait_for_function("() => innerWidth === 520")
+    panel_rests(page)
     r = page.locator(".chart-frame").nth(0).evaluate(RECTS)
     assert r["p"][2] == pytest.approx(r["w"] - 8, abs=1), r
 
@@ -87,16 +103,22 @@ def test_the_panel_docks_to_the_edge_on_a_narrow_screen(server: str, page, proje
 def test_the_panel_follows_scrolling(server: str, page, project) -> None:
     """Scrolling moves the panel with its chart until the edge of the screen holds it."""
     grid_of_three(project, server, page)
+    # short enough that the page scrolls, tall enough that the panel fits beside its chart.
+    page.set_viewport_size({"width": 1800, "height": 1100})
     open_settings(page, 0)
     frame = page.locator(".chart-frame").first
     assert page.locator(OPEN).bounding_box()["y"] == pytest.approx(frame.bounding_box()["y"], abs=1)
+    top = frame.bounding_box()["y"]
     page.mouse.wheel(0, 100)
-    page.wait_for_timeout(300)
+    wait_until(page, lambda: frame.bounding_box()["y"] < top, what="the page scrolled")
+    panel_rests(page)
     assert page.locator(OPEN).bounding_box()["y"] == pytest.approx(frame.bounding_box()["y"], abs=1)
+    top = frame.bounding_box()["y"]
     page.mouse.wheel(0, 2000)
-    page.wait_for_timeout(300)
+    wait_until(page, lambda: frame.bounding_box()["y"] < top, what="the page scrolled on")
+    panel_rests(page)
     box = page.locator(OPEN).bounding_box()
-    assert 0 <= box["y"] and box["y"] + box["height"] <= 1400
+    assert 0 <= box["y"] and box["y"] + box["height"] <= 1100
 
 
 def test_the_longest_metric_name_does_not_scroll_the_panel(server: str, page, project) -> None:
@@ -123,7 +145,8 @@ def test_any_metric_is_an_x_axis_and_applies_to_all_charts(server: str, page, pr
     grid_of_three(project, server, page)
     for frame in page.locator(".chart-frame").all():
         frame.scroll_into_view_if_needed()
-    page.wait_for_timeout(500)
+    # a chart is drawn once it is on screen.
+    wait_until(page, lambda: x_titles(page) == ["step"] * 3, what="three charts drawn")
     open_settings(page, 0)
     panel = page.locator(OPEN)
     panel.get_by_role("combobox", name="x axis").click()
@@ -131,11 +154,9 @@ def test_any_metric_is_an_x_axis_and_applies_to_all_charts(server: str, page, pr
     assert panel.get_by_role("option", name="elapsed").count() == 1
     panel.get_by_role("combobox", name="x axis").fill("gpu")
     panel.get_by_role("option", name="sys/gpu_mem").click()
-    page.wait_for_timeout(800)
-    assert x_titles(page) == ["sys/gpu_mem", "step", "step"]
+    wait_until(page, lambda: x_titles(page) == ["sys/gpu_mem", "step", "step"], what="the first chart's new x axis")
     panel.get_by_text("Use this x axis on all charts on this page").click()
-    page.wait_for_timeout(1000)
-    assert x_titles(page) == ["sys/gpu_mem"] * 3
+    wait_until(page, lambda: x_titles(page) == ["sys/gpu_mem"] * 3, what="the x axis on all charts")
 
 
 def test_a_non_monotone_x_with_aggregation_says_so(server: str, page, project) -> None:
