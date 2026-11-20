@@ -138,10 +138,12 @@ def test_disks(tmp_path, home):
     scratch = tmp_path / "scratch"
     scratch.mkdir()
     mounts = tmp_path / "mounts"
+    # the fake home gets its own mount: on a runner whose /tmp is tmpfs it would fall under /tmp.
     mounts.write_text(
         f"/dev/sda1 / ext4 rw 0 0\n"
-        f"server:/s {scratch.resolve()} lustre rw 0 0\n"
         f"tmpfs /tmp tmpfs rw 0 0\n"
+        f"/dev/sda2 {home.resolve()} ext4 rw 0 0\n"
+        f"server:/s {scratch.resolve()} lustre rw 0 0\n"
     )
     disks = {
         d.label: d
