@@ -4,7 +4,6 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -17,13 +16,20 @@ from beamtime.index.index import Index
 from beamtime.ops.context import Context
 from beamtime.synth import Manifest, generate
 
-# the index cache of every test lives in a temporary directory, never in ~/.cache.
-os.environ["BEAMTIME_CACHE"] = tempfile.mkdtemp(prefix="beamtime-cache-")
-# the process registry and memory-cache serves live in a temporary runtime base for the same reason.
-os.environ["BEAMTIME_RUNTIME"] = tempfile.mkdtemp(prefix="beamtime-runtime-")
-
 GOLDEN = Path(__file__).parent / "golden" / "schema1" / "beamtime"
 NOW = datetime(2026, 10, 26, 12, 0, 0, tzinfo=timezone.utc)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _temporary_cache(tmp_path_factory: pytest.TempPathFactory) -> None:
+    """Keep the index cache and the runtime base of every test out of ``~/.cache``.
+
+    Both live in pytest's temporary directory, which pytest removes with its old runs; the process
+    registry and memory-cache serves live in the runtime base.
+
+    :param tmp_path_factory: Pytest's temporary directory factory."""
+    os.environ["BEAMTIME_CACHE"] = str(tmp_path_factory.mktemp("cache"))
+    os.environ["BEAMTIME_RUNTIME"] = str(tmp_path_factory.mktemp("runtime"))
 
 
 @pytest.fixture(scope="session", autouse=True)

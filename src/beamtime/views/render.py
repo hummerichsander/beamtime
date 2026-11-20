@@ -216,6 +216,9 @@ def launch(p: Any) -> Any:
     from playwright.sync_api import Error
 
     for channel in (None, "chrome", "msedge"):
+        # a launch of a missing bundled Chromium leaves two empty folders in the temp dir.
+        if channel is None and not Path(p.chromium.executable_path).exists():
+            continue
         try:
             return p.chromium.launch(**({"channel": channel} if channel else {}))
         except Error:

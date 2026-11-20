@@ -80,15 +80,10 @@ def browser():
 
     :return: The browser."""
     sync_api = pytest.importorskip("playwright.sync_api")
+    from beamtime.views.render import launch
+
     with sync_api.sync_playwright() as p:
-        browser = None
-        for kw in ({}, {"channel": "chrome"}):
-            try:
-                browser = p.chromium.launch(**kw)
-                break
-            except Exception:
-                continue
-        if browser is None:
+        if (browser := launch(p)) is None:
             pytest.skip("no Chromium available (playwright install chromium)")
         yield browser
         browser.close()

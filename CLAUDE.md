@@ -116,6 +116,11 @@ cells. Short code comments under the rules above are fine; explanations go in th
 - Use `pytest` with fixtures in `conftest.py`
 - Fixture and test-class docstrings follow the same `:param`/`:return:` format
 - Test implementations of abstract classes are self-contained in the test file
+- Tests leave nothing behind: temporary files go in `tmp_path`/`tmp_path_factory`, and a folder
+  made outside them (a module-level `mkdtemp`) is removed when the session ends. After a change
+  that adds temporary files, browsers or subprocesses, check that `$TMPDIR` doesn't grow
+- After a Playwright upgrade, run `uv run playwright install chromium`: every failed launch of the
+  bundled Chromium leaves two empty folders in `$TMPDIR`, even when the fallback to Chrome works
 - Run `ruff check . && ruff format --check . && pytest -q` before committing
 
 # Tooling
