@@ -214,6 +214,7 @@ def test_custom_block_follows_live_data_over_ssh(container, project: Path) -> No
 
     from beamtime.ops import call as local
     from beamtime.views import render
+    from tests.serve.conftest import wait_until
     from tests.serve.test_browser import LAST_STEP, last_step
 
     _, logdir, env = container
@@ -266,13 +267,9 @@ def test_custom_block_follows_live_data_over_ssh(container, project: Path) -> No
                 page.on("request", lambda r: r.url.endswith("/api/code") and asked.append(r.url))
                 page.goto(f"{base}/f/@box/live?token={token}")
                 page.wait_for_selector(".custom-frame iframe", timeout=60_000)
-                deadline = time.monotonic() + 60
-                while last_step(page) < 0:
-                    assert time.monotonic() < deadline, "the block never showed a step"
-                    page.wait_for_timeout(200)
+                wait_until(page, lambda: last_step(page) >= 0, timeout=60, what="the block showing a step")
                 first = last_step(page)
-                page.wait_for_timeout(15_000)
-                assert last_step(page) > first + 10, "the block shows the step it started with"
+                wait_until(page, lambda: last_step(page) > first + 10, timeout=60, what="the block following the steps")
                 assert len(asked) == 1
                 assert page.locator(".custom-error").count() == 0
                 browser.close()
