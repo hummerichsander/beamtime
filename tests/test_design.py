@@ -144,6 +144,13 @@ def test_the_gallery_renders_in_both_themes(browser, tmp_path: Path) -> None:
     assert seen["light"]["background"] == "rgb({}, {}, {})".format(*(int(c, 16) for c in paper))
 
 
+# the gallery's first mark at rest: nothing animating, its right stroke at the given transform.
+MARK_AT_REST = """(transform) => {
+  const mark = document.querySelector('#Mark svg.mark');
+  return mark.getAnimations({ subtree: true }).length === 0 && getComputedStyle(mark.querySelectorAll('path')[2]).transform === transform;
+}"""
+
+
 def test_the_mark_gathers_left_on_hover(browser) -> None:
     """The middle and right stroke move 2 and 4 units left on hover, with or without reduced motion (which only drops the movement)."""
     reads = {}
@@ -152,10 +159,10 @@ def test_the_mark_gathers_left_on_hover(browser) -> None:
         page.goto(GALLERY.as_uri())
         mark = page.locator("#Mark svg.mark").first
         mark.scroll_into_view_if_needed()
-        page.wait_for_timeout(1000)
+        page.wait_for_function(MARK_AT_REST, arg="none")
         rest = page.evaluate("[...document.querySelectorAll('#Mark svg.mark')[0].querySelectorAll('path')].map((p) => getComputedStyle(p).transform)")
         mark.hover()
-        page.wait_for_timeout(600)
+        page.wait_for_function(MARK_AT_REST, arg="matrix(1, 0, 0, 1, -4, 0)")
         hover = page.evaluate("[...document.querySelectorAll('#Mark svg.mark')[0].querySelectorAll('path')].map((p) => getComputedStyle(p).transform)")
         reads[motion] = (rest, hover)
         page.close()
