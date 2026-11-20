@@ -9,8 +9,12 @@ from pathlib import Path
 import pytest
 
 from beamtime.format.io import json_line
+from tests.serve.conftest import wait_until
+from tests.serve.test_chart_settings import PANEL_AT_REST
 
 pytest.importorskip("playwright.sync_api")
+
+from playwright.sync_api import expect
 
 
 def box_of(page, selector: str) -> dict:
@@ -22,11 +26,27 @@ def box_of(page, selector: str) -> dict:
     :param page: The Playwright page.
     :param selector: The overlay, e.g. ``.chart .u-over`` (the first match counts).
     :return: Its bounding box."""
-    deadline = time.time() + 10
-    while (box := page.locator(selector).first.bounding_box()) is None or not box["width"]:
-        assert time.time() < deadline, f"{selector} never got a size"
-        page.wait_for_timeout(100)
-    return box
+    page.wait_for_function(
+        "(s) => document.querySelector(s)?.getBoundingClientRect().width > 0", arg=selector, timeout=10_000
+    )
+    return page.locator(selector).first.bounding_box()
+
+
+def painted(page) -> None:
+    """Wait for two frames, so the effects of the page's last render have run and drawn.
+
+    :param page: The Playwright page."""
+    page.evaluate("() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))")
+
+
+def theme_to_last(page) -> None:
+    """Click the theme toggle until its next choice is the system's, waiting for each switch.
+
+    :param page: The Playwright page."""
+    toggle = page.locator(".topbar-actions [aria-label^='Theme']")
+    while "(switch to system)" not in (label := toggle.get_attribute("aria-label")):
+        toggle.click()
+        expect(toggle).not_to_have_attribute("aria-label", label)
 
 
 def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict) -> None:
@@ -44,7 +64,7 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     page.wait_for_selector(".page h1:has-text('lr-sweep')", timeout=2000)
     page.wait_for_selector(".chart canvas")
     assert page.locator(".checks .check.tone-good").count() >= 2
-    # a view transition that hangs reports itself only after its timeout.
+    # a negative check: a view transition that hangs reports itself only after its timeout.
     page.wait_for_timeout(4500)
     assert errors == []
 
@@ -53,21 +73,21 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
         "request", lambda r: r.url.endswith("/api/series") and asked.append(json.loads(r.post_data))
     )
     over = box_of(page, ".chart .u-over")
-    page.mouse.move(over["x"] + over["width"] * 0.2, over["y"] + 40)
-    page.mouse.down()
-    page.mouse.move(over["x"] + over["width"] * 0.5, over["y"] + 50, steps=6)
-    page.mouse.up()
-    page.wait_for_timeout(1000)
-    assert any(q.get("steps") for q in asked), "drag-zoom refetches the window"
+    # drag-zoom refetches the window.
+    with page.expect_request(lambda r: r.url.endswith("/api/series") and json.loads(r.post_data).get("steps")):
+        page.mouse.move(over["x"] + over["width"] * 0.2, over["y"] + 40)
+        page.mouse.down()
+        page.mouse.move(over["x"] + over["width"] * 0.5, over["y"] + 50, steps=6)
+        page.mouse.up()
     asked.clear()
     first = page.locator(".chart-frame").first
     first.hover()
     first.locator("button[aria-label='Chart settings']").click()
     settings = page.locator(".chart-settings:popover-open")
     settings.get_by_role("combobox", name="x axis").click()
-    settings.get_by_role("option", name="wall time").click()
-    page.wait_for_timeout(1000)
-    assert asked and all(q["x"] == "_t" for q in asked), "a chart's own settings refetch only it"
+    with page.expect_response(lambda r: r.url.endswith("/api/series") and json.loads(r.request.post_data)["x"] == "_t"):
+        settings.get_by_role("option", name="wall time").click()
+    assert all(q["x"] == "_t" for q in asked), "a chart's own settings refetch only it"
     page.keyboard.press("Escape")
     page.click("table.runs tbody tr:nth-child(1) .swatch")
     assert page.locator("table.runs tbody tr.hidden-run").count() == 1
@@ -83,7 +103,7 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     page.keyboard.type("Edited in the browser.")
     page.keyboard.press("Enter")
     page.wait_for_selector(".notes .note-title:has-text('Edited in the browser.')")
-    page.wait_for_timeout(500)
+    wait_until(page, lambda: set(notes_dir.iterdir()) - before, what="a new note file")
     added = set(notes_dir.iterdir()) - before
     assert len(added) == 1 and "supersedes:" in added.pop().read_text(encoding="utf-8")
 
@@ -94,7 +114,7 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     before = set(notes_dir.iterdir())
     page.click('.notes .note >> nth=1 >> button[aria-label="Change the note\'s type"]')
     page.click(".menu-list button:has-text('theory')")
-    page.wait_for_timeout(500)
+    wait_until(page, lambda: set(notes_dir.iterdir()) - before, what="a new note file")
     added = set(notes_dir.iterdir()) - before
     assert len(added) == 1
     new_text = added.pop().read_text(encoding="utf-8")
@@ -142,27 +162,23 @@ def test_folder_run_and_live_curve(server: str, page, project: Path, roles: dict
     box = box_of(page, ".timeline-chart .u-over")
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.wheel(0, -400)
-    page.wait_for_timeout(300)
-    assert page.locator(".timeline-chart button[aria-checked='true']").count() == 0, "zoomed in"
+    # zoomed in: no preset range is checked any more.
+    expect(page.locator(".timeline-chart button[aria-checked='true']")).to_have_count(0)
 
     running = roles["running"]
     page.goto(f"{base}/r/{running}")
     page.wait_for_url(re.compile(rf".*/f/local/.+/{running}$"))
     page.wait_for_selector(".chart canvas")
     page.evaluate("window.__marker = 1")
-    series: list[str] = []
-    page.on("request", lambda r: r.url.endswith("/api/series") and series.append(r.url))
     run_dir = next(project.glob(f"beamtime/**/{running}"))
     lines = (run_dir / "_metrics.jsonl").read_text(encoding="utf-8").splitlines()
     step = json.loads(lines[-1])["_step"]
-    with (run_dir / "_metrics.jsonl").open("ab") as f:
-        for i in range(1, 50):
-            f.write(json_line({"_step": step + i, "_t": time.time(), "train/loss": 0.1}))
-    (run_dir / "_run.json").touch()
-    deadline = time.time() + 15
-    while not series and time.time() < deadline:
-        page.wait_for_timeout(200)
-    assert series, "no refetch after new metric lines"
+    # new metric lines refetch the series.
+    with page.expect_request(lambda r: r.url.endswith("/api/series"), timeout=15_000):
+        with (run_dir / "_metrics.jsonl").open("ab") as f:
+            for i in range(1, 50):
+                f.write(json_line({"_step": step + i, "_t": time.time(), "train/loss": 0.1}))
+        (run_dir / "_run.json").touch()
     assert page.evaluate("window.__marker") == 1
     assert errors == []
 
@@ -207,12 +223,9 @@ def test_custom_blocks_share_hover_downloads_and_expand(project: Path, page) -> 
         )
         muted = "getComputedStyle(document.documentElement).getPropertyValue('--muted')"
         light = inner.evaluate(muted)
-        toggle = page.locator(".topbar-actions [aria-label^='Theme']")
-        while "(switch to system)" not in toggle.get_attribute("aria-label"):
-            toggle.click()
-            page.wait_for_timeout(300)
-        page.wait_for_timeout(300)
-        assert inner.evaluate(muted) != light, "the frame's tokens follow the page's mode"
+        theme_to_last(page)
+        # the frame's tokens follow the page's mode.
+        inner.wait_for_function(f"(light) => {muted} !== light", arg=light, timeout=10_000)
         frame.locator("rect").nth(1).hover()
         page.wait_for_selector("table.runs tr.hovered", timeout=5_000)
         with page.expect_download() as download:
@@ -233,25 +246,10 @@ def test_live_page_fixture_follows_a_running_writer(live_page) -> None:
     live_page.page.wait_for_selector(".chart canvas")
     metrics = next((live_page.project / "beamtime" / "live").glob("*/_metrics.jsonl"))
     before = len(metrics.read_text(encoding="utf-8").splitlines())
-    deadline = time.time() + 10
-    while len(metrics.read_text(encoding="utf-8").splitlines()) <= before:
-        assert time.time() < deadline, "no metrics arrived after the page opened"
-        live_page.page.wait_for_timeout(200)
+    lines = lambda: len(metrics.read_text(encoding="utf-8").splitlines())  # noqa: E731
+    wait_until(live_page.page, lambda: lines() > before, timeout=10, what="metrics arriving after the page opened")
     live_page.stop_writer()
     assert live_page.writer.returncode == 0
-
-
-def wait_until(condition, timeout: float = 15.0) -> None:
-    """Poll a condition until it holds; the page's own CSP forbids ``wait_for_function``.
-
-    :param condition: A function returning a truthy value when done.
-    :param timeout: Seconds to wait at most."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if condition():
-            return
-        time.sleep(0.1)
-    raise AssertionError("condition not met in time")
 
 
 def test_the_title_and_favicon_show_a_running_run(live_page) -> None:
@@ -259,7 +257,7 @@ def test_the_title_and_favicon_show_a_running_run(live_page) -> None:
     page = live_page.page
     live_page.goto("/f/local/live")
     page.wait_for_selector(".chart canvas")
-    wait_until(lambda: page.title().startswith("(1) live"))
+    wait_until(page, lambda: page.title().startswith("(1) live"))
     assert page.title().endswith("· Beamtime")
     href = page.eval_on_selector("link[rel=icon]", "el => el.href")
     assert href.endswith("/static/favicon-live.svg")
@@ -271,10 +269,14 @@ def test_the_title_and_favicon_show_a_running_run(live_page) -> None:
               .observe(document.querySelector("link[rel=icon]"), { attributes: true });
         }"""
     )
-    page.wait_for_timeout(2500)
+    ticks: list[str] = []
+    page.on("request", lambda r: r.url.endswith("/api/series") and ticks.append(r.url))
+    # two live ticks redraw the page, and the icon is not written again.
+    wait_until(page, lambda: len(ticks) >= 2, timeout=30, what="two live ticks")
+    painted(page)
     assert page.evaluate("window.__icon_writes") == 0
     live_page.stop_writer()
-    wait_until(lambda: page.title() == "live · Beamtime", timeout=30)
+    wait_until(page, lambda: page.title() == "live · Beamtime", timeout=30)
     href = page.eval_on_selector("link[rel=icon]", "el => el.href")
     assert href.endswith("/static/favicon.svg")
 
@@ -395,17 +397,15 @@ def test_custom_blocks_follow_live_data(live_page) -> None:
     )
     live_page.goto("/f/local/live")
     page.wait_for_selector(".custom-frame iframe")
-    deadline = time.time() + 30
-    while last_step(page) < 0:
-        assert time.time() < deadline, "the block never showed a step"
-        page.wait_for_timeout(200)
+    wait_until(page, lambda: last_step(page) >= 0, timeout=30, what="the block showing a step")
     first = last_step(page)
-    page.wait_for_timeout(10_000)
-    assert last_step(page) > first + 10, "the block shows the step it started with"
+    wait_until(page, lambda: last_step(page) > first + 10, timeout=30, what="the block following the steps")
     assert asked.count("code") == 1, "the code is immutable, so it is fetched once"
 
     live_page.stop_writer()
-    page.wait_for_timeout(20_000)
+    wait_until(page, lambda: page.title() == "live · Beamtime", timeout=30, what="the page seeing the run stop")
+    # a negative check: longer than a custom block's 15 s first-render timeout, which a stop must not restart.
+    page.wait_for_timeout(16_000)
     assert page.locator(".custom-error").count() == 0
 
 
@@ -443,7 +443,7 @@ def test_a_scorecard_keeps_queued_rows_and_a_new_run_appears_in_its_row(live_pag
     env = {k: v for k, v in os.environ.items() if not k.startswith(("BEAMTIME_", "SLURM_"))}
     env["BEAMTIME_LOGDIR"] = str(project / "beamtime")
     subprocess.run([sys.executable, "-c", script], cwd=project, env=env, check=True)
-    wait_until(lambda: other.locator("td.score").count() == 1)
+    expect(other.locator("td.score")).to_have_count(1, timeout=15_000)
     assert "queued" not in other.inner_text() and "0.5" in other.inner_text()
 
 
@@ -470,7 +470,7 @@ def test_a_chart_waits_for_the_first_value_of_a_running_run(
     env["BEAMTIME_LOGDIR"] = str(project / "beamtime")
     writer = subprocess.Popen([sys.executable, "-c", script, go], cwd=project, env=env)
     try:
-        wait_until(lambda: any((project / "beamtime" / "waiting").glob("*/_run.json")))
+        wait_until(page, lambda: any((project / "beamtime" / "waiting").glob("*/_run.json")))
         ctx = Context.make()
         call("view new", {"group": "waiting", "name": "loss"}, ctx)
         draft = project / ".beamtime" / "drafts" / "loss"
@@ -507,8 +507,7 @@ def test_live_ticks_refetch_only_what_changed(live_page) -> None:
     live_page.goto("/f/local/live")
     page.wait_for_selector(".chart canvas")
     asked.clear()
-    page.wait_for_timeout(5000)
-    assert "series" in asked
+    wait_until(page, lambda: asked.count("series") >= 2, timeout=30, what="two live ticks")
     assert not {"view", "notes", "memory_show"} & set(asked)
 
 
@@ -632,8 +631,7 @@ def test_a_single_point_is_drawn(server: str, page, project: Path) -> None:
     page.goto(f"{server.split('/f/local')[0]}/f/local/{group}?token={server.split('token=')[1]}")
     page.wait_for_selector(".chart canvas")
     box_of(page, ".chart .u-over")
-    page.wait_for_timeout(500)
-    assert page.evaluate(DATA_PIXELS) >= 6, "the single point is not drawn"
+    wait_until(page, lambda: page.evaluate(DATA_PIXELS) >= 6, what="the single point drawn")
     page.wait_for_selector("td.spark svg")
     assert page.locator("td.spark circle").count() == 1
     assert page.locator("td.spark polyline").count() == 0
@@ -685,8 +683,7 @@ def test_a_band_on_a_log_axis_reaches_the_bottom(server: str, page, project: Pat
     page.goto(f"{server.split('/f/local')[0]}/f/local/{group}?token={server.split('token=')[1]}")
     page.wait_for_selector(".chart canvas")
     box_of(page, ".chart .u-over")
-    page.wait_for_timeout(500)
-    assert page.evaluate(BAND_AT_BOTTOM) > 10, "the band does not reach the bottom of the plot"
+    wait_until(page, lambda: page.evaluate(BAND_AT_BOTTOM) > 10, what="the band reaching the bottom of the plot")
 
 
 def test_a_colormap_belongs_to_its_chart(server: str, page, project: Path) -> None:
@@ -703,15 +700,13 @@ def test_a_colormap_belongs_to_its_chart(server: str, page, project: Path) -> No
     settings = page.locator(".chart-settings:popover-open")
     runs = settings.locator("select").filter(has_text="each run")
     runs.select_option(label="each run")
-    page.wait_for_timeout(300)
-    assert settings.get_by_role("combobox", name="Colormap").is_disabled()
+    expect(settings.get_by_role("combobox", name="Colormap")).to_be_disabled()
     runs.select_option(label="mean by lr")
-    page.wait_for_timeout(500)
+    expect(settings.get_by_role("combobox", name="Colormap")).to_be_enabled()
     settings.get_by_role("combobox", name="Colormap").click()
     settings.get_by_role("option", name="magma").click()
     page.keyboard.press("Escape")
     page.evaluate("scrollTo(0, 0)")
-    page.wait_for_timeout(500)
 
     def marks(frame) -> list[str]:
         """The inline colors of a chart's legend swatches."""
@@ -720,11 +715,10 @@ def test_a_colormap_belongs_to_its_chart(server: str, page, project: Path) -> No
         )
 
     magma = {"color: rgb(0, 0, 4);", "color: rgb(252, 253, 191);"}
-    assert magma <= set(marks(page.locator(".chart-frame").first))
+    wait_until(page, lambda: magma <= set(marks(page.locator(".chart-frame").first)), what="magma on the first chart")
     assert not magma & set(marks(page.locator(".chart-frame").nth(1)))
     page.reload()
-    page.wait_for_selector(".chart canvas")
-    assert magma <= set(marks(page.locator(".chart-frame").first))
+    wait_until(page, lambda: magma <= set(marks(page.locator(".chart-frame").first)), what="magma after a reload")
 
 
 def test_epochs_are_a_fact_and_a_column_not_a_chart(
@@ -1072,9 +1066,7 @@ def test_figure_gets_the_chart_frame(project: Path, server: str, page) -> None:
     frame.locator("path.curve[data-hot='1']").first.wait_for(timeout=5_000)
     page.mouse.move(5, 5)
     page.set_viewport_size({"width": 1000, "height": 900})
-    page.wait_for_timeout(800)
-    assert len(series) == series_before, "hover and a resize redraw without asking for data again"
-    # a slow runner can land the hover and resize redraws late: wait until each figure shows its width, unhovered.
+    # the hover and resize redraws are done once each figure shows its width, unhovered.
     inner.wait_for_function(
         """() => [...document.querySelectorAll('.chart-plot')].every((el) => {
             const svg = el.querySelector('svg');
@@ -1083,6 +1075,7 @@ def test_figure_gets_the_chart_frame(project: Path, server: str, page) -> None:
         })""",
         timeout=15_000,
     )
+    assert len(series) == series_before, "hover and a resize redraw without asking for data again"
 
     draws = lambda fig: int(
         inner.evaluate(f"document.querySelectorAll('.chart-plot')[{fig}].dataset.draws")
@@ -1093,28 +1086,29 @@ def test_figure_gets_the_chart_frame(project: Path, server: str, page) -> None:
     a, b, color = draws(0), draws(1), stroke(0)
     frame.locator(".chart-frame").first.hover()
     frame.locator(".chart-frame").first.locator("[aria-label='Chart settings']").click()
-    page.wait_for_timeout(300)
+    inner.wait_for_function(PANEL_AT_REST, timeout=10_000)
     frame.locator("input[aria-label='Colormap']").click()
     frame.locator("li[role='option']").nth(3).click()
-    page.wait_for_timeout(500)
-    assert draws(0) > a and stroke(0) != color, "a new colormap redraws its figure"
+    wait_until(page, lambda: draws(0) > a, what="a new colormap redrawing its figure")
+    assert stroke(0) != color, "a new colormap redraws its figure"
     assert draws(1) == b, "and only that figure"
     frame.locator("button[role='radio']:has-text('log')").first.click()
-    page.wait_for_timeout(300)
-    assert frame.locator(".chart-plot svg").first.get_attribute("data-scale") == "log"
+    expect(frame.locator(".chart-plot svg").first).to_have_attribute("data-scale", "log")
     assert frame.locator(".chart-plot svg").nth(1).get_attribute("data-scale") == "linear"
     page.keyboard.press("Escape")
-    page.wait_for_timeout(500)
+    expect(frame.locator(".chart-settings:popover-open")).to_have_count(0)
 
     with page.expect_download() as download:
         frame.locator(".chart-frame").first.locator("button[aria-label='Download']").click()
         frame.locator(".chart-frame").first.locator("button:has-text('SVG')").dispatch_event("click")
     assert download.value.suggested_filename == "Train_loss.svg"
+    # the page takes one download a second from a block.
     page.wait_for_timeout(1100)
     with page.expect_download() as download:
         frame.locator(".chart-frame").first.locator("button[aria-label='Download']").click()
         frame.locator(".chart-frame").first.locator("button:has-text('PNG, white')").dispatch_event("click")
     assert download.value.suggested_filename == "Train_loss.png"
+    # the page takes one download a second from a block.
     page.wait_for_timeout(1100)
     with page.expect_download() as download:
         frame.locator(".chart-frame").first.locator("button[aria-label='Download']").click()
@@ -1124,17 +1118,14 @@ def test_figure_gets_the_chart_frame(project: Path, server: str, page) -> None:
     legend = frame.locator(".legend-item")
     count = frame.locator("path.curve").count()
     legend.first.click()
-    page.wait_for_timeout(300)
-    assert frame.locator("path.curve").count() < count, "the legend hides a series"
+    wait_until(page, lambda: frame.locator("path.curve").count() < count, what="the legend hiding a series")
 
     tone, a = inner.evaluate("document.querySelector('.chart-plot').dataset.tone"), draws(0)
-    toggle = page.locator(".topbar-actions [aria-label^='Theme']")
-    while "(switch to system)" not in toggle.get_attribute("aria-label"):
-        toggle.click()
-        page.wait_for_timeout(300)
-    page.wait_for_timeout(500)
+    theme_to_last(page)
+    inner.wait_for_function(
+        "(tone) => document.querySelector('.chart-plot').dataset.tone !== tone", arg=tone, timeout=10_000
+    )
     assert draws(0) > a, "a theme change redraws"
-    assert inner.evaluate("document.querySelector('.chart-plot').dataset.tone") != tone
     assert errors == []
 
 
@@ -1162,8 +1153,7 @@ export default function render(root) { bt.preact.render(html`<${Live} />`, root)
         page.frame_locator(".custom-frame iframe").locator("#n").inner_text(timeout=30_000)
     )  # noqa: E731
     first = int(text())
-    page.wait_for_timeout(8_000)
-    assert int(text()) > first
+    wait_until(page, lambda: int(text()) > first, timeout=30, what="the figure redrawing with more steps")
 
 
 def test_new_code_without_a_figure_gets_the_page_head_back(project: Path, server: str, page) -> None:
@@ -1184,8 +1174,7 @@ export default function render(root) {
     page.wait_for_function("() => document.querySelector('.custom-block > .chart-head') === null")
     figure_view(project, "scaling/lr-sweep", plain, {}, table=False)
     page.frame_locator(".custom-frame iframe").locator("#plain").wait_for(timeout=30_000)
-    page.wait_for_timeout(500)
-    assert page.locator(".custom-block > .chart-head").count() == 1
+    expect(page.locator(".custom-block > .chart-head")).to_have_count(1)
 
 
 def test_a_figure_expands_its_block(project: Path, server: str, page) -> None:
@@ -1448,24 +1437,31 @@ def test_the_x_axis_follows_the_shown_curves(lengths: str, server: str, page) ->
         row.wait_for()
         return float(re.search(r"[\d,.]+$", row.inner_text().strip()).group().replace(",", ""))
 
+    def short_in_tip() -> bool:
+        page.mouse.move(box["x"] + 50, right["y"])
+        page.mouse.move(box["x"] + 40, right["y"])
+        rows = page.locator(".bt-tip:not([hidden]) .bt-tip-row")
+        rows.first.wait_for()
+        return any(t.startswith("short") for t in rows.all_inner_texts())
+
     assert last_x() > 4000
     long_row = page.locator("table.runs tbody tr", has_text="long").locator(".swatch")
     long_row.click()
-    page.wait_for_timeout(500)
-    assert last_x() <= 1100, "a hidden run no longer stretches the x axis"
+    wait_until(page, lambda: last_x() <= 1100, what="a hidden run no longer stretching the x axis")
     long_row.click()
-    page.wait_for_timeout(500)
-    assert last_x() > 4000, "showing the run again restores the axis"
+    wait_until(page, lambda: last_x() > 4000, what="showing the run again restoring the axis")
 
-    page.mouse.move(box["x"] + 2, right["y"])
-    page.mouse.down()
-    page.mouse.move(box["x"] + box["width"] / 2, right["y"], steps=5)
-    page.mouse.up()
-    page.wait_for_timeout(800)
+    with page.expect_response(lambda r: r.url.endswith("/api/series") and "steps" in (r.request.post_data or "")):
+        page.mouse.move(box["x"] + 2, right["y"])
+        page.mouse.down()
+        page.mouse.move(box["x"] + box["width"] / 2, right["y"], steps=5)
+        page.mouse.up()
+    wait_until(page, lambda: last_x() < 3500, what="the drag zooming")
     zoomed = last_x()
-    assert zoomed < 3500, "the drag zooms"
+    assert short_in_tip()
     page.locator("table.runs tbody tr", has_text="short").locator(".swatch").click()
-    page.wait_for_timeout(800)
+    # the hidden run leaves the tooltip once the chart has applied it.
+    wait_until(page, lambda: not short_in_tip(), what="the short run hidden on the chart")
     assert abs(last_x() - zoomed) < 300, "a zoom is kept when a run is hidden"
 
 
@@ -1478,12 +1474,13 @@ def test_a_zoom_keeps_the_scale_resolved_from_the_values(lengths: str, server: s
     assert "log" in notes.inner_text(), "a loss over four decades draws log"
     box = box_of(page, ".chart .u-over")
     y = box["y"] + box["height"] / 2
-    with page.expect_request(lambda r: r.url.endswith("/api/series") and "steps" in (r.post_data or "")):
+    with page.expect_response(lambda r: r.url.endswith("/api/series") and "steps" in (r.request.post_data or "")) as zoomed:
         page.mouse.move(box["x"] + box["width"] * 0.6, y)
         page.mouse.down()
         page.mouse.move(box["x"] + box["width"] - 2, y, steps=5)
         page.mouse.up()
-    page.wait_for_timeout(800)
+    zoomed.value.finished()
+    painted(page)
     assert "log" in notes.inner_text(), "the zoomed window keeps the log axis"
 
 
@@ -1684,10 +1681,8 @@ def pictures_page(project: Path, server: str, page, step: int | None = None) -> 
     :param server: The URL of ``serve`` for the project.
     :param page: The browser page.
     :param step: Where the block's scrubber starts, else the last logging."""
-    deadline = time.time() + 30
-    while not list((project / "beamtime" / "pictures").glob("*/_data.jsonl")):
-        assert time.time() < deadline, "the writer logged nothing"
-        time.sleep(0.1)
+    logged = lambda: list((project / "beamtime" / "pictures").glob("*/_data.jsonl"))  # noqa: E731
+    wait_until(page, logged, timeout=30, what="the writer logging")
     images_view(project, "pictures", step)
     base = server.split("/f/local")[0]
     page.goto(f"{base}/f/local/pictures?token={server.split('token=')[1]}")
@@ -1741,7 +1736,8 @@ def test_a_running_runs_new_image_follows_only_from_the_last_stop(project: Path,
         scrub.focus()
         page.keyboard.press("Home")
         page.wait_for_function("() => document.querySelector('main .scrub-label').textContent.endsWith('step 0')")
-        page.wait_for_timeout(1500)
+        # a new logging reaches the scrubber, and it stays where the viewer put it.
+        page.wait_for_function("(n) => +document.querySelector('main .scrubber input').max > n", arg=int(scrub.get_attribute("max")), timeout=20000)
         assert label.inner_text().endswith("step 0"), "the scrubber stays where the viewer put it"
         page.keyboard.press("End")
         later = current()
