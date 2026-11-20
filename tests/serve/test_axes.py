@@ -3,6 +3,7 @@ import yaml
 
 from beamtime.ops import call
 from beamtime.ops.context import Context
+from tests.serve.conftest import wait_until
 
 pytest.importorskip("playwright.sync_api")
 
@@ -18,6 +19,12 @@ TITLE_PIXELS = """(el) => {
 }"""
 
 HOVER_ROWS = "() => document.querySelectorAll('.bt-tip:not([hidden]) .bt-tip-row').length"
+
+# a chart whose canvas shows each axis title it names: drawn at least once with its labels.
+TITLES_DRAWN = f"""(el) => {{
+  const [left, bottom] = ({TITLE_PIXELS})(el);
+  return (left || !el.dataset.ylabel) && (bottom || !el.dataset.xlabel);
+}}"""
 
 
 def show(project, server: str, page, group: str, body: list[dict]) -> None:
@@ -36,7 +43,6 @@ def show(project, server: str, page, group: str, body: list[dict]) -> None:
     base, token = server.split("/f/local")[0], server.split("token=")[1]
     page.goto(f"{base}/f/local/{group}?token={token}")
     page.wait_for_selector(".chart-plot canvas")
-    page.wait_for_timeout(800)
 
 
 def titles(page) -> dict[str, tuple[str, str]]:
@@ -46,15 +52,17 @@ def titles(page) -> dict[str, tuple[str, str]]:
     :return: Each chart's id mapped to its x and y title."""
     out = {}
     for frame in page.locator(".chart-frame").all():
-        # a chart is drawn once it is on screen.
-        frame.scroll_into_view_if_needed()
         root = frame.locator(".uplot")
-        root.wait_for()
-        page.wait_for_timeout(300)
-        x, y = root.get_attribute("data-xlabel"), root.get_attribute("data-ylabel")
-        left, bottom = root.evaluate(TITLE_PIXELS)
+
+        def drawn() -> bool:
+            # a chart is drawn once it is on screen; charts above it may still grow and push it off.
+            frame.scroll_into_view_if_needed()
+            return root.is_visible()
+
+        wait_until(page, drawn, what="the chart drawn")
         title = frame.locator(".chart-title").inner_text()
-        assert (left or not y) and (bottom or not x), f"{title}: titles {x!r}, {y!r} not drawn"
+        wait_until(page, lambda: root.evaluate(TITLES_DRAWN), what=f"{title}: its axis titles drawn")
+        x, y = root.get_attribute("data-xlabel"), root.get_attribute("data-ylabel")
         out[title] = (x, y)
     return out
 
@@ -98,7 +106,13 @@ def test_hover_over_elapsed_lists_every_run(server: str, page, project) -> None:
     body = [{"line": {"id": "t", "y": "validation/loss", "x": "_elapsed", "legend": False}}]
     show(project, server, page, BENCH, body)
     over = page.locator(".chart .u-over").first.bounding_box()
-    page.mouse.move(over["x"] + over["width"] * 0.25, over["y"] + over["height"] / 2)
-    page.wait_for_timeout(300)
+    x, y = over["x"] + over["width"] * 0.25, over["y"] + over["height"] / 2
+
+    def rows() -> int:
+        # the tooltip answers a pointer move, and the chart may redraw as more of its data arrives.
+        page.mouse.move(x, y - 1)
+        page.mouse.move(x, y)
+        return page.evaluate(HOVER_ROWS)
+
     # the nine runs of the group and the x row on top.
-    assert page.evaluate(HOVER_ROWS) == 10
+    wait_until(page, lambda: rows() == 10, what="a tooltip row for every run")

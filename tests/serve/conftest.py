@@ -4,7 +4,7 @@ import subprocess
 import sys
 import textwrap
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -162,11 +162,27 @@ class Live:
         self.writer.wait(30)
 
 
+def wait_until(page: Any, condition: Callable[[], Any], timeout: float = 15.0, what: str = "the condition") -> None:
+    """Poll a Python-side condition until it holds, for what ``wait_for_function`` cannot see.
+
+    Polls through the page, never ``time.sleep``: that blocks Playwright's events (requests,
+    downloads) that the condition may count.
+
+    :param page: The Playwright page.
+    :param condition: A function returning a truthy value when done.
+    :param timeout: Seconds to wait at most.
+    :param what: What the condition means, for the failure message."""
+    deadline = time.monotonic() + timeout
+    while not condition():
+        assert time.monotonic() < deadline, f"{what} did not hold within {timeout} s"
+        page.wait_for_timeout(50)
+
+
 @pytest.fixture
 def live_page(project: Path, tmp_path: Path, server: str, page: Any) -> Iterator[Live]:
     """A page on a project where a script logs a step every 0.2 s through the SDK.
 
-    Wait with ``page.wait_for_timeout``, never ``time.sleep``: that blocks Playwright's events.
+    Wait with ``wait_until``, never ``time.sleep``: that blocks Playwright's events.
 
     :param project: The project root.
     :param tmp_path: Pytest's temporary directory.
