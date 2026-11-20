@@ -11,7 +11,7 @@ and every later change to it.
 
 A custom block is an ES module on the `bt` kit. It runs in a sandboxed frame with no network: all data
 comes from the queries it declares. Declare `kit: 2` for `bt.chart.Figure` and the app's vocabulary
-(`bt.ui.Sym`, `Icon`, `Tag`, `Predictions`, `bt.theme.tone`); version 1 blocks run unchanged.
+(`bt.ui.Sym`, `Icon`, `Tag`, `Predictions`, `bt.theme.tone`).
 
 ```yaml
 - custom:
