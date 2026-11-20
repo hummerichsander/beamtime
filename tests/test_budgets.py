@@ -12,7 +12,10 @@ HEAVY = {"numpy", "pandas", "starlette", "uvicorn", "mcp", "playwright", "pyarro
 # wall-clock budgets mean nothing while other xdist workers load the machine.
 timed = pytest.mark.skipif(
     os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1") != "1",
-    reason="timing budgets run serially: pytest -n0 tests/test_budgets.py",
+    reason=(
+        "timing budgets run serially: pytest -n0 tests/test_budgets.py "
+        "tests/setup/test_scan.py::test_scan_is_fast_on_a_large_tree"
+    ),
 )
 
 

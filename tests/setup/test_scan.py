@@ -293,6 +293,7 @@ def test_git_without_commits_and_no_ignore(tmp_path, home):
 
 @timed
 def test_scan_is_fast_on_a_large_tree(tmp_path, home):
+    """Scanning a tree of over 2000 files stays under one second (a timing budget, run serially)."""
     for i in range(40):
         d = tmp_path / f"d{i}" / "sub"
         d.mkdir(parents=True)
