@@ -84,8 +84,9 @@ def group_body(ctx: Context, path: str, pins: list[dict[str, Any]]) -> list[m.Bl
         own = direct < runs
         own_keys = call("keys", {"from": path, "depth": 1}, ctx) if own else keys
         seed = keys["config"].get("seed")
-        merged = seed is not None and merges_seeds(ctx, path, varying, own, seed)
-        color = None if merged else swept(varying, seed)
+        local = varying_config(own_keys)
+        merged = seed is not None and merges_seeds(ctx, path, local, own, seed)
+        color = None if merged else swept(local, seed)
         metrics = ordered_metrics(own_keys)
         main = [p["y"] for p in pins if p["y"] in metrics]
         body += curves(metrics, seed if merged else None, own, main, color)

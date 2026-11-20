@@ -1334,6 +1334,20 @@ def test_two_swept_keys_no_color(ctx: Context) -> None:
     assert {n.color for n in charts_of(ctx, "grid")} == {None}
 
 
+def test_a_subgroups_sweep_does_not_color_the_groups_own_runs(ctx: Context) -> None:
+    """A group whose own runs share lr colors nothing when only a subgroup's lr differs."""
+    make_group(ctx, "mixed", [{"lr": 0.1}] * 3)
+    make_group(ctx, "mixed", [{"lr": 0.5}], nested="sub")
+    assert {n.color for n in charts_of(ctx, "mixed") if n.depth == 1} == {None}
+
+
+def test_the_groups_own_sweep_colors_its_charts(ctx: Context) -> None:
+    """A group whose own runs differ only in wd colors by wd, whatever a subgroup varies."""
+    make_group(ctx, "mine", [{"lr": 0.1, "wd": w} for w in (0, 1, 2)])
+    make_group(ctx, "mine", [{"lr": 0.5, "wd": 0}], nested="sub")
+    assert {n.color for n in charts_of(ctx, "mine") if n.depth == 1} == {"config.wd"}
+
+
 @pytest.mark.parametrize(
     ("metric", "lower"),
     [
