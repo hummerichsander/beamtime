@@ -31,7 +31,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python }}
-      - run: uv run --extra serve pytest -q --ignore tests/test_budgets.py
+      - run: uv run --extra serve pytest -q --ignore tests/test_budgets.py -m "not browser"
 
   # the SDK and the readers must work in Python 3.10 training environments.
   sdk-py310:
@@ -82,7 +82,8 @@ jobs:
           --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match
           pytest -q tests/sdk/test_lightning.py
 
-  # tokens.css is what tokens.json generates; app CSS takes its values from tokens; the gallery renders.
+  # tokens.css is what tokens.json generates; app CSS takes its values from tokens. The gallery
+  # renders in the web job, with every other browser test.
   design:
     runs-on: ubuntu-latest
     steps:
@@ -92,17 +93,8 @@ jobs:
           python-version: "3.11"
       - run: python3 scripts/build-tokens --check
       - run: python3 scripts/check-design
-      - run: uv run --extra serve playwright install --with-deps chromium
-      - run: uv run --extra serve pytest -q tests/test_design.py
-        env:
-          DESIGN_SHOTS: design-shots
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: design-gallery
-          path: design-shots
 
-  # the committed bundle must equal a fresh build; the shell is tested in a real browser.
+  # the committed bundle must equal a fresh build; every browser test runs here, in Chromium.
   web:
     runs-on: ubuntu-latest
     steps:
@@ -125,4 +117,11 @@ jobs:
         working-directory: web
       - run: test -z "$(git status --porcelain -- src/beamtime/serve/static)"
       - run: uv run --extra serve playwright install --with-deps chromium
-      - run: uv run --extra serve pytest -q tests/serve/test_browser.py
+      - run: uv run --extra serve pytest -q --ignore tests/test_budgets.py -m browser
+        env:
+          DESIGN_SHOTS: design-shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: design-gallery
+          path: design-shots

@@ -18,6 +18,7 @@ CUSTOM_CODE = (
 )
 
 
+@pytest.mark.browser
 def test_new_validate_render_save_cycle_for_a_remote_group(box: Path, ctx: Context) -> None:
     """The whole cycle on @box/scaling/lr-sweep: new, edit (a custom block and a data file),
     validate, render, save. The files land on box under their hash; findings come from box."""
@@ -158,6 +159,7 @@ def test_a_bundle_cannot_leave_the_sources_log_dir(box: Path, ctx: Context, tmp_
         dispatch(here, "view_files", {"group": "../..", "ref": "data/x"})
 
 
+@pytest.mark.browser
 def test_a_block_promoted_from_a_remote_view_is_checked_and_saved_there(
     box: Path, ctx: Context
 ) -> None:

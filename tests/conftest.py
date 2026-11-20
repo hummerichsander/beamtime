@@ -51,6 +51,19 @@ def _warm_matplotlib() -> None:
         pass
 
 
+# the fixtures that open a headless browser; tests that launch one themselves carry the marker.
+BROWSER_FIXTURES = {"page", "browser", "browser_ok", "chromium"}
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Mark every test that uses a browser fixture as ``browser``.
+
+    :param items: The collected tests."""
+    for item in items:
+        if BROWSER_FIXTURES & set(getattr(item, "fixturenames", ())):
+            item.add_marker(pytest.mark.browser)
+
+
 def index_fully(logdir: Path) -> None:
     """Index every stream of a log dir.
 

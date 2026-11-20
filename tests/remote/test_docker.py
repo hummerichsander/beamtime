@@ -165,6 +165,7 @@ def test_pull_survives_the_remote_going_away(container, box: Path, ctx: Context)
         time.sleep(2)
 
 
+@pytest.mark.browser
 def test_serve_shows_both_sources(container, project: Path) -> None:
     """beamtime serve with the remote configured shows both trees and the remote's page."""
     pw = pytest.importorskip("playwright.sync_api")
@@ -205,6 +206,7 @@ def test_serve_shows_both_sources(container, project: Path) -> None:
         server.wait(timeout=30)
 
 
+@pytest.mark.browser
 def test_custom_block_follows_live_data_over_ssh(container, project: Path) -> None:
     """A custom block on a running remote experiment keeps up, and fetches its code once."""
     pw = pytest.importorskip("playwright.sync_api")

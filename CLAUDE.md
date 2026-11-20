@@ -293,7 +293,8 @@ sync.
 - `src/beamtime/serve/`: `beamtime serve` (Starlette on uvicorn): the API (`app.py`), the token and
   CSP (`auth.py`), live updates (`live.py`), the command (`server.py`) and the committed frontend
   bundle in `static/`; tests in `tests/serve/` (`test_browser.py` runs headless Chromium, skipped
-  without it)
+  without it; every test that drives a browser carries the `browser` marker, set in `tests/conftest.py`
+  for the browser fixtures)
 - `src/beamtime/views/`: colormaps (`colormaps.json`, sampled by `scripts/colormaps.py`), themes
   (`theme.py`, on the tokens the build copies to `serve/static/tokens.json`), the built-in default view
   as a view built from what a page logged (`defaults.py`), the view format as msgspec structs
@@ -338,8 +339,8 @@ sync.
   starts or stops serves sets its own `BEAMTIME_RUNTIME` and touches only the processes it started
 - `examples/`: toy training script and SLURM job for checking the SDK by hand
 - `tests/golden/schema1/`: frozen, byte-exact reader fixtures; never regenerate or reformat them
-- `.github/workflows/ci.yml`: lint, tests on 3.11–3.13 and macOS, SDK tests on 3.10 and Windows, budgets,
-  the web build and the browser test
+- `.github/workflows/ci.yml`: lint, tests on 3.11–3.13 and macOS (`-m "not browser"`), SDK tests on 3.10
+  and Windows, budgets, the web build and every browser test (`-m browser`, in the `web` job only)
 - Releases: `scripts/release.py` checks the tree, the bundle and the wheel and smoke-installs it, then
   prints the publish command (it publishes nothing); `.github/workflows/release.yml` publishes a
   `v*` tag with trusted publishing; `pages.yml` deploys the docs site; `CHANGELOG.md` per version

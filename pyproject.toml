@@ -65,3 +65,5 @@ testpaths = ["tests"]
 addopts = "-n 4 --maxschedchunk=1"
 # scienceplots registers its styles with functions matplotlib 3.11 deprecates; not ours to fix.
 filterwarnings = ["ignore::DeprecationWarning:scienceplots"]
+# tests that drive a headless browser; CI runs them in the web job only (-m browser).
+markers = ["browser: drives a headless browser (Chromium through Playwright)"]
