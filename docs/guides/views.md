@@ -1,30 +1,27 @@
 # Pages and views
 
-Every group and run has a page. Without anything else, it shows the curves in sections by metric prefix
-(`train/`, and `val.` or `val_` too), the runs and the notes. A **view** replaces that with a page made for
-one question: *which learning rate is best*, *where did this run go wrong*.
+Every group and run has a page: curves in sections by metric prefix (`train/`, also `val.` or
+`val_`), the runs and the notes. A **view** replaces it with a page for one question, like *which
+learning rate is best*.
 
 ## Ask your agent
 
 *"Build a page for scaling/lr-sweep that shows which learning rate works best."*
 
-The agent writes a draft, checks it, looks at a screenshot of it, and saves it. Every saved view is
-a new version; the page's history lists them, and older versions stay viewable.
+The agent drafts, checks, screenshots and saves it. Each save is a new version in the page's history.
 
 ## Change a page in the browser
 
-- Chart settings (smoothing, log scale, grouping by a config value, the x axis) are in the bar above
-  each chart. **Save as view** keeps them for everyone.
-- **Color by** offers the varying config keys, run fields (status, tags, name, folder) and the keys that vary
-  together with another. In a sweep of one hyperparameter the default view already colors by it.
-- **Scale** is log when every value is positive and spans more than two decades, else linear; pick one in
-  the bar to fix it, or write `scale:` in a view.
-- **Markers** are `auto` (every point is marked while a curve has at most 30 points), `on` or `off`.
-- Logged images have a scrubber over every logging; click an image to zoom, pan and download it.
-- Hiding a run also shrinks the x axis to the curves that are shown.
-- The **×** on a chart hides it (the section says "n hidden · show"); **Add a chart** at the end of
-  the charts picks any metric the page shows no chart of.
-- **Add text** puts a written panel at the top; click it to edit.
+- The bar above each chart holds its settings (smoothing, scale, grouping, x axis, color);
+  **Save as view** keeps them for everyone.
+- **Color by** offers varying config keys and run fields (status, tags, name, folder); a sweep of one
+  hyperparameter is colored by it by default.
+- **Scale** defaults to log when all values are positive and span more than two decades; pick one to
+  fix it, or write `scale:` in a view.
+- **Markers**: `auto` (marked while a curve has at most 30 points), `on` or `off`.
+- Logged images have a scrubber; click one to zoom, pan and download.
+- **×** hides a chart ("n hidden · show" brings it back); **Add a chart** adds any metric without one.
+- **Add text** puts an editable written panel at the top.
 
 ## Build one yourself
 
@@ -41,7 +38,7 @@ body:
 
 ```sh
 beamtime view new scaling/lr-sweep        # a draft in .beamtime/drafts/lr-sweep/view.yaml
-beamtime view validate lr-sweep           # checks it, runs its queries
+beamtime view validate lr-sweep           # check it and run its queries
 beamtime view render lr-sweep             # a screenshot
 beamtime view save lr-sweep               # the page shows it now
 ```
@@ -50,8 +47,7 @@ beamtime view save lr-sweep               # the page shows it now
 
 ## Custom blocks
 
-When no built-in block fits (a heatmap, a phase diagram), a **custom block** is a small piece of
-JavaScript that draws with D3 or Beamtime's chart kit, in a sandbox. Agents write these; `beamtime
-guide kit` describes the kit. A custom block worth keeping becomes a **library block** that other
-groups can use: `beamtime block promote`, and `block export` / `block import` to share it between
-projects.
+When no built-in block fits (a heatmap, a phase diagram), an agent writes a **custom block**: a
+small piece of sandboxed JavaScript that draws with D3 or Beamtime's chart kit (`beamtime guide
+kit`). `beamtime block promote` makes it a **library block** other groups can use; `block export`
+and `block import` share it between projects.

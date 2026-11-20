@@ -1,7 +1,5 @@
 # PyTorch Lightning
 
-Pass Beamtime's logger to the `Trainer`:
-
 ```python
 from lightning import Trainer
 from beamtime.lightning import BeamtimeLogger
@@ -11,11 +9,10 @@ trainer = Trainer(logger=logger, max_epochs=10)
 trainer.fit(model, datamodule)
 ```
 
-`BeamtimeLogger` takes the same arguments as `beamtime.init()`.
+`BeamtimeLogger` takes the same arguments as `beamtime.init()`, and works with `lightning` and
+`pytorch_lightning`.
 
-- Everything you `self.log(...)` in your `LightningModule` is recorded.
+- Everything you `self.log(...)` is recorded.
 - `self.save_hyperparameters()` fills the run's config.
-- Checkpoints are written into the run's folder (`checkpoints/`) and listed with the run.
-- On several GPUs only rank 0 records; nothing else is needed.
-
-Both `lightning` and `pytorch_lightning` work.
+- Checkpoints go into the run's `checkpoints/` folder and are listed with the run.
+- On several GPUs only rank 0 records.

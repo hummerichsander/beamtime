@@ -1,18 +1,15 @@
 # Proposals and verdicts
 
-Write down what you expect before you run, let Beamtime check it against the numbers, and record
-what you concluded. Your agent can do every step for you; this page shows them by hand.
-
 ## 1. Say what you expect
 
-The quickest way is a sentence in your script:
+A sentence in your script:
 
 ```python
 run = beamtime.init(dir="scaling/lr-sweep", config={"lr": lr},
                     proposal="lr 3e-4 gives the best final val/acc.")
 ```
 
-For a proposal Beamtime can check, write it as a file:
+Or a file Beamtime can check:
 
 ```yaml
 # proposal.yaml
@@ -32,12 +29,12 @@ predictions:
 beamtime proposal set scaling/lr-sweep proposal.yaml
 ```
 
-- **`plan`** lists the runs you intend; the group shows how many are done.
-- **`predictions`** are what Beamtime checks. `compare` tests one setting against another; `each`
-  tests every run or setting on its own. `margin` is how much better counts as better.
+- **`plan`**: the runs you intend; the group shows how many are done.
+- **`predictions`**: what Beamtime checks. `compare` tests one setting against another, `each` tests
+  every run or setting alone; `margin` is how much better counts as better.
 
-Once a run has recorded a proposal, that version is frozen. Changing it later makes a new version;
-the old runs keep pointing at theirs.
+A proposal version freezes once a run records it; a change makes a new version, and old runs keep
+theirs.
 
 ## 2. Check
 
@@ -45,8 +42,8 @@ the old runs keep pointing at theirs.
 beamtime check scaling/lr-sweep
 ```
 
-For each prediction: the measured values, the difference with a confidence interval over seeds, and
-whether it holds. Until the plan is complete the result is marked provisional.
+Per prediction: the measured values, the difference with a confidence interval over seeds, and
+whether it holds. It is provisional until the plan is complete.
 
 ## 3. Conclude
 
@@ -56,23 +53,21 @@ beamtime note add scaling/lr-sweep --type verdict --proposal <version> \
     --description "lr 3e-4 wins by about a point"
 ```
 
-The group is now *concluded*. `beamtime groups .` lists every group with its status, check and
-verdict.
+The group is now *concluded*. `beamtime groups .` lists every group with status, check and verdict.
 
 ## Notes
 
-Besides verdicts there are four kinds of notes: `observation`, `question`, `idea` and `decision`.
-In the browser, click **+** in the Notes panel; on the command line:
+Other note types are `observation`, `question`, `idea` and `decision`. Click **+** in the Notes
+panel, or:
 
 ```sh
 beamtime note add scaling/lr-sweep --type observation --description "lr 1e-2 diverges early"
 ```
 
-A note can answer a question (`--resolves <id>`), correct an earlier note (`--supersedes <id>`), or
-close a group without a proposal (`--completes <group>`).
+`--resolves <id>` answers a question, `--supersedes <id>` corrects a note, `--completes <group>`
+closes a group without a proposal.
 
 ## Memory
 
-A group's memory is a short summary for agents to read first: what was tried, what worked, what
-is open. Agents keep it up to date (`/beamtime:memory`); you can edit it in the browser or with
-`beamtime memory update <group> memory.md`.
+A group's memory is the summary agents read first: what was tried, worked, is open. Agents keep it
+current (`/beamtime:memory`); edit it in the browser or with `beamtime memory update <group> memory.md`.
