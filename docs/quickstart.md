@@ -15,12 +15,10 @@ Then, in your project folder:
 beamtime setup
 ```
 
-It looks at your project, asks a few questions (press Enter to take what it found), shows what it
-will change and writes only when you confirm. You get `beamtime.yaml`, a `beamtime/` folder for
-your runs (run data stays out of git, your notes and proposals don't), and, if you pick a coding
-agent, its Beamtime server and rules. Earlier runs from TensorBoard, Weights & Biases, MLflow or CSV
-files can come along. See [Setting up a project](guides/setup.md) for every question and flag, and
-for changing an answer later.
+It asks a few questions (Enter takes what it found), shows the changes and writes when you confirm:
+`beamtime.yaml`, a `beamtime/` folder for runs (run data stays out of git, notes and proposals
+don't) and, if you pick a coding agent, its Beamtime server and rules. Runs from TensorBoard, Weights
+& Biases, MLflow or CSV can come along. See [Setting up a project](guides/setup.md).
 
 ## 2. Log a run
 
@@ -36,9 +34,8 @@ for step in range(1000):
     run.log({"train/energy": energy})
 ```
 
-Run your script as usual. Each run becomes a folder in `beamtime/dt-scan/`. Beamtime also records
-what your script prints, errors, and whether the run finished, crashed or was stopped. You don't
-need to call anything else. A smoke test can start hidden with `BEAMTIME_HIDDEN=1`: it is recorded but counts nowhere until you run `beamtime run promote`.
+Run your script as usual. Each run becomes a folder in `beamtime/dt-scan/`, with what the script
+prints and whether it finished, crashed or was stopped. A smoke test can start hidden with `BEAMTIME_HIDDEN=1`: it is recorded but counts nowhere until you run `beamtime run promote`.
 
 ## 3. Look at it
 
@@ -57,7 +54,7 @@ No runs yet? `beamtime demo --open` opens a sample project to look around in.
 beamtime mcp install
 ```
 
-If you chose an agent in the setup, this is done already. Now ask Claude Code something like *"How did last night's runs go?"* or *"Build a page that shows
+(Done already if you chose an agent in the setup.) Ask Claude Code something like *"How did last night's runs go?"* or *"Build a page that shows
 which time step keeps the energy stable."* For Cursor and Codex, and for what agents may and may not do,
 see [Working with an agent](guides/agents.md).
 
