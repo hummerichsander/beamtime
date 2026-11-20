@@ -12,8 +12,7 @@
         "guides/remotes.md",
         "guides/lightning.md",
         "guides/export.md",
-        "guides/settings.md",
-        "guides/benchmark.md"
+        "guides/settings.md"
       ]
     },
     { "title": "Reference", "pages": ["reference/cli.md"] }
