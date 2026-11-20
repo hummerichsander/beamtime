@@ -279,27 +279,37 @@ def test_the_title_and_favicon_show_a_running_run(live_page) -> None:
     assert href.endswith("/static/favicon.svg")
 
 
+# the right slash at rest: no load animation or transition running, shifted by the given pixels.
+MARK_AT_REST = """(shift) => {
+  const el = document.querySelector('.topbar .mark-3');
+  return el.getAnimations().length === 0 && new DOMMatrix(getComputedStyle(el).transform).e === shift;
+}"""
+
+
+def mark_rests_at(page, shift: int) -> None:
+    """Wait until the top bar's right slash has come to rest at a shift.
+
+    :param page: The Playwright page.
+    :param shift: The expected horizontal shift in pixels."""
+    page.wait_for_function(MARK_AT_REST, arg=shift, timeout=10_000)
+
+
 def test_the_top_bar_mark_gathers_on_hover(server: str, page) -> None:
     """The mark sits in the project link, gathers left on hovering the mark or the name and holds still under reduced motion."""
     page.goto(server)
     page.wait_for_selector(".topbar .project .mark")
     shift = "() => new DOMMatrix(getComputedStyle(document.querySelector('.topbar .mark-3')).transform).e"
-    page.wait_for_timeout(1200)
-    assert page.evaluate(shift) == 0
+    mark_rests_at(page, 0)
     page.hover(".topbar .mark")
-    page.wait_for_timeout(700)
-    assert page.evaluate(shift) == -4
+    mark_rests_at(page, -4)
     page.mouse.move(600, 600)
-    page.wait_for_timeout(700)
-    assert page.evaluate(shift) == 0
+    mark_rests_at(page, 0)
     width = page.eval_on_selector(".topbar .project", "el => el.getBoundingClientRect().width")
     page.hover(".topbar .project", position={"x": width - 4, "y": 8})
-    page.wait_for_timeout(700)
-    assert page.evaluate(shift) == -4
+    mark_rests_at(page, -4)
     page.emulate_media(reduced_motion="reduce")
     page.mouse.move(600, 600)
-    page.wait_for_timeout(100)
-    assert page.evaluate(shift) == 0
+    mark_rests_at(page, 0)
     assert page.eval_on_selector(".topbar .mark-3", "el => getComputedStyle(el).animationName") == "none"
     page.hover(".topbar .mark")
     assert page.evaluate(shift) == -4
@@ -309,18 +319,15 @@ def test_the_top_bar_mark_gathers_on_keyboard_focus(server: str, page) -> None:
     """Tabbing onto the project link gathers the mark left and tabbing off lets it rest."""
     page.goto(server)
     page.wait_for_selector(".topbar .project .mark")
-    shift = "() => new DOMMatrix(getComputedStyle(document.querySelector('.topbar .mark-3')).transform).e"
-    page.wait_for_timeout(1200)
+    mark_rests_at(page, 0)
     for _ in range(10):
         if page.evaluate("document.activeElement.matches('.topbar .project')"):
             break
         page.keyboard.press("Tab")
     assert page.evaluate("document.activeElement.matches('.topbar .project')")
-    page.wait_for_timeout(700)
-    assert page.evaluate(shift) == -4
+    mark_rests_at(page, -4)
     page.keyboard.press("Tab")
-    page.wait_for_timeout(700)
-    assert page.evaluate(shift) == 0
+    mark_rests_at(page, 0)
 
 
 LAST_STEP = """
