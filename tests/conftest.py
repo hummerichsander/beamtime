@@ -49,11 +49,13 @@ def index_fully(logdir: Path) -> None:
     """Index every stream of a log dir.
 
     A cold cache plus the 0.2 s catch-up budget leaves streams unindexed, so a test that needs
-    complete data would flake under load.
+    complete data would flake under load. While a ``serve`` runs, catch-up leaves the work to its
+    daemon, which polls every 2 s; so this indexes on the daemon's behalf (the index lock keeps the
+    two apart), and a page opened next sees runs written after the serve started.
 
     :param logdir: The log dir."""
     with Index(logdir=logdir) as index:
-        index.catch_up(".", budget_s=float("inf"))
+        index.catch_up(".", budget_s=float("inf"), daemon=True)
 
 
 @pytest.fixture
