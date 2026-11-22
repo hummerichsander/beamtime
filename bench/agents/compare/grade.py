@@ -15,7 +15,7 @@ import yaml
 
 TASKS = Path(__file__).resolve().parent / "tasks"
 AGENTS = Path(__file__).resolve().parents[1]
-SETUPS = ["mcp", "cli", "files", "tensorboard"]
+SETUPS = ["mcp", "cli", "script", "files", "tensorboard"]
 PNG = b"\x89PNG\r\n\x1a\n"
 COLUMNS = ("run_id", "lr", "seed", "finished", "superseded", "val_acc")
 YES = {"yes", "y", "true", "1", "finished", "completed", "complete", "done", "superseded"}

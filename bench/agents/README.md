@@ -119,8 +119,16 @@ sessions: the most common errors and raw reads there become tasks before they be
 ## The comparison benchmark
 
 `compare/` runs the same researcher tasks over the same synthetic numbers in several setups (Beamtime
-over MCP and the CLI, plain files, TensorBoard event files); see the plan in
+over MCP, the CLI and its Python API, plain files, TensorBoard event files); see the plan in
 `docs/plans/v0.3/benchmark/benchmark-plan.md`. Built so far:
+
+**What it measures.** `mcp` is the measured Beamtime setup: its goal is a score as good as plain files
+at no more than 1.5 times their tokens (`tables.TARGET`; `results.md` states it as met or not).
+`cli` is a regression check with no target: it runs on the first seed only (`Setup.check`), and a
+batch is fine when its cli score is not lower and its tokens not higher than the previous batch's.
+`script` gives the same operations as `mcp` as Python functions, so their answers land in
+variables instead of the context window; it is measured against `mcp` and runs on every seed.
+`files` and `tensorboard` are the baselines and run on every seed.
 
 - `compare/data.py`: `make_logdir(dest, seed=, now=)` writes a scale `s` log dir (47 runs, five groups)
   at `dest/beamtime` and strips what states the answers: `_synth.json`, every `proposal/`, `notes/` and
@@ -191,19 +199,24 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   (`Grade.notes` keeps the judge's reasons). A file that is not a PNG (PDF, SVG) scores 0 on `file` and
   all items without a judge call; a usage-limit answer raises `score.JudgeStalled`, so the session
   stays ungraded.
-- `compare/setups.py`: `SETUPS` (`mcp`, `cli`, `files`, `tensorboard`) and `prepare(setup, session_dir,
+- `compare/setups.py`: `SETUPS` (`mcp`, `cli`, `script`, `files`, `tensorboard`) and `prepare(setup, session_dir,
   data_dir, envs)`, which builds a session's project in `session_dir/proj` and returns a `Project`: the
-  data (a copy of the log dir plus `beamtime.yaml` for `mcp` and `cli`, `runs/` for `files`, `tb/` for
+  data (a copy of the log dir plus `beamtime.yaml` for `mcp`, `cli` and `script`, `runs/` for `files`, `tb/` for
   `tensorboard`, exported by the `beamtime` environment since it has tensorboard), a CLAUDE.md that is
   the same preamble byte for byte plus a `## Data` section (Beamtime's rules block as shipped, with
-  default agent settings, or four lines on the files), the tool list (`Bash,Read,Write,Edit,Glob,Grep`
+  default agent settings, the `bt.py` section for `script`, or four lines on the files), the tool list (`Bash,Read,Write,Edit,Glob,Grep`
   everywhere, plus `mcp__beamtime__*` allowed for `mcp`), the MCP config (`mcp` only), and the session's
   environment: a PATH that starts with the setup's venv and drops every host folder holding a `beamtime`,
   its own `BEAMTIME_CACHE` and `XDG_CONFIG_HOME` inside the session folder. `Project.flags` are the
   `claude` flags (`--tools`, `--allowedTools`, `--strict-mcp-config`, `--mcp-config` for `mcp`,
   `--setting-sources project`, `--disable-slash-commands`, `--no-session-persistence`); the session
   adds the prompt, model and output format. Only `cli` has `beamtime` on the PATH; `mcp` reaches the
-  server through the absolute command in its MCP config. A Beamtime project's index is warmed with
+  server through the absolute command in its MCP config. `script` (`Setup.api`) gets a copy of
+  `compare/script/bt.py` in its project and a `bin/` first on its PATH whose `beamtime` refuses
+  (`setups.REFUSAL`), so the operations are reached as Python functions and not as commands: `bt.ops()`
+  names every operation that is not user-only, `bt.params(name)` gives the MCP tool's own schema, and
+  `bt.call(name, args)` (also `bt.runs({...})`) runs one through `beamtime.ops.call` as the `view`
+  caller, so the answer arrives whole instead of cut at the agent token budget. A Beamtime project's index is warmed with
   `beamtime reindex` before the session (a user-only operation; the harness plays the user), so `status` never
   reports runs not yet indexed. `make_envs(root)` builds the two venvs with `uv venv` and
   `uv pip install` (`base`: numpy, pandas, scipy, matplotlib, tensorboard, pyyaml; `beamtime`: the same plus this
@@ -235,7 +248,7 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   record, so its exports and texts are as before.
 - `compare/sessions.py`: `uv run python bench/agents/compare/sessions.py [--setups ...] [--tasks ...]
   [--seeds 7 8 9] [--reps 1] [--parallel 3] [--model sonnet] [--keep] [--dry-run] [--grade-only BATCH]`.
-  `--dry-run` lists the 96 sessions (8 tasks x 4 setups x 3 seeds, in a fixed shuffled order) with their
+  `--dry-run` lists the 182 sessions (14 tasks x 4 setups x 3 seeds, plus cli on the first seed, in a fixed shuffled order) with their
   commands and builds nothing. A real run resolves the model alias to its full id with one probe
   session (the init event's `model`) and pins that id for every session and the chart judge, reads
   `claude --version`, builds the venvs (`make_envs`, per batch) and one log dir per seed, then runs the
@@ -311,4 +324,4 @@ over MCP and the CLI, plain files, TensorBoard event files); see the plan in
   `verdict` and on `effect` (abs 0.002); `stale-verdicts` names the predictions whose verdict in the note no
   longer holds (two, planted: `lion-beats-adamw` inconclusive to confirmed, `sgd-under` confirmed to
   inconclusive) with `f1` on the names (`field: name`; `f1` reads `id` unless the check names a field) and
-  `keyed` on `new`. With these two the comparison has 14 tasks, 168 sessions per model and repetition.
+  `keyed` on `new`. With these two the comparison has 14 tasks, 182 sessions per model and repetition (cli on one seed).

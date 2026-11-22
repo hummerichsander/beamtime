@@ -104,12 +104,14 @@ def transcript(events: list[dict[str, Any]]) -> str:
 
 
 def test_jobs() -> None:
-    """168 sessions: fourteen tasks, four setups, three seeds; the order is fixed and shuffled."""
+    """182 sessions: fourteen tasks, four setups on three seeds and cli on the first; the order is
+    fixed and shuffled."""
     tasks = grade.load_tasks()
     jobs = sessions.make_jobs(tasks, list(setups.SETUPS), [7, 8, 9], 1)
 
-    assert len(jobs) == 168
-    assert len({j.name for j in jobs}) == 168
+    assert len(jobs) == 182
+    assert len({j.name for j in jobs}) == 182
+    assert {j.seed for j in jobs if j.setup == "cli"} == {7}
     assert jobs == sessions.make_jobs(tasks, list(setups.SETUPS), [7, 8, 9], 1)
     assert [j.name for j in jobs] != sorted(j.name for j in jobs)
     assert len(sessions.make_jobs(tasks, ["mcp"], [7], 2)) == 28
@@ -124,13 +126,13 @@ def test_jobs_respect_task_setups() -> None:
 
 
 def test_dry_run(capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
-    """The dry run lists 168 sessions with their commands and builds nothing."""
+    """The dry run lists 182 sessions with their commands and builds nothing."""
     monkeypatch.setattr(sys, "argv", ["sessions.py", "--dry-run"])
     sessions.main()
     lines = capsys.readouterr().out.splitlines()
 
-    assert lines[-1] == "168 sessions"
-    assert len(lines) == 169
+    assert lines[-1] == "182 sessions"
+    assert len(lines) == 183
     assert sum("--mcp-config" in line for line in lines) == 42
     assert all(
         "--no-session-persistence" in line and "--model sonnet" in line for line in lines[:-1]

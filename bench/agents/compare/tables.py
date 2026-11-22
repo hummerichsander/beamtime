@@ -4,8 +4,9 @@
 [--out bench/agents/results]`` takes one batch per model and writes each into ``<out>/<alias>/``
 (``sonnet``, ``haiku``): ``results.md`` (the facts, a table per task and setup, a table per setup;
 cost first, then the score) and the figures ``tokens-vs-score`` and ``time-per-task`` as ``.pdf``
-and ``.svg``. Given several batches it also writes ``<out>/models.md``, the per-setup table of
-every model side by side. Ungraded sessions (``crashed``, ``not started``, ``usage limit``,
+and ``.svg``; ``results.md`` also states the goal, mcp's mean tokens at most ``TARGET`` times
+files' on the sessions both ran. Given several batches it also writes ``<out>/models.md``, the
+per-setup table of every model side by side. Ungraded sessions (``crashed``, ``not started``, ``usage limit``,
 ``judge failed``, not graded yet) are left out of every mean and counted; a session that leaked is
 listed and left out of the figures only. Figures are refused when a setup lacks a task.
 """
@@ -20,6 +21,8 @@ from typing import Any
 import figures
 
 OUT = Path(__file__).resolve().parents[1] / "results"
+# the efficiency goal: mcp sessions cost at most this many times the tokens of plain files.
+TARGET = 1.5
 COLUMNS = ["n", "tokens", "uncached", "cost", "seconds", "turns", "tool calls", "score", "correct"]
 
 
@@ -135,6 +138,35 @@ def table(head: list[str], body: list[list[str]]) -> list[str]:
     return [f"| {' | '.join(row)} |" for row in rows]
 
 
+def goal(batch: Batch) -> list[str]:
+    """State the efficiency goal: mcp's mean tokens against files' on the same tasks and seeds.
+
+    :param batch: The batch.
+    :return: The lines of the goal section, none without both setups."""
+    by_key = {
+        setup: {(r["task"], r["seed"], r["rep"]): r for r in batch.graded if r["setup"] == setup}
+        for setup in ("mcp", "files")
+    }
+    if not (keys := by_key["mcp"].keys() & by_key["files"].keys()):
+        return []
+    mcp, files = ([by_key[s][k] for k in sorted(keys)] for s in ("mcp", "files"))
+    tokens = {
+        s: statistics.fmean(r["tokens"]["total"] for r in rows)
+        for s, rows in (("mcp", mcp), ("files", files))
+    }
+    ratio = tokens["mcp"] / tokens["files"]
+    scores = [statistics.fmean(r["score"] for r in rows) for rows in (mcp, files)]
+    return [
+        "### Goal",
+        "",
+        f"mcp {tokens['mcp']:,.0f} against files {tokens['files']:,.0f} mean tokens over "
+        f"{len(keys)} sessions both ran: {ratio:.2f}x, target {TARGET}x, "
+        f"**{'met' if ratio <= TARGET else 'not met'}**. Mean score mcp {scores[0]:.3f}, "
+        f"files {scores[1]:.3f}.",
+        "",
+    ]
+
+
 def results(batch: Batch) -> str:
     """Write the report fragment of a batch.
 
@@ -160,6 +192,11 @@ def results(batch: Batch) -> str:
         f"{len(batch.graded)} graded sessions of "
         f"{len(batch.graded) + sum(batch.ungraded.values())}.",
     ]
+    if checks := meta.get("checks"):
+        lines += [
+            "",
+            f"Regression check, first seed only and no target: {', '.join(checks)}.",
+        ]
     if batch.ungraded:
         left = ", ".join(f"{n} {why}" for why, n in sorted(batch.ungraded.items()))
         lines += ["", f"Left out of every mean, ungraded: {left}."]
@@ -176,6 +213,7 @@ def results(batch: Batch) -> str:
         "tokens; cache reads are only in the total. Score is the mean over sessions in [0, 1]; "
         "correct counts sessions with every check right.",
         "",
+        *goal(batch),
         "### Per task",
         "",
         *table(["task", "setup", *COLUMNS], by_task),

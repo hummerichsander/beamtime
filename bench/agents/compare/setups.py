@@ -1,4 +1,4 @@
-"""The four setups of the benchmark: a project per session with data, rules, tools and PATH."""
+"""The setups of the benchmark: a project per session with data, rules, tools and PATH."""
 
 import json
 import os
@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 
@@ -18,6 +18,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 LIBRARIES = ["numpy", "pandas", "scipy", "matplotlib", "tensorboard", "pyyaml"]
 TOOLS = "Bash,Read,Write,Edit,Glob,Grep"
+REFUSAL = "there is no beamtime command here: import bt in Python, see CLAUDE.md"
 
 PREAMBLE = """# Project
 
@@ -32,6 +33,46 @@ FILES = """The runs are plain files in `runs/<group>/<run id>/`; groups nest as 
   metric was not logged at that step.
 - `output.log`: the run's captured output; its last line tells how the run ended. There is no
   status file.
+"""
+
+SCRIPT = """The runs are a Beamtime log dir in `beamtime/`, read through `bt.py` next to this file:
+it gives Beamtime's operations as Python functions, named as the tools below but called in Python:
+`bt.runs(...)`, `bt.series(...)`, `bt.check(...)`. There is no `beamtime` command here.
+
+```python
+import bt
+bt.ops()                                             # every operation with its summary
+bt.params("runs")                                    # one operation's parameters, as a schema
+bt.runs({"from": ".", "limit": 200})                 # call it; bt.call("runs", from_=...) too
+```
+
+An answer is a plain dict and arrives whole, so keep it in a variable and filter, join and
+aggregate it in Python; print only what you need to see. A read you have already made is answered
+from disk, so calling it again in a later script costs nothing and needs no re-plan.
+
+The operations above already compute the statistics, intervals and per-run summaries, and every
+reader of this record shares the numbers they return. Python here is for joining, filtering and
+formatting those answers, not for arriving at them: before computing a number yourself, look for
+the operation or field that returns it. Pulling raw points, or writing a statistic by hand, means
+you have probably missed one.
+- from and group: a group below the log dir or a run id; depth: levels below it, default all.
+  hidden: True includes hidden runs.
+- where: field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also
+  any: [...], not: {...}.
+- field expressions, for select, sort, by and where (not a parameter of their own):
+  run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000],
+  value.test/acc, metric.a.nonfinite_step, metric.a.rise_step:3, metric.a[b.min_step].
+- `bt.guide(part=...)` reads Beamtime's own guide (`bt.guide()` lists the parts). User-only
+  commands are not exposed.
+- An error may suggest a command like `beamtime keys <group>`; here that is
+  `bt.keys({"from": "<group>"})`.
+
+Every operation and the parameters it takes, which are the only names it accepts; `bt.params(name)`
+adds the types and defaults in full.
+
+```
+{reference}
+```
 """
 
 TENSORBOARD = """The runs are TensorBoard logs in `tb/<group>/<run id>/`; groups nest as folders.
@@ -58,6 +99,9 @@ class Setup:
     mcp: bool
     env: Literal["base", "beamtime"]
     section: str
+    check: bool = False
+    # the operations as Python functions (``script/bt.py``), with no ``beamtime`` command.
+    api: bool = False
 
 
 @dataclass(kw_only=True)
@@ -108,6 +152,46 @@ class Project:
         )
 
 
+def api_reference() -> str:
+    """List every operation an agent may call with the parameters it takes.
+
+    The MCP setup has its tool schemas in the prompt from the first turn; this is the same
+    information for the script setup, which otherwise spends turns guessing parameter names.
+
+    :return: One line per operation."""
+    from beamtime.mcp.server import schema
+
+    def kind(node: dict[str, Any]) -> str:
+        match node.get("type") or ("array" if "items" in node else None):
+            case "array":
+                return "list"
+            case "integer":
+                return "int"
+            case "boolean":
+                return "bool"
+            case "object":
+                return "dict"
+            case "string":
+                return "str"
+            case _:
+                return "enum" if node.get("enum") else "any"
+
+    lines = []
+    for op in OPS:
+        if op.user_only:
+            continue
+        props = schema(op).get("properties", {}) if op.params is not None else {}
+        lines.append(f"{op.tool}({', '.join(f'{k}:{kind(v)}' for k, v in props.items())})")
+    return "\n".join(lines)
+
+
+def script_section() -> str:
+    """Render the script setup's data section with the operation list filled in.
+
+    :return: The section."""
+    return SCRIPT.replace("{reference}", api_reference())
+
+
 def rules_block() -> str:
     """Render Beamtime's agent rules for default agent settings, as shipped.
 
@@ -118,7 +202,20 @@ def rules_block() -> str:
 
 SETUPS = {
     "mcp": Setup(name="mcp", data="beamtime", mcp=True, env="base", section=rules_block()),
-    "cli": Setup(name="cli", data="beamtime", mcp=False, env="beamtime", section=rules_block()),
+    # a regression check, not a target: it runs on the first seed only (mcp is the measured setup).
+    "cli": Setup(
+        name="cli", data="beamtime", mcp=False, env="beamtime", section=rules_block(), check=True
+    ),
+    # the same operations as mcp, called from code: their answers land in variables, not in
+    # the context window. Measured like mcp, so it runs on every seed.
+    "script": Setup(
+        name="script",
+        data="beamtime",
+        mcp=False,
+        env="beamtime",
+        section=f"{rules_block()}\n{script_section()}",
+        api=True,
+    ),
     "files": Setup(name="files", data="files", mcp=False, env="base", section=FILES),
     "tensorboard": Setup(
         name="tensorboard", data="tensorboard", mcp=False, env="base", section=TENSORBOARD
@@ -193,9 +290,26 @@ def prepare(setup: str, session_dir: Path, data_dir: Path, envs: Envs) -> Projec
             "env": {"BEAMTIME_CACHE": str(cache), "XDG_CONFIG_HOME": env["XDG_CONFIG_HOME"]},
         }
         project.mcp_config.write_text(json.dumps({"mcpServers": {"beamtime": server}}))
+    if spec.api:
+        shutil.copy(HERE / "script" / "bt.py", root / "bt.py")
+        env["PATH"] = os.pathsep.join([str(shadow(session_dir)), env["PATH"]])
     if spec.data == "beamtime":
         warm(envs, root, env)
     return replace(project, env=env)
+
+
+def shadow(session_dir: Path) -> Path:
+    """Make a folder whose ``beamtime`` refuses, so the script setup reads through the Python API
+    and not through the CLI.
+
+    :param session_dir: The session's own folder.
+    :return: The folder, which goes first on the PATH."""
+    folder = session_dir / "bin"
+    folder.mkdir(parents=True, exist_ok=True)
+    stub = folder / "beamtime"
+    stub.write_text(f"#!/bin/sh\necho '{REFUSAL}' >&2\nexit 2\n")
+    stub.chmod(0o755)
+    return folder
 
 
 def planned(setup: str, session_dir: Path) -> Project:

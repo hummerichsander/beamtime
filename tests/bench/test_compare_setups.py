@@ -1,5 +1,6 @@
 """Tests of the benchmark's setups in ``bench/agents/compare/setups.py``; no agent runs."""
 
+import importlib.util
 import json
 import os
 import shutil
@@ -11,6 +12,8 @@ from subprocess import CompletedProcess
 from typing import Any
 
 import pytest
+from beamtime.ops.context import OpError
+from beamtime.ops.registry import BY_TOOL
 
 COMPARE = Path(__file__).resolve().parents[2] / "bench" / "agents" / "compare"
 sys.path.insert(0, str(COMPARE))
@@ -55,6 +58,17 @@ def host_beamtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (folder / "beamtime").chmod(0o755)
     monkeypatch.setenv("PATH", f"{folder}{os.pathsep}{os.environ['PATH']}")
     return folder
+
+
+def import_shim(root: Path) -> Any:
+    """Import a prepared session's ``bt.py`` under its own name.
+
+    :param root: The session's project folder.
+    :return: The module."""
+    spec = importlib.util.spec_from_file_location(f"bt_{root.parent.name}", root / "bt.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def prepare(name: str, tmp_path: Path, data_dir: Path, envs: setups.Envs, n: int = 0) -> Any:
@@ -102,7 +116,8 @@ def test_claude_md(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
     assert len(set(head.values())) == 1
     assert head["mcp"] == setups.PREAMBLE
     assert tail["mcp"] == tail["cli"]
-    assert len(set(tail.values())) == 3
+    assert len(set(tail.values())) == 4
+    assert "bt.py" in tail["script"] and "bt.py" not in tail["mcp"]
     assert "beamtime" in tail["mcp"] and "beamtime" not in tail["files"].lower()
     assert "numpy, pandas, scipy and\nmatplotlib" in head["files"]
     assert "record/" not in tail["files"] and "record/" not in tail["tensorboard"]
@@ -135,6 +150,102 @@ def test_tools_and_mcp(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> Non
     assert Path(server["command"]).name == "beamtime"
 
 
+def test_script_api(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
+    """The script setup gets ``bt.py`` and the operations it exposes, and no ``beamtime``."""
+    project = prepare("script", tmp_path, data_dir, envs)
+    shim = import_shim(project.root)
+
+    assert (project.root / "bt.py").is_file()
+    assert project.mcp_config is None and project.allowed == project.tools
+    assert set(shim.ops()) == {name for name, op in BY_TOOL.items() if not op.user_only}
+    with pytest.raises(KeyError):
+        shim.call("reindex")
+
+
+def test_script_cache_serves_repeats(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
+    """A read already made is answered from disk, since every script is its own interpreter."""
+    project = prepare("script", tmp_path, data_dir, envs)
+    shim = import_shim(project.root)
+    first = shim.runs({"limit": 5})
+    kept = list((project.root / ".bt-cache").glob("runs-*.json"))
+    (project.root / "beamtime").rename(project.root / "gone")
+
+    assert len(kept) == 1
+    assert shim.runs({"limit": 5}) == first
+    with pytest.raises(OpError):
+        shim.runs({"limit": 6})
+
+
+def test_script_names_parameters_only_for_parameter_errors(
+    tmp_path: Path, data_dir: Path, envs: setups.Envs
+) -> None:
+    """A wrong parameter name is answered with the list; a wrong field keeps Beamtime's own help."""
+    shim = import_shim(prepare("script", tmp_path, data_dir, envs).root)
+
+    with pytest.raises(OpError, match="runs takes: from, depth"):
+        shim.runs({"fields": ["run.id"]})
+    with pytest.raises(OpError) as bad_field:
+        shim.runs({"where": {"group": {"glob": "*x*"}}})
+    assert "fields start with run." in str(bad_field.value)
+    assert "takes:" not in str(bad_field.value)
+
+
+def test_script_cache_skips_writes_and_the_moment(
+    tmp_path: Path, data_dir: Path, envs: setups.Envs
+) -> None:
+    """Writes and answers about the moment are never kept, every other read is."""
+    shim = import_shim(prepare("script", tmp_path, data_dir, envs).root)
+
+    assert not any(shim.cacheable(BY_TOOL[n]) for n in ("note_add", "status", "wait", "logs"))
+    assert all(shim.cacheable(BY_TOOL[n]) for n in ("runs", "series", "check", "keys"))
+
+
+def test_script_section_has_the_shipped_rules(
+    tmp_path: Path, data_dir: Path, envs: setups.Envs
+) -> None:
+    """The script setup gets the rules block mcp and cli get, plus how to call the operations."""
+    script = prepare("script", tmp_path, data_dir, envs).claude_md.read_text(encoding="utf-8")
+    mcp = prepare("mcp", tmp_path, data_dir, envs).claude_md.read_text(encoding="utf-8")
+    block = mcp.partition(setups.START)[2].partition(setups.END)[0]
+
+    assert block and block in script
+    assert "metric.<key>.nonfinite_step" in script
+    assert "bt.py" in script and "bt.py" not in mcp
+
+
+def test_script_has_no_beamtime_command(
+    tmp_path: Path, data_dir: Path, envs: setups.Envs
+) -> None:
+    """``beamtime`` on the script setup's PATH is the stub that refuses, not the real one."""
+    project = prepare("script", tmp_path, data_dir, envs)
+    found = shutil.which("beamtime", path=project.env["PATH"])
+
+    assert found == str(tmp_path / "script-0" / "bin" / "beamtime")
+    run = subprocess.run(
+        [found, "runs"], env=project.env, cwd=project.root, capture_output=True, text=True
+    )
+    assert run.returncode == 2
+    assert setups.REFUSAL in run.stderr
+
+
+def test_script_reads_the_log_dir(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
+    """A session's Python reaches every run through ``bt.py``, whole and unpaged."""
+    project = prepare("script", tmp_path, data_dir, envs)
+    code = "import bt, json; print(json.dumps(bt.runs({'limit': 200})))"
+    run = subprocess.run(
+        [str(Path(sys.prefix) / "bin" / "python"), "-c", code],
+        env=project.env,
+        cwd=project.root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    answer = json.loads(run.stdout)
+
+    assert len(answer["rows"]) == 61
+    assert answer["meta"].get("next") is None
+
+
 def test_command_flags(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
     """The user's skills, settings and MCP servers stay out of every session."""
     for name in ("mcp", "cli", "files"):
@@ -155,7 +266,12 @@ def test_files_path_has_no_beamtime(
     mcp = prepare("mcp", tmp_path, data_dir, envs)
     cli = prepare("cli", tmp_path, data_dir, envs)
 
+    script = prepare("script", tmp_path, data_dir, envs)
+
     assert str(host_beamtime) not in files.env["PATH"]
+    assert shutil.which("beamtime", path=script.env["PATH"]) != str(
+        Path(sys.prefix) / "bin" / "beamtime"
+    )
     assert shutil.which("beamtime", path=files.env["PATH"]) is None
     assert shutil.which("beamtime", path=mcp.env["PATH"]) is None
     assert files.env["PATH"].startswith(str(envs.base / "bin"))

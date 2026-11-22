@@ -278,3 +278,38 @@ def test_geometric_mean() -> None:
     assert figures.geometric_mean([1, 100]) == pytest.approx(10)
     assert figures.geometric_mean([0, 4, 9]) == pytest.approx(6)
     assert figures.geometric_mean([]) == 0.0
+
+
+def test_goal(tmp_path: Path) -> None:
+    """The report states mcp's mean tokens against files' and whether the target holds.
+
+    :param tmp_path: The pytest temporary folder."""
+    batch = tables.Batch(folder=make_batch(tmp_path / "b"))
+
+    assert (
+        "mcp 1,510 against files 3,710 mean tokens over 6 sessions both ran: 0.41x, target 1.5x, "
+        "**met**. Mean score mcp 0.833, files 0.833."
+    ) in tables.results(batch)
+
+
+def test_goal_needs_mcp_and_files(tmp_path: Path) -> None:
+    """Without files sessions there is no goal section.
+
+    :param tmp_path: The pytest temporary folder."""
+    skip = {(t, "files") for t in TASKS}
+    batch = tables.Batch(folder=make_batch(tmp_path / "b", skip=skip))
+
+    assert "### Goal" not in tables.results(batch)
+
+
+def test_check_setups_named(tmp_path: Path) -> None:
+    """A batch that ran cli as a check says so.
+
+    :param tmp_path: The pytest temporary folder."""
+    folder = make_batch(tmp_path / "b")
+    meta = json.loads((folder / "batch.json").read_text(encoding="utf-8"))
+    (folder / "batch.json").write_text(json.dumps(meta | {"checks": ["cli"]}), encoding="utf-8")
+
+    assert "Regression check, first seed only and no target: cli." in tables.results(
+        tables.Batch(folder=folder)
+    )

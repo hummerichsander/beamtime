@@ -1,6 +1,7 @@
 """Run the comparison: python bench/agents/compare/sessions.py [--dry-run] [--grade-only BATCH]
 
-Every task runs in every setup on every data seed, one headless Claude Code session each. The data
+Every task runs in every setup on every data seed, one headless Claude Code session each; a check
+setup (``cli``) runs on the first seed only. The data
 is built once per seed, a session gets its own project (``setups.prepare``) and a time limit, and
 the reply is graded after all sessions ran, against truth computed from the same data. A batch
 lands in bench/agents/runs/compare-<stamp>/<task>-<setup>-<seed>-<rep>/ with ``record.json``,
@@ -76,7 +77,7 @@ def make_jobs(
 
     :param tasks: The tasks to run; each runs in the setups it names.
     :param chosen_setups: The setups to run.
-    :param seeds: The data seeds.
+    :param seeds: The data seeds; a check setup runs on the first only.
     :param reps: The repetitions of each session.
     :return: The jobs."""
     jobs = [
@@ -84,7 +85,7 @@ def make_jobs(
         for t in tasks.values()
         for s in chosen_setups
         if s in t.setups
-        for seed in seeds
+        for seed in (seeds[:1] if setups.SETUPS[s].check else seeds)
         for rep in range(reps)
     ]
     random.Random(SHUFFLE_SEED).shuffle(jobs)
@@ -613,6 +614,7 @@ def run_batch(args: argparse.Namespace) -> Path:
                 "root": str(root),
                 "started": now.isoformat(),
                 "setups": args.setups,
+                "checks": [s for s in args.setups if setups.SETUPS[s].check],
                 "tasks": sorted(tasks),
                 "seeds": args.seeds,
                 "reps": args.reps,
