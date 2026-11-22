@@ -207,6 +207,16 @@ class CheckParams(GroupParams, kw_only=True):
     version: Annotated[str | None, msgspec.Meta(description="default: the current one")] = None
 
 
+class ScriptParams(Params, kw_only=True):
+    """Parameters of ``script``."""
+
+    code: Annotated[str, msgspec.Meta(description="Python; `bt` is preloaded, print what you need")]
+    timeout: Annotated[
+        float, msgspec.Meta(gt=0, le=600, description="seconds before the script is killed")
+    ] = 60
+    author: Author = None
+
+
 class NoteAddParams(Params, kw_only=True):
     """Parameters of ``note add``."""
 
@@ -780,6 +790,8 @@ class Op:
     ui: bool = False
     # a call with any of these set is a draft and stays local.
     draft_params: tuple[str, ...] = ()
+    # False: not a method of serve's API (no web UI, view block or remote can call it).
+    api: bool = True
 
     @property
     def tool(self) -> str:
@@ -1025,6 +1037,18 @@ METHODS = [
         positional=("group",),
         stdin="body",
         summary="Add a note; verdicts get the check snapshot added automatically.",
+    ),
+    Op(
+        name="script",
+        kind="script",
+        render=f"{F}:render_script",
+        params=ScriptParams,
+        impl="beamtime.ops.script:script",
+        stdin="code",
+        local=True,
+        routed=False,
+        api=False,
+        summary="Run Python with `bt` preloaded; answers its output.",
     ),
     Op(
         name="proposal set",
@@ -1446,4 +1470,4 @@ METHODS = [
 OPS = [m for m in METHODS if m.params is not None]
 BY_NAME = {op.name: op for op in OPS}
 BY_TOOL = {op.tool: op for op in OPS if not op.user_only}
-BY_API = {m.tool: m for m in METHODS if not m.user_only or m.ui}
+BY_API = {m.tool: m for m in METHODS if m.api and (not m.user_only or m.ui)}

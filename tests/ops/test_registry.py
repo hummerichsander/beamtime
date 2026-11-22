@@ -83,6 +83,13 @@ def test_derived_routing_sets() -> None:
     assert {"view_text", "save_view"} <= WRITES
 
 
+def test_script_is_the_only_op_outside_the_api() -> None:
+    """``api=False`` keeps code execution out of serve's API; only ``script`` has it."""
+    assert [m.name for m in METHODS if not m.api] == ["script"]
+    assert "script" in BY_TOOL and "script" not in BY_API
+    assert BY_NAME["script"].local and not BY_NAME["script"].routed
+
+
 def test_kinds_and_renderers_agree() -> None:
     """Every kind is an answer kind, a listing's kind merges, kinds share a renderer, writes name one."""
     for m in METHODS:
@@ -123,6 +130,7 @@ READS = {
     "view history": {"group": "scaling/lr-sweep"}, "view outdated": {}, "block list": {},
     "settings": {}, "doctor": {}, "source list": {},
     "importance": {"from": "scaling/lr-sweep", "target": "metric.val/acc.max"},
+    "script": {"code": "print(bt.status()['kind'])"},
 }  # fmt: skip
 
 

@@ -333,7 +333,7 @@ beamtime note add <group>
 |---|---|---|
 | `--type` | required | observation, decision, idea, question, theory, verdict |
 | `--description` | required | one line; what listings show |
-| `--body` |  | Markdown; [[run-id]], [[group#prediction]] link |
+| `--body` | stdin | Markdown; [[run-id]], [[group#prediction]] link |
 | `--resolves` |  | ids of notes it answers |
 | `--supersedes` |  | id of a note it corrects |
 | `--completes` |  | decisions: groups declared complete |
@@ -353,7 +353,7 @@ beamtime proposal set <group> [file]
 
 | Option | Default | |
 |---|---|---|
-| `--proposal` |  | the proposal as an object or YAML text, instead of file |
+| `--proposal` | stdin | the proposal as an object or YAML text, instead of file |
 | `--reason` |  | why a frozen current version is superseded |
 | `--author` |  | who writes it: a person, or your model id such as claude-opus-5-5; default: the local account |
 
@@ -367,7 +367,7 @@ beamtime memory update [group] [file]
 
 | Option | Default | |
 |---|---|---|
-| `--body` |  | the memory, instead of file |
+| `--body` | stdin | the memory, instead of file |
 | `--covers-until` |  | default: the time of the newest note in scope |
 | `--author` |  | who writes it: a person, or your model id such as claude-opus-5-5; default: the local account |
 
@@ -799,3 +799,19 @@ beamtime stop [target]
 | Option | Default | |
 |---|---|---|
 | `--all` | `False` | stop every serve of this user |
+
+## Scripts
+
+### `beamtime script`
+
+Run Python with `bt` preloaded; answers its output.
+
+```sh
+beamtime script
+```
+
+| Option | Default | |
+|---|---|---|
+| `--code` | stdin | Python; `bt` is preloaded, print what you need |
+| `--timeout` | `60` | seconds before the script is killed |
+| `--author` |  | who writes it: a person, or your model id such as claude-opus-5-5; default: the local account |

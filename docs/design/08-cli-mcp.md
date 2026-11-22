@@ -250,8 +250,8 @@ drift from the commands.
   A schema keeps a pointer (`see instructions: where`, `see instructions: to`) or nothing (`from`, `group`,
   `author`, `depth` as a plain integer); defaults an absent key reads anyway (`from`, `group`, `x`, `band`) are left
   out, and `tools_more` names its families without a description. The definitions of a fresh server,
-  `tools_more` and the instructions included, stay under 11.5k characters of JSON (`json.dumps` defaults;
-  `tests/mcp` checks it).
+  `tools_more` and the instructions included, stay under 13k characters of JSON (`json.dumps` defaults;
+  `tests/mcp` checks it); the core `script` tool took the headroom the 12k limit had left.
 - **Writes take `author`**, the model id.
 - **`view_render` returns images** scaled to about 1280 px wide, one for the page and one per block
   on request. A page taller than `SHOT_HEIGHT` is clipped there, not shrunk: height, not width, is

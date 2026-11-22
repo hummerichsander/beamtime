@@ -22,6 +22,7 @@ AREAS = {
     "beamtime.ops.blocks": "Library blocks",
     "beamtime.ops.admin": "Setup and housekeeping",
     "beamtime.ops.procs": "Processes",
+    "beamtime.ops.script": "Scripts",
 }
 INTRO = """# Command reference
 
@@ -66,17 +67,20 @@ def command(op: Op) -> str:
     options = [f for f in fields if f not in positional and not hidden(f.type)]
     if options:
         lines += ["", "| Option | Default | |", "|---|---|---|"]
-        lines += [option(f) for f in options]
+        lines += [option(f, f.name == op.stdin) for f in options]
     return "\n".join(lines) + "\n"
 
 
-def option(field: Any) -> str:
+def option(field: Any, from_stdin: bool = False) -> str:
     """Describe one flag.
 
     :param field: The msgspec field.
+    :param from_stdin: Whether the command reads it from stdin when the flag is absent.
     :return: A table row."""
     flag = f"`--{field.encode_name.replace('_', '-')}`"
-    if field.required:
+    if from_stdin:
+        default = "stdin"
+    elif field.required:
         default = "required"
     elif field.default is msgspec.NODEFAULT or field.default in (None, [], ()):
         default = ""

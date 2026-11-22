@@ -94,17 +94,20 @@ def evidence_item(text: str) -> Any:
     return json_or_yaml(text) if text.lstrip().startswith("{") else text
 
 
-def add_field(parser: argparse.ArgumentParser, field: Any, positional: bool) -> None:
+def add_field(
+    parser: argparse.ArgumentParser, field: Any, positional: bool, from_stdin: bool = False
+) -> None:
     """Add one parameter of an operation as a flag or positional argument.
 
     :param parser: The command's parser.
     :param field: The msgspec field info.
     :param positional: Whether it is positional.
+    :param from_stdin: Whether stdin may supply it, so the flag is not required.
     :return: None."""
     import msgspec
 
     name = field.encode_name
-    required = field.required
+    required = field.required and not from_stdin
     dest = field.name
     if positional:
         if get_origin(unwrap(field.type)[0]) is list:
@@ -123,6 +126,8 @@ def add_field(parser: argparse.ArgumentParser, field: Any, positional: bool) -> 
         default = field.default
         if default is msgspec.NODEFAULT and field.default_factory is not msgspec.NODEFAULT:
             default = field.default_factory()
+        elif default is msgspec.NODEFAULT:
+            default = None
         kw["default"] = default
     match name:
         case "where":
@@ -277,7 +282,7 @@ def build_parser() -> argparse.ArgumentParser:
         label = op.summary + (" (user only)" if op.user_only else "")
         sub = where.add_parser(name, parents=[common], help=label, description=op.summary)
         for field in msgspec.structs.fields(op.params):
-            add_field(sub, field, field.name in op.positional)
+            add_field(sub, field, field.name in op.positional, field.name == op.stdin)
         sub.set_defaults(op=op.name)
     return parser
 

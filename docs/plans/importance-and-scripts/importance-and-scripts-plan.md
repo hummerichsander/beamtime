@@ -194,6 +194,10 @@ in this order: S21 A21 A22 A23 B21 B22 S22 C21 C23 C22 D21 E21 E22 Z22 Z21 E23
     overwritten, beside decision 20. Rejected: a cache folder per session, which needs C23's runner to pass a
     session id and leaves plain scripts without one; keying entries on the newest `_run.json` mtime, which walks
     the queried tree on every read.
+22. **The MCP tool-definition budget is 13,000 characters** (C23; decided by the orchestrator overnight): the core
+    `script` tool costs about 610 characters with its instructions line and the old headroom under 12,000 was 51,
+    so `tests/mcp` measured 12,515. Rejected: trimming other tools' schemas, which is out of C23's scope and
+    changes tools agents already rely on; moving `script` into a family, which contradicts decision 10.
 
 ## S. Spec
 
@@ -451,7 +455,7 @@ root.
    author of writes is `BEAMTIME_AUTHOR` when set (C23's runner sets it from the tool's `author`), otherwise the
    prototype's default.
 
-### C23. The `script` operation and its runner (sonnet + review) — code
+### C23. The `script` operation and its runner (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/ops/script.py` (the runner), `src/beamtime/ops/registry.py` (new `ScriptParams`;
   a new `Op` flag `api: bool = True` read by `BY_API` l. 1433; the `script` `Op`), `src/beamtime/ops/answers.py`

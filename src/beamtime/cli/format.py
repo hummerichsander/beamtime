@@ -256,6 +256,22 @@ def render_importance(answer: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def render_script(answer: dict[str, Any]) -> str:
+    """Render a script's output: stdout, then stderr, then a line when something went wrong.
+
+    :param answer: A ``script`` answer.
+    :return: The text."""
+    lines = [answer["stdout"].rstrip("\n")] if answer["stdout"] else []
+    if answer["stderr"]:
+        lines.append(answer["stderr"].rstrip("\n"))
+    notes = [f"{k} cut by {n} characters" for k, n in answer["cut"].items()]
+    if answer["exit"] != 0:
+        notes.append("timed out" if answer["exit"] is None else f"exit {answer['exit']}")
+    if notes:
+        lines.append(f"script: {', '.join(notes)} · {answer['seconds']:g} s")
+    return "\n".join(lines)
+
+
 def render_export(answer: dict[str, Any]) -> str:
     """Render what an export wrote: a page's lines, or a file of an answer's table.
 

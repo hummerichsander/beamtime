@@ -103,7 +103,7 @@ def test_every_tool_is_core_or_in_one_family() -> None:
     members = [name for names in FAMILIES.values() for name in names]
     assert len(members) == len(set(members)) and set(members) <= set(BY_TOOL)
     assert set(CORE) | set(members) == set(BY_TOOL) and not set(CORE) & set(members)
-    assert len(CORE) == 20 and set(FAMILIES) == {"views", "blocks", "runs", "export"}
+    assert len(CORE) == 21 and set(FAMILIES) == {"views", "blocks", "runs", "export"}
 
 
 def test_tools_match_the_registry(project: Path) -> None:
@@ -119,6 +119,20 @@ def test_tools_match_the_registry(project: Path) -> None:
     assert before == after
     assert all(t.input_schema["type"] == "object" for t in before)
     assert not any(name in CORE for name in FAMILIES["views"])
+
+
+def test_script_tool_runs_code_with_bt(project: Path) -> None:
+    """``script`` is a core tool with a ``code`` schema; it answers what the CLI prints."""
+
+    async def work(s):
+        tools = {t.name: t for t in (await s.list_tools()).tools}
+        done = await s.call_tool("script", {"code": "print(bt.status()['kind'])"})
+        return tools["script"], done
+
+    tool, done = session(project, work)
+    assert "script" in CORE and tool.input_schema["required"] == ["code"]
+    assert set(tool.input_schema["properties"]) == {"code", "timeout", "author"}
+    assert not done.is_error and json.loads(done.content[0].text)["stdout"] == "status\n"
 
 
 def test_prompts_reach_family_tools_through_tools_more() -> None:
@@ -141,9 +155,9 @@ def test_all_names_no_tools_more_in_instructions_or_prompts() -> None:
     assert "call the `view_*` and `block_*` tools directly" in view
 
 
-def test_tool_definitions_under_12000_characters(project: Path) -> None:
+def test_tool_definitions_under_13000_characters(project: Path) -> None:
     """The definitions of a fresh server, ``tools_more`` and the instructions included, stay under
-    12k characters of JSON."""
+    13k characters of JSON."""
 
     async def work(s):
         return (await s.list_tools()).tools
@@ -152,7 +166,7 @@ def test_tool_definitions_under_12000_characters(project: Path) -> None:
         len(json.dumps(t.model_dump(exclude_none=True, by_alias=True)))
         for t in session(project, work)
     )
-    assert size + len(INSTRUCTIONS) < 12_000
+    assert size + len(INSTRUCTIONS) < 13_000
 
 
 def test_instructions_name_the_where_ops() -> None:
