@@ -567,7 +567,7 @@ Block drafts live in `.beamtime/drafts/blocks/<name>/` (`block.yaml` and `code.j
 
 `block_list` also reports **promotion candidates** in a `candidates` section: the custom blocks in
 saved views, found by scanning the views the way `view_outdated` does and grouped by equal declared
-`queries`. Each entry names the group, the block id and the command to run, `beamtime block promote
+`queries` (blocks that declare none by equal code, so unrelated blocks without data stay apart). Each entry names the group, the block id and the command to run, `beamtime block promote
 <group> <block-id> <name>`. The same block appearing in two groups is the signal that it is worth
 promoting; a block seen in one group is only a candidate. The scan covers every saved view of the log
 dir (skipping views that do not parse and dot- or underscore-prefixed folders), `count` is the number of

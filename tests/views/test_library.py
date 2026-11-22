@@ -332,3 +332,15 @@ def test_empty_state_is_unchanged(ctx: Context, project: Path) -> None:
     """Without library blocks and candidates the listing reads as before."""
     listing = call("block list", {}, ctx)
     assert listing["lines"] == ["no library blocks here; `block promote` makes one from a custom block"]
+
+
+def test_candidates_without_queries_group_by_code(ctx: Context, project: Path) -> None:
+    """Custom blocks without queries are the same block only when their code is."""
+    for group, name, block in ((SWEEP, "a", "legend"), ("scaling/long-context", "b", "diagram"), ("scaling", "c", "legend")):
+        draft_view(ctx, project, group, name, [{"custom": {"id": block, "code": f"code/{block}.js"}}])
+        code = project / ".beamtime" / "drafts" / name / "code"
+        code.mkdir(parents=True, exist_ok=True)
+        (code / f"{block}.js").write_text(f"export default function () {{ return '{block}' }}\n", encoding="utf-8")
+        call("view save", {"draft": name}, ctx)
+    found = {x["block"]: set(x["groups"]) for x in call("block list", {}, ctx)["candidates"]}
+    assert found == {"legend": {SWEEP, "scaling"}, "diagram": {"scaling/long-context"}}

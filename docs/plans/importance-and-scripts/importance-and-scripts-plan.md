@@ -198,6 +198,13 @@ in this order: S21 A21 A22 A23 B21 B22 S22 C21 C23 C22 D21 E21 E22 Z22 Z21 E23
     `script` tool costs about 610 characters with its instructions line and the old headroom under 12,000 was 51,
     so `tests/mcp` measured 12,515. Rejected: trimming other tools' schemas, which is out of C23's scope and
     changes tools agents already rely on; moving `script` into a family, which contradicts decision 10.
+23. **Promotion candidates scan the whole log dir and stay local** (D21 review; decided by the reviewer): the
+    point is to find the same block in other groups' views, so `block list <group>` scans every saved view, not
+    the group's subtree as `view outdated` does; it costs about 40 ms on a scale-M log dir. A remote's candidates
+    are dropped when its answer is placed, as D21's Risks line says. Blocks without declared queries are the same
+    block only when their code is. Rejected: the listed group's subtree, which hides a block's use in a sibling
+    group, the signal that it is worth promoting; keying query-less blocks by their empty `queries`, which merged
+    every unrelated data-less block into one candidate.
 
 ## S. Spec
 

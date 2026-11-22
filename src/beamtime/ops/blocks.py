@@ -5,6 +5,7 @@ saving writes a new version into ``blocks/<name>/`` of the log dir root or a gro
 a content hash, and never changes an existing file."""
 
 import dataclasses
+import hashlib
 import json
 import re
 import time
@@ -73,9 +74,12 @@ def candidates(ctx: Context, library: Library) -> list[dict[str, Any]]:
 
     :param ctx: The operation context.
     :param library: The library of the listed group; its blocks are no candidates.
-    :return: One entry per distinct set of queries, the most used first: the block id and name of
-        the first view, every group it appears in, the count of groups and the promote command."""
-    taken = [json.dumps(library.get(n).block.queries, sort_keys=True) for n in library.names]
+    :return: One entry per distinct block, the most used first: the block id in the first view,
+        every group it appears in, the count of groups and the promote command."""
+    taken = set()
+    for name in library.names:
+        found = library.get(name)
+        taken.add(block_key(found.block.queries, found.folder / found.block.code))
     seen: dict[str, dict[str, Any]] = {}
     for folder in sorted(ctx.logdir.rglob(c.VIEW)):
         rel = folder.parent.relative_to(ctx.logdir).as_posix() or "."
@@ -90,7 +94,7 @@ def candidates(ctx: Context, library: Library) -> list[dict[str, Any]]:
         for node in m.walk(view.body):
             if not isinstance(node, m.Custom):
                 continue
-            key = json.dumps(node.queries, sort_keys=True)
+            key = block_key(node.queries, store.view_dir(ctx, rel) / node.code)
             if key in taken:
                 continue
             entry = seen.setdefault(
@@ -105,6 +109,18 @@ def candidates(ctx: Context, library: Library) -> list[dict[str, Any]]:
                 entry["groups"].append(rel)
     out = [{**x, "count": len(x["groups"])} for x in seen.values()]
     return sorted(out, key=lambda x: -x["count"])
+
+
+def block_key(queries: dict[str, Any], code: Path) -> str:
+    """Name what makes two blocks the same: equal declared queries, or equal code for a block
+    that declares none, so unrelated blocks without data stay apart.
+
+    :param queries: The block's declared queries.
+    :param code: The block's code file.
+    :return: The key."""
+    if queries:
+        return json.dumps(queries, sort_keys=True)
+    return hashlib.sha256(code.read_bytes()).hexdigest() if code.is_file() else str(code)
 
 
 def candidate_line(candidate: dict[str, Any]) -> str:
