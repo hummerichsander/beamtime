@@ -19,10 +19,15 @@ from pathlib import Path
 from typing import Any
 
 import figures
+import grade
 
 OUT = Path(__file__).resolve().parents[1] / "results"
 # the efficiency goal: mcp sessions cost at most this many times the tokens of plain files.
 TARGET = 1.5
+# the gap detector: script is a candidate when its median tokens are at most this share of mcp's.
+GAP_RATIO = 0.85
+# ... and its mean score is within this of mcp's, so a cheaper wrong answer is no gap.
+GAP_SCORE = 0.02
 COLUMNS = ["n", "tokens", "uncached", "cost", "seconds", "turns", "tool calls", "score", "correct"]
 
 
@@ -167,6 +172,60 @@ def goal(batch: Batch) -> list[str]:
     ]
 
 
+def gaps(batch: Batch) -> list[str]:
+    """List the tasks where script beats mcp on the sessions both ran, as candidate gaps.
+
+    A candidate has median script tokens at most ``GAP_RATIO`` of mcp's and a mean score within
+    ``GAP_SCORE`` of mcp's. Tasks whose prompt states an operation's procedure are left out.
+
+    :param batch: The batch.
+    :return: The lines of the gaps section, none without both setups."""
+    by_key = {
+        setup: {(r["task"], r["seed"], r["rep"]): r for r in batch.graded if r["setup"] == setup}
+        for setup in ("script", "mcp")
+    }
+    if not (by_key["script"] and by_key["mcp"]):
+        return []
+    stated = {i for i, t in grade.load_tasks().items() if t.states_procedure}
+    paired = sorted(by_key["script"].keys() & by_key["mcp"].keys())
+    body = []
+    left_out = set()
+    for task in dict.fromkeys(k[0] for k in paired):
+        if task in stated:
+            left_out.add(task)
+            continue
+        script, mcp = ([by_key[s][k] for k in paired if k[0] == task] for s in ("script", "mcp"))
+        tokens = [statistics.median(r["tokens"]["total"] for r in rows) for rows in (script, mcp)]
+        scores = [statistics.fmean(r["score"] for r in rows) for rows in (script, mcp)]
+        ratio = tokens[0] / tokens[1]
+        if ratio <= GAP_RATIO and abs(scores[0] - scores[1]) <= GAP_SCORE:
+            body.append(
+                [task, f"{tokens[0]:,.0f}", f"{tokens[1]:,.0f}", f"{ratio:.2f}x"]
+                + [f"{scores[0]:.2f}", f"{scores[1]:.2f}", ""]
+            )
+    lines = ["### Gaps", ""]
+    if batch.meta["reps"] < 2:
+        lines += [
+            "Inconclusive: one rep per task cannot separate a gap from session variance. The "
+            "rows are the data, not a list to act on.",
+            "",
+        ]
+    lines += [
+        f"Tasks where script's median tokens are at most {GAP_RATIO}x mcp's on the sessions "
+        f"both ran, with a mean score within {GAP_SCORE} of mcp's. A candidate becomes work "
+        "only when its missing construct can be named.",
+        "",
+    ]
+    if left_out:
+        lines += [f"Left out, the prompt states the procedure: {', '.join(sorted(left_out))}.", ""]
+    if body:
+        head = ["task", "script tokens", "mcp tokens", "ratio", "script score", "mcp score"]
+        lines += [*table([*head, "missing construct"], body), ""]
+    else:
+        lines += ["No task qualifies.", ""]
+    return lines
+
+
 def results(batch: Batch) -> str:
     """Write the report fragment of a batch.
 
@@ -214,6 +273,7 @@ def results(batch: Batch) -> str:
         "correct counts sessions with every check right.",
         "",
         *goal(batch),
+        *gaps(batch),
         "### Per task",
         "",
         *table(["task", "setup", *COLUMNS], by_task),

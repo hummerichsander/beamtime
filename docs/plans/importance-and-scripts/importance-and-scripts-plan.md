@@ -610,7 +610,7 @@ Re-measuring is a separate, user-run step: this ticket only makes the arm measur
 4. README: the script arm is the MCP arm plus the `script` tool; the earlier arm's numbers (plain scripts with
    `bt.py`) are a different instrument and are not compared with the new ones.
 
-### E22. The script arm as a standing gap detector (sonnet + review) — code
+### E22. The script arm as a standing gap detector (sonnet + review) — code — **done**
 
 - **Touches:** `bench/agents/compare/tables.py` (new `gaps`, beside `goal` 141–167 and `results` 170),
   `bench/agents/README.md`, `tests/bench/test_compare_report.py`.
