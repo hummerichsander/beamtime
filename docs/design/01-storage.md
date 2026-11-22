@@ -525,4 +525,5 @@ log or a note must be removable.
 - A hidden run is a flag in `_run.json` written by the SDK; promotion is a file in `visibility/` written
   by an operation, so every file keeps one writer.
 - Deleting goes through `_trash/` and `beamtime gc`, or by hand; the index copes.
-- Beamtime records experiments and never runs them.
+- Beamtime records experiments and never runs them; the one code it runs is the analysis an agent sends
+  to `script` ([layer 8](08-cli-mcp.md#scripts)).

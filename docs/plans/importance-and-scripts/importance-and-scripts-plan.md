@@ -219,7 +219,7 @@ listing are new.
    command. Note that a block appearing in two groups is the signal.
 4. In `01-storage.md`, add the `bt-cache` folder (new, made at runtime) to what `.beamtime/` holds (local, not committed, safe to delete).
 
-### S22. Write the MCP script tool into the design (sonnet) — code
+### S22. Write the MCP script tool into the design (sonnet) — code — **done**
 
 - **Touches:** `docs/design/08-cli-mcp.md` (§ Scripts l. 152–165, § Tools l. 197–235, § Policy l. 282–296,
   § Decisions l. 365), `docs/design/00-overview.md` (cross-cutting rules ~l. 85–92), `docs/design/01-storage.md`

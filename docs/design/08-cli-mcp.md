@@ -151,11 +151,23 @@ MCP server, started by an agent client). Both register in the process registry, 
 
 ### Scripts
 
-Agents may also write Python against `from beamtime import bt` (`src/beamtime/bt.py`, not an operation
-and so no row above). Every non-user-only operation is a function on `bt` that takes the operation's
-parameters as keyword arguments and returns its answer as a plain dict, so `bt.importance(group="long/schedules",
-target="config.lr")` leaves the answer in a variable. The caller is `view`, so answers are whole and unpaged.
+| CLI | MCP | Does |
+|---|---|---|
+| `beamtime script` | `script` | runs the Python on stdin (CLI) or in `code` (MCP) with `bt` preloaded and answers its output; `--timeout <seconds>` |
 
+`script` is the lead path for programmatic calls: an agent that needs to join, filter or format several
+answers sends the code in one call, and the answers stay in variables instead of passing through the
+conversation. `bt` is a namespace in which every non-user-only operation is a function that takes the
+operation's parameters as keyword arguments and returns its answer as a plain dict, so
+`bt.importance(group="long/schedules", target="config.lr")` leaves the answer in a variable. The caller is
+`view`, so answers are whole and unpaged.
+
+- **The runner**: a child `python -I` of the interpreter that serves (MCP or CLI), working directory the
+  project root, never the server process itself, so a hang or a crash cannot take the server down. A
+  `timeout` (default 60 s, at most 600 s) kills the child and its process group. Stdout is cut at 20,000
+  characters and stderr keeps its last 4,000; each cut is said in the answer. The answer is
+  `{kind: "script", stdout, stderr, exit, seconds, cut}`. `author` is the default author of writes made
+  through `bt`.
 - **Reads are cached** in `.beamtime/bt-cache/` of the project root, because every script is a fresh
   interpreter and a second look at the same data would cost another call. The cache is local, never
   committed and safe to delete.
@@ -163,6 +175,16 @@ target="config.lr")` leaves the answer in a variable. The caller is `view`, so a
   with time.
 - **The rule it serves**: the operations compute the statistics; Python joins, filters and formats the
   answers they return. A script never recomputes a statistic an operation already answers.
+
+**Trust.** The code has the user's file and network rights, like `serve` itself; there is no OS sandbox,
+which would differ per platform and promise more than v1 can keep. `bt` offers no user-only operation and
+no `script`, but that is policy, not enforcement: the code could import anything. `script` is not an API
+method: `serve`'s HTTP API, the web UI and the custom-block bridge cannot reach it, which keeps code
+execution from being one request away from an untrusted view ([layer 6](06-server.md#security)), and it
+never runs on a remote. `bt` routes `@source` targets itself.
+
+Agents without MCP write the same code in a plain script with `from beamtime import bt`
+(`src/beamtime/bt.py`).
 
 ## Output
 
@@ -196,11 +218,11 @@ without a local Beamtime, the client runs `ssh cluster beamtime mcp`. Through a 
 
 ### Tools
 
-The tools are the operations above, without the user-only commands: 43 small tools. The server
+The tools are the operations above, without the user-only commands: 47 small tools. The server
 instructions list the user-only commands, generated from the registry (`user_only`), so the list cannot
 drift from the commands.
 
-- **A core set and a dispatcher.** The listing is the 20 core tools plus `tools_more`, fixed for the life of
+- **A core set and a dispatcher.** The listing is the 21 core tools plus `tools_more`, fixed for the life of
   the server (no `tools/list_changed`: Claude Code does not reload the list after one). `FAMILIES` in
   `mcp/server.py` holds the rest: `views` (`view_*`), `blocks` (`block_*`), `runs` (`wait`, `resume`,
   `output`, `file`, `timeline`, `digest`, `plan_missing`, `name`, `run_promote`) and `export` (`export`, `cp`); the core
@@ -290,8 +312,9 @@ The guide states these as defaults ([layer 5](05-views.md#defaults)):
 - **Agent writes are additive**: notes, proposal versions (a frozen version is superseded with a
   reason, never edited), memory versions, view and block versions, exports, run copies (`cp` only
   ever adds a new run; it never touches the source).
-- **Scripts follow the same rules as tools**: `bt` offers no user-only operation, and writes made
-  through it stay additive.
+- **Scripts follow the same rules as tools**, whether sent to `script` or run as files: `bt` offers no
+  user-only operation, writes made through it stay additive, and agents never run user-only commands
+  from their own code either.
 - **Live data**: before working with running runs, agents check `status`; if no daemon runs, they ask
   the user to start `beamtime serve --no-ui`. To see what runs, they hand the user `beamtime ps`.
 
@@ -369,10 +392,13 @@ The guide states these as defaults ([layer 5](05-views.md#defaults)):
   exist only in the CLI and are never run by agents.
 - Compact text output, identical in terminals and pipes; `--json` for the canonical answer. Exit codes
   distinguish errors, usage, validation failures and missing items.
-- MCP over stdio (`beamtime mcp`, also over ssh), with 20 core tools plus `tools_more` for the rest, nine prompts, and token
+- MCP over stdio (`beamtime mcp`, also over ssh), with 21 core tools plus `tools_more` for the rest, nine prompts, and token
   budgets with cursors.
 - `beamtime setup`, `demo`, `doctor` and `mcp install` cover onboarding.
 - Hidden runs are excluded from reads unless `--hidden`; `run promote` is the one agent write that brings
   them back, and deleting them stays a user command.
 - `beamtime ps` lists the user's Beamtime processes and `beamtime stop` stops serves only; a second
   `serve` for a served root attaches, `--replace` takes over.
+- `script` runs the Python an agent sends in a child `python -I` with `bt` preloaded, a timeout and an
+  output cap; it is a core tool and a CLI command (`beamtime script`, code on stdin), never an API method.
+  The code has the user's rights; there is no OS sandbox.

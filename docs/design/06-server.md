@@ -72,7 +72,8 @@ Two ways to connect:
 - Custom view blocks written by other users run in the reader's browser. The sandbox of
   [layer 5](05-views.md#sandbox) (no same-origin access, no network, data only through the bridge)
   is what makes that safe, and the server enforces it with strict content security policies on
-  every page.
+  every page. The same sandbox is why `script` is not an API method: code execution is never one request
+  away from an untrusted view ([layer 8](08-cli-mcp.md#scripts)).
 - Tokens are scoped to projects and revocable; uploads are limited in size per run and project.
 
 ## What v1 must provide

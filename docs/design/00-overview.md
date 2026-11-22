@@ -89,6 +89,8 @@ reader blocks, and installs no SIGTERM handler.
 - **Never break the experiment.** The SDK never raises after `init` and never blocks the process.
 - **One read path.** Every number is computed by one implementation, so the CLI, MCP and the UI
   never disagree.
+- **Beamtime records experiments and never runs them.** The one code it runs is the analysis an agent
+  sends to `script` ([layer 8](08-cli-mcp.md#scripts)), with the user's rights and no sandbox.
 
 ## Testing strategy
 

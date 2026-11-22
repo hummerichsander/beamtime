@@ -201,7 +201,7 @@ no operation), or SIGTERM when the serve has no port (`index`) or the request fa
 "still stopping (pid N); `kill -9 N` ends it now" and exits 1. It never sends SIGKILL. MCP, remote and ssh
 processes are listed, never stopped: a pid of one is refused with "listed, not stopped: it belongs to
 <client>". A pid that no Beamtime process has exits 4 (not found); a root or log dir without a
-serve prints "no serve runs for <path>" and exits 0, so stopping twice is no error. Experiment processes are not Beamtime's: it records runs, it never runs them. Processes on
+serve prints "no serve runs for <path>" and exits 0, so stopping twice is no error. Experiment processes are not Beamtime's: it records runs, it never runs experiments. Processes on
 remote machines (`ps @cluster`) and the headless renderer are not listed.
 
 ## Query language
