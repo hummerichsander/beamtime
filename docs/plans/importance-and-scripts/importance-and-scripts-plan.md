@@ -172,6 +172,13 @@ in this order: S21 A21 A22 A23 B21 B22 S22 C21 C23 C22 D21 E21 E22 Z21 E23
     names the source, and per-source statistics never merge). A23 keeps that entry unless its op's answer adds
     a `group`, in which case it moves the kind to the group-answer pattern. Rejected: leaving the suite red
     until A23.
+17. **`importance` rows sort by η², then the absolute Spearman correlation** (A22 review; your decision): η² is
+    defined for every field, so a strong categorical field ranks above a weak numeric one; `spearman` None counts
+    as 0 in the tie-break. The CLI table and the block keep the answer's order. Rejected: `abs(spearman)` first
+    (A22 step 4), which put every categorical field below any numeric field with a nonzero correlation.
+18. **A row resting on fewer than ten runs stays, with its `n`** (A22 review; your decision): the notice applies
+    to the whole answer (fewer than ten finished runs with the target); a row whose field only some runs set is
+    kept and shows its own `n`. Rejected: dropping or flagging such rows.
 
 ## S. Spec
 
@@ -334,8 +341,9 @@ reading op: parameters subclass the query struct so a field is declared once.
    and `series` params do.
 2. The `Op`: `name="importance"`, `kind="importance"`, `render=f"{F}:render_importance"`, `positional=("group",)`,
    summary one line naming both measures.
-3. `render_importance` prints one row per field: field, spearman (or `—`), η², n; the notice instead of the table
-   when there are no rows.
+3. `render_importance` prints one row per field in the answer's order (η² first, Decision 17): field, spearman
+   (or `—`), η², n, each row with its own `n` even below ten (Decision 18); the notice instead of the table when
+   there are no rows.
 
 ## B. Importance: the view block
 
@@ -381,7 +389,8 @@ No new numbers here: the block compiles to A22's query so the UI and MCP cannot 
 This is the only ticket that touches `web/` and the only one that rebuilds the bundle, so it runs alone.
 
 1. Colors and type come from the design tokens only — no raw values, no per-call overrides.
-2. The notice path is the spec's: below about ten runs, a notice instead of bars.
+2. The notice path is the spec's: below about ten runs, a notice instead of bars. Bars keep the answer's order
+   (η² first, Decision 17), and each bar shows its row's `n`, which can be below ten (Decision 18).
 3. State the caveat in the block itself, as the spec requires: one field at a time, interactions not shown, and
    the run count.
 

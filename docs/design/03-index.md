@@ -497,7 +497,7 @@ the number of runs. Without `fields`, every config key that varies in scope is u
 of `keys`); a field constant across the runs is left out.
 
 The answer is `{kind: importance, target, rows, notice, meta}`; a row is `{field, spearman,
-eta_squared, n}`, sorted by the absolute Spearman correlation, then η², and `spearman` is null for a
+eta_squared, n}`, sorted by η², then the absolute Spearman correlation, and `spearman` is null for a
 non-numeric field (η² groups on its distinct values). Only finished, visible runs with a finite target
 count, and a run whose field value is missing, NaN or infinite drops out of that field's row alone,
 so `n` is per row. The target must be one number per run (`metric.<key>.<stat>` or `value.<key>`).

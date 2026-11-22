@@ -804,7 +804,7 @@ def importance_kind(ctx: Context, q: m.Importance) -> dict[str, Any]:
                 "n": len(pairs),
             }
         )
-    rows.sort(key=lambda r: (abs(r["spearman"] or 0.0), r["eta_squared"] or 0.0), reverse=True)
+    rows.sort(key=lambda r: (r["eta_squared"] or 0.0, abs(r["spearman"] or 0.0)), reverse=True)
     return answer | {"rows": rows, "meta": meta(ctx, matched=len(runs))}
 
 

@@ -1329,7 +1329,7 @@ def test_importance(ask) -> None:
     lr = rows["config.lr"]
     assert lr["n"] == 15 and -1 <= lr["spearman"] <= 1 and 0 <= lr["eta_squared"] <= 1
     assert [r["field"] for r in a["rows"]] == sorted(
-        rows, key=lambda f: (-abs(rows[f]["spearman"]), -rows[f]["eta_squared"])
+        rows, key=lambda f: (-rows[f]["eta_squared"], -abs(rows[f]["spearman"]))
     )
 
 
@@ -1389,3 +1389,10 @@ def test_importance_bins_split_a_lopsided_field() -> None:
     ys = [0.0] * 8 + [1.0] * 2
     assert eta_squared(importance_bins([0] * 8 + [1] * 2, ys, True)) == 1.0
     assert eta_squared(importance_bins([0] * 2 + [1] * 8, ys[::-1], True)) == 1.0
+
+
+def test_importance_sorts_by_eta_squared(importance) -> None:
+    """A strong categorical field sorts above a weak numeric one."""
+    rows = importance({"from": "sweep", "target": "metric.score.last"})["rows"]
+    assert [r["field"] for r in rows] == ["config.opt", "config.lr"]
+    assert rows[0]["spearman"] is None and rows[0]["eta_squared"] > rows[1]["eta_squared"]
