@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 import pytest
@@ -5,6 +6,7 @@ import yaml
 
 from beamtime.format.schema import SchemaError
 from beamtime.ops import call
+from beamtime.ops.answers import placed
 from beamtime.ops.context import Context, OpError
 from beamtime.serve.api import view as page_view
 from beamtime.views import model as m
@@ -234,3 +236,99 @@ def test_export_and_import_through_git(ctx: Context, project: Path, tmp_path: Pa
         call("block import", {"group": "scaling", "from": str(repo)}, ctx)
     with pytest.raises(OpError, match="no blocks/ folder"):
         call("block import", {"group": "scaling", "from": str(tmp_path)}, ctx)
+
+
+LISTED = """schema: 1
+name: pm-lib
+description: Nothing. Use for tests; not for runs.
+examples:
+  - {}
+  - {}
+queries:
+  q: {runs: {select: [run.id]}}
+code: code/pm-lib.js
+"""
+
+
+def save_custom(ctx: Context, project: Path, group: str, name: str, block: str = "pm", select: str = "run.id") -> None:
+    """Save a view holding one custom block that selects a field.
+
+    :param ctx: The operation context.
+    :param project: The project root.
+    :param group: The group.
+    :param name: The draft's name.
+    :param block: The block's id.
+    :param select: The field its query selects."""
+    node = {"custom": {"id": block, "code": f"code/{block}.js", "queries": {"q": {"runs": {"select": [select]}}}}}
+    draft_view(ctx, project, group, name, [node])
+    code = project / ".beamtime" / "drafts" / name / "code"
+    code.mkdir(parents=True, exist_ok=True)
+    (code / f"{block}.js").write_text("export default function () {}\n", encoding="utf-8")
+    call("view save", {"draft": name}, ctx)
+
+
+def test_candidates_count_groups(ctx: Context, project: Path) -> None:
+    """The same custom block in two groups is one candidate naming both; in one group, a count of 1."""
+    assert call("block list", {}, ctx)["candidates"] == []
+    save_custom(ctx, project, SWEEP, "a")
+    (one,) = (listing := call("block list", {}, ctx))["candidates"]
+    assert one["count"] == 1 and one["groups"] == [SWEEP]
+    assert one["command"] == f"beamtime block promote {SWEEP} pm <name>"
+    assert listing["lines"][-1].startswith("candidate pm (in 1 group: ")
+    save_custom(ctx, project, "scaling/long-context", "b")
+    (two,) = (listing := call("block list", {}, ctx))["candidates"]
+    assert two["count"] == 2 and set(two["groups"]) == {SWEEP, "scaling/long-context"}
+    assert "in 2 groups" in listing["lines"][-1] and SWEEP in listing["lines"][-1]
+    assert call("block list", {"group": SWEEP}, ctx)["candidates"] == [two]
+
+
+def test_candidates_most_used_first_and_not_in_library(ctx: Context, project: Path) -> None:
+    """A block seen in more groups comes first; a block whose queries a library block declares is no candidate."""
+    save_custom(ctx, project, SWEEP, "a")
+    save_custom(ctx, project, "scaling/long-context", "b")
+    save_custom(ctx, project, "scaling", "other", "solo", "run.name")
+    found = call("block list", {}, ctx)["candidates"]
+    assert [x["count"] for x in found] == [2, 1] and found[1]["block"] == "solo"
+    call("block promote", {"group": SWEEP, "block_id": "pm", "name": "pm-lib"}, ctx)
+    folder = project / ".beamtime" / "drafts" / "blocks" / "pm-lib"
+    (folder / "block.yaml").write_text(LISTED, encoding="utf-8")
+    call("block save", {"draft": "pm-lib"}, ctx)
+    assert [x["block"] for x in call("block list", {}, ctx)["candidates"]] == ["solo"]
+
+
+def test_candidates_skip_unparsable_view(ctx: Context, project: Path) -> None:
+    """A saved view that does not parse is skipped, not an error."""
+    save_custom(ctx, project, SWEEP, "a")
+    folder = project / "beamtime" / "scaling" / "view"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "20991030-100000-abcd.yaml").write_text("schema: 99\nbody: []\n", encoding="utf-8")
+    assert [x["groups"] for x in call("block list", {}, ctx)["candidates"]] == [[SWEEP]]
+
+
+def test_candidates_skip_hidden(ctx: Context, project: Path) -> None:
+    """Views below dot- or underscore-prefixed folders are skipped."""
+    save_custom(ctx, project, SWEEP, "a")
+    for hidden in (".trash", "_old"):
+        shutil.copytree(project / "beamtime" / SWEEP / "view", project / "beamtime" / hidden / "g" / "view")
+    assert [x["groups"] for x in call("block list", {}, ctx)["candidates"]] == [[SWEEP]]
+
+
+def test_candidates_are_local() -> None:
+    """A remote's candidates are dropped, with their lines, when its answer is placed on its source."""
+    answer = {
+        "kind": "block list",
+        "group": "g",
+        "columns": ["name", "version", "group", "params", "description"],
+        "rows": [],
+        "candidates": [{"block": "b", "groups": ["g"], "count": 1, "command": "beamtime block promote g b <name>"}],
+        "lines": ["no library blocks here", "candidate b (in 1 group: g)"],
+        "meta": {},
+    }
+    out = placed(answer, "box")
+    assert out["group"] == "@box/g" and "candidates" not in out and out["lines"] == ["no library blocks here"]
+
+
+def test_empty_state_is_unchanged(ctx: Context, project: Path) -> None:
+    """Without library blocks and candidates the listing reads as before."""
+    listing = call("block list", {}, ctx)
+    assert listing["lines"] == ["no library blocks here; `block promote` makes one from a custom block"]

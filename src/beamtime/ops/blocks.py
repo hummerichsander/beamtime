@@ -55,14 +55,68 @@ def listing(ctx: Context, p: r.BlockListParams) -> dict[str, Any]:
         )
         rows.append([name, found.version, found.group, params, found.block.description.strip()])
     lines = [f"{n} ({v}, in {g}): {d} [{ps}]" for n, v, g, ps, d in rows]
+    empty = "no library blocks here; `block promote` makes one from a custom block"
+    found = candidates(ctx, library)
     return {
         "kind": "block list",
         "group": path,
         "columns": ["name", "version", "group", "params", "description"],
         "rows": rows,
-        "lines": lines or ["no library blocks here; `block promote` makes one from a custom block"],
+        "candidates": found,
+        "lines": (lines or [empty]) + [candidate_line(x) for x in found],
         "meta": {"matched": len(rows)},
     }
+
+
+def candidates(ctx: Context, library: Library) -> list[dict[str, Any]]:
+    """Find the custom blocks of saved views that are worth promoting, grouped by equal queries.
+
+    :param ctx: The operation context.
+    :param library: The library of the listed group; its blocks are no candidates.
+    :return: One entry per distinct set of queries, the most used first: the block id and name of
+        the first view, every group it appears in, the count of groups and the promote command."""
+    taken = [json.dumps(library.get(n).block.queries, sort_keys=True) for n in library.names]
+    seen: dict[str, dict[str, Any]] = {}
+    for folder in sorted(ctx.logdir.rglob(c.VIEW)):
+        rel = folder.parent.relative_to(ctx.logdir).as_posix() or "."
+        if any(part.startswith((".", "_")) for part in rel.split("/")) or not folder.is_dir():
+            continue
+        if not (files := store.saved(ctx, rel)):
+            continue
+        try:
+            view = store.read(files[-1], source=files[-1].name)
+        except SchemaError:
+            continue
+        for node in m.walk(view.body):
+            if not isinstance(node, m.Custom):
+                continue
+            key = json.dumps(node.queries, sort_keys=True)
+            if key in taken:
+                continue
+            entry = seen.setdefault(
+                key,
+                {
+                    "block": node.id,
+                    "groups": [],
+                    "command": f"beamtime block promote {rel} {node.id} <name>",
+                },
+            )
+            if rel not in entry["groups"]:
+                entry["groups"].append(rel)
+    out = [{**x, "count": len(x["groups"])} for x in seen.values()]
+    return sorted(out, key=lambda x: -x["count"])
+
+
+def candidate_line(candidate: dict[str, Any]) -> str:
+    """Write one promotion candidate as a line of the listing.
+
+    :param candidate: An entry of ``candidates``.
+    :return: The line."""
+    n = candidate["count"]
+    return (
+        f"candidate {candidate['block']} (in {n} group{'s' * (n != 1)}: "
+        f"{', '.join(candidate['groups'])}): `{candidate['command']}`"
+    )
 
 
 def show(ctx: Context, p: r.BlockShowParams) -> dict[str, Any]:

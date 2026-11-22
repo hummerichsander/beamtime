@@ -534,7 +534,7 @@ benchmark-only section.
 
 ## D. Block reuse
 
-### D21. Promotion candidates in `block list` (sonnet + review) — code
+### D21. Promotion candidates in `block list` (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/ops/blocks.py` (`listing` 40–66; new `candidates`), `src/beamtime/views/store.py`
   (a helper beside `saved` 39 if needed), `tests/views/test_library.py`, `tests/ops/`.

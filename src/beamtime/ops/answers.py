@@ -595,6 +595,18 @@ class BlockList(Grouped):
     kind = "block list"
     columns = ("group",)
 
+    def placed(self, answer: Any, at: Callable[[str], str]) -> Any:
+        """Place the groups as a grouped answer does and drop the remote's promotion candidates,
+        which are local only: their groups and commands name paths of the remote.
+
+        :param answer: The remote's answer.
+        :param at: Puts a source's prefix on one path.
+        :return: The answer with ``@source/...`` groups and no candidates."""
+        out = super().placed(answer, at)
+        if n := len(out.pop("candidates", [])):
+            out["lines"] = out["lines"][:-n]
+        return out
+
 
 class ViewOutdated(Grouped):
     """The views that pin an old block version, one row per block and group."""

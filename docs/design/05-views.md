@@ -569,7 +569,11 @@ Block drafts live in `.beamtime/drafts/blocks/<name>/` (`block.yaml` and `code.j
 saved views, found by scanning the views the way `view_outdated` does and grouped by equal declared
 `queries`. Each entry names the group, the block id and the command to run, `beamtime block promote
 <group> <block-id> <name>`. The same block appearing in two groups is the signal that it is worth
-promoting; a block seen in one group is only a candidate. Candidates are never promoted automatically.
+promoting; a block seen in one group is only a candidate. The scan covers every saved view of the log
+dir (skipping views that do not parse and dot- or underscore-prefixed folders), `count` is the number of
+groups, the most used come first, and a block whose queries a library block of the listed group declares
+is left out. Candidates are local: a remote's candidates are not passed on with its listing. They are never
+promoted automatically.
 
 ### Pinning and upgrades
 
