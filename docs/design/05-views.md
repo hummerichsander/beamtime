@@ -560,6 +560,12 @@ Block drafts live in `.beamtime/drafts/blocks/<name>/` (`block.yaml` and `code.j
   once in the group the block is saved in.
 - **No duplicate queries**: a block whose declared queries equal an existing block's is pointed out.
 
+`block_list` also reports **promotion candidates** in a `candidates` section: the custom blocks in
+saved views, found by scanning the views the way `view_outdated` does and grouped by equal declared
+`queries`. Each entry names the group, the block id and the command to run, `beamtime block promote
+<group> <block-id> <name>`. The same block appearing in two groups is the signal that it is worth
+promoting; a block seen in one group is only a candidate. Candidates are never promoted automatically.
+
 ### Pinning and upgrades
 
 Views are **pinned** to the block versions they were saved with, so a view looks tomorrow as it does

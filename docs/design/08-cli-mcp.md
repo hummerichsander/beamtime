@@ -80,7 +80,7 @@ wherever a group does.
 | `beamtime view history <group>` | `view_history` | the version list |
 | `beamtime view outdated [group]` | `view_outdated` | views pinned to older block versions |
 | `beamtime view upgrade <group> [--block <name>]` | `view_upgrade` | re-pins to the newest block versions, validates, saves a new view version |
-| `beamtime block list [group]` | `block_list` | library blocks available in a group, with descriptions and params |
+| `beamtime block list [group]` | `block_list` | library blocks available in a group, with descriptions and params, and promotion candidates ([layer 5](05-views.md#creating-and-reusing-blocks)) |
 | `beamtime block show <name> [group] [--version <v>]` | `block_show` | a block's definition and code |
 | `beamtime block promote <group> <block-id> <name>` | `block_promote` | a block draft from a custom block of the group's view |
 | `beamtime block fork <name> <new-name> [group]` | `block_fork` | a block draft copied from a block (`derived_from`) |
@@ -148,6 +148,21 @@ MCP server, started by an agent client). Both register in the process registry, 
   `= != < <= > >= ~` (glob) and `in`; the first one outside quotes and brackets counts, so a field
   may be `config["a<b"]`. Values are numbers, `true`, `false`, `null` or text; quoted values stay
   text (`config.tag="1"`), and `in` items may be quoted to hold commas.
+
+### Scripts
+
+Agents may also write Python against `from beamtime import bt` (`src/beamtime/bt.py`, not an operation
+and so no row above). Every non-user-only operation is a function on `bt` that takes the operation's
+parameters as keyword arguments and returns its answer as a plain dict, so `bt.importance(group="long/schedules",
+target="config.lr")` leaves the answer in a variable. The caller is `view`, so answers are whole and unpaged.
+
+- **Reads are cached** in `.beamtime/bt-cache/` of the project root, because every script is a fresh
+  interpreter and a second look at the same data would cost another call. The cache is local, never
+  committed and safe to delete.
+- **Writes are never cached**, nor are `status`, `wait`, `resume` and `logs`, whose answers change
+  with time.
+- **The rule it serves**: the operations compute the statistics; Python joins, filters and formats the
+  answers they return. A script never recomputes a statistic an operation already answers.
 
 ## Output
 
@@ -275,6 +290,8 @@ The guide states these as defaults ([layer 5](05-views.md#defaults)):
 - **Agent writes are additive**: notes, proposal versions (a frozen version is superseded with a
   reason, never edited), memory versions, view and block versions, exports, run copies (`cp` only
   ever adds a new run; it never touches the source).
+- **Scripts follow the same rules as tools**: `bt` offers no user-only operation, and writes made
+  through it stay additive.
 - **Live data**: before working with running runs, agents check `status`; if no daemon runs, they ask
   the user to start `beamtime serve --no-ui`. To see what runs, they hand the user `beamtime ps`.
 

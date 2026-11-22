@@ -156,6 +156,9 @@ How views look and behave is [layer 5](05-views.md). For storage:
 - **No inheritance.** A group or run shows its own newest view, else Beamtime's built-in default.
 - **Versions.** Each save is a new file in `view/`; the newest counts. Drafts live outside `view/`
   until saved, in `.beamtime/drafts/` of the project root.
+- **`.beamtime/` holds only local, uncommitted state, safe to delete**: `drafts/`, and `bt-cache/`
+  (made at runtime), where the `bt` script shim caches read answers
+  ([layer 8](08-cli-mcp.md#scripts)).
 - **Files belonging to a view version** are stored next to it and named by content hash, so they are
   immutable and an older version keeps working:
   - `view/data/<sha8>-<name>.parquet` (or `.csv`, `.json`): data files for analysis that queries

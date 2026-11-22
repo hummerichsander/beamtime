@@ -132,7 +132,7 @@ order: S21 A21 A22 A23 B21 B22 C21 C22 D21 E21 E22 Z21 E23
 
 ## S. Spec
 
-### S21. Write the shim and block candidates into the design (sonnet) — code
+### S21. Write the shim and block candidates into the design (sonnet) — code — **done**
 
 - **Touches:** `docs/design/08-cli-mcp.md` (§ Reading table ~l. 29, § Views and blocks ~l. 70, § Policy ~l. 267),
   `docs/design/05-views.md` (§ Creating and reusing blocks l. 539–562), `docs/design/01-storage.md` (what
