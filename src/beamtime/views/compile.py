@@ -206,6 +206,17 @@ class Compiler:
                     lower={c: self.lower(c) for c in n.columns},
                     **common,
                 )
+            case m.Importance():
+                params = sel | {"target": n.target} | ({"fields": n.fields} if n.fields else {})
+                call = api("importance", params, scope)
+                return node(
+                    "importance",
+                    n.id,
+                    data={"main": call},
+                    target=n.target,
+                    fields=n.fields,
+                    **common,
+                )
             case m.DataTable():
                 if n.file is not None:
                     params = {"view": self.path, "path": n.file}

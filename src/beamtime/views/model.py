@@ -154,6 +154,18 @@ class Scorecard(Node, tag="scorecard"):
     ] = None
 
 
+class Importance(Node, tag="importance"):
+    """How strongly each config field relates to a numeric target; use for which setting matters."""
+
+    target: Annotated[
+        Field, msgspec.Meta(description="one number per run, e.g. metric.val/acc.max")
+    ]
+    fields: Annotated[
+        list[Field] | None,
+        msgspec.Meta(description="config.* fields to rate; default: the fields that vary"),
+    ] = None
+
+
 class DataTable(Node, tag="data_table"):
     """A logged table (key) or a data file stored with the view (file)."""
 
@@ -294,6 +306,7 @@ Block = (
     | Stat
     | Table
     | Scorecard
+    | Importance
     | DataTable
     | Images
     | Text

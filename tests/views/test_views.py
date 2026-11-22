@@ -1371,3 +1371,68 @@ def test_direction_comes_from_whole_name_tokens(metric: str, lower: bool) -> Non
     :param metric: The metric key.
     :param lower: The expected direction."""
     assert lower_is_better(metric) is lower
+
+
+def test_importance_block_compiles_to_one_importance_query() -> None:
+    """An importance block declares one ``importance`` query; ``fields`` appears only when set, and
+    an unknown prop is rejected."""
+    view = parse("""
+body:
+  - importance: {id: i, target: metric.val/acc.max, where: {config.opt: sgd}}
+  - importance: {id: j, target: metric.val/acc.max, fields: [config.lr], from: sub}
+""")
+    plain, picked = compile_view(view, path="g")["children"]
+    assert plain["block"] == "importance" and list(plain["data"]) == ["main"]
+    assert plain["data"]["main"]["method"] == "importance"
+    assert plain["data"]["main"]["params"] == {
+        "from": "g",
+        "where": {"config.opt": "sgd"},
+        "target": "metric.val/acc.max",
+    }
+    assert picked["data"]["main"]["params"]["fields"] == ["config.lr"]
+    assert picked["data"]["main"]["params"]["from"] == "g/sub"
+    with pytest.raises(SchemaError, match="unknown field `colour`"):
+        parse("body: [{importance: {target: metric.val/acc.max, colour: red}}]")
+
+
+def validate_importance(ctx: Context, project: Path, name: str, **props: Any) -> list[dict[str, Any]]:
+    """Validate a draft of the sweep whose body is one importance block.
+
+    :param ctx: The operation context.
+    :param project: The project root.
+    :param name: The draft's name.
+    :param props: The block's props.
+    :return: The findings."""
+    call("view new", {"group": SWEEP, "from": "sweep", "name": name}, ctx)
+    path = project / ".beamtime" / "drafts" / name / "view.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data["body"] = [{"importance": {"id": "imp"} | props}]
+    path.write_text(yaml.safe_dump(data), encoding="utf-8")
+    return call("view validate", {"draft": name, "render": False}, ctx)["findings"]
+
+
+def test_importance_block_validates(ctx: Context, project: Path) -> None:
+    """A block on the sweep passes with no finding."""
+    findings = validate_importance(ctx, project, "ok", target="metric.val/acc.max")
+    assert {f["message"] for f in findings} == {"no finding"}
+
+
+def test_importance_block_bad_target(ctx: Context, project: Path) -> None:
+    """A target that names no metric is an error that names it."""
+    findings = validate_importance(ctx, project, "bad", target="metric.val/accc.max")
+    errors = [f for f in findings if f["level"] == "error"]
+    assert errors and "metric.val/accc.max" in errors[0]["message"]
+
+
+def test_importance_block_few_runs(ctx: Context, project: Path) -> None:
+    """A group with fewer than ten runs validates: the block carries the notice."""
+    findings = validate_importance(
+        ctx, project, "few", target="metric.val/acc.max", where={"config.lr": {"lt": 0.0005}}
+    )
+    assert not [f for f in findings if f["level"] == "error"]
+    answer = call(
+        "importance",
+        {"from": SWEEP, "target": "metric.val/acc.max", "where": {"config.lr": {"lt": 0.0005}}},
+        ctx,
+    )
+    assert answer["rows"] == [] and "at least 10" in answer["notice"]

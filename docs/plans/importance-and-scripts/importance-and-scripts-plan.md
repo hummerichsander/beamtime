@@ -347,7 +347,7 @@ reading op: parameters subclass the query struct so a field is declared once.
 
 ## B. Importance: the view block
 
-### B21. The `importance` view node (sonnet) — code
+### B21. The `importance` view node (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/views/model.py` (new `Importance` node beside `Scorecard` 139),
   `src/beamtime/views/compile.py` (a case beside `m.Scorecard()` 195), `src/beamtime/views/validate.py` (a case

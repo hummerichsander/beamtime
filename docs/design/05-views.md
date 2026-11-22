@@ -198,6 +198,11 @@ compiles to the `importance` query, so agents get the same numbers over MCP. Bot
 one field at a time and miss interactions; the block says so and shows how many runs it rests on.
 Below about ten runs it shows a notice instead of bars.
 
+YAML: `importance: {target: metric.val/acc.max, fields: [config.lr, config.opt]}`; `fields` are
+`config.*` keys and default to the ones that vary. It compiles to one declared `importance` query with
+the block's selection (`from`, `where`, `depth`). A notice is a valid state for `validate`, not an
+empty block; a target that is not one number per run is an error naming it.
+
 ### Linking blocks (wave 2)
 
 A selection in one block highlights the same runs in every other block of the view. One shared
