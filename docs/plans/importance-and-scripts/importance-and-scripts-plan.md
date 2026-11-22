@@ -100,12 +100,12 @@ S21 ─┬─ S22 ─ C21 ─ C23 ─ C22 ─ E21 ─ E22   script tool spec, sh
 
 A21 ─ A22 ─ A23 ─ B21 ─ B22   importance; B22 alone rebuilds the bundle
 
-                        Z21   close, then E23 adds tasks and runs the detector
+                  Z22 ─ Z21   user docs (after C22), close, then E23 adds tasks and runs the detector
 ```
 
 S21 blocks only C and D; S22 writes the script tool into the design before C21 and C23 build it; C23 needs C21's
-`bt`, and C22 documents both. The importance chain is already specified and can start at once. What's left runs
-in this order: S21 A21 A22 A23 B21 B22 S22 C21 C23 C22 D21 E21 E22 Z21 E23
+`bt`, and C22 documents both for agents; Z22 documents them, `importance` included, for users. The importance chain is already specified and can start at once. What's left runs
+in this order: S21 A21 A22 A23 B21 B22 S22 C21 C23 C22 D21 E21 E22 Z22 Z21 E23
 
 ## Decisions taken; say if you want otherwise
 
@@ -179,6 +179,11 @@ in this order: S21 A21 A22 A23 B21 B22 S22 C21 C23 C22 D21 E21 E22 Z21 E23
 18. **A row resting on fewer than ten runs stays, with its `n`** (A22 review; your decision): the notice applies
     to the whole answer (fewer than ten finished runs with the target); a row whose field only some runs set is
     kept and shows its own `n`. Rejected: dropping or flagging such rows.
+19. **The MCP tool reference is generated, intro included** (your decision: Z22): `docs/site/reference.py` writes
+    `docs/reference/mcp.md` beside `cli.md`, with its short intro as a template string like `cli.md`'s `INTRO`, and
+    takes every count from `CORE`, `FAMILIES` and `BY_TOOL`; user pages link it instead of naming counts.
+    Rejected: a hand-written page linking a generated part, which is two pages for one topic and leaves the intro's
+    counts unchecked.
 
 ## S. Spec
 
@@ -614,22 +619,85 @@ differ only by the `script` tool, so a candidate is a task where code over the o
 
 ## Z. Close
 
+### Z22. User docs for MCP tools, the script tool and importance (sonnet) — code
+
+- **Touches:** `docs/site/reference.py` (`OUT` l. 16, `INTRO` l. 26–33, `reference` l. 36, `__main__` l. 127–129),
+  new `docs/reference/mcp.md` (generated), `docs/reference/cli.md` (regenerated: one intro line),
+  `tests/test_docs.py` (beside `test_the_command_reference_is_current` l. 8–12), `docs/nav.json` (Reference,
+  l. 17), `web/docs.mjs` (`PAGE_ICONS` l. 20–25; the docs site, not the bundle), `docs/guides/agents.md` (§ Connect
+  l. 3–13), `docs/quickstart.md` (§ 4 l. 43–49), `docs/how-it-works.md` (§ Agents use the same things l. 35–39),
+  `docs/guides/setup.md` (§ Agents l. 37–39), `docs/guides/settings.md` (`mcp_tools` l. 76–77),
+  `docs/guides/views.md` (l. 46), `src/beamtime/guide/parts/views.md` (the "which block" table l. 49–58).
+- **Read:** `src/beamtime/mcp/server.py` § `FAMILIES`/`CORE` (l. 157–176) and `tools` (l. 179–199);
+  `src/beamtime/ops/registry.py` § `Op` (l. 747–790), `BY_TOOL` (l. 1448); decision 19;
+  `docs/design/05-views.md` § `importance` (l. 193).
+- **Check:** `uv run python docs/site/reference.py`; `uv run pytest -q tests/test_docs.py tests/guide`;
+  `cd web && npm run docs` (CI's docs job: a broken link fails it); then the full suite, and
+  `git status --porcelain -- src/beamtime/serve/static` stays empty.
+- **Done:** `docs/reference/mcp.md` is what `docs/site/reference.py` generates and `test_the_mcp_reference_is_current`
+  checks it; it lists every tool of `BY_TOOL` once, under core or its family, with summary, parameters (type,
+  default) and its CLI command, and names every user-only op as never offered to agents; its counts come from
+  `CORE` and `FAMILIES`, so no user page hard-codes a tool count; the site builds with the page in the Reference
+  section; the four user pages name `importance` and the `script` tool where they speak of agents or commands;
+  `docs/guides/views.md` and the guide's "which block" table name the `importance` block.
+- **Risks:** importing `beamtime.mcp.server` at the top of `reference.py` → the `cli.md` test needs the `serve`
+  extra too, so import it inside `mcp_reference`; a hand-written count left in a user page ("19 tools") → link the
+  reference instead, `grep -rn "19 tools\|20 tools" docs/` empty; a link with an anchor the site's slugs don't make
+  → `npm run docs` fails, so link pages, not headings; C22 already wrote the `script` paragraph in
+  `docs/guides/agents.md` → add only the reference link there, not a second paragraph.
+- **Stop if:** `CORE` or `FAMILIES` cannot be read without starting the MCP server, or the `script` tool (C23) or
+  `beamtime importance` (A23) is missing from the registry.
+
+User docs never named the MCP tools; agents read `beamtime guide`, users had only `cli.md`. The split with
+neighbours: C22 owns the guide topic `scripts` and the `script` paragraph in `docs/guides/agents.md`; Z21 owns the
+changelog and regenerates `cli.md` once more at the close. This ticket owns `mcp.md` and the one-line mentions.
+
+1. `docs/site/reference.py`: `MCP_OUT = OUT.with_name("mcp.md")`; `mcp_reference() -> str` imports `CORE` and
+   `FAMILIES` from `beamtime.mcp.server` inside the function. `MCP_INTRO` is an f-string like `INTRO`
+   (decision 19): agents connect through `beamtime setup` (or `beamtime mcp install`); `mcp_tools: core` lists
+   the {len(CORE)} core tools plus `tools_more`, which describes and calls the tools of the families
+   ({", ".join(FAMILIES)}), and `all` lists all {len(BY_TOOL)}; the `script` tool runs Python with `bt` preloaded,
+   with a three-line example (`a = bt.importance(from_="scaling/lr-sweep", target="metric.val/acc.max")`, then
+   a loop printing two fields of each of its rows, as the answer names them); the generated
+   marker comment as in `INTRO`.
+2. Sections: `## Core tools`, then `## Family: <name>` per `FAMILIES` key, each a `### \`<tool>\`` per tool:
+   summary, `CLI: \`beamtime <op.name>\``, and a table `| Parameter | Type | Default | |` over the same fields
+   `command` shows (no `cursor`, no hidden ones; positional ones included). Last `## Not for agents`: one line per
+   `op.user_only` op, `beamtime <name>` and its summary. A `typename(tp)` helper beside `choices`: `string`,
+   `integer`, `number`, `boolean`, `list of <x>`, `object` for a struct or dict, the literal choices joined by
+   `|`, ` or null` dropped (the default column shows it); about 20 lines.
+3. `__main__` writes both files. `INTRO` of `cli.md` gains one sentence linking `[MCP tools](mcp.md)`; regenerate
+   both. `tests/test_docs.py`: `test_the_mcp_reference_is_current`, the same shape as the `cli.md` test, calling
+   `mcp_reference`.
+4. `docs/nav.json`: `"reference/mcp.md"` after `cli.md`; `web/docs.mjs` `PAGE_ICONS`: `"reference/mcp.md": "plug"`.
+   `docs/guides/agents.md` § Connect: one line linking the reference.
+5. One or two lines each, no counts: `docs/quickstart.md` § 4 (a third ask, *"Which setting drives val/acc?"*, and
+   a link to the MCP reference); `docs/how-it-works.md` § Agents use the same things (the operations compute the
+   numbers, e.g. `importance`; Python an agent sends runs through the `script` tool); `docs/guides/setup.md`
+   § Agents (the MCP server's tools, `script` among them, linked to the reference); `docs/guides/settings.md`
+   l. 76: "`core` lists the core tools plus `tools_more`" with the reference linked, the count dropped.
+6. `docs/guides/views.md` l. 46: one line before it, the `importance` block shows which config fields drive a
+   metric (`importance: {target: metric.val/acc.max}`). `src/beamtime/guide/parts/views.md` table: a row
+   `| Which setting drives a metric? | \`importance\` with the metric as \`target\` |` after the `scatter` rows.
+
 ### Z21. Changelog and generated docs (sonnet) — code
 
-- **Touches:** `CHANGELOG.md`, `docs/reference/cli.md` (generated), `CLAUDE.md` § Project specifics and
+- **Touches:** `CHANGELOG.md`, `docs/reference/cli.md` and `docs/reference/mcp.md` (generated), `CLAUDE.md` § Project specifics and
   § Decisions so far.
 - **Check:** `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`;
   `cd web && npm ci && npm test && npm run build`; `uv run python scripts/release.py` as far as it checks the tree.
 - **Done:** the changelog lists `beamtime importance`, the `importance` block, the `script` MCP tool and
-  `beamtime script`, `from beamtime import bt` and the `block list` candidates; `docs/reference/cli.md` is current (`uv run python docs/site/reference.py`); the Goal's
+  `beamtime script`, `from beamtime import bt`, the `block list` candidates and the MCP tool reference
+  (`docs/reference/mcp.md`, Z22); `docs/reference/cli.md` and `mcp.md` are current (`uv run python docs/site/reference.py`); the Goal's
   "Confirmed by" commands all pass.
-- **Risks:** `docs/reference/cli.md` drifts once `importance` and `script` have a CLI path → the test that checks
-  it is current;
+- **Risks:** `docs/reference/cli.md` or `mcp.md` drifts once `importance` and `script` have a CLI path → the
+  tests that check they are current;
   a stale `src/beamtime/serve/static/` → CI fails, so confirm B22 committed the rebuild.
 - **Stop if:** the Goal's "Confirmed by" commands do not all pass; report which, rather than adjusting the Goal.
 
-1. Add the changelog entries under the unreleased heading, in the order the Goal lists them.
-2. Regenerate `docs/reference/cli.md` with `uv run python docs/site/reference.py` and commit it.
+1. Add the changelog entries under the unreleased heading, in the order the Goal lists them, then one for the
+   MCP tool reference (Z22).
+2. Regenerate `docs/reference/cli.md` and `mcp.md` with `uv run python docs/site/reference.py` and commit them.
 3. Update CLAUDE.md § Project specifics to name `importance` as implemented, the `script` tool as the
    programmatic path with `beamtime.bt` as its namespace (`src/beamtime/ops/script.py` in § Layout), and reword
    "Beamtime records experiments, it never runs them" to add that the one code it runs is the analysis an agent
