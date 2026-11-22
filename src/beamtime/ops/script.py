@@ -17,6 +17,8 @@ BOOTSTRAP = (
 )
 STDOUT_MAX = 20_000
 STDERR_MAX = 4_000
+# seconds to wait for the pipes after a kill: a grandchild outside the group may hold them.
+DRAIN = 2
 
 
 def script(ctx: Context, p: Any) -> dict[str, Any]:
@@ -28,11 +30,13 @@ def script(ctx: Context, p: Any) -> dict[str, Any]:
     env = {**os.environ, **({"BEAMTIME_AUTHOR": p.author} if p.author else {})}
     started = time.monotonic()
     child = subprocess.Popen(
-        [sys.executable, "-I", "-u", "-c", BOOTSTRAP],
+        # -X utf8: the pipes carry UTF-8 on every platform, not the locale's code page.
+        [sys.executable, "-I", "-X", "utf8", "-u", "-c", BOOTSTRAP],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         cwd=ctx.root,
         env=env,
         start_new_session=os.name == "posix",
@@ -43,7 +47,13 @@ def script(ctx: Context, p: Any) -> dict[str, Any]:
     except subprocess.TimeoutExpired:
         timed_out = True
         kill(child)
-        out, err = child.communicate()
+        try:
+            out, err = child.communicate(timeout=DRAIN)
+        except subprocess.TimeoutExpired as e:
+            out, err = text(e.output), text(e.stderr)
+            child.stdout.close()
+            child.stderr.close()
+            child.wait()
     cut = {}
     if len(out) > STDOUT_MAX:
         cut["stdout"] = len(out) - STDOUT_MAX
@@ -61,6 +71,16 @@ def script(ctx: Context, p: Any) -> dict[str, Any]:
         "seconds": round(time.monotonic() - started, 3),
         "cut": cut,
     }
+
+
+def text(data: bytes | str | None) -> str:
+    """Decode what a pipe gave before it was abandoned.
+
+    :param data: The bytes read so far, or ``None``.
+    :return: The text."""
+    if isinstance(data, bytes):
+        return data.decode("utf-8", errors="replace")
+    return data or ""
 
 
 def kill(child: subprocess.Popen) -> None:

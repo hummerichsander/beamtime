@@ -365,3 +365,9 @@ def test_threads_converting_at_once_do_not_crash_the_serve() -> None:
     don't crash the process; cold, this script segfaults most of the time."""
     for _ in range(3):
         assert subprocess.run([sys.executable, "-c", RACE]).returncode == 0
+
+
+def test_script_is_no_api_method(api) -> None:
+    """A POST to the API cannot run code: ``script`` is not a method."""
+    response = api("script", code="print(1)")
+    assert response.status_code >= 400 and "no API method 'script'" in response.text

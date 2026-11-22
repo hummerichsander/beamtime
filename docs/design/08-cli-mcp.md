@@ -164,8 +164,10 @@ operation's parameters as keyword arguments and returns its answer as a plain di
 
 - **The runner**: a child `python -I` of the interpreter that serves (MCP or CLI), working directory the
   project root, never the server process itself, so a hang or a crash cannot take the server down. A
-  `timeout` (default 60 s, at most 600 s) kills the child and its process group. Stdout is cut at 20,000
-  characters and stderr keeps its last 4,000; each cut is said in the answer. The answer is
+  `timeout` (default 60 s, at most 600 s) kills the child and its process group (the child alone on
+  Windows); a grandchild that left the group and still holds the pipes is not waited for beyond two
+  seconds. The pipes carry UTF-8 (`-X utf8`) on every platform, bytes that are not UTF-8 are replaced.
+  Stdout is cut at 20,000 characters and stderr keeps its last 4,000; each cut is said in the answer. The answer is
   `{kind: "script", stdout, stderr, exit, seconds, cut}`. `author` is the default author of writes made
   through `bt`.
 - **Reads are cached** in `.beamtime/bt-cache/` of the project root, because every script is a fresh

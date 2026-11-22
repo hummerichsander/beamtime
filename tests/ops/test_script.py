@@ -126,3 +126,30 @@ def test_script_reads_stdin_on_the_cli(project: Path) -> None:
         timeout=60,
     )
     assert done.returncode == 0 and done.stdout == "status\n", done.stderr
+
+
+def test_script_timeout_leaves_detached_children(ctx: Context) -> None:
+    """A grandchild in its own session keeps the pipes open; the answer still comes soon after the
+    timeout, with what was printed before it."""
+    if os.name != "posix":
+        pytest.skip("sessions are POSIX")
+    code = (
+        "import subprocess, sys\n"
+        "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'],"
+        " start_new_session=True)\n"
+        "print(p.pid, flush=True)\n"
+        "while True:\n    pass\n"
+    )
+    answer = run(ctx, code, timeout=1)
+    grandchild = int(answer["stdout"].split()[0])
+    try:
+        assert answer["exit"] is None and answer["seconds"] < 10
+    finally:
+        os.kill(grandchild, 9)
+
+
+def test_script_output_that_is_not_utf8(ctx: Context) -> None:
+    """Bytes that are not UTF-8 are replaced, not an error; non-ASCII text passes unchanged."""
+    code = "import sys\nprint('η² →', flush=True)\nsys.stdout.buffer.write(bytes([255]) + b' ok')"
+    answer = run(ctx, code)
+    assert answer["exit"] == 0 and answer["stdout"] == "η² →\n� ok"
