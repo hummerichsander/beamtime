@@ -122,6 +122,7 @@ READS = {
     "guide": {}, "view show": {"group": "scaling/lr-sweep"},
     "view history": {"group": "scaling/lr-sweep"}, "view outdated": {}, "block list": {},
     "settings": {}, "doctor": {}, "source list": {},
+    "importance": {"from": "scaling/lr-sweep", "target": "metric.val/acc.max"},
 }  # fmt: skip
 
 

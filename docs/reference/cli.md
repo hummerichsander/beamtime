@@ -226,6 +226,22 @@ beamtime timeline [from]
 | `--limit` |  | a number |
 | `--full` | `False` |  |
 
+### `beamtime importance`
+
+How strongly each config field relates to a target: Spearman and eta squared.
+
+```sh
+beamtime importance [from]
+```
+
+| Option | Default | |
+|---|---|---|
+| `--depth` | `all` | all, a number |
+| `--where` |  | field -> value or {op: value}; ops eq ne lt le gt ge in nin has exists glob; also any: [...], not: {...}. Fields: run.status, config.lr, metric.val/acc.max, metric.train/loss.mean[0:1000], value.test/acc |
+| `--hidden` | `False` | include hidden (test) runs |
+| `--target` | required |  |
+| `--fields` |  |  |
+
 ### `beamtime digest`
 
 One page on a group: statuses, check, best per setting, failures, notes, gaps.

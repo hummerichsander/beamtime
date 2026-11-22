@@ -147,6 +147,15 @@ def series(ctx: Context, p: r.SeriesParams) -> dict[str, Any]:
     return ask(ctx, {"series": q}, p.cursor)
 
 
+def importance(ctx: Context, p: r.ImportanceParams) -> dict[str, Any]:
+    """Answer how strongly config fields relate to a target.
+
+    :param ctx: The operation context.
+    :param p: The parameters.
+    :return: The answer."""
+    return ask(ctx, {"importance": body(p)}, p.cursor)
+
+
 def data(ctx: Context, p: r.DataParams) -> dict[str, Any]:
     """Answer logged tables, images and text.
 

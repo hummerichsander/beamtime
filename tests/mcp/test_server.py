@@ -103,7 +103,7 @@ def test_every_tool_is_core_or_in_one_family() -> None:
     members = [name for names in FAMILIES.values() for name in names]
     assert len(members) == len(set(members)) and set(members) <= set(BY_TOOL)
     assert set(CORE) | set(members) == set(BY_TOOL) and not set(CORE) & set(members)
-    assert len(CORE) == 19 and set(FAMILIES) == {"views", "blocks", "runs", "export"}
+    assert len(CORE) == 20 and set(FAMILIES) == {"views", "blocks", "runs", "export"}
 
 
 def test_tools_match_the_registry(project: Path) -> None:

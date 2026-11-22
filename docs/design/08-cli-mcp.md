@@ -52,7 +52,7 @@ wherever a group does.
 | `beamtime proposal show <group>` | `proposal_show` | the current proposal version, its earlier versions and their checks |
 | `beamtime plan missing <group>` | `plan_missing` | what the current proposal's plan still lacks: for a grid the points with neither a finished nor a running run, each as the config to launch with the status counts of earlier (failed) runs there; for `runs: N` how many are left |
 | `beamtime check <group>` | `check` | the predictions of the current proposal and their results |
-| `beamtime importance <group> --target <field>` | `importance` | hyperparameter importance (v1.1) |
+| `beamtime importance <group> --target <field>` | `importance` | how strongly each config field relates to a numeric `--target`: Spearman rank correlation, η² and the run count per field, ordered by η²; below ten finished runs a notice instead of rows |
 | `beamtime query <file or {…}>` | `query` | any query in its object form ([layer 3](03-index.md#query-language)) |
 
 ### Writing (CLI and MCP)
@@ -200,7 +200,7 @@ The tools are the operations above, without the user-only commands: 43 small too
 instructions list the user-only commands, generated from the registry (`user_only`), so the list cannot
 drift from the commands.
 
-- **A core set and a dispatcher.** The listing is the 19 core tools plus `tools_more`, fixed for the life of
+- **A core set and a dispatcher.** The listing is the 20 core tools plus `tools_more`, fixed for the life of
   the server (no `tools/list_changed`: Claude Code does not reload the list after one). `FAMILIES` in
   `mcp/server.py` holds the rest: `views` (`view_*`), `blocks` (`block_*`), `runs` (`wait`, `resume`,
   `output`, `file`, `timeline`, `digest`, `plan_missing`, `name`, `run_promote`) and `export` (`export`, `cp`); the core
@@ -369,7 +369,7 @@ The guide states these as defaults ([layer 5](05-views.md#defaults)):
   exist only in the CLI and are never run by agents.
 - Compact text output, identical in terminals and pipes; `--json` for the canonical answer. Exit codes
   distinguish errors, usage, validation failures and missing items.
-- MCP over stdio (`beamtime mcp`, also over ssh), with 19 core tools plus `tools_more` for the rest, nine prompts, and token
+- MCP over stdio (`beamtime mcp`, also over ssh), with 20 core tools plus `tools_more` for the rest, nine prompts, and token
   budgets with cursors.
 - `beamtime setup`, `demo`, `doctor` and `mcp install` cover onboarding.
 - Hidden runs are excluded from reads unless `--hidden`; `run promote` is the one agent write that brings

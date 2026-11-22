@@ -68,6 +68,12 @@ class RunsParams(q.Runs, kw_only=True):
     to: ExportTo = None
 
 
+class ImportanceParams(q.Importance, kw_only=True):
+    """Parameters of ``importance``."""
+
+    cursor: Cursor = None
+
+
 class CardParams(Params, kw_only=True):
     """Parameters of ``card``."""
 
@@ -962,6 +968,16 @@ METHODS = [
         impl=f"{W}:proposal_show",
         positional=("group",),
         summary="The current proposal, its earlier versions and their checks.",
+    ),
+    Op(
+        name="importance",
+        stale_on=("metrics", "status"),
+        kind="importance",
+        render=f"{F}:render_importance",
+        params=ImportanceParams,
+        impl=f"{R}:importance",
+        positional=("from_",),
+        summary="How strongly each config field relates to a target: Spearman and eta squared.",
     ),
     Op(
         name="check",

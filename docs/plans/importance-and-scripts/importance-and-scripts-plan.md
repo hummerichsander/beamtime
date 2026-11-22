@@ -318,7 +318,7 @@ same selection every other kind uses, then A21's two functions.
    least 10", "meta": …}`. Otherwise rows sorted by `abs(spearman)` then `eta_squared`, descending.
 5. Each row carries `n`, the runs it rests on. Remove `importance` from the exclusion that builds `LIVE_KINDS`.
 
-### A23. The `importance` operation (sonnet) — code
+### A23. The `importance` operation (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/ops/registry.py` (new `ImportanceParams` near `CheckParams`; new `Op` beside `check`
   966–974), `src/beamtime/ops/reading.py` (new `importance`), `src/beamtime/ops/answers.py` (the

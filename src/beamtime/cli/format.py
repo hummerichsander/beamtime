@@ -163,7 +163,7 @@ def meta_line(answer: dict[str, Any], noun: str, shown: int) -> str:
     meta = answer.get("meta", {})
     parts = []
     matched = meta.get("matched")
-    if noun in ("seed means", "curves", "groups"):
+    if noun in ("seed means", "curves", "groups", "fields"):
         parts.append(f"{shown} {noun} from {matched} runs")
     elif matched is not None and matched != shown:
         parts.append(f"{shown} of {matched} {noun}")
@@ -232,6 +232,27 @@ def render_series(answer: dict[str, Any]) -> str:
     :return: The text."""
     lines = [curve_line(c) for c in answer["curves"]]
     lines.append(meta_line(answer, "curves", len(answer["curves"])))
+    return "\n".join(lines)
+
+
+def render_importance(answer: dict[str, Any]) -> str:
+    """Render the importance of config fields, one row each, in the answer's order.
+
+    :param answer: An ``importance`` answer.
+    :return: The text."""
+    if not answer["rows"]:
+        return f"{answer['target']}: {answer['notice']}"
+    rows = [
+        [
+            r["field"],
+            "—" if r["spearman"] is None else num(r["spearman"]),
+            num(r["eta_squared"]),
+            r["n"],
+        ]
+        for r in answer["rows"]
+    ]
+    lines = table(["field", "spearman", "eta_squared", "n"], rows)
+    lines.append(meta_line(answer, "fields", len(rows)))
     return "\n".join(lines)
 
 

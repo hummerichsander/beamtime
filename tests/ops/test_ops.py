@@ -159,6 +159,32 @@ def test_reading_operations_wrap_queries(ctx: Context) -> None:
     assert q["kind"] == "groups"
 
 
+def test_importance_wraps_the_query(ctx: Context) -> None:
+    """The operation answers like the query kind, and its text names both measures."""
+    params = {"from": "scaling/lr-sweep", "target": "metric.val/acc.max"}
+    a = call("importance", params, ctx)
+    b = run_query({"importance": params}, logdir=ctx.logdir)
+    assert a["rows"] == b["rows"] and a["rows"]
+    text = render(a)
+    assert "spearman" in text and "eta_squared" in text and "config.lr" in text
+    assert text.splitlines()[-1].startswith(f"{len(a['rows'])} fields from 15 runs")
+
+
+def test_importance_empty(ctx: Context) -> None:
+    """A group without runs answers with the notice, not an error."""
+    (ctx.logdir / "empty").mkdir()
+    a = call("importance", {"from": "empty", "target": "metric.val/acc.max"}, ctx)
+    assert a["rows"] == [] and "importance needs at least 10" in a["notice"]
+    assert "importance needs at least 10" in render(a)
+
+
+def test_importance_needs_target(ctx: Context) -> None:
+    """A call without ``target`` is an error naming it."""
+    with pytest.raises(OpError) as e:
+        call("importance", {"from": "scaling/lr-sweep"}, ctx)
+    assert e.value.code == 2 and "target" in str(e.value)
+
+
 def test_status_counts_visible_runs(ctx: Context, project: Path) -> None:
     """``status`` leaves hidden runs out of its counts."""
     before = sum(call("status", {}, ctx)["runs"].values())

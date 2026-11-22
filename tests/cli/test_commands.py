@@ -85,6 +85,18 @@ def test_flags_map_onto_queries(project: Path) -> None:
     assert lines[-1].startswith("3 of 9 runs")
 
 
+def test_importance_prints_a_table_and_equals_the_query(project: Path) -> None:
+    """The command prints one row per field; ``query`` gives the same answer."""
+    args = ("scaling/lr-sweep", "--target", "metric.val/acc.max")
+    lines = beamtime(project, "importance", *args).stdout.splitlines()
+    assert lines[0].split() == ["field", "spearman", "eta_squared", "n"]
+    assert lines[1].split()[0] == "config.lr"
+    via_op = json.loads(beamtime(project, "importance", *args, "--json").stdout)
+    query = '{"importance": {"from": "scaling/lr-sweep", "target": "metric.val/acc.max"}}'
+    via_query = json.loads(beamtime(project, "query", query, "--json").stdout)
+    assert via_op["rows"] == via_query["rows"]
+
+
 def test_series_steps_and_query_argument(project: Path) -> None:
     """--steps takes first:last; query takes inline YAML flow or JSON."""
     args = ("series", "tokenizer", "-y", "val/ppl", "--steps", "0:500", "--points", "10", "--json")
