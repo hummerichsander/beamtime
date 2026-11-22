@@ -159,7 +159,7 @@ MCP server, started by an agent client). Both register in the process registry, 
 answers sends the code in one call, and the answers stay in variables instead of passing through the
 conversation. `bt` is a namespace in which every non-user-only operation is a function that takes the
 operation's parameters as keyword arguments and returns its answer as a plain dict, so
-`bt.importance(group="long/schedules", target="config.lr")` leaves the answer in a variable. The caller is
+`bt.importance(from_="long/schedules", target="config.lr")` leaves the answer in a variable. The caller is
 `view`, so answers are whole and unpaged.
 
 - **The runner**: a child `python -I` of the interpreter that serves (MCP or CLI), working directory the
@@ -274,7 +274,6 @@ MCP prompts appear as slash commands in clients such as Claude Code (`/beamtime:
 | `debug` | find out why a run failed, from its output, card and curves |
 | `verdict` | evaluate a proposal against its runs and write a verdict note |
 | `compare` | compare two runs or groups: config differences, metric deltas, and a temporary view if it helps |
-| `report` | summarize a group for others: findings, verdicts, open questions, as a view or an export |
 | `memory` | update and compact a group's memory from the notes added since it was last written |
 | `migrate` | fold existing notes and memory files into typed notes and the memory, and an instruction file's experiment section into Beamtime ([setup](10-setup.md#the-migrate-prompt)) |
 
@@ -399,7 +398,7 @@ The guide states these as defaults ([layer 5](05-views.md#defaults)):
   exist only in the CLI and are never run by agents.
 - Compact text output, identical in terminals and pipes; `--json` for the canonical answer. Exit codes
   distinguish errors, usage, validation failures and missing items.
-- MCP over stdio (`beamtime mcp`, also over ssh), with 21 core tools plus `tools_more` for the rest, nine prompts, and token
+- MCP over stdio (`beamtime mcp`, also over ssh), with 21 core tools plus `tools_more` for the rest, eight prompts, and token
   budgets with cursors.
 - `beamtime setup`, `demo`, `doctor` and `mcp install` cover onboarding.
 - Hidden runs are excluded from reads unless `--hidden`; `run promote` is the one agent write that brings

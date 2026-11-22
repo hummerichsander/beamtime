@@ -13,6 +13,9 @@ beamtime mcp install --client cursor     # or codex, vscode, gemini, ...
 `--instructions` writes Beamtime's rules into a marked block in `CLAUDE.md` (or `AGENTS.md`); a
 rerun updates it.
 
+Every tool the agent gets, `script` and `importance` among them, is listed in the [MCP
+tools](../reference/mcp.md).
+
 ## What to ask
 
 - *"How did last night's runs go?"*

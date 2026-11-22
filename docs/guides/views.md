@@ -43,7 +43,8 @@ beamtime view render lr-sweep             # a screenshot
 beamtime view save lr-sweep               # the page shows it now
 ```
 
-`beamtime guide blocks` lists every block and its options.
+The `importance` block shows which config fields drive a metric
+(`importance: {target: metric.val/acc.max}`). `beamtime guide blocks` lists every block and its options.
 
 ## Custom blocks
 

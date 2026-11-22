@@ -21,7 +21,7 @@ const PAGE_ICONS = {
   "index.md": "house", "quickstart.md": "rocket", "how-it-works.md": "lightbulb",
   "guides/agents.md": "bot", "guides/research-record.md": "target", "guides/views.md": "layout-panel-top",
   "guides/cluster.md": "server", "guides/remotes.md": "network", "guides/lightning.md": "zap",
-  "guides/export.md": "share-2", "guides/settings.md": "settings", "reference/cli.md": "terminal",
+  "guides/export.md": "share-2", "guides/settings.md": "settings", "reference/cli.md": "terminal", "reference/mcp.md": "plug",
 };
 const icons = await loadIcons([
   ...new Set([...Object.values(PAGE_ICONS), "file-text", "search", "sun", "moon", "monitor", "panel-left",

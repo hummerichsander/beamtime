@@ -73,8 +73,8 @@ agent:
 - The keys guide agents; nothing enforces them.
 - `proposal_words` counts statement, rationale and prediction descriptions; `beamtime proposal set`
   warns beyond it and still writes.
-- `mcp_tools: core` lists 19 tools plus `tools_more` (views, blocks, run control, export); `all`
-  lists every tool.
+- `mcp_tools: core` lists the core tools plus `tools_more` (views, blocks, run control, export);
+  `all` lists every tool; see the [MCP tools](../reference/mcp.md).
 - An unknown key or value falls back to the default; `beamtime settings` and `beamtime doctor`
   report it.
 - After a change, `beamtime setup` offers to rewrite the rules block.

@@ -46,7 +46,9 @@ beamtime mcp install    # Claude Code; done already if you picked it in setup
 ```
 
 Ask *"How did last night's runs go?"* or *"Build a page that shows which time step keeps the energy
-stable."* Cursor, Codex and what agents may do: [Working with an agent](guides/agents.md).
+stable."* Or *"Which setting drives val/acc?"*, which the `importance` tool answers from the runs.
+Cursor, Codex and what agents may do: [Working with an agent](guides/agents.md); their tools:
+[MCP tools](reference/mcp.md).
 
 ## Next
 

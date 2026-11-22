@@ -647,7 +647,7 @@ differ only by the `script` tool, so a candidate is a task where code over the o
 
 ## Z. Close
 
-### Z22. User docs for MCP tools, the script tool and importance (sonnet) — code
+### Z22. User docs for MCP tools, the script tool and importance (sonnet) — code — **done**
 
 - **Touches:** `docs/site/reference.py` (`OUT` l. 16, `INTRO` l. 26–33, `reference` l. 36, `__main__` l. 127–129),
   new `docs/reference/mcp.md` (generated), `docs/reference/cli.md` (regenerated: one intro line),

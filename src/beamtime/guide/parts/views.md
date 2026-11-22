@@ -53,6 +53,7 @@ forking, validating and saving are in `guide library`.
   | Which setting is best, over seeds? | `scorecard`: a row per setting, mean ± std per metric |
   | How does a metric depend on one parameter? | `scatter` with `seeds` and a `fit` if it helps |
   | How do two parameters interact? | `scatter` colored by one |
+  | Which setting drives a metric? | `importance` with the metric as `target` |
   | Does a change help? | `bar` grouped by the change, with error bars |
   | What does a run produce? | `images`, `text`, `data_table` |
   | Where does the research stand? | `proposal`, `groups`, `timeline`, `memory` |
