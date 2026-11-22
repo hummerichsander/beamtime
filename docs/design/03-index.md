@@ -493,7 +493,15 @@ importance: {from: scaling/lr-sweep, target: metric.val/acc.max, fields: [config
 
 Returns, per field, the Spearman rank correlation with the target (numeric fields) and the share of
 the target's variance explained by grouping on the field (η², numeric fields in quantile bins), plus
-the number of runs. Without `fields`, every config key that varies in scope is used.
+the number of runs. Without `fields`, every config key that varies in scope is used (the `varying` keys
+of `keys`); a field constant across the runs is left out.
+
+The answer is `{kind: importance, target, rows, notice, meta}`; a row is `{field, spearman,
+eta_squared, n}`, sorted by the absolute Spearman correlation, then η², and `spearman` is null for a
+non-numeric field (η² groups on its distinct values). Only finished, visible runs with a finite target
+count, and a run whose field value is missing, NaN or infinite drops out of that field's row alone,
+so `n` is per row. The target must be one number per run (`metric.<key>.<stat>` or `value.<key>`).
+Below ten runs `rows` is empty and `notice` says how many there were.
 
 **`file`**: a data file stored with a view ([layer 1](01-storage.md#views-in-storage)).
 
@@ -605,7 +613,6 @@ MCP has one tool per kind (`keys`, `runs`, `series`, `data`, `timeline`, `groups
   GPFS is refused for the temporary one, and `status` says why.
 - **Run facts come from the index**: `compare` and `digest` read config, card statistics, code,
   status and error from the indexed rows, not from each run's files.
-- **Not yet**: `importance` for v1.1.
 
 ## Decisions
 

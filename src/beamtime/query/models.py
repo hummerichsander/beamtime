@@ -172,7 +172,7 @@ class File(Struct, kw_only=True):
 
 
 class Importance(Selection, kw_only=True):
-    """How strongly config fields relate to a target (v1.1)."""
+    """How strongly config fields relate to a target."""
 
     target: str
     fields: list[str] | None = None
@@ -190,8 +190,7 @@ KINDS: dict[str, type[Struct]] = {
 }
 
 
-# importance answers only an error until v1.1, so the kinds a caller may ask for leave it out.
-LIVE_KINDS = tuple(kind for kind in KINDS if kind != "importance")
+LIVE_KINDS = tuple(KINDS)
 QueryBody = Annotated[
     dict[str, Any], msgspec.Meta(description=f"one kind: {', '.join(LIVE_KINDS)}")
 ]

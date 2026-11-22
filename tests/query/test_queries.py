@@ -750,7 +750,7 @@ def test_csv_bom(tmp_path: Path) -> None:
         ({"runs": {"from": "@cluster/x"}}, "invalid", "no source @cluster"),
         ({"runs": {"where": {"proposal.chek": "pass"}}}, "invalid", "proposal.check"),
         ({"groups": {"where": {"config.lr": 1}}}, "invalid", "proposal.*"),
-        ({"importance": {"target": "metric.val/acc.max"}}, "invalid", "v1.1"),
+        ({"importance": {"target": "metric.val/acc.max", "fields": ["run.name"]}}, "invalid", "config"),
         ({"runs": {"from": "../.."}}, "invalid", "leaves the log dir"),
         ({"runs": {"where": {"config.lr": {"less": 1}}}}, "invalid", "operators"),
         ({"series": {"y": ["train/loss"], "steps": [1]}}, "invalid", "steps"),
@@ -1284,3 +1284,98 @@ def test_hidden_events_in_timeline(hide) -> None:
     query = {"from": "scaling/lr-sweep", "full": True, "limit": 10000}
     assert run_dir.name not in json.dumps(ask({"timeline": query}))
     assert run_dir.name in json.dumps(ask({"timeline": query | {"hidden": True}}))
+
+
+@pytest.fixture(scope="module")
+def importance(tmp_path_factory: pytest.TempPathFactory):
+    """Answer queries on a sweep where ``opt`` drives the score and ``lr`` barely does.
+
+    Folder ``sweep`` has 16 finished runs, one with a missing score, one with an infinite ``lr``
+    and one with a NaN ``lr``; ``few`` has five.
+
+    :param tmp_path_factory: Pytest's temporary directory factory.
+    :return: A function from query to answer."""
+    logdir = tmp_path_factory.mktemp("importance") / "beamtime"
+    gen = Generator(logdir=logdir, seed=0, scale=SCALES["s"], now=datetime.now(timezone.utc))
+
+    def write(folder: str, config: dict, score: float | None) -> None:
+        key = "score" if score is not None else "other"
+        rows = [{"_step": s, "_t": 1000.0 + s, "loss": 1.0, key: score or 0.0} for s in range(3)]
+        gen.write_run(gen.spec(logdir / folder, config, rows))
+
+    for i in range(16):
+        write("sweep", {"lr": i + 1, "opt": "ab"[i % 2], "const": 1}, 10.0 * (i % 2) + 0.01 * i)
+    write("sweep", {"lr": 17, "opt": "a", "const": 1}, None)
+    write("sweep", {"lr": float("inf"), "opt": "a", "const": 1}, 0.0)
+    write("sweep", {"lr": float("nan"), "opt": "b", "const": 1}, 10.0)
+    for i in range(5):
+        write("few", {"lr": i + 1, "opt": "ab"[i % 2]}, float(i))
+    index = Index(logdir=logdir, cache=tmp_path_factory.mktemp("importance-cache"))
+    index.catch_up(".", budget_s=float("inf"))
+
+    def answer(query: dict) -> dict:
+        return run({"importance": query}, logdir=logdir, index=index)
+
+    yield answer
+    index.close()
+
+
+def test_importance(ask) -> None:
+    """A swept numeric field gets both measures and the runs they rest on."""
+    a = ask({"importance": {"from": "scaling/lr-sweep", "target": "metric.val/acc.max"}})
+    rows = {r["field"]: r for r in a["rows"]}
+    assert a["kind"] == "importance" and a["notice"] is None
+    assert set(rows) == {"config.lr", "config.seed"}
+    lr = rows["config.lr"]
+    assert lr["n"] == 15 and -1 <= lr["spearman"] <= 1 and 0 <= lr["eta_squared"] <= 1
+    assert [r["field"] for r in a["rows"]] == sorted(
+        rows, key=lambda f: (-abs(rows[f]["spearman"]), -rows[f]["eta_squared"])
+    )
+
+
+def test_importance_categorical(importance) -> None:
+    """A text field has no rank correlation; η² groups on its values."""
+    (row,) = importance({"from": "sweep", "target": "metric.score.last", "fields": ["config.opt"]})["rows"]
+    assert row["spearman"] is None and row["eta_squared"] > 0.99 and row["n"] == 18
+
+
+def test_importance_constant_field(importance) -> None:
+    """A field every run shares is left out, whether asked for or found."""
+    a = importance({"from": "sweep", "target": "metric.score.last", "fields": ["config.const"]})
+    assert a["rows"] == [] and a["notice"] is None
+    found = importance({"from": "sweep", "target": "metric.score.last"})
+    assert {r["field"] for r in found["rows"]} == {"config.lr", "config.opt"}
+
+
+def test_importance_too_few_runs(importance) -> None:
+    """Below ten finished runs the answer is a notice without rows."""
+    a = importance({"from": "few", "target": "metric.score.last"})
+    assert a["rows"] == [] and a["notice"] == "5 finished runs; importance needs at least 10"
+
+
+def test_importance_missing_target(importance) -> None:
+    """A run without the target is not one of the 19 in the sweep a row rests on."""
+    rows = {r["field"]: r for r in importance({"from": "sweep", "target": "metric.score.last"})["rows"]}
+    assert rows["config.opt"]["n"] == 18 and rows["config.lr"]["n"] == 16
+
+
+def test_importance_drops_nonfinite(importance) -> None:
+    """A NaN or infinite field value drops the run from that row, not from the others."""
+    rows = {r["field"]: r for r in importance({"from": "sweep", "target": "metric.score.last"})["rows"]}
+    assert rows["config.lr"]["n"] == 16 and rows["config.opt"]["n"] == 18
+    assert rows["config.lr"]["spearman"] is not None
+
+
+def test_importance_refuses_a_target_that_is_not_a_number(ask) -> None:
+    """A target that reads as text is an error, not an aggregation to invent."""
+    with pytest.raises(QueryError, match="one number per run"):
+        ask({"importance": {"from": "scaling/lr-sweep", "target": "config.model"}})
+
+
+def test_importance_bins_keep_ties_together() -> None:
+    """Quantile bins are at most four and never split equal values."""
+    from beamtime.query.kinds import importance_bins
+
+    ys = [float(i) for i in range(8)]
+    assert [len(b) for b in importance_bins(list(range(8)), ys, True)] == [2, 2, 2, 2]
+    assert [len(b) for b in importance_bins([1, 1, 1, 1, 1, 1, 2, 2], ys, True) if b] == [6, 2]

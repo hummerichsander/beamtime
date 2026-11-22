@@ -270,7 +270,7 @@ statistic in Beamtime.
    sum of squares, both with `math.fsum`. `None` when the total is zero or fewer than two bins are non-empty.
 4. Tests give each function hand-computed values written out in the test, not regenerated from the code.
 
-### A22. The `importance` query kind (sonnet + review) — code
+### A22. The `importance` query kind (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/query/kinds.py` (`importance_kind` 756–762 replaced, `KINDS` 765–774),
   `src/beamtime/query/models.py` (`LIVE_KINDS` 194), `tests/query/test_queries.py`.

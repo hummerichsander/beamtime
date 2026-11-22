@@ -256,7 +256,7 @@ beamtime query
 
 | Option | Default | |
 |---|---|---|
-| `--query` | required | one kind: keys, runs, series, data, timeline, groups, file |
+| `--query` | required | one kind: keys, runs, series, data, timeline, groups, file, importance |
 
 ## Proposals, notes and memory
 

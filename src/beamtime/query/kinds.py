@@ -3,6 +3,7 @@
 import json
 import math
 import sys
+from bisect import bisect_right
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -42,8 +43,10 @@ from beamtime.query.select import (
     select_runs,
 )
 from beamtime.query.where import fields_of, matches
+from beamtime.record.stats import eta_squared, spearman
 
 CHART_BUDGET = 30_000
+IMPORTANCE_MIN_RUNS = 10
 
 
 def runs_kind(ctx: Context, q: m.Runs) -> dict[str, Any]:
@@ -754,12 +757,92 @@ def groups_kind(ctx: Context, q: m.Groups) -> dict[str, Any]:
 
 
 def importance_kind(ctx: Context, q: m.Importance) -> dict[str, Any]:
-    """Refuse importance queries until v1.1.
+    """Answer how strongly config fields relate to a target, one field at a time.
 
     :param ctx: The query context.
     :param q: The query.
-    :return: Never returns."""
-    raise QueryError("importance comes in v1.1; use a runs query sorted by the target for now")
+    :return: ``{target, rows, notice, meta}``; a row is ``{field, spearman, eta_squared, n}``
+        and ``spearman`` is None for a non-numeric field. Below ten finished runs the rows are
+        empty and ``notice`` says why."""
+    given = list(q.fields or [])
+    for text in given:
+        if parse_field(text).ns != "config":
+            raise QueryError(f"importance: fields are config.* keys, not {text!r}")
+    runs, _ = select_runs(ctx, q, [q.target, "run.status", *given], config=True)
+    runs = [r for r in runs if r["run.status"] == "finished" and r[q.target] is not None]
+    if not all(is_number(r[q.target]) for r in runs):
+        raise QueryError(f"importance: {q.target!r} must be one number per run")
+    runs = [r for r in runs if math.isfinite(r[q.target])]
+    answer = {"kind": "importance", "target": q.target, "rows": [], "notice": None}
+    if len(runs) < IMPORTANCE_MIN_RUNS:
+        answer["notice"] = (
+            f"{len(runs)} finished runs; importance needs at least {IMPORTANCE_MIN_RUNS}"
+        )
+        return answer | {"meta": meta(ctx, matched=len(runs))}
+
+    if given:
+        fields = given
+        per_run = [{f: r[f] for f in given} for r in runs]
+    else:
+        flat = [flatten(json.loads(r["_config"] or "{}")) for r in runs]
+        fields = distinguishing(flat).varying
+        per_run = [{f"config.{k}": v for k, v in cfg.items()} for cfg in flat]
+    rows = []
+    for field in fields:
+        pairs = [
+            (cfg[field], r[q.target]) for cfg, r in zip(per_run, runs, strict=True) if field in cfg
+        ]
+        pairs = [(x, y) for x, y in pairs if x is not None and not nonfinite(x)]
+        if len({json.dumps(x, sort_keys=True) for x, _ in pairs}) < 2:
+            continue
+        xs, ys = [x for x, _ in pairs], [y for _, y in pairs]
+        numeric = all(is_number(x) for x in xs)
+        rows.append(
+            {
+                "field": field,
+                "spearman": spearman(xs, ys) if numeric else None,
+                "eta_squared": eta_squared(importance_bins(xs, ys, numeric)),
+                "n": len(pairs),
+            }
+        )
+    rows.sort(key=lambda r: (abs(r["spearman"] or 0.0), r["eta_squared"] or 0.0), reverse=True)
+    return answer | {"rows": rows, "meta": meta(ctx, matched=len(runs))}
+
+
+def is_number(value: Any) -> bool:
+    """Tell a number from everything else; a boolean is a category.
+
+    :param value: A value read from a run.
+    :return: Whether it is an int or a float."""
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
+def nonfinite(value: Any) -> bool:
+    """Tell NaN and infinity from every other value.
+
+    :param value: A value read from a run.
+    :return: Whether it is a float that is not finite."""
+    return isinstance(value, float) and not math.isfinite(value)
+
+
+def importance_bins(xs: list[Any], ys: list[float], numeric: bool) -> list[list[float]]:
+    """Group the targets by the field's value: its distinct values, or four quantile bins.
+
+    :param xs: The field's value per run.
+    :param ys: The target per run.
+    :param numeric: Whether the field is numeric.
+    :return: The targets of each bin; ties at a quantile edge keep equal values together."""
+    if not numeric:
+        bins: dict[str, list[float]] = defaultdict(list)
+        for x, y in zip(xs, ys, strict=True):
+            bins[json.dumps(x, sort_keys=True)].append(y)
+        return list(bins.values())
+    ordered = sorted(xs)
+    edges = sorted({ordered[len(ordered) * i // 4] for i in (1, 2, 3)})
+    binned: list[list[float]] = [[] for _ in range(len(edges) + 1)]
+    for x, y in zip(xs, ys, strict=True):
+        binned[bisect_right(edges, x)].append(y)
+    return binned
 
 
 KIND_FUNCTIONS = {

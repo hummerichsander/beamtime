@@ -51,8 +51,8 @@ def test_smooth_is_the_flat_number() -> None:
 
 
 def test_code_kinds_follow_the_query_kinds() -> None:
-    """Custom blocks may declare every query kind but ``importance``."""
-    assert code.KINDS == tuple(k for k in models.KINDS if k != "importance")
+    """Custom blocks may declare every query kind."""
+    assert code.KINDS == tuple(models.KINDS)
 
 
 def test_query_tool_lists_the_kinds() -> None:
