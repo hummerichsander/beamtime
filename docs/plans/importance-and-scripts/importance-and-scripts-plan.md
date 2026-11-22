@@ -205,6 +205,11 @@ in this order: S21 A21 A22 A23 B21 B22 S22 C21 C23 C22 D21 E21 E22 Z22 Z21 E23
     block only when their code is. Rejected: the listed group's subtree, which hides a block's use in a sibling
     group, the signal that it is worth promoting; keying query-less blocks by their empty `queries`, which merged
     every unrelated data-less block into one candidate.
+24. **A gap's score bound is one-sided** (E22 review; decided by the reviewer): a candidate's mean script score
+    may be at most `GAP_SCORE` below mcp's, with no bound above, so a cheaper and better script session is listed;
+    the gap-judgement log lives in `bench/agents/README.md` under **Gap judgements**, and an inconclusive batch
+    lists only the rows that meet the rule. Rejected: reading "within 0.02" as an absolute difference, which hid
+    the strongest candidates, the ones where code over the operations is both cheaper and more accurate.
 
 ## S. Spec
 

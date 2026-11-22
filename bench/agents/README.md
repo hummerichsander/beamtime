@@ -136,27 +136,6 @@ with a `bt.py` copy and a refusing `beamtime`) are a different instrument and ar
 the new ones.
 `files` and `tensorboard` are the baselines and run on every seed.
 
-**The gap detector.** `uv run python bench/agents/compare/sessions.py --setups mcp script --reps 3`
-runs the two arms on every task and seed; `tables.py` then writes a **Gaps** section into `results.md`.
-It pairs the arms on (task, seed, rep) over the sessions both ran, leaves out tasks marked
-`states_procedure`, and lists a task as a candidate when script's median total tokens are at most
-`tables.GAP_RATIO` (0.85) of mcp's and its mean score is within `tables.GAP_SCORE` (0.02) of mcp's: a
-cheaper wrong answer is not a gap. The table has an empty **missing construct** column. A batch with
-fewer than two reps heads the section "Inconclusive" (one rep cannot separate a gap from session
-variance, finding 7 of the plan) and still lists its rows; a batch without both arms has no section.
-Read it like this: a candidate becomes work only when its missing construct can be named as a query
-construct or operation that would have spared the script; if it cannot be named, the win is wording,
-variance or a procedure the prompt states, and it stays a candidate. Record for each candidate why it
-was accepted or rejected as a line under **Gap judgements** below, so the next run starts from the
-last judgement. Running the detector costs billed sessions and is the user's step.
-
-**Gap judgements** (task, batch, verdict and why):
-
-- `drivers`, accepted: script beat mcp at 0.69x tokens on three seeds and four arm revisions; the missing
-  construct was a measure of which setting drives a metric, now the `importance` query kind.
-- `check-all`, rejected: the prompt spells out the t-interval procedure and `beamtime check` already does
-  it; the task is marked `states_procedure` and the detector leaves it out.
-
 - `compare/data.py`: `make_logdir(dest, seed=, now=)` writes a scale `s` log dir (47 runs, five groups)
   at `dest/beamtime` and strips what states the answers: `_synth.json`, every `proposal/`, `notes/` and
   `memory/` folder outside runs, and `proposals`/`proposal_hashes` in each `_run.json` (its mtime, the
@@ -349,3 +328,24 @@ last judgement. Running the detector costs billed sessions and is the user's ste
   longer holds (two, planted: `lion-beats-adamw` inconclusive to confirmed, `sgd-under` confirmed to
   inconclusive) with `f1` on the names (`field: name`; `f1` reads `id` unless the check names a field) and
   `keyed` on `new`. With these two the comparison has 14 tasks, 182 sessions per model and repetition (cli on one seed).
+
+**The gap detector.** `uv run python bench/agents/compare/sessions.py --setups mcp script --reps 3`
+runs the two arms on every task and seed; `tables.py` then writes a **Gaps** section into `results.md`.
+It pairs the arms on (task, seed, rep) over the sessions both ran, leaves out tasks marked
+`states_procedure`, and lists a task as a candidate when script's median total tokens are at most
+`tables.GAP_RATIO` (0.85) of mcp's and its mean score is at most `tables.GAP_SCORE` (0.02) below
+mcp's: a cheaper wrong answer is not a gap, a cheaper better one is. The table has an empty **missing construct** column. A batch with
+fewer than two reps heads the section "Inconclusive" (one rep cannot separate a gap from session
+variance, finding 7 of the plan) and still lists its rows; a batch without both arms has no section.
+Read it like this: a candidate becomes work only when its missing construct can be named as a query
+construct or operation that would have spared the script; if it cannot be named, the win is wording,
+variance or a procedure the prompt states, and it stays a candidate. Record for each candidate why it
+was accepted or rejected as a line under **Gap judgements** below, so the next run starts from the
+last judgement. Running the detector costs billed sessions and is the user's step.
+
+**Gap judgements** (task, batch, verdict and why):
+
+- `drivers`, accepted: script beat mcp at 0.69x tokens on three seeds and four arm revisions; the missing
+  construct was a measure of which setting drives a metric, now the `importance` query kind.
+- `check-all`, rejected: the prompt spells out the t-interval procedure and `beamtime check` already does
+  it; the task is marked `states_procedure` and the detector leaves it out.

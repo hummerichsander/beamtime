@@ -382,6 +382,21 @@ def test_gaps_cheaper_but_wrong_is_no_gap(tmp_path: Path) -> None:
     assert "| best-config |" not in "\n".join(tables.gaps(batch))
 
 
+def test_gaps_cheaper_and_better_is_a_gap(tmp_path: Path) -> None:
+    """A cheaper session that scores higher than mcp's is a candidate.
+
+    :param tmp_path: The pytest temporary folder."""
+    batch = gap_batch(
+        tmp_path / "b",
+        {
+            ("best-config", "mcp"): (1000, 0.5),
+            ("best-config", "script"): (500, 1.0),
+        },
+    )
+
+    assert "| best-config | 500 | 1,000 | 0.50x | 1.00 | 0.50 |  |" in "\n".join(tables.gaps(batch))
+
+
 def test_gaps_without_script(tmp_path: Path) -> None:
     """A batch without script sessions has no gaps section.
 

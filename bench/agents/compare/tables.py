@@ -26,7 +26,7 @@ OUT = Path(__file__).resolve().parents[1] / "results"
 TARGET = 1.5
 # the gap detector: script is a candidate when its median tokens are at most this share of mcp's.
 GAP_RATIO = 0.85
-# ... and its mean score is within this of mcp's, so a cheaper wrong answer is no gap.
+# ... and its mean score at most this below mcp's, so a cheaper wrong answer is no gap.
 GAP_SCORE = 0.02
 COLUMNS = ["n", "tokens", "uncached", "cost", "seconds", "turns", "tool calls", "score", "correct"]
 
@@ -175,8 +175,8 @@ def goal(batch: Batch) -> list[str]:
 def gaps(batch: Batch) -> list[str]:
     """List the tasks where script beats mcp on the sessions both ran, as candidate gaps.
 
-    A candidate has median script tokens at most ``GAP_RATIO`` of mcp's and a mean score within
-    ``GAP_SCORE`` of mcp's. Tasks whose prompt states an operation's procedure are left out.
+    A candidate has median script tokens at most ``GAP_RATIO`` of mcp's and a mean score at most
+    ``GAP_SCORE`` below mcp's. Tasks whose prompt states an operation's procedure are left out.
 
     :param batch: The batch.
     :return: The lines of the gaps section, none without both setups."""
@@ -198,7 +198,7 @@ def gaps(batch: Batch) -> list[str]:
         tokens = [statistics.median(r["tokens"]["total"] for r in rows) for rows in (script, mcp)]
         scores = [statistics.fmean(r["score"] for r in rows) for rows in (script, mcp)]
         ratio = tokens[0] / tokens[1]
-        if ratio <= GAP_RATIO and abs(scores[0] - scores[1]) <= GAP_SCORE:
+        if ratio <= GAP_RATIO and scores[0] >= scores[1] - GAP_SCORE:
             body.append(
                 [task, f"{tokens[0]:,.0f}", f"{tokens[1]:,.0f}", f"{ratio:.2f}x"]
                 + [f"{scores[0]:.2f}", f"{scores[1]:.2f}", ""]
@@ -212,7 +212,7 @@ def gaps(batch: Batch) -> list[str]:
         ]
     lines += [
         f"Tasks where script's median tokens are at most {GAP_RATIO}x mcp's on the sessions "
-        f"both ran, with a mean score within {GAP_SCORE} of mcp's. A candidate becomes work "
+        f"both ran, with a mean score at most {GAP_SCORE} below mcp's. A candidate becomes work "
         "only when its missing construct can be named.",
         "",
     ]
