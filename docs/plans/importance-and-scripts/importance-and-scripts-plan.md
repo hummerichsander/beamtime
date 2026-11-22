@@ -188,6 +188,12 @@ in this order: S21 A21 A22 A23 B21 B22 S22 C21 C23 C22 D21 E21 E22 Z22 Z21 E23
     old state after it (`bt.notes`, then `bt.note_add`, then `bt.notes` returned the note-less answer), so a
     successful write removes the whole cache and `08-cli-mcp.md` § Scripts says so. Rejected: invalidating per
     operation through `stale_on`, which is more machinery than a cache that is safe to delete needs.
+21. **A kept `bt` answer expires after five minutes** (C21 review; decided by the orchestrator overnight): runs
+    land through the SDK, not through `bt`, so a cache dropped only by writes answered yesterday's listing; an
+    entry older than `LIFETIME = 300` seconds (its file's mtime, one module constant, no setting) is ignored and
+    overwritten, beside decision 20. Rejected: a cache folder per session, which needs C23's runner to pass a
+    session id and leaves plain scripts without one; keying entries on the newest `_run.json` mtime, which walks
+    the queried tree on every read.
 
 ## S. Spec
 

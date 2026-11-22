@@ -169,8 +169,9 @@ operation's parameters as keyword arguments and returns its answer as a plain di
   `{kind: "script", stdout, stderr, exit, seconds, cut}`. `author` is the default author of writes made
   through `bt`.
 - **Reads are cached** in `.beamtime/bt-cache/` of the project root, because every script is a fresh
-  interpreter and a second look at the same data would cost another call. The cache is local, never
-  committed and safe to delete.
+  interpreter and a second look at the same data would cost another call. An answer is served for five
+  minutes after it was kept, since runs land without passing through `bt`; then it is asked again. The cache
+  is local, never committed and safe to delete.
 - **Writes are never cached** and drop the cache, since any kept answer may have changed; nor are
   `status`, `wait`, `resume` and `logs` cached, whose answers change with time.
 - **The rule it serves**: the operations compute the statistics; Python joins, filters and formats the

@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -96,6 +97,19 @@ def test_bt_write_drops_the_cache(project: Path, calls: list[str]) -> None:
     after = bt.notes({"from": GROUP})
     assert after != before
     assert calls == ["notes", "note add", "notes"]
+
+
+def test_bt_expires_old_answers(project: Path, calls: list[str]) -> None:
+    """An answer kept longer than ``LIFETIME`` is asked again and kept anew."""
+    bt.runs({"from": GROUP, "limit": 3})
+    (file,) = (project / ".beamtime" / "bt-cache").glob("runs-*.json")
+    old = file.stat().st_mtime - bt.LIFETIME - 1
+    os.utime(file, (old, old))
+    bt.runs({"from": GROUP, "limit": 3})
+    assert calls == ["runs", "runs"]
+    assert file.stat().st_mtime > old
+    bt.runs({"from": GROUP, "limit": 3})
+    assert calls == ["runs", "runs"]
 
 
 def test_bt_skips_unserializable(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:

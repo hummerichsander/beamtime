@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import shutil
+import time
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,8 @@ CALLER = "view"
 HIDDEN = ("script",)
 # reads whose answer is about the moment, not the data; the rest of the data is fixed in a session.
 FRESH = ("status", "wait", "resume", "logs")
+# seconds a kept answer is served; runs land without passing through bt, so no write drops it then.
+LIFETIME = 300
 # what msgspec says when a parameter name is wrong; any other failure is about the data, and
 # naming the parameters there answers a question the caller did not ask.
 NAME_ERRORS = ("Object contains unknown field", "Object missing required field")
@@ -95,7 +98,7 @@ def slot(op: Any, given: dict[str, Any], context: Context) -> Path:
 
 
 def load(op: Any, given: dict[str, Any], context: Context) -> dict[str, Any] | None:
-    """Give a call's answer from an earlier run of this session, if it was kept.
+    """Give a call's answer from an earlier script, if it was kept less than ``LIFETIME`` ago.
 
     Every script is its own interpreter, so without this a second look at the same data would
     cost another turn.
@@ -106,8 +109,11 @@ def load(op: Any, given: dict[str, Any], context: Context) -> dict[str, Any] | N
     :return: The answer, or ``None`` when there is none."""
     if not cacheable(op):
         return None
+    file = slot(op, given, context)
     try:
-        return json.loads(slot(op, given, context).read_text(encoding="utf-8"))
+        if time.time() - file.stat().st_mtime > LIFETIME:
+            return None
+        return json.loads(file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
 
