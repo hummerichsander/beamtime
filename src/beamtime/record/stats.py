@@ -144,6 +144,60 @@ def variance(xs: Sequence[float]) -> float:
     return math.fsum((x - m) ** 2 for x in xs) / (len(xs) - 1)
 
 
+def rank(xs: Sequence[float]) -> list[float]:
+    """Rank values from 1, giving tied values their average rank.
+
+    :param xs: The values.
+    :return: The midranks, in the order of ``xs``."""
+    order = sorted(range(len(xs)), key=xs.__getitem__)
+    ranks = [0.0] * len(xs)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and xs[order[j + 1]] == xs[order[i]]:
+            j += 1
+        for k in range(i, j + 1):
+            ranks[order[k]] = (i + j) / 2 + 1
+        i = j + 1
+    return ranks
+
+
+def spearman(xs: Sequence[float], ys: Sequence[float]) -> float | None:
+    """Compute the Spearman rank correlation.
+
+    :param xs: The first variable.
+    :param ys: The second variable, as many values as ``xs``.
+    :return: The Pearson correlation of the midranks, or None for fewer than three pairs,
+        unequal lengths or a constant side."""
+    if len(xs) != len(ys) or len(xs) < 3:
+        return None
+    rx, ry = rank(xs), rank(ys)
+    mx, my = mean(rx), mean(ry)
+    sxx = math.fsum((a - mx) ** 2 for a in rx)
+    syy = math.fsum((b - my) ** 2 for b in ry)
+    if sxx == 0 or syy == 0:
+        return None
+    sxy = math.fsum((a - mx) * (b - my) for a, b in zip(rx, ry, strict=True))
+    return sxy / math.sqrt(sxx * syy)
+
+
+def eta_squared(bins: Sequence[Sequence[float]]) -> float | None:
+    """Compute the share of variance explained by a grouping.
+
+    :param bins: The values of each group; empty groups are ignored.
+    :return: The between-group over the total sum of squares, or None for fewer than two
+        non-empty groups or no variance at all."""
+    bins = [b for b in bins if len(b) > 0]
+    if len(bins) < 2:
+        return None
+    grand = mean([x for b in bins for x in b])
+    total = math.fsum((x - grand) ** 2 for b in bins for x in b)
+    if total == 0:
+        return None
+    between = math.fsum(len(b) * (mean(b) - grand) ** 2 for b in bins)
+    return between / total
+
+
 def mean_interval(xs: Sequence[float], level: float | None) -> Interval:
     """Give a t-interval for a mean, or the mean alone without a level.
 

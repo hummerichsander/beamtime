@@ -4,8 +4,11 @@ import pytest
 
 from beamtime.record.stats import (
     betainc,
+    eta_squared,
     mean_interval,
     paired_interval,
+    rank,
+    spearman,
     t_pdf,
     t_quantile,
     welch_interval,
@@ -80,3 +83,49 @@ def test_intervals() -> None:
     assert same.lo == same.hi == 1.0
     paired = paired_interval([2.0, 3.0, 4.0], [1.0, 2.5, 3.0], 0.95)
     assert paired.estimate == pytest.approx(mean_interval([1.0, 0.5, 1.0], 0.95).estimate)
+
+
+def test_rank_midranks():
+    """Tied values share the average of the ranks they span."""
+    assert rank([10.0, 30.0, 20.0]) == [1.0, 3.0, 2.0]
+    assert rank([1.0, 2.0, 2.0, 3.0]) == [1.0, 2.5, 2.5, 4.0]
+    assert rank([5.0, 5.0, 5.0]) == [2.0, 2.0, 2.0]
+
+
+def test_spearman_monotone():
+    """A monotone pair gives 1 and an anti-monotone pair -1, however curved."""
+    assert spearman([1.0, 2.0, 3.0, 4.0], [1.0, 8.0, 27.0, 64.0]) == pytest.approx(1.0)
+    assert spearman([1.0, 2.0, 3.0, 4.0], [9.0, 5.0, 2.0, -1.0]) == pytest.approx(-1.0)
+
+
+def test_spearman_ties():
+    """Ranks [1, 2.5, 2.5, 4] against [1, 2, 3, 4]: 4.5 / sqrt(4.5 * 5) = 3 / sqrt(10)."""
+    assert spearman([1.0, 2.0, 2.0, 3.0], [1.0, 2.0, 3.0, 4.0]) == pytest.approx(3 / math.sqrt(10))
+
+
+def test_spearman_degenerate():
+    """Too few pairs, unequal lengths and a constant side give None, not an error."""
+    assert spearman([1.0, 2.0], [1.0, 2.0]) is None
+    assert spearman([], []) is None
+    assert spearman([1.0, 2.0, 3.0], [1.0, 2.0]) is None
+    assert spearman([1.0, 1.0, 1.0], [1.0, 2.0, 3.0]) is None
+    assert spearman([1.0, 2.0, 3.0], [4.0, 4.0, 4.0]) is None
+
+
+def test_eta_squared_values():
+    """Equal bin means give 0, no within-bin variance gives 1, and [1..3] against [4..6] gives 27/35."""
+    assert eta_squared([[1.0, 3.0], [2.0, 2.0]]) == 0.0
+    assert eta_squared([[1.0, 1.0], [2.0, 2.0]]) == pytest.approx(1.0)
+    assert eta_squared([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]) == pytest.approx(27 / 35)
+
+
+def test_eta_squared_singleton_bin():
+    """A bin with one run still counts toward the grand mean: 1.5 / 2 for [[1], [2, 3]]."""
+    assert eta_squared([[1.0], [2.0, 3.0]]) == pytest.approx(0.75)
+
+
+def test_eta_squared_constant_target():
+    """No total variance, or fewer than two non-empty bins, gives None."""
+    assert eta_squared([[1.0, 1.0], [1.0, 1.0]]) is None
+    assert eta_squared([[1.0, 2.0], []]) is None
+    assert eta_squared([]) is None

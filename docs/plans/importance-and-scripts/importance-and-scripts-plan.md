@@ -166,7 +166,7 @@ listing are new.
 
 ## A. Importance: the query
 
-### A21. Rank correlation and η² in `stats.py` (sonnet + review) — code
+### A21. Rank correlation and η² in `stats.py` (sonnet + review) — code — **done**
 
 - **Touches:** `src/beamtime/record/stats.py` (new `spearman`, `eta_squared`, `rank`; beside `mean` 130,
   `variance` 138), `tests/record/test_stats.py`.
