@@ -573,7 +573,7 @@ Finding 5: the empty-state line already advertises `block promote`, but nothing 
 
 ## E. Benchmark
 
-### E21. Make the script arm the MCP arm plus the `script` tool (sonnet) — code
+### E21. Make the script arm the MCP arm plus the `script` tool (sonnet) — code — **done**
 
 - **Touches:** `bench/agents/compare/setups.py` (`SCRIPT` l. 38, `Setup.api` l. 103, `api_reference`,
   `script_section`, `SETUPS` l. 203, `prepare` l. 245, `shadow` l. 301, `planned` l. 315),

@@ -126,8 +126,14 @@ over MCP, the CLI and its Python API, plain files, TensorBoard event files); see
 at no more than 1.5 times their tokens (`tables.TARGET`; `results.md` states it as met or not).
 `cli` is a regression check with no target: it runs on the first seed only (`Setup.check`), and a
 batch is fine when its cli score is not lower and its tokens not higher than the previous batch's.
-`script` gives the same operations as `mcp` as Python functions, so their answers land in
-variables instead of the context window; it is measured against `mcp` and runs on every seed.
+`script` is the `mcp` arm plus the `script` tool: the two setups have the same data, rules block, MCP
+config and environment, and `mcp` alone passes `--disallowedTools mcp__beamtime__script`, so they
+differ by that one tool. It runs on every seed and serves as the instrument that finds missing
+query-language constructs, not as a competing access path: a task where `script` beats `mcp` is a
+candidate gap only when the task's prompt does not restate an operation's own procedure
+(`Task.states_procedure`, set on `check-all`). The numbers of the earlier `script` arm (plain scripts
+with a `bt.py` copy and a refusing `beamtime`) are a different instrument and are not compared with
+the new ones.
 `files` and `tensorboard` are the baselines and run on every seed.
 
 - `compare/data.py`: `make_logdir(dest, seed=, now=)` writes a scale `s` log dir (47 runs, five groups)
@@ -204,19 +210,15 @@ variables instead of the context window; it is measured against `mcp` and runs o
   data (a copy of the log dir plus `beamtime.yaml` for `mcp`, `cli` and `script`, `runs/` for `files`, `tb/` for
   `tensorboard`, exported by the `beamtime` environment since it has tensorboard), a CLAUDE.md that is
   the same preamble byte for byte plus a `## Data` section (Beamtime's rules block as shipped, with
-  default agent settings, the `bt.py` section for `script`, or four lines on the files), the tool list (`Bash,Read,Write,Edit,Glob,Grep`
-  everywhere, plus `mcp__beamtime__*` allowed for `mcp`), the MCP config (`mcp` only), and the session's
+  default agent settings, or four lines on the files), the tool list (`Bash,Read,Write,Edit,Glob,Grep`
+  everywhere, plus `mcp__beamtime__*` allowed for `mcp` and `script`), the MCP config (`mcp` and `script`), and the session's
   environment: a PATH that starts with the setup's venv and drops every host folder holding a `beamtime`,
   its own `BEAMTIME_CACHE` and `XDG_CONFIG_HOME` inside the session folder. `Project.flags` are the
-  `claude` flags (`--tools`, `--allowedTools`, `--strict-mcp-config`, `--mcp-config` for `mcp`,
+  `claude` flags (`--tools`, `--allowedTools`, `--strict-mcp-config`, `--mcp-config` for `mcp` and `script`,
   `--setting-sources project`, `--disable-slash-commands`, `--no-session-persistence`); the session
   adds the prompt, model and output format. Only `cli` has `beamtime` on the PATH; `mcp` reaches the
-  server through the absolute command in its MCP config. `script` (`Setup.api`) gets a copy of
-  `compare/script/bt.py` in its project and a `bin/` first on its PATH whose `beamtime` refuses
-  (`setups.REFUSAL`), so the operations are reached as Python functions and not as commands: `bt.ops()`
-  names every operation that is not user-only, `bt.params(name)` gives the MCP tool's own schema, and
-  `bt.call(name, args)` (also `bt.runs({...})`) runs one through `beamtime.ops.call` as the `view`
-  caller, so the answer arrives whole instead of cut at the agent token budget. A Beamtime project's index is warmed with
+  server through the absolute command in its MCP config. `script` reaches the same server and differs from `mcp` only in `Project.disallowed` (`--disallowedTools
+  mcp__beamtime__script`, set for `mcp`). A Beamtime project's index is warmed with
   `beamtime reindex` before the session (a user-only operation; the harness plays the user), so `status` never
   reports runs not yet indexed. `make_envs(root)` builds the two venvs with `uv venv` and
   `uv pip install` (`base`: numpy, pandas, scipy, matplotlib, tensorboard, pyyaml; `beamtime`: the same plus this

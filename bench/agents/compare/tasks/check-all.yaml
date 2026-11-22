@@ -16,6 +16,7 @@ prompt: >
   entry per prediction, at full precision.
 answer: '{"predictions": [{"name": <prediction name>, "verdict": <confirmed, refuted or inconclusive>, "effect": <number>, "ci": [<low>, <high>]}]}'
 time_limit_s: 600
+states_procedure: true
 data: wide
 checks:
   verdict: {kind: keyed, answer: predictions, truth: predictions, key: name, field: verdict}

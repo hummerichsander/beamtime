@@ -133,7 +133,8 @@ def test_dry_run(capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyP
 
     assert lines[-1] == "182 sessions"
     assert len(lines) == 183
-    assert sum("--mcp-config" in line for line in lines) == 42
+    assert sum("--mcp-config" in line for line in lines) == 84
+    assert sum("--disallowedTools mcp__beamtime__script" in line for line in lines) == 42
     assert all(
         "--no-session-persistence" in line and "--model sonnet" in line for line in lines[:-1]
     )

@@ -55,6 +55,9 @@ class Task:
     data: str = "s"
     setups: list[str] = field(default_factory=lambda: list(SETUPS))
     judge: list[str] = field(default_factory=list)
+    # the prompt restates an operation's own procedure, so a win of ``script`` over ``mcp`` on this
+    # task is no evidence of a missing query construct.
+    states_procedure: bool = False
 
     @classmethod
     def load(cls, file: Path) -> "Task":

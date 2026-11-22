@@ -707,3 +707,10 @@ def test_keyed_checks_share_an_answer_key(tmp_path: Path) -> None:
     result = grade.grade(task, reply({"runs": answer}), truth, tmp_path)
 
     assert result.checks == {"step": 0.5, "loss": 1.0}
+
+
+def test_states_procedure_only_on_check_all() -> None:
+    """A task marks that its prompt restates an operation's procedure; only ``check-all`` does."""
+    marked = {i for i, t in grade.load_tasks().items() if t.states_procedure}
+
+    assert marked == {"check-all"}
