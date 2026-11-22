@@ -3,7 +3,6 @@
 import json
 import math
 import sys
-from bisect import bisect_right
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -43,7 +42,7 @@ from beamtime.query.select import (
     select_runs,
 )
 from beamtime.query.where import fields_of, matches
-from beamtime.record.stats import eta_squared, spearman
+from beamtime.record.stats import eta_squared, rank, spearman
 
 CHART_BUDGET = 30_000
 IMPORTANCE_MIN_RUNS = 10
@@ -837,11 +836,10 @@ def importance_bins(xs: list[Any], ys: list[float], numeric: bool) -> list[list[
         for x, y in zip(xs, ys, strict=True):
             bins[json.dumps(x, sort_keys=True)].append(y)
         return list(bins.values())
-    ordered = sorted(xs)
-    edges = sorted({ordered[len(ordered) * i // 4] for i in (1, 2, 3)})
-    binned: list[list[float]] = [[] for _ in range(len(edges) + 1)]
-    for x, y in zip(xs, ys, strict=True):
-        binned[bisect_right(edges, x)].append(y)
+    # bin by midrank, so tied values share a bin and a lopsided field never collapses into one.
+    binned: list[list[float]] = [[] for _ in range(4)]
+    for r, y in zip(rank(xs), ys, strict=True):
+        binned[int((r - 1) * 4 / len(xs))].append(y)
     return binned
 
 

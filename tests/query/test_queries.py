@@ -1379,3 +1379,13 @@ def test_importance_bins_keep_ties_together() -> None:
     ys = [float(i) for i in range(8)]
     assert [len(b) for b in importance_bins(list(range(8)), ys, True)] == [2, 2, 2, 2]
     assert [len(b) for b in importance_bins([1, 1, 1, 1, 1, 1, 2, 2], ys, True) if b] == [6, 2]
+
+
+def test_importance_bins_split_a_lopsided_field() -> None:
+    """A field mostly at one value still gets one bin per value, so its effect shows in η²."""
+    from beamtime.query.kinds import importance_bins
+    from beamtime.record.stats import eta_squared
+
+    ys = [0.0] * 8 + [1.0] * 2
+    assert eta_squared(importance_bins([0] * 8 + [1] * 2, ys, True)) == 1.0
+    assert eta_squared(importance_bins([0] * 2 + [1] * 8, ys[::-1], True)) == 1.0

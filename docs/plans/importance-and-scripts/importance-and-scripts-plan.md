@@ -26,7 +26,7 @@ session; review tickets marked `+ review` with `/review-ticket … <ID>` on a st
     prompt restates an operation's own procedure — so the arm keeps working as the instrument that finds missing
     query-language constructs rather than as a competing access path.
 - **Confirmed by:** `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`;
-  `cd web && npm ci && npm test && npm run build`; `uv run beamtime importance long/schedules --target config.lr`
+  `cd web && npm ci && npm test && npm run build`; `uv run beamtime importance scaling/lr-sweep --target metric.val/acc.max`
   on a synth log dir answers with both measures; `echo 'print(bt.status()["kind"])' | uv run beamtime script` prints
   `status`; the benchmark's script arm is the MCP arm plus the `script` tool.
 - **Out of scope:** promoted operations of any kind (no `tool` family, no saved op definitions, no Python op
@@ -166,6 +166,12 @@ in this order: S21 A21 A22 A23 B21 B22 S22 C21 C23 C22 D21 E21 E22 Z21 E23
     the tool with Claude Code's `--disallowedTools mcp__beamtime__script`, so the two arms differ by that one
     tool. Rejected: a plain-script arm with a refusing `beamtime` stub, which measures a path the docs no longer
     lead with.
+16. **The `importance` answer is `Bare` in `answers.py` from A22 on** (A22 review): once A22 made `importance` a
+    live query kind, `beamtime query` emits it and `tests/remote/test_answers.py::test_answer_kinds_only` needs
+    its entry, so the review added `"importance"` to `BARE` (the answer has no path of its own; only `meta`
+    names the source, and per-source statistics never merge). A23 keeps that entry unless its op's answer adds
+    a `group`, in which case it moves the kind to the group-answer pattern. Rejected: leaving the suite red
+    until A23.
 
 ## S. Spec
 
@@ -308,14 +314,15 @@ same selection every other kind uses, then A21's two functions.
 ### A23. The `importance` operation (sonnet) — code
 
 - **Touches:** `src/beamtime/ops/registry.py` (new `ImportanceParams` near `CheckParams`; new `Op` beside `check`
-  966–974), `src/beamtime/ops/reading.py` (new `importance`), `src/beamtime/ops/answers.py` (an `importance`
-  entry), `src/beamtime/cli/format.py` (`render_importance`), `tests/ops/`, `tests/cli/`.
+  966–974), `src/beamtime/ops/reading.py` (new `importance`), `src/beamtime/ops/answers.py` (the
+  `importance` entry already in `BARE` since A22, Decision 16; move it only if the answer gains a `group`), `src/beamtime/cli/format.py` (`render_importance`), `tests/ops/`, `tests/cli/`.
 - **Read:** `docs/design/08-cli-mcp.md` § Reading (the `importance` row, l. 29+); `src/beamtime/ops/registry.py`
   § `Op` (l. 747–770).
 - **Check:** `uv run pytest -q tests/ops tests/cli tests/mcp`; then the full suite.
 - **Done:** `uv run beamtime importance <group> --target <field>` prints a table; the `importance` MCP tool
   appears in `tools()` with a schema; `beamtime query '{"kind": "importance", …}'` gives the same answer.
-- **Risks:** the answer must place its group for remotes → the group-answer pattern in `answers.py` (l. 162),
+- **Risks:** the answer must place its source for remotes → `BARE` places `meta`
+  (Decision 16); if the op's answer adds a `group`, the group-answer pattern in `answers.py` (l. 162),
   `test_importance_remote_place`; a group with no runs → the notice, not an error, `test_importance_empty`;
   `--target` missing → an `OpError` naming it, not a traceback, `test_importance_needs_target`.
 - **Stop if:** the answer needs a merge rule across sources that the existing `Answer` kinds do not cover.
