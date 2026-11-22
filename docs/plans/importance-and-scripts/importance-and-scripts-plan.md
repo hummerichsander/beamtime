@@ -129,6 +129,10 @@ order: S21 A21 A22 A23 B21 B22 C21 C22 D21 E21 E22 Z21 E23
    operation's own procedure and look like one.
 7. **Views stay out of the SQL index**: the candidate scan walks the tree exactly as `src/beamtime/ops/views.py:outdated`
    already does. Rejected: indexing views, which is a far larger change than this plan's one listing needs.
+9. **`spearman` is degenerate only below three pairs or on a constant side** (A21 review): a field swept over
+   two values still gets a rank correlation, because a two-point scan is common and its correlation is
+   meaningful. Rejected: `None` below three distinct values (A21's Risks line), which would drop every binary
+   scan from the `importance` table.
 
 ## S. Spec
 
