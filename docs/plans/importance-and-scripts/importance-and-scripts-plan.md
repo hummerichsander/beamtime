@@ -15,8 +15,9 @@ session; review tickets marked `+ review` with `/review-ticket … <ID>` on a st
   - `beamtime importance <group> --target <field>` and the `importance` MCP tool answer with one row per config
     field: Spearman rank correlation, η², and the run count the row rests on; below ten runs a notice instead of
     numbers. The `importance` view block shows the same numbers, compiled to the same query.
-  - An agent can write Python against `from beamtime import bt` and call any non-user-only operation as a
-    function whose answer is a plain dict in a variable.
+  - MCP provides every agent tool, programmatic calls included: the `script` tool runs the Python an agent
+    sends with `bt` preloaded, where every non-user-only operation is a function whose answer is a plain dict in
+    a variable. `from beamtime import bt` is the same namespace for agents without MCP.
   - `beamtime block list <group>` shows, besides the library blocks, the custom blocks living in saved views that
     are candidates for promotion, each with its group and the `block promote` command.
   - The agent guide states ops-first: the operations compute the statistics; Python joins, filters and formats
@@ -26,7 +27,8 @@ session; review tickets marked `+ review` with `/review-ticket … <ID>` on a st
     query-language constructs rather than as a competing access path.
 - **Confirmed by:** `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`;
   `cd web && npm ci && npm test && npm run build`; `uv run beamtime importance long/schedules --target config.lr`
-  on a synth log dir answers with both measures; the benchmark's script arm imports the shipped shim.
+  on a synth log dir answers with both measures; `echo 'print(bt.status()["kind"])' | uv run beamtime script` prints
+  `status`; the benchmark's script arm is the MCP arm plus the `script` tool.
 - **Out of scope:** promoted operations of any kind (no `tool` family, no saved op definitions, no Python op
   validator), the needs registry, importing anything from a remote or a git URL, `importance` for non-numeric
   targets, and interactions between config fields (both measures look at one field at a time, as the spec says).
@@ -44,7 +46,7 @@ Evidence: **reproduced** (run), **real data** (seen in the user's data), **code*
 | 3 | 12/42 script sessions computed statistics by hand against MCP's 6/42; on `stale-verdicts` 3/3 against 0/3 | nothing states ops-first where every arm sees it; `rules_block()` has no such line | reproduced | C22 |
 | 4 | The `check-all` "win" is a benchmark artifact, not a gap: `beamtime check` already does it | the task prose spells out the whole t-interval procedure because the `files` arm has no `check` | real data: `bench/agents/compare/tasks/check-all.yaml` | E21 |
 | 5 | An agent building a page cannot see custom blocks in other groups' views, so it writes a new one | `listing` iterates `Library.names` only; the empty-state line already advertises `block promote` | code: `src/beamtime/ops/blocks.py` 40–66 | D21 |
-| 6 | Scripts are not a supported path; the shim exists only as a benchmark prop copied into a session root | never shipped | code: `bench/agents/compare/script/bt.py` | C21 |
+| 6 | Scripts are not a supported path; the shim exists only as a benchmark prop copied into a session root | never shipped | code: `bench/agents/compare/script/bt.py` | C21 C23 |
 | 7 | Task-level differences are unreadable at one rep: `divergence` ran 3/3/2 turns in one script-arm revision and 2/6/12 in the next, on identical data | 3 seeds × 1 rep is too few for per-task inference; `--reps` defaults to 1 | reproduced: two revisions | E22 |
 
 ## Brief
@@ -56,13 +58,17 @@ Evidence: **reproduced** (run), **real data** (seen in the user's data), **code*
 - **The shim** (S21, C21–C22): `src/beamtime/bt.py`, `from beamtime import bt`. Every non-user-only op becomes a
   module attribute via `__getattr__`; `Context.make(caller="view")` so answers arrive whole; reads are cached
   under a new `.beamtime/bt-cache/` folder in the project; writes and `status`/`wait`/`resume`/`logs` are never cached.
+- **The script tool** (S22, C23): one op `script` (MCP `script`, CLI `beamtime script` with the code on stdin) runs
+  the code in a child `python -I` of the serving interpreter, in the root, with a timeout, an output cap and `bt`
+  preloaded. It is the lead path for programmatic calls; plain scripts are the fallback for agents without MCP.
+  No OS sandbox: the code has the user's rights, like `serve` itself, and the design says so.
 - **Block reuse** (S21, D21): `block list` gains a `candidates` section built by scanning saved views the way
   `src/beamtime/ops/views.py:outdated` already does, grouping `m.Custom` nodes by equal declared `queries`.
-- **Gap detection** (E21–E22): the script arm stays in the benchmark as the instrument that finds missing
+- **Gap detection** (E21–E22): the script arm — the MCP arm plus the `script` tool — stays in the benchmark as the instrument that finds missing
   query-language constructs. `Task.states_procedure` marks a task whose prompt restates an operation's own
   procedure, and `tables.gaps` reports the paired script-against-mcp comparison over the rest, so a win is read as
   a candidate gap only when it cannot be explained by the task's own wording.
-- **Spec first** (S21): the shim and the candidate listing are new; they are written into the design before their
+- **Spec first** (S21, S22): the shim, the script tool and the candidate listing are new; they are written into the design before their
   code lands. `importance` is already specified — implement what is written, do not redesign it.
 
 Done, for every ticket: its Done line holds; its Check passes; the spec documents say what the code does; its
@@ -89,16 +95,17 @@ heading is marked done in the ticket's own commit.
 ## Order
 
 ```
-S21 ─┬─ C21 ─ C22 ─ E21 ─ E22   shim, guide, benchmark, then the gap detector
-     └─ D21                     block candidates
+S21 ─┬─ S22 ─ C21 ─ C23 ─ C22 ─ E21 ─ E22   script tool spec, shim, script tool, guide, benchmark, gap detector
+     └─ D21                                 block candidates
 
 A21 ─ A22 ─ A23 ─ B21 ─ B22   importance; B22 alone rebuilds the bundle
 
                         Z21   close, then E23 adds tasks and runs the detector
 ```
 
-S21 blocks only C and D; the importance chain is already specified and can start at once. What's left runs in this
-order: S21 A21 A22 A23 B21 B22 C21 C22 D21 E21 E22 Z21 E23
+S21 blocks only C and D; S22 writes the script tool into the design before C21 and C23 build it; C23 needs C21's
+`bt`, and C22 documents both. The importance chain is already specified and can start at once. What's left runs
+in this order: S21 A21 A22 A23 B21 B22 S22 C21 C23 C22 D21 E21 E22 Z21 E23
 
 ## Decisions taken; say if you want otherwise
 
@@ -133,6 +140,32 @@ order: S21 A21 A22 A23 B21 B22 C21 C22 D21 E21 E22 Z21 E23
    two values still gets a rank correlation, because a two-point scan is common and its correlation is
    meaningful. Rejected: `None` below three distinct values (A21's Risks line), which would drop every binary
    scan from the `importance` table.
+10. **MCP provides every agent tool, programmatic calls included** (your decision): one operation `script` whose
+    MCP tool `script` runs the Python an agent sends in a child `python -I` of the serving interpreter, with the
+    root as working directory, a timeout, an output cap and `bt` preloaded; it is a core tool. Rejected: plain
+    scripts as the lead path, because they need a shell and an environment with Beamtime installed, which an
+    MCP-only agent has neither of; running the code inside the server process, because a hang or a crash would
+    take the server down.
+11. **No OS sandbox; the design says so** (your decision): the code runs with the user's file and network rights,
+    like `serve` itself. Refusing user-only operations inside `bt` is the same policy as for tools, not an
+    enforcement: the code could import anything. Beamtime records experiments and runs analysis code agents send,
+    never experiments. Rejected: an OS sandbox, which differs per platform (none on Windows) and would promise
+    more than v1 can keep.
+12. **`script` also has a CLI form, `beamtime script`, code on stdin** (recommended): principle 1 of
+    `docs/design/08-cli-mcp.md` gives every operation a CLI command, and the same runner (timeout, cap, `bt`
+    preloaded) serves CLI agents too. Rejected: an MCP-only operation, which needs an exception in the registry
+    and the naming rule; a file argument, which `note add` and `proposal set` do not take either.
+13. **`script` is not an API method**: a new `Op` flag keeps it out of `BY_API`, so neither the web UI, the
+    custom-block bridge nor a remote's `serve --stdio` can run code; it is `local`, and `bt` inside the script
+    routes `@source` targets itself. Rejected: offering it through the API, which would put code execution one
+    request away from an untrusted view.
+14. **`from beamtime import bt` stays public, the docs lead with the MCP tool** (your decision): `bt` is the
+    script tool's namespace and the plain-script fallback; the guide, the MCP docs and the design name the tool
+    first and give plain scripts one line. Rejected: keeping `bt` internal.
+15. **The benchmark's script arm is the MCP arm plus the `script` tool** (your decision): the `mcp` arm hides
+    the tool with Claude Code's `--disallowedTools mcp__beamtime__script`, so the two arms differ by that one
+    tool. Rejected: a plain-script arm with a refusing `beamtime` stub, which measures a path the docs no longer
+    lead with.
 
 ## S. Spec
 
@@ -167,6 +200,45 @@ listing are new.
    custom blocks in saved views, grouped by equal declared queries, with the group and the `block promote`
    command. Note that a block appearing in two groups is the signal.
 4. In `01-storage.md`, add the `bt-cache` folder (new, made at runtime) to what `.beamtime/` holds (local, not committed, safe to delete).
+
+### S22. Write the MCP script tool into the design (sonnet) — code
+
+- **Touches:** `docs/design/08-cli-mcp.md` (§ Scripts l. 152–165, § Tools l. 197–235, § Policy l. 282–296,
+  § Decisions l. 365), `docs/design/00-overview.md` (cross-cutting rules ~l. 85–92), `docs/design/01-storage.md`
+  (l. 528), `docs/design/03-index.md` (l. 204), `docs/design/06-server.md` (the untrusted-view sandbox, l. 72–86).
+- **Read:** `docs/design/08-cli-mcp.md` § Principles (l. 9), § Shared conventions (l. 119); decisions 10–14
+  above; `src/beamtime/mcp/server.py` § `FAMILIES` (l. 157) for the core count.
+- **Check:** `uv run pytest -q tests/test_docs.py`; `uv run ruff check .`.
+- **Done:** § Scripts leads with the `script` operation (CLI `beamtime script`, MCP `script`) and its runner, and
+  gives plain scripts one line; the design states plainly that script code has the user's rights and no
+  sandbox; every "never runs them" sentence reads "never runs experiments" and names the one thing it does run;
+  the tool and core counts in § Tools and § Decisions are current.
+- **Risks:** the counts ("43 small tools", "19 core tools", "nine prompts") are read by later tickets and checked
+  nowhere → recount from the registry rather than adding one; `docs/reference/cli.md` is generated → not touched
+  here, Z21 regenerates it once the command exists.
+- **Stop if:** the design already promises something about script isolation that decision 11 contradicts.
+
+A design change lands in the design before the code (CLAUDE.md). S21 wrote § Scripts for plain scripts only; this
+ticket makes the MCP tool the lead path, as decisions 10–14 settle.
+
+1. § Scripts: open with a row, in the table style of § Operations, `beamtime script` (code on stdin) ↔ `script`:
+   runs Python with `bt` preloaded and answers its output. Then the runner: a child `python -I` of the interpreter
+   that serves (MCP or CLI), working directory the project root, `timeout` (default 60 s, at most 600 s; the child
+   and its process group are killed), stdout cut at 20,000 characters and stderr kept as its last 4,000, each cut
+   said in the answer; the answer is `{kind: "script", stdout, stderr, exit, seconds, cut}`. `author` is the
+   default author of writes made through `bt`. Keep S21's bullets (caching, never-cached ops, the ops-first rule)
+   for the `bt` namespace, and end with one line: agents without MCP write the same code in a plain script with
+   `from beamtime import bt`.
+2. A **Trust** paragraph in § Scripts: the code has the user's file and network rights, like `serve` itself; there
+   is no OS sandbox; `bt` offers no user-only operation and no `script`, which is policy, not enforcement, since
+   the code could import anything. `script` is not an API method: `serve`'s HTTP API, the web UI and the
+   custom-block bridge cannot reach it, and it never runs on a remote; `bt` routes `@source` targets itself.
+3. § Tools: `script` is a core tool; recount the tools and the core set. § Policy: scripts follow the same rules
+   as tools, whether sent to `script` or run as files. § Decisions: one line for the script tool.
+4. `00-overview.md` gains a cross-cutting rule, and `01-storage.md` l. 528 and `03-index.md` l. 204 are worded
+   to match: Beamtime records experiments and never runs them; the one code it runs is the analysis an agent
+   sends to `script`. `06-server.md`: the untrusted-view
+   sandbox is why `script` is not an API method.
 
 ## A. Importance: the query
 
@@ -211,7 +283,9 @@ statistic in Beamtime.
 - **Risks:** a non-numeric config field → no `spearman`, η² still computed by grouping on its values,
   `test_importance_categorical`; a field constant across runs → omitted, `test_importance_constant_field`; fewer
   than ten runs → notice, `test_importance_too_few_runs`; a run missing the target metric → excluded from `n`,
-  `test_importance_missing_target`.
+  `test_importance_missing_target`; a NaN or infinite target or field value → the run is dropped for that row
+  before `spearman`/`eta_squared` are called, because `stats.rank` gives arbitrary ranks on NaN (A21 review),
+  `test_importance_drops_nonfinite`.
 - **Stop if:** the target field resolves to something other than a single number per run; come back rather than
   inventing an aggregation.
 
@@ -220,6 +294,8 @@ same selection every other kind uses, then A21's two functions.
 
 1. Select runs with the kind's `Selection`, finished and visible only; resolve `q.target` per run to one number
    through the existing field path used by `runs_kind` (a `metric.<key>.<agg>` or `value.<key>` expression).
+   Drop non-finite targets and, per field, non-finite numeric values (`math.isfinite`) before any statistic;
+   `n` counts what is left.
 2. The fields considered are `q.fields` when given, otherwise every `config.*` key that varies across the
    selected runs. Omit a field that is constant.
 3. For a numeric field: `spearman(values, targets)`. For every field, numeric or not: `eta_squared` over bins —
@@ -307,21 +383,27 @@ This is the only ticket that touches `web/` and the only one that rebuilds the b
 ### C21. Ship `from beamtime import bt` (sonnet + review) — code
 
 - **Touches:** new `src/beamtime/bt.py` (from `bench/agents/compare/script/bt.py`), new `tests/test_bt.py`.
-- **Read:** `docs/design/08-cli-mcp.md` § Scripts (written by S21); `bench/agents/compare/script/bt.py` as the
-  prototype; `src/beamtime/ops/registry.py` § `Op` (l. 747–770).
+- **Read:** `docs/design/08-cli-mcp.md` § Scripts (written by S21, led by the `script` tool since S22);
+  `bench/agents/compare/script/bt.py` as the prototype; `src/beamtime/ops/registry.py` § `Op` (l. 747–770);
+  `src/beamtime/mcp/server.py` § `invoke` (l. 452) for how a call is routed.
 - **Check:** `uv run pytest -q tests/test_bt.py tests/test_budgets.py tests/test_boundaries.py`; then the full
   suite.
 - **Done:** `from beamtime import bt; bt.runs({"from": "."})` answers against a synth log dir;
-  `bt.ops()` names every non-user-only operation and no user-only one; a user-only name raises `KeyError`;
-  a second identical read is served from the new `.beamtime/bt-cache/` without calling the op; a write is never cached.
+  `bt.ops()` names every non-user-only operation and no user-only one, nor `script`; a user-only name raises
+  `KeyError`; a second identical read is served from the new `.beamtime/bt-cache/` without calling the op; a write
+  is never cached; `python -I -c 'from beamtime import bt; print(bt.ops())'` run in the root works, as C23's
+  runner will run it.
 - **Risks:** a user-only op reached through `__getattr__` → `AttributeError`, `test_bt_hides_user_only`; `status`
   cached → staleness, `test_bt_never_caches_the_moment`; a non-JSON answer → saving is skipped, not an exception,
   `test_bt_skips_unserializable`; importing `bt` pulling PyYAML or NumPy onto the CLI path →
-  `tests/test_budgets.py`.
+  `tests/test_budgets.py`; `bt.script` → `AttributeError`, no code runs code, `test_bt_has_no_script`; an
+  `@source/...` target → routed as MCP routes it, not a `KeyError`, `test_bt_routes_like_mcp`.
 - **Stop if:** `Context.make(caller="view")` turns out to page or cut an answer after all.
 
 The prototype is proven at 1.06× MCP over 42 benchmark sessions. This ticket graduates it: same behaviour, a real
-import path, the cache under `.beamtime/`, and tests it never had.
+import path, the cache under `.beamtime/`, and tests it never had. It is the namespace C23's `script` tool preloads
+and the plain-script fallback (decision 14), so it must work in a `python -I` child whose working directory is the
+root.
 
 1. Move the module to `src/beamtime/bt.py`. `ROOT` is no longer the file's parent: resolve the log dir the way
    every op does, through `Context.make(root=...)` with the project root discovered as the CLI discovers it.
@@ -333,17 +415,66 @@ import path, the cache under `.beamtime/`, and tests it never had.
 4. Keep the `author` default for writes, `ops()`, `params(name)` and the trailing-underscore keyword rule
    (`from_` → `from`).
 5. Import nothing heavy at module level; `beamtime.mcp.server.schema` stays a lazy import inside `params`.
+6. Call through `beamtime.remote.answer`, as MCP's `invoke` does, so `@source` targets reach their remote.
+   Exclude `script` from `ops()` and `__getattr__` beside the user-only operations (decision 13). The default
+   author of writes is `BEAMTIME_AUTHOR` when set (C23's runner sets it from the tool's `author`), otherwise the
+   prototype's default.
+
+### C23. The `script` operation and its runner (sonnet + review) — code
+
+- **Touches:** new `src/beamtime/ops/script.py` (the runner), `src/beamtime/ops/registry.py` (new `ScriptParams`;
+  a new `Op` flag `api: bool = True` read by `BY_API` l. 1433; the `script` `Op`), `src/beamtime/ops/answers.py`
+  (a `script` entry with no place of its own, like the class at l. 138), `src/beamtime/cli/format.py`
+  (`render_script`), `src/beamtime/mcp/server.py` (`instructions` l. 46: one line), new `tests/ops/test_script.py`,
+  `tests/ops/test_registry.py`, `tests/mcp/test_server.py`.
+- **Read:** `docs/design/08-cli-mcp.md` § Scripts (as S22 wrote it), § Tools (l. 197); decisions 10–13 above;
+  `src/beamtime/ops/registry.py` § `Op` (l. 747–790) and the `note add` `Op` (`stdin="body"`, l. 1010);
+  `src/beamtime/serve/api.py` l. 25 (`ROUTED`) and `dispatch_here` (l. 78).
+- **Check:** `uv run pytest -q tests/ops tests/mcp tests/cli tests/serve -m "not browser"`; then the full suite,
+  and `uv run pytest -q -n0 tests/test_budgets.py` on an idle machine.
+- **Done:** `echo 'print(bt.status()["kind"])' | uv run beamtime script` prints `status`; the `script` MCP tool is
+  in the core listing with a schema and answers the same; `bt` is preloaded with no import line; a loop past the
+  timeout is killed and the answer says so; output past the cap is cut and the answer says how much; `script` is
+  absent from `BY_API` and a `POST` to the API for it answers "no API method".
+- **Risks:** a child that outlives its timeout or leaves grandchildren → `start_new_session=True` and the process
+  group killed on POSIX, the child killed on Windows, `test_script_timeout_kills`; `-I` leaving the root off
+  `sys.path` → `bt` is preloaded by the bootstrap, not imported from the root, `test_script_ignores_root_modules`
+  (a `json.py` in the root is not imported); a traceback → `exit` nonzero and stderr's tail kept, not an
+  `OpError`, `test_script_traceback`; the tool definitions outgrowing their budget (11.5k characters,
+  `tests/mcp`) → a one-line summary and a schema of `code`, `timeout`, `author`; a view reaching code execution
+  through the bridge or `serve` → `test_script_not_an_api_method`; the CLI path's import time →
+  `src/beamtime/ops/script.py` imports only `subprocess` and `sys` at module level.
+- **Stop if:** `remote.answer` routes `script` to a remote despite `local=True`, or the API flag cannot keep it out
+  of `BY_API` without touching the web UI.
+
+Decisions 10–13: the code runs in a child of the serving interpreter, never inside the server, with the user's
+rights and no sandbox. Refusing user-only ops is `bt`'s job (C21), not the runner's.
+
+1. `ScriptParams`: `code: str`, `timeout: float = 60` (an `OpError` above 600), `author: str | None = None`. The
+   `Op`: `name="script"`, `kind="script"`, `impl="beamtime.ops.script:script"`, `stdin="code"`, `local=True`,
+   `routed=False`, `api=False`, summary one line ("Run Python with `bt` preloaded; answers its output.").
+2. `script(ctx, p)`: `subprocess.run([sys.executable, "-I", "-c", BOOTSTRAP], input=p.code, cwd=ctx.root,
+   timeout=p.timeout, capture_output=True, text=True, start_new_session=…)`, `BEAMTIME_AUTHOR` in the child's
+   environment when `author` is given. `BOOTSTRAP` reads the code from stdin, compiles it as `<script>` so
+   tracebacks name its lines, and executes it with `{"__name__": "__main__", "bt": bt}`.
+3. The answer: `{kind: "script", stdout, stderr, exit, seconds, cut}`; stdout cut at 20,000 characters (head kept),
+   stderr at its last 4,000; a timeout gives `exit: null` and a stderr line naming the limit and how to raise it.
+4. `render_script` prints stdout, then stderr, then one meta line when something was cut or the exit is nonzero.
+5. `BY_API` and `ROUTED` skip `api=False`; `tests/ops/test_registry.py` checks `script` is the only such op.
+   `instructions()` gains one line: `script` runs Python with `bt` preloaded, for joining, filtering and
+   formatting answers, never for recomputing a statistic an operation answers.
 
 ### C22. Ops-first in the guide and the rules block (sonnet) — code
 
 - **Touches:** `src/beamtime/guide/rules/rules.md`, `src/beamtime/guide/parts/analysis.md`, new
-  `src/beamtime/guide/parts/scripts.md`, `src/beamtime/guide/__init__.py` (the parts list, l. 18–31),
-  `tests/guide/`.
+  `src/beamtime/guide/parts/scripts.md`, `src/beamtime/guide/__init__.py` (`TOPICS`, l. 15–33),
+  `docs/guides/agents.md`, `tests/guide/`.
 - **Read:** `docs/design/05-views.md` § The agent guide (l. 653), § Defaults (l. 714);
-  `docs/design/08-cli-mcp.md` § Scripts (written by S21).
+  `docs/design/08-cli-mcp.md` § Scripts (S21, rewritten by S22 to lead with the `script` tool).
 - **Check:** `uv run pytest -q tests/guide tests/test_docs.py`; then the full suite.
-- **Done:** `beamtime guide scripts` prints the new part; the rules block carries the ops-first rule, so every
-  arm — MCP, CLI and scripts alike — receives it; `beamtime setup` writes the updated rules.
+- **Done:** `beamtime guide scripts` prints the new part, which leads with the `script` tool; the rules block
+  carries the ops-first rule, so every arm — MCP, CLI and scripts alike — receives it; `beamtime setup` writes
+  the updated rules; `docs/guides/agents.md` names the `script` tool and gives plain scripts one line.
 - **Risks:** the rules block has a release history (`src/beamtime/guide/rules/history/`) and `setup_note` flags an outdated
   one → add the new release file rather than editing a past one, `test_rules_release`; the block is read by the
   benchmark's `rules_block()` → E21 re-measures.
@@ -356,9 +487,13 @@ benchmark-only section.
    summaries, and every reader of the record shares the numbers they return. Python is for joining, filtering and
    formatting those answers, not for arriving at them: before computing a number yourself, look for the operation
    or field that returns it.
-2. `parts/scripts.md`: when to write Python at all (joining several answers, reshaping, formatting), the import
-   line, that answers are dicts, that reads are cached, and that `check` is the one path to a verdict.
-3. Add `"scripts"` to the parts list in `src/beamtime/guide/__init__.py`.
+2. `parts/scripts.md`: when to write Python at all (joining several answers, reshaping, formatting); the
+   `script` tool first (`bt` preloaded, answers are dicts, reads are cached, the timeout and the cap); one line
+   for agents without MCP: the same code in a plain script with `from beamtime import bt`, or piped to
+   `beamtime script`; and that `check` is the one path to a verdict.
+3. Add `"scripts"` to `TOPICS` in `src/beamtime/guide/__init__.py`.
+4. `docs/guides/agents.md`: one short paragraph on the `script` tool and one line on plain scripts, linked from
+   where the guide topics come up.
 
 ## D. Block reuse
 
@@ -394,30 +529,42 @@ Finding 5: the empty-state line already advertises `block promote`, but nothing 
 
 ## E. Benchmark
 
-### E21. Point the script arm at the shipped shim and re-measure (sonnet) — code
+### E21. Make the script arm the MCP arm plus the `script` tool (sonnet) — code
 
-- **Touches:** `bench/agents/compare/setups.py`, `bench/agents/compare/script/bt.py` (removed),
-  `bench/agents/compare/grade.py` (`Task` 44–56), `bench/agents/compare/tasks/check-all.yaml`,
-  `tests/bench/test_compare_setups.py`, `tests/bench/test_compare_grade.py`, `bench/agents/README.md`.
-- **Read:** `bench/agents/README.md`; finding 4 above.
+- **Touches:** `bench/agents/compare/setups.py` (`SCRIPT` l. 38, `Setup.api` l. 103, `api_reference`,
+  `script_section`, `SETUPS` l. 203, `prepare` l. 245, `shadow` l. 301, `planned` l. 315),
+  `bench/agents/compare/script/bt.py` (removed), `bench/agents/compare/grade.py` (`Task` 44–56),
+  `bench/agents/compare/tasks/check-all.yaml`, `tests/bench/test_compare_setups.py`,
+  `tests/bench/test_compare_grade.py`, `bench/agents/README.md`.
+- **Read:** `bench/agents/README.md`; finding 4 and decision 15 above; `src/beamtime/mcp/server.py` § `tools`
+  (l. 179) for the core listing.
 - **Check:** `uv run pytest -q tests/bench`; then the full suite.
-- **Done:** `grade.Task` carries `states_procedure` and `check-all` sets it; the script setup no longer copies a `bt.py` into the session root and the section documents
-  `from beamtime import bt`; the ops-first paragraph is gone from the section because C22 put it in the rules
-  block every arm receives; `check-all` is marked in the task file as stating its own procedure, so it is not
-  read as evidence of an ops gap.
-- **Risks:** the section's parity with the MCP instructions → the test that compares them,
-  `test_script_section_has_the_shipped_rules`; the shadow `beamtime` stub on PATH is still needed,
-  `test_script_has_no_beamtime_command`; the session count changes → `tests/bench/test_compare_sessions.py`.
-- **Stop if:** removing the section's ops-first paragraph leaves the script arm without a rule the MCP arm has.
+- **Done:** the `script` setup is the `mcp` setup — same data, rules block, MCP config and environment — and the
+  `mcp` setup alone passes `--disallowedTools mcp__beamtime__script`, so the two differ by that one tool; no
+  `bt.py`, `SCRIPT` section or refusing `beamtime` stub is left; `grade.Task` carries `states_procedure` and
+  `check-all` sets it.
+- **Risks:** the arms' parity → `test_script_is_mcp_plus_the_tool` compares their CLAUDE.md and MCP config and
+  their flags differ only in the disallowed tool; the tool missing from a session → the MCP server runs from the
+  `beamtime` environment, which carries the analysis libraries the code may import, `test_script_tool_listed`;
+  the old script-arm tests (`test_script_api`, `test_script_cache_serves_repeats`,
+  `test_script_has_no_beamtime_command`, …) → removed with what they tested, their cases now in `tests/test_bt.py`
+  and `tests/ops/test_script.py`; the session count changes → `tests/bench/test_compare_sessions.py`.
+- **Stop if:** Claude Code's `--disallowedTools` cannot hide one MCP tool from the `mcp` arm; come back rather
+  than adding a Beamtime setting for it.
 
-Re-measuring is a separate, user-run step: this ticket only makes the arm runnable against the shipped shim.
+Re-measuring is a separate, user-run step: this ticket only makes the arm measure what the docs now lead with
+(decision 15).
 
-1. Delete `bench/agents/compare/script/bt.py` and the `spec.api` copy step; keep the PATH shadow.
-2. Rewrite the section's import line to `from beamtime import bt` and drop the ops-first paragraph, which
-   `rules_block()` now carries.
+1. `SETUPS["script"]` becomes `Setup(name="script", data="beamtime", mcp=True, env="base",
+   section=rules_block())`; drop `Setup.api`, `SCRIPT`, `api_reference`, `script_section`, `REFUSAL`, `shadow`
+   and the `spec.api` step of `prepare`; delete `bench/agents/compare/script/`.
+2. `Project` gains `disallowed: str = ""`; `planned` sets it to `mcp__beamtime__script` for `mcp` only, and
+   `flags` adds `--disallowedTools` when it is set.
 3. Add `states_procedure: bool = False` to `grade.Task` and set it true in `check-all.yaml`: the prompt restates
    `check`'s own procedure because the `files` arm has no `check`, so the task is not evidence of an ops gap
    (finding 4). E22 reads this field.
+4. README: the script arm is the MCP arm plus the `script` tool; the earlier arm's numbers (plain scripts with
+   `bt.py`) are a different instrument and are not compared with the new ones.
 
 ### E22. The script arm as a standing gap detector (sonnet + review) — code
 
@@ -435,7 +582,8 @@ Re-measuring is a separate, user-run step: this ticket only makes the arm runnab
 - **Stop if:** the batch's keys do not line up well enough to pair per task.
 
 Finding 2 is the only real gap the benchmark found; finding 4 shows how easily a task is mistaken for one. This
-ticket makes that distinction mechanical, so the arm keeps earning its cost after this plan.
+ticket makes that distinction mechanical, so the arm keeps earning its cost after this plan. Since E21 the two arms
+differ only by the `script` tool, so a candidate is a task where code over the operations beats calling them.
 
 1. `gaps(batch) -> list[str]`, built like `goal`: pair `script` and `mcp` rows on `(task, seed, rep)`; drop tasks
    whose `Task.states_procedure` is true; return `[]` when either arm is absent from the batch.
@@ -452,20 +600,24 @@ ticket makes that distinction mechanical, so the arm keeps earning its cost afte
 
 ### Z21. Changelog and generated docs (sonnet) — code
 
-- **Touches:** `CHANGELOG.md`, `docs/reference/cli.md` (generated), `CLAUDE.md` § Project specifics.
+- **Touches:** `CHANGELOG.md`, `docs/reference/cli.md` (generated), `CLAUDE.md` § Project specifics and
+  § Decisions so far.
 - **Check:** `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`;
   `cd web && npm ci && npm test && npm run build`; `uv run python scripts/release.py` as far as it checks the tree.
-- **Done:** the changelog lists `beamtime importance`, the `importance` block, `from beamtime import bt` and the
-  `block list` candidates; `docs/reference/cli.md` is current (`uv run python docs/site/reference.py`); the Goal's
+- **Done:** the changelog lists `beamtime importance`, the `importance` block, the `script` MCP tool and
+  `beamtime script`, `from beamtime import bt` and the `block list` candidates; `docs/reference/cli.md` is current (`uv run python docs/site/reference.py`); the Goal's
   "Confirmed by" commands all pass.
-- **Risks:** `docs/reference/cli.md` drifts once `importance` has a CLI path → the test that checks it is current;
+- **Risks:** `docs/reference/cli.md` drifts once `importance` and `script` have a CLI path → the test that checks
+  it is current;
   a stale `src/beamtime/serve/static/` → CI fails, so confirm B22 committed the rebuild.
 - **Stop if:** the Goal's "Confirmed by" commands do not all pass; report which, rather than adjusting the Goal.
 
 1. Add the changelog entries under the unreleased heading, in the order the Goal lists them.
 2. Regenerate `docs/reference/cli.md` with `uv run python docs/site/reference.py` and commit it.
-3. Update CLAUDE.md § Project specifics to name `importance` as implemented and `beamtime.bt` as the scripting
-   entry point.
+3. Update CLAUDE.md § Project specifics to name `importance` as implemented, the `script` tool as the
+   programmatic path with `beamtime.bt` as its namespace (`src/beamtime/ops/script.py` in § Layout), and reword
+   "Beamtime records experiments, it never runs them" to add that the one code it runs is the analysis an agent
+   sends to `script`, with no sandbox, as `docs/design/08-cli-mcp.md` § Scripts says.
 
 ## E. Benchmark, continued
 
@@ -507,10 +659,13 @@ already expresses. These four probe areas none of them reaches, and are written 
 ## Breaking changes
 
 None. `importance` answered only an error before; `block list` gains a section without changing its existing
-`rows`; the shim is new.
+`rows`; the shim and the `script` tool are new. The core MCP listing grows by one tool.
 
 ## Not verified
 
+- That Claude Code's `--disallowedTools` hides a single MCP tool from the `mcp` arm, tool listing included —
+  E21 checks it before anything else.
+- That `remote.answer` under `caller="view"` answers whole for `@source` targets inside `bt` — C21 tests it.
 - That `Context.make(caller="view")` returns every answer whole for every op the shim exposes — C21 tests it on
   the large-answer ops (`runs`, `series`, `logs`).
 - That quantile bins are the right shape for η² on a swept numeric field with few distinct values — A22's
