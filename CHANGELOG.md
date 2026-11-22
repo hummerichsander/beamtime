@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+- **Added** `beamtime importance <group> --target <field>` and the `importance` MCP tool: one row per config
+  field with its Spearman rank correlation, η² on quantile bins and the number of runs the row rests on, ordered by
+  η²; below ten finished runs with the target the answer is a notice instead of numbers. `importance` is a query
+  kind, so `beamtime query` answers it too.
+- **Added** the `importance` view block, compiled to the same query, so the UI and MCP show the same numbers.
+- **Added** the `script` MCP tool and `beamtime script` (code on stdin): runs Python in a child `python -I` of the
+  serving interpreter, in the project root, with `bt` preloaded, a timeout (60 s, at most 600 s) and capped output.
+  Every non-user-only operation is a function in `bt` whose answer is a plain dict, so an agent joins, filters and
+  formats several answers in one call. There is no OS sandbox: the code has the user's rights, like `serve`.
+  `script` is not an API method, so the web UI, custom blocks and remotes cannot run code.
+- **Added** `from beamtime import bt`, the same namespace for plain scripts of agents without MCP. Reads are cached
+  in `.beamtime/bt-cache/` of the project for five minutes; writes drop the cache, and `status`, `wait`, `resume`
+  and `logs` are never cached.
+- **Added** a `candidates` section to `beamtime block list <group>`: the custom blocks of saved views (the whole
+  log dir is scanned) that several views use with the same declared queries, or, without queries, the same code, each
+  with its group and the `block promote` command.
+- **Added** the MCP tool reference, `docs/reference/mcp.md`, generated beside `docs/reference/cli.md` by
+  `docs/site/reference.py` (a test checks it is current).
+- **Changed** the agent guide: its rules state ops-first, the operations compute the statistics and Python joins,
+  filters and formats the answers they return; a new topic covers scripts.
+- **Changed** the MCP tool-definition budget from 12,000 to 13,000 characters, which the core `script` tool needs.
+- **Changed** `beamtime block check`: query-less custom blocks count as duplicates only when their code is equal.
+- **Changed** the benchmark's script arm: it is the MCP arm plus the `script` tool, and the comparison reports per
+  task where it beat MCP, leaving out tasks whose prompt restates an operation's own procedure
+  (`bench/agents/README.md`).
+
 ## 0.3.0
 
 - **Added** `beamtime ps` (user-only): lists every Beamtime process of this user on this machine by kind: `serve`

@@ -708,7 +708,7 @@ changelog and regenerates `cli.md` once more at the close. This ticket owns `mcp
    metric (`importance: {target: metric.val/acc.max}`). `src/beamtime/guide/parts/views.md` table: a row
    `| Which setting drives a metric? | \`importance\` with the metric as \`target\` |` after the `scatter` rows.
 
-### Z21. Changelog and generated docs (sonnet) — code
+### Z21. Changelog and generated docs (sonnet) — code — **done**
 
 - **Touches:** `CHANGELOG.md`, `docs/reference/cli.md` and `docs/reference/mcp.md` (generated), `CLAUDE.md` § Project specifics and
   § Decisions so far.

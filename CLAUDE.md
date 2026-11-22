@@ -188,7 +188,9 @@ MCP), M4 (research record), M5 (web UI shell), the UI refactor, M6 (views), M7 (
 the library) and M8 (remotes; tested on Docker, a real cluster run pending) are done; M9 (export, the view-task
 harness, docs site, release tooling) is done and 0.1.0 is on PyPI; milestones follow
 `docs/plans/implementation/implementation-plan.md`. 0.2.0 (the first refactor, `docs/plans/refactor-1/refactor-1-plan.md`: charts, sources, run
-lifecycle, kit v2, agent guide and tools) is prepared in `CHANGELOG.md` and waits for the release.
+lifecycle, kit v2, agent guide and tools) and 0.3.0 are released; `importance`, the `script` tool and the
+block candidates (`docs/plans/importance-and-scripts/importance-and-scripts-plan.md`) are implemented and
+listed under Unreleased in `CHANGELOG.md`.
 Each milestone implements the design sections it names; a deviation is decided and written back into
 the design before the code lands.
 
@@ -201,7 +203,9 @@ sync.
 - **Files are the source of truth; every file has one writer.** A run is a plain directory
   (`docs/design/01-storage.md`); the SQLite index is a cache. State that several parties change
   (notes, views, proposals, memory) is stored as new immutable files; the newest counts.
-- **Beamtime records experiments, it never runs them.**
+- **Beamtime records experiments, it never runs them.** The one code it runs is the analysis an agent sends
+  to the `script` tool (`docs/design/08-cli-mcp.md` § Scripts), in a child `python -I` with the user's rights
+  and no sandbox.
 - **The root is the user's repo**, like TensorBoard; runs live in user-chosen folders under one log
   dir (default `beamtime/`) and are found by their `_run.json`. Folders are the only hierarchy.
 - **Machine-written files start with `_`**; authored files live in `proposal/`, `notes/`, `view/`,
@@ -246,6 +250,12 @@ sync.
 - **Charts render with uPlot** using Beamtime's theme (no Vega-Lite); written texts are edited in
   the UI as new versions. The matplotlib/scienceplots rules above
   apply to code that produces figures with matplotlib, not to the web UI.
+- **Importance and scripts**: `importance` is a query kind (Spearman rank correlation, η² on quantile bins,
+  a notice below ten runs; `stats.py` computes both) shared by `beamtime importance`, the MCP tool and the
+  `importance` view block. `script` is the programmatic path: Python with `bt` preloaded, every non-user-only
+  op a function that answers a plain dict (`from beamtime import bt` for agents without MCP); it is not an API
+  method, so the web UI, custom blocks and remotes cannot run code. `block list` also names the custom blocks of
+  saved views that are candidates for promotion. Promoted operations stay out of scope.
 - **CLI and MCP** (`docs/design/08-cli-mcp.md`) are frontends of one operation set; MCP tool names
   follow the CLI path (`beamtime note add` ↔ `note_add`). Agent writes are additive; agents never run
   user-only commands (setup, serving, settings, moving, deleting) and hand the user the command.
@@ -306,6 +316,9 @@ sync.
   line chart (`settings.py`, owned by `m.Line`: defaults, folding a viewer's settings, the generated
   `web/src/bt/chart-defaults.ts` written by `scripts/build-chart-defaults`); tests in
   `tests/views/` and `tests/serve/test_render.py`
+- `src/beamtime/ops/script.py`: the `script` operation (the child `python -I` runner with timeout and output
+  cap); `src/beamtime/bt.py`: its namespace, `from beamtime import bt` (every non-user-only op as a function,
+  reads cached in `.beamtime/bt-cache/` for five minutes, a write drops the cache)
 - `src/beamtime/ops/authored.py`: what every authored write shares (target, author, new version,
   answer); `src/beamtime/ops/views.py`: the `view` operations; `src/beamtime/ops/blocks.py`: the `block`
   operations (drafts in `.beamtime/drafts/blocks/`, export and import, also from git);
