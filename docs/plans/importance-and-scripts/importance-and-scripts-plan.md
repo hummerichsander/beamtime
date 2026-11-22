@@ -369,7 +369,7 @@ No new numbers here: the block compiles to A22's query so the UI and MCP cannot 
 3. `validate.py`: when the answer has `rows`, nothing to check; when it has `notice`, that is a valid state, not
    an empty-block error.
 
-### B22. The `importance` block in the frontend (sonnet + review) — code
+### B22. The `importance` block in the frontend (sonnet + review) — code — **done**
 
 - **Touches:** new `web/src/blocks/importance.ts`, `web/src/blocks/index.ts` (import l. 17, registration l. 27),
   `web/test/`, and the rebuilt `src/beamtime/serve/static/`.

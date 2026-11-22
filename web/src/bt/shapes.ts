@@ -230,3 +230,47 @@ export function timeLabel(t: number, step: number): string {
   const hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   return d.getHours() === 0 && d.getMinutes() === 0 ? d.toLocaleDateString([], { month: "short", day: "numeric" }) : hm;
 }
+
+// `importance`: bars for the answer's rows, in its order.
+export interface ImportanceRow {
+  field: string;
+  spearman: number | null;
+  eta_squared: number | null;
+  n: number;
+}
+
+export interface ImportanceAnswer {
+  target: string;
+  rows: ImportanceRow[];
+  notice: string | null;
+  meta?: { matched?: number };
+}
+
+export interface ImportanceBar {
+  field: string;
+  n: number;
+  rho: number | null;
+  eta: number | null;
+  rhoFraction: number;
+  etaFraction: number;
+}
+
+const clamp = (x: number) => Math.min(1, Math.max(0, x));
+
+// bars keep the answer's order (η² first); a negative correlation draws as magnitude, its sign stays in the text.
+export function importanceBars(rows: ImportanceRow[]): ImportanceBar[] {
+  return rows.map((r) => ({
+    field: r.field,
+    n: r.n,
+    rho: r.spearman,
+    eta: r.eta_squared,
+    rhoFraction: r.spearman === null ? 0 : clamp(Math.abs(r.spearman)),
+    etaFraction: r.eta_squared === null ? 0 : clamp(r.eta_squared),
+  }));
+}
+
+export function signed(x: number | null): string {
+  if (x === null) return "–";
+  const text = Math.abs(x).toFixed(2);
+  return x < 0 ? `−${text}` : text;
+}

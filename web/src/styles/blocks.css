@@ -67,6 +67,7 @@ table.runs {
   & td.live { font-style: italic; }
   & td.score { background: color-mix(in srgb, var(--accent) calc(var(--shade, 0) * 28%), transparent); & .spread { color: var(--muted); } }
   & tr.queued td { color: var(--muted); }
+  &.importance { inline-size: auto; & tbody tr { cursor: default; } & td.progress { min-inline-size: 160px; } & td:first-child { padding-inline-end: var(--space-4); } }
   & td.progress { position: relative; }
   & td.progress .bar { position: absolute; inset-inline-start: 0; inset-block-end: 0; inline-size: calc(var(--fraction) * 100%); block-size: var(--stroke-data); background: var(--accent); }
 }

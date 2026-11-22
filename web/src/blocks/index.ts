@@ -9,6 +9,7 @@ import { Box, type Registry } from "./box.ts";
 import { Groups, MarkdownBlock, Memory, NoteBlock, Notes, Output, Proposal } from "./context.ts";
 import { ConfigBlock } from "./config.ts";
 import { Custom } from "./custom.ts";
+import { Importance } from "./importance.ts";
 import { Images, Text } from "./logged.ts";
 import { DataTable, Timeline } from "./data.ts";
 import { Grid, Row, Section, Tabs } from "./layout.ts";
@@ -25,6 +26,7 @@ const BLOCKS: Registry = {
   line: Line,
   table: Table,
   scorecard: Scorecard,
+  importance: Importance,
   stat: Stat,
   images: Images,
   text: Text,
