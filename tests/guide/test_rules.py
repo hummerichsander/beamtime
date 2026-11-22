@@ -60,6 +60,15 @@ def test_render_record_required_and_conventions() -> None:
     assert "Main metric" not in render(agent(), USER_ONLY)
 
 
+@pytest.mark.parametrize("style", ["careful", "hands-on", "analysis"])
+def test_render_states_the_ops_first_rule(style: str) -> None:
+    """Every preset's block says operations compute and Python joins; the 0.3.0 text lacks it."""
+    text = render(agent(style=style), USER_ONLY)
+    assert "The operations compute the statistics" in text
+    assert "before computing a number yourself" in text
+    assert "before computing a number yourself" not in (HISTORY / "0.3.0.md").read_text("utf-8")
+
+
 def test_release_of_history() -> None:
     """The texts of 0.1.0 and 0.2.0 are named by the newest release that wrote them."""
     for name, release in RELEASES.items():

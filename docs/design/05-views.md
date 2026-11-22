@@ -684,6 +684,7 @@ research shows work better than long rule lists.
 | `guide proposals`, `predictions` | proposals with plans and versions; `each` and `compare` with worked examples | ~700 each |
 | `guide notes`, `verdicts`, `memory` | note types and links; judging a proposal, stating what the check says; compressing memory | ~500 each |
 | `guide remote`, `analysis` | `@source/...` groups; which tool answers which question | ~400 each |
+| `guide scripts` | Python over the operations: when to write it at all, the `script` tool first (`bt` preloaded, answers as dicts, the cache, the timeout and the cap), plain scripts in one line, `check` as the one path to a verdict | ~500 |
 | `guide data-files` | a table of your own on a page: the recipe from file to saved view (`view_data`, `data_table`, a `file` query in a custom block), the rules and the findings with their fixes | ~900 |
 | `guide type` | which type class for which text in custom blocks and views: the family rule (the family says who wrote the text), the class table, SVG and canvas text, emphasis, and how `title`, `caption` and Markdown fields render | ~700 |
 | `guide <group>` | additionally: the group's metrics and varying config, its current view, library blocks and outdated pins | – |

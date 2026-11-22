@@ -29,6 +29,7 @@ TOPICS = (
     "memory",
     "remote",
     "analysis",
+    "scripts",
     "data-files",
     "type",
 )

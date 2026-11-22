@@ -17,7 +17,7 @@ SKILLS: dict[str, tuple[str, tuple[str, ...]]] = {
     "beamtime-analysis": (
         "Analyze runs logged with Beamtime: queries, failed runs, comparisons and remote "
         "sources. Use when the user asks about runs, metrics or a group's results.",
-        ("queries", "analysis", "remote"),
+        ("queries", "analysis", "scripts", "remote"),
     ),
 }
 

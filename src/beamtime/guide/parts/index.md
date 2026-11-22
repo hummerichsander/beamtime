@@ -3,6 +3,7 @@
 Read the topic you need: `guide <topic>`.
 
 - `analysis`: which tool answers which question; start here for results.
+- `scripts`: Python over the operations (the `script` tool): joining and formatting answers.
 - `queries`: fields, `--where`, scopes, depth.
 - `proposals`, `predictions`, `verdicts`: plans, checks, judging.
 - `notes`, `memory`: note types; what outlives the session.

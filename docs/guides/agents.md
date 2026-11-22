@@ -32,12 +32,19 @@ Agents never **delete, move or set up** anything; they hand you the command (`se
 `gc`, `serve`, `stop`, `ps`, `set`). When `beamtime status` reports an outdated setup, your agent
 hands you `beamtime setup`.
 
+## Scripts
+
+When an agent has to join, filter or format several answers, it sends Python to the `script` tool
+(`beamtime script` with the code on stdin): `bt` is preloaded, and every operation is a function that
+returns its answer as a dict. The operations compute the statistics; the code only joins and formats what
+they return. Without MCP, the same code runs as a plain script with `from beamtime import bt`.
+
 ## How much agents do
 
 The `agent` setting in `beamtime.yaml` sets launching runs, seeds, significance, proposal length and
 more; `beamtime setup` writes a preset (careful, hands-on, analysis only), and
 [Settings](settings.md#agent) lists every key.
 
-`beamtime guide <topic>` is the agent's manual (proposals, pages, checklists). It marks the defaults
+`beamtime guide <topic>` is the agent's manual (proposals, pages, checklists, [scripts](#scripts)). It marks the defaults
 it takes from `agent`; your own instruction file can override them ("always put the run table
 first").

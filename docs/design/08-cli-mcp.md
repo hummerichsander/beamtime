@@ -369,6 +369,10 @@ The guide states these as defaults ([layer 5](05-views.md#defaults)):
 - **The agent rules** (`--instructions`) come from the guide package (`guide/parts/instructions.md`)
   and are written as one block between `<!-- beamtime:start -->` and `<!-- beamtime:end -->`; a
   rerun replaces the block and keeps the rest of the file.
+  Besides the question-to-tool table it carries the ops-first rule: the operations compute the statistics, and
+  Python (`script`) only joins, filters and formats their answers ([`guide scripts`](05-views.md#the-agent-guide)).
+  A release that changes the template adds the previous text to `guide/rules/history/`, so `setup` can tell an
+  outdated block from a hand-edited one.
 - **`mcp install --client <name>`** is the one-client form of the setup's registration
   (`setup/agents.py:register`, [layer 10](10-setup.md#agent-clients)): it edits the client's config
   as data, keeping other servers, and names the project with `--root` where the config is user-wide.

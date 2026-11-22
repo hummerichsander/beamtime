@@ -501,7 +501,7 @@ rights and no sandbox. Refusing user-only ops is `bt`'s job (C21), not the runne
    `instructions()` gains one line: `script` runs Python with `bt` preloaded, for joining, filtering and
    formatting answers, never for recomputing a statistic an operation answers.
 
-### C22. Ops-first in the guide and the rules block (sonnet) — code
+### C22. Ops-first in the guide and the rules block (sonnet) — code — **done**
 
 - **Touches:** `src/beamtime/guide/rules/rules.md`, `src/beamtime/guide/parts/analysis.md`, new
   `src/beamtime/guide/parts/scripts.md`, `src/beamtime/guide/__init__.py` (`TOPICS`, l. 15–33),

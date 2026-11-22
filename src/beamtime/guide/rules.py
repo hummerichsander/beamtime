@@ -12,7 +12,7 @@ START, END = "<!-- beamtime:start -->", "<!-- beamtime:end -->"
 # the instruction files of the agent clients (tests keep this equal to the client table's).
 RULES_FILES = ("CLAUDE.md", "AGENTS.md", "GEMINI.md")
 # the newest release that wrote each history text.
-RELEASES = {"0.1.0.md": "0.1.1", "0.2.0.md": "0.2.1"}
+RELEASES = {"0.1.0.md": "0.1.1", "0.2.0.md": "0.2.1", "0.3.0.md": "0.3.0"}
 LAUNCH = {
     "never": "Never launch runs yourself.",
     "ask": "Ask before you launch a run.",

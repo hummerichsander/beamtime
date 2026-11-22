@@ -512,6 +512,7 @@ class GuideParams(Params, kw_only=True):
             "memory",
             "remote",
             "analysis",
+            "scripts",
             "data-files",
             "type",
         ]
