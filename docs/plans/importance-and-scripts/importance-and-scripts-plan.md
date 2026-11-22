@@ -401,7 +401,7 @@ This is the only ticket that touches `web/` and the only one that rebuilds the b
 
 ## C. The shim
 
-### C21. Ship `from beamtime import bt` (sonnet + review) — code
+### C21. Ship `from beamtime import bt` (sonnet + review) — code — **done**
 
 - **Touches:** new `src/beamtime/bt.py` (from `bench/agents/compare/script/bt.py`), new `tests/test_bt.py`.
 - **Read:** `docs/design/08-cli-mcp.md` § Scripts (written by S21, led by the `script` tool since S22);

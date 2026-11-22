@@ -20,7 +20,7 @@ timed = pytest.mark.skipif(
 
 
 @pytest.mark.parametrize(
-    "module", ["beamtime", "beamtime.cli", "beamtime.format.run", "beamtime.query"]
+    "module", ["beamtime", "beamtime.cli", "beamtime.format.run", "beamtime.query", "beamtime.bt"]
 )
 def test_no_heavy_imports(module: str) -> None:
     """Importing the package, the CLI or the readers pulls in no heavy dependency."""
