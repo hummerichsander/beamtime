@@ -171,8 +171,8 @@ operation's parameters as keyword arguments and returns its answer as a plain di
 - **Reads are cached** in `.beamtime/bt-cache/` of the project root, because every script is a fresh
   interpreter and a second look at the same data would cost another call. The cache is local, never
   committed and safe to delete.
-- **Writes are never cached**, nor are `status`, `wait`, `resume` and `logs`, whose answers change
-  with time.
+- **Writes are never cached** and drop the cache, since any kept answer may have changed; nor are
+  `status`, `wait`, `resume` and `logs` cached, whose answers change with time.
 - **The rule it serves**: the operations compute the statistics; Python joins, filters and formats the
   answers they return. A script never recomputes a statistic an operation already answers.
 

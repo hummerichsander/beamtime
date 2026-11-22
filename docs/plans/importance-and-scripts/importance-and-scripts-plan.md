@@ -184,6 +184,10 @@ in this order: S21 A21 A22 A23 B21 B22 S22 C21 C23 C22 D21 E21 E22 Z22 Z21 E23
     takes every count from `CORE`, `FAMILIES` and `BY_TOOL`; user pages link it instead of naming counts.
     Rejected: a hand-written page linking a generated part, which is two pages for one topic and leaves the intro's
     counts unchecked.
+20. **A write through `bt` drops `.beamtime/bt-cache/`** (C21 review): a read kept before a write answered the
+    old state after it (`bt.notes`, then `bt.note_add`, then `bt.notes` returned the note-less answer), so a
+    successful write removes the whole cache and `08-cli-mcp.md` § Scripts says so. Rejected: invalidating per
+    operation through `stale_on`, which is more machinery than a cache that is safe to delete needs.
 
 ## S. Spec
 
@@ -469,7 +473,9 @@ root.
   of `BY_API` without touching the web UI.
 
 Decisions 10–13: the code runs in a child of the serving interpreter, never inside the server, with the user's
-rights and no sandbox. Refusing user-only ops is `bt`'s job (C21), not the runner's.
+rights and no sandbox. Refusing user-only ops is `bt`'s job (C21), not the runner's. `bt` already hides `script` by name
+(`HIDDEN` in `src/beamtime/bt.py`, C21), so once the `Op` exists `tests/test_bt.py::test_bt_has_no_script` and
+`test_bt_ops_name_what_agents_may_call` stop passing vacuously and must still pass; keep the name `script`.
 
 1. `ScriptParams`: `code: str`, `timeout: float = 60` (an `OpError` above 600), `author: str | None = None`. The
    `Op`: `name="script"`, `kind="script"`, `impl="beamtime.ops.script:script"`, `stdin="code"`, `local=True`,

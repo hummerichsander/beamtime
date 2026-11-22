@@ -7,6 +7,7 @@ and a read already made is answered from disk, so asking twice costs nothing."""
 import hashlib
 import json
 import os
+import shutil
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -67,6 +68,8 @@ def call(name: str, args: dict[str, Any] | None = None, **kw: Any) -> dict[str, 
             takes = ", ".join(fields(op)) or "no parameters"
             raise OpError(f"{e}. {name} takes: {takes}") from None
         raise
+    if op.writes:
+        forget(context)
     save(op, given, answer, context)
     return answer
 
@@ -88,7 +91,7 @@ def slot(op: Any, given: dict[str, Any], context: Context) -> Path:
     :return: The file, which need not exist."""
     text = json.dumps([op.name, given], sort_keys=True, default=str)
     name = f"{op.tool}-{hashlib.sha256(text.encode()).hexdigest()[:16]}.json"
-    return context.root / ".beamtime" / "bt-cache" / name
+    return cache(context) / name
 
 
 def load(op: Any, given: dict[str, Any], context: Context) -> dict[str, Any] | None:
@@ -129,6 +132,21 @@ def save(op: Any, given: dict[str, Any], answer: dict[str, Any], context: Contex
         file.write_text(text, encoding="utf-8")
     except (OSError, TypeError, ValueError):
         pass
+
+
+def forget(context: Context) -> None:
+    """Drop every kept answer, because a write may have changed any of them.
+
+    :param context: The project the call runs in."""
+    shutil.rmtree(cache(context), ignore_errors=True)
+
+
+def cache(context: Context) -> Path:
+    """Name the folder that keeps answers.
+
+    :param context: The project the call runs in.
+    :return: The folder, which need not exist."""
+    return context.root / ".beamtime" / "bt-cache"
 
 
 def fields(op: Any) -> tuple[str, ...]:

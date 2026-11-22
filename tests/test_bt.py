@@ -89,6 +89,15 @@ def test_bt_never_caches_a_write(project: Path, calls: list[str]) -> None:
     assert not (project / ".beamtime" / "bt-cache").exists()
 
 
+def test_bt_write_drops_the_cache(project: Path, calls: list[str]) -> None:
+    """A read after a write sees the write, not the answer kept before it."""
+    before = bt.notes({"from": GROUP})
+    bt.note_add(group=GROUP, type="observation", description="seen", body="a note")
+    after = bt.notes({"from": GROUP})
+    assert after != before
+    assert calls == ["notes", "note add", "notes"]
+
+
 def test_bt_skips_unserializable(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """An answer that is not JSON is returned and not saved."""
     answer = {"kind": "runs", "odd": object()}
