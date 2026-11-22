@@ -162,7 +162,8 @@ the new ones.
   and `None` as JSON text), while `hparams.yaml` keeps it nested. It needs `tensorboard` only, no
   TensorFlow or PyTorch, so tests run under `uv run --with tensorboard` and skip without it.
 - `compare/truth.py`: `compute(files_root, logdir)` gives every task's expected values (`best-config`,
-  `failures`, `sweep-summary`, `check-prediction`, `chart`, `find-runs`, `fastest`, `table`) in pure
+  `failures`, `sweep-summary`, `check-prediction`, `chart`, `find-runs`, `fastest`, `table`,
+  `logged-tables`, `run-lifecycle`) in pure
   Python from the plain-files export, so it is computed per seed at grading time and never written into
   a session's reach. Only finished runs enter a mean (`_run.json` status `finished`); the final value is
   the last logged value of a metric, and validation accuracy is `val/acc` or `val/accuracy`. The sweep
@@ -172,8 +173,9 @@ the new ones.
   `fastest` asks for 0.9, where an lr qualifies only if all its counted runs reach it. The intervals
   are Beamtime's own `welch_interval` and `paired_interval` at 95 %. Truth
   and graded checks tell finished from not finished only: running, lost and killed runs are alike.
-- `compare/tasks/<id>.yaml` and `compare/grade.py`: the eight tasks (`best-config`, `failures`,
-  `sweep-summary`, `check-prediction`, `chart`, `find-runs`, `fastest`, `table`). A file holds the
+- `compare/tasks/<id>.yaml` and `compare/grade.py`: the ten tasks on `s` (`best-config`, `failures`,
+  `sweep-summary`, `check-prediction`, `chart`, `find-runs`, `fastest`, `table`, `logged-tables`,
+  `run-lifecycle`). A file holds the
   question (`prompt`), the answer shape shown to the agent (`answer`), the `checks` and `time_limit_s`;
   `setups` (default all four) and `judge` (J72) are optional. `load_tasks()` appends "End your reply
   with a fenced json block: {answer}" to every prompt, and no prompt names a product or a file layout.
@@ -250,7 +252,7 @@ the new ones.
   record, so its exports and texts are as before.
 - `compare/sessions.py`: `uv run python bench/agents/compare/sessions.py [--setups ...] [--tasks ...]
   [--seeds 7 8 9] [--reps 1] [--parallel 3] [--model sonnet] [--keep] [--dry-run] [--grade-only BATCH]`.
-  `--dry-run` lists the 182 sessions (14 tasks x 4 setups x 3 seeds, plus cli on the first seed, in a fixed shuffled order) with their
+  `--dry-run` lists the 234 sessions (18 tasks x 4 setups x 3 seeds, plus cli on the first seed, in a fixed shuffled order) with their
   commands and builds nothing. A real run resolves the model alias to its full id with one probe
   session (the init event's `model`) and pins that id for every session and the chart judge, reads
   `claude --version`, builds the venvs (`make_envs`, per batch) and one log dir per seed, then runs the
@@ -327,7 +329,23 @@ the new ones.
   `verdict` and on `effect` (abs 0.002); `stale-verdicts` names the predictions whose verdict in the note no
   longer holds (two, planted: `lion-beats-adamw` inconclusive to confirmed, `sgd-under` confirmed to
   inconclusive) with `f1` on the names (`field: name`; `f1` reads `id` unless the check names a field) and
-  `keyed` on `new`. With these two the comparison has 14 tasks, 182 sessions per model and repetition (cli on one seed).
+  `keyed` on `new`. With these two the comparison had 14 tasks.
+- Detector tasks (E23): four more probe areas the 14 tasks do not reach, each written as the question a
+  researcher asks and the answer shape, with no operation named, no procedure restated and
+  `states_procedure` false (`test_new_tasks_name_no_operation`). With them the comparison has 18 tasks
+  and 234 sessions per model and repetition (cli on one seed).
+  `cross-group` (`wide`): which of `sweeps/s04` and `sweeps/s11` reached the lower mean final `val/loss`
+  over its finished runs, with the run counts (`wide_truth.cross_group`; counting the failed and killed
+  runs changes the answer on seed 7). `record-history` (`wide`): the runs of `study/optimizer` that started
+  after its newest verdict note and each optimizer's change of mean final `val/loss` from the runs before the
+  note to all runs now (`wide_truth.record_history`, from the note's id in `record/` and the run ids, whose
+  first 15 characters are their time; the planted change is the second half's mean minus the first's).
+  `logged-tables` (`s`): the three classes of the per-class accuracy table of `scaling/lr-sweep` with the
+  lowest mean and the run count (`truth.logged_tables`, from `_data.jsonl` in the log dir, since the export
+  holds no tables). `run-lifecycle` (`s`): the run of `scaling/long-context` that a scheduler interrupted
+  and a later job resumed, with the interrupted and resumed steps and the seconds between the two events
+  (`truth.run_lifecycle`, from `_events.jsonl`). Neither data set has hidden or copied runs, so the
+  lifecycle probe covers restarts only.
 
 **The gap detector.** `uv run python bench/agents/compare/sessions.py --setups mcp script --reps 3`
 runs the two arms on every task and seed; `tables.py` then writes a **Gaps** section into `results.md`.
@@ -341,7 +359,9 @@ Read it like this: a candidate becomes work only when its missing construct can 
 construct or operation that would have spared the script; if it cannot be named, the win is wording,
 variance or a procedure the prompt states, and it stays a candidate. Record for each candidate why it
 was accepted or rejected as a line under **Gap judgements** below, so the next run starts from the
-last judgement. Running the detector costs billed sessions and is the user's step.
+last judgement. Running the detector costs billed sessions and is the user's step: with the 18 tasks
+`--setups mcp script --reps 3` is 324 sessions (`--dry-run` prints the count), roughly $15 at the November
+batch's rate of $8.71 for 182 sessions. Keep nothing of `bench/agents/runs/` in git.
 
 **Gap judgements** (task, batch, verdict and why):
 

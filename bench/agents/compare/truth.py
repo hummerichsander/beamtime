@@ -16,6 +16,9 @@ SWEEPS = (SWEEP, "scaling/lr-sweep-2")
 ACCURACY = ("val/acc", "val/accuracy")
 EGNN = "realistic/egnn-bench"
 TOKENIZER = "tokenizer/bpe-vs-unigram"
+LONG_CONTEXT = "scaling/long-context"
+CLASS_TABLE = "val/per_class"
+LOWEST_CLASSES = 3
 
 LEVEL = 0.95
 FIND_MIN = 0.922
@@ -115,6 +118,8 @@ def compute(files_root: Path, logdir: Path) -> dict[str, dict[str, Any]]:
         "find-runs": find_runs(runs),
         "fastest": fastest(runs),
         "table": table(runs),
+        "logged-tables": logged_tables(runs, logdir),
+        "run-lifecycle": run_lifecycle(runs, logdir),
     }
 
 
@@ -333,6 +338,71 @@ def table(runs: list[TruthRun]) -> dict[str, Any]:
         for r in sweep_runs(runs)
     ]
     return {"rows": sorted(rows, key=lambda row: row["id"])}
+
+
+def read_records(path: Path) -> list[dict[str, Any]]:
+    """Read a JSON-lines file of a run folder.
+
+    :param path: The file.
+    :return: Its records; empty when the run never wrote the file."""
+    if not path.is_file():
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def logged_tables(runs: list[TruthRun], logdir: Path) -> dict[str, Any]:
+    """Average the per-class validation accuracy table over the sweep runs that logged it.
+
+    :param runs: All runs.
+    :param logdir: The log dir the export was made from; the tables are not in the export.
+    :return: ``runs`` (how many logged the table), ``classes`` (the three lowest as
+        ``{class, mean_acc}``, lowest first) and ``means`` of every class."""
+    accuracies: dict[str, list[float]] = defaultdict(list)
+    logged = 0
+    for r in in_group(runs, SWEEP):
+        tables = [
+            e
+            for e in read_records(logdir / r.group / r.id / "_data.jsonl")
+            if e["kind"] == "table" and e["key"] == CLASS_TABLE
+        ]
+        if not tables:
+            continue
+        logged += 1
+        columns = tables[-1]["columns"]
+        for name, acc in zip(columns["class"], columns["acc"], strict=True):
+            accuracies[name].append(acc)
+    means = {name: mean(v) for name, v in accuracies.items()}
+    lowest = sorted(means, key=means.__getitem__)[:LOWEST_CLASSES]
+    return {
+        "runs": logged,
+        "classes": [{"class": name, "mean_acc": means[name]} for name in lowest],
+        "means": means,
+    }
+
+
+def run_lifecycle(runs: list[TruthRun], logdir: Path) -> dict[str, Any]:
+    """Find the runs of the long-context group that a scheduler interrupted and a later job resumed.
+
+    :param runs: All runs.
+    :param logdir: The log dir the export was made from; the events are not in the export.
+    :return: ``runs`` as ``{id, interrupted_at, resumed_from, wait_s}``: the step of the interruption,
+        the step the next job resumed from and the seconds between the two events."""
+    found = []
+    for r in in_group(runs, LONG_CONTEXT):
+        events = read_records(logdir / r.group / r.id / "_events.jsonl")
+        for i, event in enumerate(events):
+            if event["kind"] != "requeue_requested":
+                continue
+            resumed = next(e for e in events[i + 1 :] if e["kind"] == "attempt_started")
+            found.append(
+                {
+                    "id": r.id,
+                    "interrupted_at": event["_step"],
+                    "resumed_from": resumed["resume_step"],
+                    "wait_s": round(resumed["_t"] - event["_t"], 3),
+                }
+            )
+    return {"runs": found}
 
 
 def compute_wide(files_root: Path, logdir: Path) -> dict[str, dict[str, Any]]:

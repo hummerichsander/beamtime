@@ -1,6 +1,8 @@
 """Tests of the expected answers in ``bench/agents/compare/truth.py``; no agent runs."""
 
 import csv
+import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +17,7 @@ sys.path.insert(0, str(COMPARE))
 
 import data  # noqa: E402
 import formats  # noqa: E402
+import grade  # noqa: E402
 import truth  # noqa: E402
 
 NOW = datetime(2026, 10, 26, 12, 0, 0, tzinfo=timezone.utc)
@@ -75,6 +78,8 @@ def test_every_task_has_truth(made: Made) -> None:
         "find-runs",
         "fastest",
         "table",
+        "logged-tables",
+        "run-lifecycle",
     }
 
 
@@ -319,3 +324,141 @@ def test_fastest_needs_every_run(made: Made) -> None:
     assert "0.003" not in fast["steps"]
     assert fast["step"] == pytest.approx(840, abs=40)
     assert abs((fast["step"] * 5 + hit) / 6 - fast["step"]) > 0.01 * fast["step"]
+
+
+def test_logged_tables(made: Made) -> None:
+    """The runs that logged the table are the first batch's runs that have one, not the failed and killed ones; the three
+    lowest classes are the ones with the lowest mean of what the run files hold."""
+    found = made.truth["logged-tables"]
+    tables = []
+    for card in sorted(made.logdir.glob("scaling/lr-sweep/*/_data.jsonl")):
+        records = [json.loads(line) for line in card.read_text(encoding="utf-8").splitlines()]
+        tables.append(next(r for r in records if r["key"] == "val/per_class")["columns"])
+    means = {
+        name: sum(t["acc"][t["class"].index(name)] for t in tables) / len(tables)
+        for name in tables[0]["class"]
+    }
+    lowest = sorted(means, key=means.__getitem__)[:3]
+
+    assert found["runs"] == len(tables)
+    assert len(tables) < len(list(made.logdir.glob("scaling/lr-sweep/*/_run.json")))
+    assert [c["class"] for c in found["classes"]] == lowest
+    assert [c["mean_acc"] for c in found["classes"]] == pytest.approx([means[n] for n in lowest])
+    assert means[lowest[-1]] < sorted(means.values())[3]
+
+
+def test_logged_tables_by_hand(tmp_path: Path) -> None:
+    """Two runs with known tables: the mean per class, lowest first, over the runs that logged it;
+    a run without the file and a run with another table do not count, and the last table of a run
+    is the one that counts."""
+    group = truth.SWEEP
+
+    def write(run_id: str, *entries: tuple[str, list[str], list[float]]) -> truth.TruthRun:
+        folder = tmp_path / group / run_id
+        folder.mkdir(parents=True)
+        lines = [
+            {"_step": i, "key": key, "kind": "table", "columns": {"class": cls, "acc": acc}}
+            for i, (key, cls, acc) in enumerate(entries)
+        ]
+        (folder / "_data.jsonl").write_text(
+            "".join(json.dumps(x) + "\n" for x in lines), encoding="utf-8"
+        )
+        return truth.TruthRun(
+            group=group, id=run_id, config={}, rows=[], output="", finished=True
+        )
+
+    classes = ["a", "b", "c", "d"]
+    runs = [
+        write("r1", ("val/per_class", classes, [0.9, 0.5, 0.7, 0.8])),
+        write(
+            "r2",
+            ("val/per_class", classes, [0.0, 0.0, 0.0, 0.0]),
+            ("other", classes, [0.1, 0.1, 0.1, 0.1]),
+            ("val/per_class", classes, [0.7, 0.3, 0.9, 0.6]),
+        ),
+        truth.TruthRun(group=group, id="r3", config={}, rows=[], output="", finished=False),
+    ]
+    (tmp_path / group / "r3").mkdir()
+
+    found = truth.logged_tables(runs, tmp_path)
+
+    assert found["runs"] == 2
+    assert [c["class"] for c in found["classes"]] == ["b", "d", "a"]
+    assert [c["mean_acc"] for c in found["classes"]] == pytest.approx([0.4, 0.7, 0.8])
+
+
+def test_run_lifecycle(made: Made) -> None:
+    """The one interrupted run is the planted resumed run: interrupted at step 1200 of 2000,
+    continued from 1000 by a job that started two minutes less a second later."""
+    runs = made.truth["run-lifecycle"]["runs"]
+
+    assert runs == [
+        {
+            "id": role(made, "resumed"),
+            "interrupted_at": 1200,
+            "resumed_from": 1000,
+            "wait_s": pytest.approx(119.0),
+        }
+    ]
+
+
+def test_run_lifecycle_by_hand(tmp_path: Path) -> None:
+    """A run with a requeue and a restart is listed with its steps and the gap between the events;
+    a run that only started once is not."""
+    group = truth.LONG_CONTEXT
+    events = {
+        "a": [
+            {"_t": 100.0, "kind": "created"},
+            {"_t": 150.5, "_step": 30, "kind": "requeue_requested", "signal": "SIGUSR1"},
+            {"_t": 210.0, "kind": "attempt_started", "resume_step": 20},
+        ],
+        "b": [{"_t": 100.0, "kind": "created"}, {"_t": 100.0, "kind": "attempt_started"}],
+    }
+    runs = []
+    for run_id, records in events.items():
+        folder = tmp_path / group / run_id
+        folder.mkdir(parents=True)
+        (folder / "_events.jsonl").write_text(
+            "".join(json.dumps(x) + "\n" for x in records), encoding="utf-8"
+        )
+        runs.append(truth.TruthRun(group=group, id=run_id, config={}, rows=[], output="", finished=True))
+
+    assert truth.run_lifecycle(runs, tmp_path)["runs"] == [
+        {"id": "a", "interrupted_at": 30, "resumed_from": 20, "wait_s": 59.5}
+    ]
+
+
+def test_new_tasks_grade_against_truth(made: Made, tmp_path: Path) -> None:
+    """A hand-written perfect answer scores 1.0 and the typical wrong ones score below it."""
+    tasks = grade.load_tasks()
+    t = made.truth
+
+    def score(task: str, answer: dict) -> float:
+        reply = f"Done.\n\n```json\n{json.dumps(answer)}\n```\n"
+        return grade.grade(tasks[task], reply, t[task], tmp_path).score
+
+    classes = [dict(c) for c in t["logged-tables"]["classes"]]
+    lifecycle = [dict(r) for r in t["run-lifecycle"]["runs"]]
+    stopped = [dict(r, interrupted_at=r["interrupted_at"] + 1) for r in lifecycle]
+
+    assert score("logged-tables", {"runs": t["logged-tables"]["runs"], "classes": classes}) == 1.0
+    assert score("logged-tables", {"runs": 24, "classes": classes[::-1][:2]}) < 1.0
+    assert score("run-lifecycle", {"runs": lifecycle}) == 1.0
+    assert score("run-lifecycle", {"runs": stopped}) < 1.0
+    assert score("run-lifecycle", {"runs": []}) < 1.0
+
+
+NEW_TASKS = ("cross-group", "record-history", "logged-tables", "run-lifecycle")
+OPERATIONS = ("compare", "check", "importance", "timeline", "diagnose", "digest", "series", "query")
+
+
+def test_new_tasks_name_no_operation() -> None:
+    """The four detector tasks ask a question and give the answer shape; none names an operation
+    or marks that it restates one's procedure."""
+    tasks = grade.load_tasks()
+
+    for task_id in NEW_TASKS:
+        task = tasks[task_id]
+        assert not task.states_procedure
+        assert not [o for o in OPERATIONS if re.search(rf"\b{o}\b", task.prompt.lower())]
+        assert {"mcp", "script"} <= set(task.setups)

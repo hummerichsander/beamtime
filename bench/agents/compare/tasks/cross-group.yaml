@@ -1,0 +1,14 @@
+prompt: >
+  The groups sweeps/s04 and sweeps/s11 are two batches of the same kind of sweep. Which of the two
+  reached the lower validation loss? Judge them by their finished runs that logged a validation
+  loss; a run that failed or was killed is left out however low its loss went, and a run's final
+  validation loss is the last logged val/loss, not its lowest. Give for each group how many such
+  runs it has and the mean of their final validation losses at full precision, and name the group
+  with the lower mean.
+answer: '{"groups": [{"group": <group path>, "runs": <number>, "mean": <number>}], "better": <group path>}'
+time_limit_s: 600
+data: wide
+checks:
+  runs: {kind: keyed, answer: groups, truth: groups, key: group, field: runs, abs: 0}
+  mean: {kind: keyed, answer: groups, truth: groups, key: group, field: mean, abs: 0.0001}
+  better: {kind: equal, truth: better}

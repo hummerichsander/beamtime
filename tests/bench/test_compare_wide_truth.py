@@ -31,6 +31,8 @@ TASKS = (
     "best-checkpoint",
     "check-all",
     "stale-verdicts",
+    "cross-group",
+    "record-history",
 )
 STUDY = wide.STUDY_GROUP
 NOW_VERDICT = {"pass": "confirmed", "fail": "refuted", "inconclusive": "inconclusive"}
@@ -253,6 +255,14 @@ def test_perfect_answers_score_one(made: Made, tmp_path: Path) -> None:
         "best-checkpoint": {"runs": [dict(x) for x in t["best-checkpoint"]["runs"]]},
         "check-all": {"predictions": [dict(x) for x in t["check-all"]["predictions"]]},
         "stale-verdicts": {"changed": [dict(x) for x in t["stale-verdicts"]["changed"]]},
+        "cross-group": {
+            "groups": [dict(x) for x in t["cross-group"]["groups"]],
+            "better": t["cross-group"]["better"],
+        },
+        "record-history": {
+            "added": [f"{wide.STUDY_GROUP}/{i}" for i in t["record-history"]["added"]],
+            "change": [dict(x) for x in t["record-history"]["change"]],
+        },
     }
 
     for task_id in TASKS:
@@ -283,6 +293,16 @@ def test_trap_answers_score_below_one(made: Made, tmp_path: Path) -> None:
             ]
         },
         "stale-verdicts": {"changed": t["stale-verdicts"]["changed"][:1]},
+        "cross-group": {
+            "groups": [dict(x, mean=x["mean"] + 0.01) for x in t["cross-group"]["groups"]],
+            "better": wide_truth.COMPARED[0]
+            if t["cross-group"]["better"] != wide_truth.COMPARED[0]
+            else wide_truth.COMPARED[1],
+        },
+        "record-history": {
+            "added": t["record-history"]["added"][:-1],
+            "change": [dict(x, change=0.0) for x in t["record-history"]["change"]],
+        },
     }
 
     for task_id in TASKS:
@@ -374,3 +394,82 @@ def test_independent_of_beamtime() -> None:
 
     assert "beamtime" not in source
     assert wide_truth.compute.__module__ == "wide_truth"
+
+
+def test_cross_group(made: Made) -> None:
+    """The two groups' counts are their finished runs read from the run cards, and the better
+    group has the lower mean."""
+    found = made.truth["cross-group"]
+    for g in found["groups"]:
+        cards = [
+            json.loads(f.read_text(encoding="utf-8"))
+            for f in (made.logdir / g["group"]).glob("*/_run.json")
+        ]
+        assert len(cards) == wide.SWEEP_RUNS
+        assert g["runs"] == sum(c["status"] == "finished" for c in cards)
+    means = [g["mean"] for g in found["groups"]]
+
+    assert [g["group"] for g in found["groups"]] == list(wide_truth.COMPARED)
+    assert found["difference"] == pytest.approx(means[0] - means[1], abs=1e-12)
+    assert found["better"] == wide_truth.COMPARED[0 if means[0] < means[1] else 1]
+
+
+def test_cross_group_leaves_ended_runs_out() -> None:
+    """A killed run with a low loss does not count; the mean is of the finished runs by hand."""
+    first, second = wide_truth.COMPARED
+    runs = [
+        run_of([(0, {"val/loss": 0.5})], g=1),
+        run_of([(0, {"val/loss": 0.7})], g=2),
+        run_of([(0, {"val/loss": 0.2})], g=3),
+        run_of([(0, {"val/loss": 0.4})], g=4),
+    ]
+    for r, group in zip(runs, (first, first, first, second), strict=True):
+        r.group = group
+    runs[2].finished = False
+
+    t = wide_truth.cross_group(runs)
+
+    assert t["groups"] == [
+        {"group": first, "runs": 2, "mean": pytest.approx(0.6)},
+        {"group": second, "runs": 1, "mean": 0.4},
+    ]
+    assert t["difference"] == pytest.approx(0.2)
+    assert t["better"] == second
+
+
+def test_record_history_planted(made: Made) -> None:
+    """The nine runs of seeds 3 to 5 came after the note; the shift per optimizer is half the
+    difference of the planted means, since all runs weigh the two halves equally."""
+    t = made.truth["record-history"]
+    expected = {o: (late - early) / 2 for o, (early, late) in wide.STUDY_MEANS.items()}
+
+    assert len(t["added"]) == 9
+    assert t["added"] == sorted(
+        r.id for r in made.runs if r.group == STUDY and r.config["seed"] >= 3
+    )
+    assert {x["optimizer"] for x in t["change"]} == set(wide.OPTIMIZERS)
+    for x in t["change"]:
+        assert x["change"] == pytest.approx(expected[x["optimizer"]], abs=1e-9)
+
+
+def test_record_history_by_hand(tmp_path: Path) -> None:
+    """The note's time splits the runs: ids starting before it are then, the rest are added; only
+    a verdict note counts and the newest one wins."""
+    notes = tmp_path / "record" / STUDY / "notes"
+    notes.mkdir(parents=True)
+    for stem, kind in (("20261021-120000-aaaa", "verdict"), ("20261021-130000-bbbb", "theory")):
+        (notes / f"{stem}.md").write_text(f"---\ntype: {kind}\n---\nbody\n", encoding="utf-8")
+    ids = ("20261021-110000-r1", "20261021-115959-r2", "20261021-120000-r3", "20261021-140000-r4")
+    runs = [
+        run_of([(0, {"val/loss": v})], optimizer="sgd")
+        for v in (1.0, 0.5, 0.25, 0.125)
+    ]
+    for r, i in zip(runs, ids, strict=True):
+        r.id, r.group = i, STUDY
+
+    t = wide_truth.record_history(runs, tmp_path)
+
+    assert t["added"] == list(ids[2:])
+    assert t["change"] == [
+        {"optimizer": "sgd", "change": pytest.approx((1.0 + 0.5 + 0.25 + 0.125) / 4 - 0.75)}
+    ]

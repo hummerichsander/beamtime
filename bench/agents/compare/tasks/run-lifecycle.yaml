@@ -1,0 +1,12 @@
+prompt: >
+  Some runs of scaling/long-context were interrupted by their scheduler and later continued by a
+  new job from an earlier step. Which runs were? For each, give the step it had got to when it was
+  interrupted, the step the continuing job picked up from, and the number of seconds between the
+  interruption and the new job's start. Identify runs by their run id.
+answer: '{"runs": [{"id": <run id>, "interrupted_at": <step number>, "resumed_from": <step number>, "wait_s": <seconds>}]}'
+time_limit_s: 400
+checks:
+  ids: {kind: f1, key: runs, truth: runs}
+  interrupted_at: {kind: keyed, answer: runs, truth: runs, key: id, field: interrupted_at, abs: 0}
+  resumed_from: {kind: keyed, answer: runs, truth: runs, key: id, field: resumed_from, abs: 0}
+  wait_s: {kind: keyed, answer: runs, truth: runs, key: id, field: wait_s, abs: 1}

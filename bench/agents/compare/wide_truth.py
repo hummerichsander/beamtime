@@ -13,6 +13,7 @@ SWEEPS = "sweeps/"
 STABILITY = "long/stability"
 SCHEDULES = "long/schedules"
 STUDY = "study/optimizer"
+COMPARED = ("sweeps/s04", "sweeps/s11")
 
 LEADERS = 5
 DIVERGENCE_FACTOR = 10
@@ -35,6 +36,8 @@ def compute(files_root: Path, logdir: Path) -> dict[str, dict[str, Any]]:
         "best-checkpoint": best_checkpoint(runs),
         "check-all": check_all(runs, files_root),
         "stale-verdicts": stale_verdicts(runs, files_root),
+        "cross-group": cross_group(runs),
+        "record-history": record_history(runs, files_root),
     }
 
 
@@ -342,4 +345,56 @@ def stale_verdicts(runs: list[TruthRun], files_root: Path) -> dict[str, Any]:
             for name, old in note["verdicts"].items()
             if now[name] != old
         ]
+    }
+
+
+def cross_group(runs: list[TruthRun]) -> dict[str, Any]:
+    """Compare two sweep groups by the mean final validation loss of their finished runs.
+
+    :param runs: All runs.
+    :return: ``groups`` as ``{group, runs, mean}``, in the order of ``COMPARED``, ``difference``
+        (first minus second) and ``better`` (the group with the lower mean)."""
+    groups = []
+    for group in COMPARED:
+        finals = [
+            r.final("val/loss")
+            for r in runs
+            if r.group == group and r.finished and r.final("val/loss") is not None
+        ]
+        groups.append({"group": group, "runs": len(finals), "mean": mean(finals)})
+    first, second = groups
+    return {
+        "groups": groups,
+        "difference": first["mean"] - second["mean"],
+        "better": min(groups, key=lambda g: g["mean"])["group"],
+    }
+
+
+def record_history(runs: list[TruthRun], files_root: Path) -> dict[str, Any]:
+    """Find what changed in the study after its newest verdict note: the runs added since and the
+    shift of each optimizer's mean final validation loss.
+
+    A run belongs to the time before the note when it started before the note was written; both
+    start with their time in the id, so the first fifteen characters tell.
+
+    :param runs: All runs.
+    :param files_root: The folder that holds ``record/``.
+    :return: ``added`` (run ids, sorted) and ``change`` as ``{optimizer, change}``: the mean over
+        all finished runs now minus the mean over those that started before the note."""
+    folder = files_root / "record" / STUDY / "notes"
+    written = max(f.stem for f in folder.glob("*.md") if front_matter(f)["type"] == "verdict")[:15]
+    study = [r for r in runs if r.group == STUDY]
+    finals: dict[str, tuple[list[float], list[float]]] = defaultdict(lambda: ([], []))
+    for r in study:
+        if r.finished and (value := r.final("val/loss")) is not None:
+            then, now = finals[r.config["optimizer"]]
+            now.append(value)
+            if r.id[:15] < written:
+                then.append(value)
+    return {
+        "added": sorted(r.id for r in study if r.id[:15] >= written),
+        "change": [
+            {"optimizer": optimizer, "change": mean(now) - mean(then)}
+            for optimizer, (then, now) in sorted(finals.items())
+        ],
     }

@@ -733,7 +733,7 @@ changelog and regenerates `cli.md` once more at the close. This ticket owns `mcp
 
 ## E. Benchmark, continued
 
-### E23. More tasks, then the detector run (sonnet) — code
+### E23. More tasks, then the detector run (sonnet) — code — **done**
 
 - **Touches:** four new `bench/agents/compare/tasks/*.yaml`, `bench/agents/compare/truth.py` (a truth function per
   new task), `bench/agents/compare/grade.py` (the truth table), `tests/bench/test_compare_truth.py`,

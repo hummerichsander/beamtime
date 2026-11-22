@@ -104,17 +104,26 @@ def transcript(events: list[dict[str, Any]]) -> str:
 
 
 def test_jobs() -> None:
-    """182 sessions: fourteen tasks, four setups on three seeds and cli on the first; the order is
+    """234 sessions: eighteen tasks, four setups on three seeds and cli on the first; the order is
     fixed and shuffled."""
     tasks = grade.load_tasks()
     jobs = sessions.make_jobs(tasks, list(setups.SETUPS), [7, 8, 9], 1)
 
-    assert len(jobs) == 182
-    assert len({j.name for j in jobs}) == 182
+    assert len(jobs) == 234
+    assert len({j.name for j in jobs}) == 234
     assert {j.seed for j in jobs if j.setup == "cli"} == {7}
     assert jobs == sessions.make_jobs(tasks, list(setups.SETUPS), [7, 8, 9], 1)
     assert [j.name for j in jobs] != sorted(j.name for j in jobs)
-    assert len(sessions.make_jobs(tasks, ["mcp"], [7], 2)) == 28
+    assert len(sessions.make_jobs(tasks, ["mcp"], [7], 2)) == 36
+
+
+def test_detector_batch_count() -> None:
+    """The detector batch, ``--setups mcp script --reps 3``, is 324 sessions: 18 tasks on three
+    seeds in two setups, three times each."""
+    jobs = sessions.make_jobs(grade.load_tasks(), ["mcp", "script"], [7, 8, 9], 3)
+
+    assert len(jobs) == 324
+    assert len({j.name for j in jobs}) == 324
 
 
 def test_jobs_respect_task_setups() -> None:
@@ -126,15 +135,15 @@ def test_jobs_respect_task_setups() -> None:
 
 
 def test_dry_run(capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
-    """The dry run lists 182 sessions with their commands and builds nothing."""
+    """The dry run lists 234 sessions with their commands and builds nothing."""
     monkeypatch.setattr(sys, "argv", ["sessions.py", "--dry-run"])
     sessions.main()
     lines = capsys.readouterr().out.splitlines()
 
-    assert lines[-1] == "182 sessions"
-    assert len(lines) == 183
-    assert sum("--mcp-config" in line for line in lines) == 84
-    assert sum("--disallowedTools mcp__beamtime__script" in line for line in lines) == 42
+    assert lines[-1] == "234 sessions"
+    assert len(lines) == 235
+    assert sum("--mcp-config" in line for line in lines) == 108
+    assert sum("--disallowedTools mcp__beamtime__script" in line for line in lines) == 54
     assert all(
         "--no-session-persistence" in line and "--model sonnet" in line for line in lines[:-1]
     )
@@ -668,6 +677,8 @@ def test_task_data_defaults_to_s() -> None:
         "best-checkpoint",
         "check-all",
         "stale-verdicts",
+        "cross-group",
+        "record-history",
     }
     assert sessions.data_dir(Path("r"), "s", 7) == Path("r/data/7")
     assert sessions.data_dir(Path("r"), "other", 7) == Path("r/data-other/7")

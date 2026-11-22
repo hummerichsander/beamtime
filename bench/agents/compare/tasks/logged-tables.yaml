@@ -1,0 +1,11 @@
+prompt: >
+  The runs of scaling/lr-sweep logged a table of validation accuracy per class during training.
+  Over all the runs of the group that logged it, which three classes have the lowest mean
+  accuracy? Give how many runs the means rest on, and the three classes lowest first, each with its
+  mean accuracy at full precision.
+answer: '{"runs": <number>, "classes": [{"class": <class name>, "mean_acc": <number>}]}'
+time_limit_s: 600
+checks:
+  runs: {kind: equal, truth: runs}
+  classes: {kind: f1, key: classes, truth: classes, field: class}
+  mean_acc: {kind: keyed, answer: classes, truth: classes, key: class, field: mean_acc, abs: 0.0001}

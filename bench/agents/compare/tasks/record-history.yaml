@@ -1,0 +1,13 @@
+prompt: >
+  The group study/optimizer has a verdict note. Which runs of the group were added after that note
+  was written, and how did each optimizer's mean final validation loss change from the runs the
+  group had when the note was written to all its runs now? A run was there when the note was
+  written if it started before the note. Use finished runs for the means; a run's final validation
+  loss is its last logged val/loss, and the change is the mean now minus the mean then. Identify
+  runs by their run id and give one entry per optimizer, the change at full precision.
+answer: '{"added": [<run id>], "change": [{"optimizer": <optimizer name>, "change": <number>}]}'
+time_limit_s: 600
+data: wide
+checks:
+  added: {kind: f1, key: added, truth: added}
+  change: {kind: keyed, answer: change, truth: change, key: optimizer, field: change, abs: 0.0001}

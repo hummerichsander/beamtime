@@ -85,6 +85,17 @@ TRUTH: dict[str, dict[str, Any]] = {
             },
         ]
     },
+    "logged-tables": {
+        "runs": 16,
+        "classes": [
+            {"class": "class3", "mean_acc": 0.9012},
+            {"class": "class7", "mean_acc": 0.9101},
+            {"class": "class0", "mean_acc": 0.9234},
+        ],
+    },
+    "run-lifecycle": {
+        "runs": [{"id": IDS[2], "interrupted_at": 1200, "resumed_from": 1000, "wait_s": 119.0}]
+    },
 }
 
 CORRECT: dict[str, dict[str, Any]] = {
@@ -111,6 +122,20 @@ CORRECT: dict[str, dict[str, Any]] = {
     "find-runs": {"runs": IDS[:3]},
     "fastest": {"lr": 0.001, "step": 842},
     "table": {"file": "table.csv"},
+    "logged-tables": {
+        "runs": 16,
+        "classes": [
+            {"class": "class3", "mean_acc": 0.90121},
+            {"class": "class7", "mean_acc": 0.91},
+            {"class": "class0", "mean_acc": 0.9234},
+        ],
+    },
+    "run-lifecycle": {
+        "runs": [
+            {"id": f"scaling/long-context/{IDS[2]}", "interrupted_at": 1200,
+             "resumed_from": 1000, "wait_s": 120}
+        ]
+    },
 }
 
 WRONG: dict[str, dict[str, Any]] = {
@@ -136,6 +161,17 @@ WRONG: dict[str, dict[str, Any]] = {
     "find-runs": {"runs": IDS[:2] + ["20261020-099999-dddddddd"]},
     "fastest": {"lr": 0.003, "step": 480},
     "table": {"file": "table.csv"},
+    "logged-tables": {
+        "runs": 16,
+        "classes": [
+            {"class": "class3", "mean_acc": 0.9012},
+            {"class": "class7", "mean_acc": 0.9101},
+            {"class": "class9", "mean_acc": 0.9234},
+        ],
+    },
+    "run-lifecycle": {
+        "runs": [{"id": IDS[2], "interrupted_at": 1200, "resumed_from": 1200, "wait_s": 119.0}]
+    },
 }
 
 TABLE = """run_id,lr,seed,finished,superseded,val_acc
@@ -198,8 +234,8 @@ def tasks() -> dict[str, grade.Task]:
     return {i: t for i, t in grade.load_tasks().items() if t.data == "s"}
 
 
-def test_eight_tasks(tasks: dict[str, grade.Task]) -> None:
-    """The plan's eight ids are all there, with limits and all four setups."""
+def test_tasks_on_s(tasks: dict[str, grade.Task]) -> None:
+    """The ten ids of the data set ``s`` are all there, with limits and all four setups."""
     assert set(tasks) == set(TRUTH)
     assert all(t.time_limit_s >= 300 and t.setups == grade.SETUPS for t in tasks.values())
     assert set(CORRECT) == set(WRONG) == set(tasks)
