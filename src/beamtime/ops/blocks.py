@@ -521,7 +521,7 @@ def check(
     out += [dataclasses.replace(f, block=block.name) for f in custom_checks(custom, {}, folder)]
     if (file := folder / block.code).is_file():
         out += hard_coded(ctx, group, file.read_text(encoding="utf-8"), block, at)
-    out += duplicates(ctx, group, block, at)
+    out += duplicates(ctx, group, block, folder, at)
     if not any(f.level == "error" for f in out):
         out += examples_check(ctx, folder.name, group, block)
     return block, out
@@ -571,23 +571,32 @@ def hard_coded(
     return out
 
 
-def duplicates(ctx: Context, group: str, block: BlockDef, at: dict[str, Any]) -> list[Finding]:
-    """Point out a library block that declares the same queries.
+def duplicates(
+    ctx: Context, group: str, block: BlockDef, folder: Path, at: dict[str, Any]
+) -> list[Finding]:
+    """Point out a library block that is the same block: equal declared queries, or equal code
+    when the block declares none.
 
     :param ctx: The operation context.
     :param group: The group whose library counts.
     :param block: The definition.
+    :param folder: The draft's folder.
     :param at: Where findings point.
     :return: A warning per such block."""
     library = Library(ctx=ctx, path=group)
+    key = block_key(block.queries, folder / block.code)
+    same = "declares the same queries" if block.queries else "has the same code"
     out = []
     for name in library.names:
-        other = library.get(name).block
-        if name != block.name and other.queries == block.queries:
+        found = library.get(name)
+        if (
+            name != block.name
+            and block_key(found.block.queries, found.folder / found.block.code) == key
+        ):
             out.append(
                 Finding(
                     level="warning",
-                    message=f"{name} declares the same queries",
+                    message=f"{name} {same}",
                     fix=f"use or fork {name} instead",
                     **at,
                 )

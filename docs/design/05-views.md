@@ -563,7 +563,8 @@ Block drafts live in `.beamtime/drafts/blocks/<name>/` (`block.yaml` and `code.j
 - **A description** with when to use and when not to use.
 - **At least two `examples`**, each validated statically and, where a browser is available, rendered
   once in the group the block is saved in.
-- **No duplicate queries**: a block whose declared queries equal an existing block's is pointed out.
+- **No duplicate queries**: a block whose declared queries equal an existing block's is pointed out; a
+  block that declares none, only when its code equals an existing block's.
 
 `block_list` also reports **promotion candidates** in a `candidates` section: the custom blocks in
 saved views, found by scanning the views the way `view_outdated` does and grouped by equal declared
@@ -863,7 +864,8 @@ seeds tasks from real session transcripts. The loop and the failure log are in
 - **Block checks**: the description must say when to use the block and when not; two examples at
   least, each run as a use in a view of the draft's group (and rendered by `block_validate`);
   metric keys and config fields written into the code are errors, fixed ones in the queries
-  warnings; a block declaring the same queries as another is pointed out.
+  warnings; a block declaring the same queries as another (or, declaring none, the same code) is
+  pointed out.
 - **Chart features in the frame**: kit charts are the built-in blocks, and what the sandbox can't do
   goes through the page over the bridge, so they behave as on the page: tooltips; the hovered run
   shared with the page in both directions; zoom; downloads (the frame renders PNG or CSV, the page

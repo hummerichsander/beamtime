@@ -10,6 +10,7 @@ from beamtime.ops.answers import placed
 from beamtime.ops.context import Context, OpError
 from beamtime.serve.api import view as page_view
 from beamtime.views import model as m
+from beamtime.views import store
 from beamtime.views.library import BlockDef, Library, Param, problems, queries_for
 from beamtime.views.store import code_text
 
@@ -344,3 +345,22 @@ def test_candidates_without_queries_group_by_code(ctx: Context, project: Path) -
         call("view save", {"draft": name}, ctx)
     found = {x["block"]: set(x["groups"]) for x in call("block list", {}, ctx)["candidates"]}
     assert found == {"legend": {SWEEP, "scaling"}, "diagram": {"scaling/long-context"}}
+
+
+def test_query_less_blocks_are_duplicates_only_with_equal_code(ctx: Context, project: Path) -> None:
+    """Two library blocks without queries are pointed out as duplicates only when their code is equal."""
+    drafts = project / ".beamtime" / "drafts" / "blocks"
+    for name, text in (("legend", "legend"), ("diagram", "diagram"), ("legend2", "legend")):
+        (drafts / name / "code").mkdir(parents=True)
+        (drafts / name / "block.yaml").write_text(
+            f"schema: 1\nname: {name}\ndescription: A static {name}. Use on any page; not for data.\n"
+            f"examples:\n  - {{}}\n  - {{}}\ncode: code/{name}.js\n",
+            encoding="utf-8",
+        )
+        (drafts / name / "code" / f"{name}.js").write_text(f"export default function () {{ return '{text}' }}\n", encoding="utf-8")
+        store.write_draft_meta(drafts / name, group=".", origin="test")
+    call("block save", {"draft": "legend"}, ctx)
+    messages = [f["message"] for f in call("block validate", {"draft": "diagram", "render": False}, ctx)["findings"]]
+    assert not any(x.startswith("legend ") for x in messages)
+    messages = [f["message"] for f in call("block validate", {"draft": "legend2", "render": False}, ctx)["findings"]]
+    assert "legend has the same code" in messages
