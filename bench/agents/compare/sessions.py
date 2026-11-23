@@ -1,4 +1,4 @@
-"""Run the comparison: python bench/agents/compare/sessions.py [--dry-run] [--grade-only BATCH]
+"""Run the comparison: python bench/agents/compare/sessions.py [--dry-run] [--resume BATCH]
 
 Every task runs in every setup on every data seed, one headless Claude Code session each; a check
 setup (``cli``) runs on the first seed only. The data
@@ -460,7 +460,7 @@ def data_dir(root: Path, dataset: str, seed: int) -> Path:
 
 
 def truth_for(root: Path, dataset: str, seed: int) -> dict[str, dict[str, Any]]:
-    """Compute a data set's truth for a seed from a plain-files export outside every session's reach.
+    """Compute a data set's truth for a seed from a plain-files export no session can reach.
 
     :param root: The batch's folder outside the repo.
     :param dataset: A key of ``truth.TRUTHS``.
@@ -646,6 +646,51 @@ def run_batch(args: argparse.Namespace) -> Path:
     return batch
 
 
+def resume_batch(batch: Path, *, parallel: int, keep: bool = False) -> None:
+    """Run again the sessions of a batch that ended on the usage limit, then grade the batch.
+
+    They reuse the batch's model, data and environments; the beamtime environment stays the one
+    built from the checkout when the batch started.
+
+    :param batch: The batch's folder.
+    :param parallel: The sessions run at once.
+    :param keep: Keep the projects and data."""
+    meta = json.loads((batch / "batch.json").read_text())
+    root = Path(meta["root"])
+    if not root.is_dir():
+        raise SystemExit(f"{root} is gone; the batch cannot be resumed")
+    jobs = []
+    for path in sorted(batch.glob("*/record.json")):
+        record = json.loads(path.read_text())
+        if record.get("ungraded") != "usage limit":
+            continue
+        jobs.append(
+            Job(task=record["task"], setup=record["setup"], seed=record["seed"], rep=record["rep"])
+        )
+        shutil.rmtree(path.parent)
+        shutil.rmtree(root / "sessions" / path.parent.name, ignore_errors=True)
+    tasks = grade.load_tasks()
+    model, version = meta["model"], claude_version()
+    print(f"{len(jobs)} sessions again with {model} into {batch}", flush=True)
+    envs = setups.make_envs(root / "envs")
+    with ThreadPoolExecutor(parallel) as pool:
+        list(
+            pool.map(
+                lambda j: run_job(
+                    j,
+                    tasks[j.task],
+                    batch=batch,
+                    root=root,
+                    envs=envs,
+                    model=model,
+                    version=version,
+                ),
+                jobs,
+            )
+        )
+    grade_batch(batch, keep=keep)
+
+
 def dry_run(args: argparse.Namespace) -> None:
     """List the sessions with their commands; nothing is built or started.
 
@@ -660,7 +705,7 @@ def dry_run(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    """Run the comparison, or list it, or grade a finished batch."""
+    """Run the comparison, or list it, or grade or resume a batch."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--setups", nargs="+", default=list(setups.SETUPS), choices=list(setups.SETUPS)
@@ -673,10 +718,16 @@ def main() -> None:
     parser.add_argument("--keep", action="store_true", help="keep projects, data and venvs")
     parser.add_argument("--dry-run", action="store_true", help="list the sessions, run none")
     parser.add_argument("--grade-only", type=Path, help="grade the ungraded sessions of a batch")
+    parser.add_argument(
+        "--resume", type=Path, help="run a batch's usage-limit sessions again, then grade it"
+    )
     args = parser.parse_args()
     if args.grade_only:
         batch = args.grade_only if args.grade_only.exists() else RUNS / args.grade_only
         grade_batch(batch, keep=args.keep)
+    elif args.resume:
+        batch = args.resume if args.resume.exists() else RUNS / args.resume
+        resume_batch(batch, parallel=args.parallel, keep=args.keep)
     elif args.dry_run:
         dry_run(args)
     else:

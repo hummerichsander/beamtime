@@ -775,3 +775,44 @@ def test_other_dataset_session_and_grade(batch: Batch, monkeypatch: pytest.Monke
     assert prepared == [batch.root / "data-other" / "7"]
     assert asked == ["other"]
     assert json.loads((folder / "grade.json").read_text(encoding="utf-8"))["score"] == 1.0
+
+
+def test_resume_reruns_usage_limit_sessions(batch: Batch, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only the usage-limit session runs again, in place, and the whole batch is graded after."""
+    ok = batch.add("chart", [init(), result()])
+    limited = batch.add(
+        "best-config",
+        [init(), result("You've hit your usage limit.", is_error=True)],
+        status="error",
+    )
+    sessions.grade_batch(batch.dir)
+    assert (
+        json.loads((limited / "record.json").read_text(encoding="utf-8"))["ungraded"]
+        == "usage limit"
+    )
+
+    ran = []
+
+    def rerun(job, task, *, batch, root, envs, model, version):
+        ran.append(job.name)
+        folder = batch / job.name
+        folder.mkdir()
+        (folder / "transcript.jsonl").write_text(transcript([init(), result()]), encoding="utf-8")
+        record = {
+            "task": job.task,
+            "setup": job.setup,
+            "seed": job.seed,
+            "rep": job.rep,
+            "status": "ok",
+        }
+        (folder / "record.json").write_text(json.dumps(record), encoding="utf-8")
+        (root / "sessions" / job.name / "proj").mkdir(parents=True)
+        return record
+
+    monkeypatch.setattr(sessions, "run_job", rerun)
+    monkeypatch.setattr(sessions, "claude_version", lambda: "9.9.9 (Claude Code)")
+    monkeypatch.setattr(setups, "make_envs", lambda root: None)
+    sessions.resume_batch(batch.dir, parallel=1)
+
+    assert ran == [limited.name] and (ok / "grade.json").exists()
+    assert json.loads((limited / "grade.json").read_text(encoding="utf-8"))["correct"] is True

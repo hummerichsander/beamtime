@@ -251,7 +251,7 @@ the new ones.
   TensorBoard exports, and only then do their CLAUDE.md sections name `record/`; the `s` data set has no
   record, so its exports and texts are as before.
 - `compare/sessions.py`: `uv run python bench/agents/compare/sessions.py [--setups ...] [--tasks ...]
-  [--seeds 7 8 9] [--reps 1] [--parallel 3] [--model sonnet] [--keep] [--dry-run] [--grade-only BATCH]`.
+  [--seeds 7 8 9] [--reps 1] [--parallel 3] [--model sonnet] [--keep] [--dry-run] [--grade-only BATCH] [--resume BATCH]`.
   `--dry-run` lists the 234 sessions (18 tasks x 4 setups x 3 seeds, plus cli on the first seed, in a fixed shuffled order) with their
   commands and builds nothing. A real run resolves the model alias to its full id with one probe
   session (the init event's `model`) and pins that id for every session and the chart judge, reads
@@ -275,8 +275,9 @@ the new ones.
   tries again (never scored 0); a session that
   never started or crashed (an error without a result event) stays ungraded for good, marked
   `ungraded` in its record and counted in `batch.json`; one that ended on a usage limit, or whose
-  judge stalls, stays ungraded with its project kept, and `--grade-only <batch>` grades
-  it later. Sessions and the root are deleted after grading unless `--keep`.
+  judge stalls, stays ungraded with its project kept: `--resume <batch>` runs the usage-limit
+  sessions again in place (same model, data and environments) and then grades the batch, and
+  `--grade-only <batch>` only grades. Sessions and the root are deleted after grading unless `--keep`.
   `record.json` holds `task`, `setup`, `seed`, `rep`, `model` (init event), `models` (`modelUsage` keys),
   `model_usage` (per model: tokens and cost), `other_model` (the init event names another model,
   or another model wrote more than 5 % of the output tokens), `claude_version`, `status` (`ok`, `timeout`, `error`),
