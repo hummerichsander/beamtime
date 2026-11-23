@@ -7,12 +7,13 @@
   η²; below ten finished runs with the target the answer is a notice instead of numbers. `importance` is a query
   kind, so `beamtime query` answers it too.
 - **Added** the `importance` view block, compiled to the same query, so the UI and MCP show the same numbers.
-- **Added** the `script` MCP tool and `beamtime script` (code on stdin): runs Python in a child `python -I` of the
+- **Added** the `script` MCP tool (family `scripts`, through `tools_more`) and `beamtime script` (code on stdin):
+  for MCP clients without a shell; runs Python in a child `python -I` of the
   serving interpreter, in the project root, with `bt` preloaded, a timeout (60 s, at most 600 s) and capped output.
   Every non-user-only operation is a function in `bt` whose answer is a plain dict, so an agent joins, filters and
   formats several answers in one call. There is no OS sandbox: the code has the user's rights, like `serve`.
   `script` is not an API method, so the web UI, custom blocks and remotes cannot run code.
-- **Added** `from beamtime import bt`, the same namespace for plain scripts of agents without MCP. Reads are cached
+- **Added** `from beamtime import bt`, the namespace agents with a shell use to join and format answers. Reads are cached
   in `.beamtime/bt-cache/` of the project for five minutes; writes drop the cache, and `status`, `wait`, `resume`
   and `logs` are never cached.
 - **Added** a `candidates` section to `beamtime block list <group>`: the custom blocks of saved views (the whole
@@ -22,11 +23,9 @@
   `docs/site/reference.py` (a test checks it is current).
 - **Changed** the agent guide: its rules state ops-first, the operations compute the statistics and Python joins,
   filters and formats the answers they return; a new topic covers scripts.
-- **Changed** the MCP tool-definition budget from 12,000 to 13,000 characters, which the core `script` tool needs.
 - **Changed** `beamtime block check`: query-less custom blocks count as duplicates only when their code is equal.
-- **Changed** the benchmark's script arm: it is the MCP arm plus the `script` tool, and the comparison reports per
-  task where it beat MCP, leaving out tasks whose prompt restates an operation's own procedure
-  (`bench/agents/README.md`).
+- **Removed** the benchmark's `script` arm and its Gaps section: with a shell the agents joined answers through Bash
+  as cheaply, and behind `tools_more` the tool can no longer be hidden from the `mcp` arm (`bench/agents/README.md`).
 
 ## 0.3.0
 

@@ -36,8 +36,7 @@ beamtime setup --yes --import tb_logs/                   # past runs; --import '
 
 Each agent gets the MCP server and a rules block in its instruction file (`CLAUDE.md`, `AGENTS.md`
 or `GEMINI.md`) telling it to keep findings in notes and memory. A rerun replaces only the block
-between the `beamtime` markers; `--no-rules` writes none. The server's tools, `script` among
-them, are listed in the [MCP tools](../reference/mcp.md).
+between the `beamtime` markers; `--no-rules` writes none. The server's tools are listed in the [MCP tools](../reference/mcp.md).
 
 Presets for how much agents do on their own:
 

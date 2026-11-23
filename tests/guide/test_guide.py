@@ -417,12 +417,12 @@ def test_example_values_fall_back_to_config_seed_on_older_remotes(
     assert values["swept"] == "config.lr"
 
 
-def test_scripts_topic_leads_with_the_tool_and_runs(project: Path) -> None:
-    """The topic names `script` before plain scripts, and its snippet runs through ``bt``."""
+def test_scripts_topic_leads_with_bt_and_runs(project: Path) -> None:
+    """The topic leads with ``bt`` from a shell before the ``script`` tool, and its snippet runs."""
     from beamtime import bt
 
     text = TEXTS["scripts"]
-    assert text.index("## The `script` tool") < text.index("## Without MCP")
+    assert text.index("## With a shell") < text.index("## Without a shell: the `script` tool")
     assert "from beamtime import bt" in text
     (snippet,) = re.findall(r"```python\n(.*?)```", text, re.S)
     exec(snippet, {"bt": bt})

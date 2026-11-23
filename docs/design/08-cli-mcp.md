@@ -155,9 +155,11 @@ MCP server, started by an agent client). Both register in the process registry, 
 |---|---|---|
 | `beamtime script` | `script` | runs the Python on stdin (CLI) or in `code` (MCP) with `bt` preloaded and answers its output; `--timeout <seconds>` |
 
-`script` is the lead path for programmatic calls: an agent that needs to join, filter or format several
-answers sends the code in one call, and the answers stay in variables instead of passing through the
-conversation. `bt` is a namespace in which every non-user-only operation is a function that takes the
+An agent that needs to join, filter or format several answers writes Python over `bt`, and the answers
+stay in variables instead of passing through the conversation. With a shell it imports
+`from beamtime import bt`; `script` is for MCP clients without one, so it sits in the `scripts` family
+behind `tools_more` and costs no session its definition (a benchmark of agents with a shell found it added
+tokens and no accuracy). `bt` is a namespace in which every non-user-only operation is a function that takes the
 operation's parameters as keyword arguments and returns its answer as a plain dict, so
 `bt.importance(from_="long/schedules", target="config.lr")` leaves the answer in a variable. The caller is
 `view`, so answers are whole and unpaged.
@@ -225,10 +227,10 @@ The tools are the operations above, without the user-only commands: 47 small too
 instructions list the user-only commands, generated from the registry (`user_only`), so the list cannot
 drift from the commands.
 
-- **A core set and a dispatcher.** The listing is the 21 core tools plus `tools_more`, fixed for the life of
+- **A core set and a dispatcher.** The listing is the 20 core tools plus `tools_more`, fixed for the life of
   the server (no `tools/list_changed`: Claude Code does not reload the list after one). `FAMILIES` in
   `mcp/server.py` holds the rest: `views` (`view_*`), `blocks` (`block_*`), `runs` (`wait`, `resume`,
-  `output`, `file`, `timeline`, `digest`, `plan_missing`, `name`, `run_promote`) and `export` (`export`, `cp`); the core
+  `output`, `file`, `timeline`, `digest`, `plan_missing`, `name`, `run_promote`), `export` (`export`, `cp`) and `scripts` (`script`); the core
   is every other tool, so a new operation is core unless a family names it. `tools_more(family)`
   answers that family's tools as compact text, one line each: `name(param: type, other?: type): summary`.
   `tools_more(tool, args)` calls any known tool, core or family, exactly as a direct call: the same
@@ -252,8 +254,8 @@ drift from the commands.
   A schema keeps a pointer (`see instructions: where`, `see instructions: to`) or nothing (`from`, `group`,
   `author`, `depth` as a plain integer); defaults an absent key reads anyway (`from`, `group`, `x`, `band`) are left
   out, and `tools_more` names its families without a description. The definitions of a fresh server,
-  `tools_more` and the instructions included, stay under 13k characters of JSON (`json.dumps` defaults;
-  `tests/mcp` checks it); the core `script` tool took the headroom the 12k limit had left.
+  `tools_more` and the instructions included, stay under 12k characters of JSON (`json.dumps` defaults;
+  `tests/mcp` checks it).
 - **Writes take `author`**, the model id.
 - **`view_render` returns images** scaled to about 1280 px wide, one for the page and one per block
   on request. A page taller than `SHOT_HEIGHT` is clipped there, not shrunk: height, not width, is
@@ -369,7 +371,7 @@ The guide states these as defaults ([layer 5](05-views.md#defaults)):
   and are written as one block between `<!-- beamtime:start -->` and `<!-- beamtime:end -->`; a
   rerun replaces the block and keeps the rest of the file.
   Besides the question-to-tool table it carries the ops-first rule: the operations compute the statistics, and
-  Python (`script`) only joins, filters and formats their answers ([`guide scripts`](05-views.md#the-agent-guide)).
+  Python (`from beamtime import bt`) only joins, filters and formats their answers ([`guide scripts`](05-views.md#the-agent-guide)).
   A release that changes the template adds the previous text to `guide/rules/history/`, so `setup` can tell an
   outdated block from a hand-edited one.
 - **`mcp install --client <name>`** is the one-client form of the setup's registration
@@ -398,7 +400,7 @@ The guide states these as defaults ([layer 5](05-views.md#defaults)):
   exist only in the CLI and are never run by agents.
 - Compact text output, identical in terminals and pipes; `--json` for the canonical answer. Exit codes
   distinguish errors, usage, validation failures and missing items.
-- MCP over stdio (`beamtime mcp`, also over ssh), with 21 core tools plus `tools_more` for the rest, eight prompts, and token
+- MCP over stdio (`beamtime mcp`, also over ssh), with 20 core tools plus `tools_more` for the rest, eight prompts, and token
   budgets with cursors.
 - `beamtime setup`, `demo`, `doctor` and `mcp install` cover onboarding.
 - Hidden runs are excluded from reads unless `--hidden`; `run promote` is the one agent write that brings
@@ -406,5 +408,6 @@ The guide states these as defaults ([layer 5](05-views.md#defaults)):
 - `beamtime ps` lists the user's Beamtime processes and `beamtime stop` stops serves only; a second
   `serve` for a served root attaches, `--replace` takes over.
 - `script` runs the Python an agent sends in a child `python -I` with `bt` preloaded, a timeout and an
-  output cap; it is a core tool and a CLI command (`beamtime script`, code on stdin), never an API method.
+  output cap; it is a family tool behind `tools_more` and a CLI command (`beamtime script`, code on stdin), never an API
+  method.
   The code has the user's rights; there is no OS sandbox.

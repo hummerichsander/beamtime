@@ -252,9 +252,9 @@ sync.
   apply to code that produces figures with matplotlib, not to the web UI.
 - **Importance and scripts**: `importance` is a query kind (Spearman rank correlation, η² on quantile bins,
   a notice below ten runs; `stats.py` computes both) shared by `beamtime importance`, the MCP tool and the
-  `importance` view block. `script` is the programmatic path: Python with `bt` preloaded, every non-user-only
-  op a function that answers a plain dict (`from beamtime import bt` for agents without MCP); it is not an API
-  method, so the web UI, custom blocks and remotes cannot run code. `block list` also names the custom blocks of
+  `importance` view block. `from beamtime import bt` is the programmatic path: every non-user-only op a function
+  that answers a plain dict; the `script` tool runs the same code for MCP clients without a shell and sits behind
+  `tools_more` (family `scripts`), since agents with a shell gained nothing from it; it is not an API method, so the web UI, custom blocks and remotes cannot run code. `block list` also names the custom blocks of
   saved views that are candidates for promotion. Promoted operations stay out of scope.
 - **CLI and MCP** (`docs/design/08-cli-mcp.md`) are frontends of one operation set; MCP tool names
   follow the CLI path (`beamtime note add` ↔ `note_add`). Agent writes are additive; agents never run

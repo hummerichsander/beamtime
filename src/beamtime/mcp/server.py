@@ -52,7 +52,7 @@ def instructions(mcp_tools: str = "core") -> str:
         more = "To build a group's page read `guide views`, then call the `view_*` tools. "
     else:
         more = (
-            "Tools for views, blocks, run control and export are not listed: "
+            "Tools for views, blocks, run control, export and scripts are not listed: "
             "`tools_more` with `family` describes a family, with `tool` and `args` calls one. To "
             "build a group's page read `guide views`, then `tools_more views`, and call the "
             "`view_*` tools through it. "
@@ -67,8 +67,6 @@ def instructions(mcp_tools: str = "core") -> str:
         f"`meta.next` for more. {more}User-only commands "
         f"({', '.join(sorted(op.name for op in OPS if op.user_only))}) "
         "are not tools: give the user the command. "
-        "script runs Python with `bt` preloaded, for joining, filtering and formatting answers, "
-        "never for recomputing a statistic an operation answers. "
         "from and group: a group below the log dir or a run id; depth: levels below it, "
         "default all. hidden: true includes hidden runs. "
         "where: field -> value or {op: value}; ops eq ne lt le gt ge in nin has "
@@ -171,6 +169,7 @@ FAMILIES: dict[str, tuple[str, ...]] = {
         "run_promote",
     ),
     "export": ("export", "cp"),
+    "scripts": ("script",),
 }
 CORE = tuple(name for name in BY_TOOL if not any(name in names for names in FAMILIES.values()))
 

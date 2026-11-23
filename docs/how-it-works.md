@@ -37,5 +37,4 @@ agents read first.
 Your agent reads runs, notes and pages through the same operations as the browser and the CLI. It
 adds notes and pages but never deletes or moves anything; see [Working with an
 agent](guides/agents.md). The operations compute the numbers (`importance` ranks the config fields
-that drive a metric); Python an agent sends runs through the `script` tool, with the operations as
-functions.
+that drive a metric); an agent's own Python calls them as functions through `from beamtime import bt`.

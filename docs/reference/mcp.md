@@ -2,12 +2,12 @@
 
 Agents connect through `beamtime setup` (or `beamtime mcp install`) and call the same operations as
 the [commands](cli.md), each as a tool named like its command path (`note add` is `note_add`). The
-setting `mcp_tools: core` lists the 21 core tools plus `tools_more`, which describes and
-calls the tools of the families (views, blocks, runs, export); `all` lists all 47.
+setting `mcp_tools: core` lists the 20 core tools plus `tools_more`, which describes and
+calls the tools of the families (views, blocks, runs, export, scripts); `all` lists all 47.
 
-The `script` tool runs the Python an agent sends with `bt` preloaded: every operation is a function
-whose answer is a plain dict, so the operations compute the statistics and Python joins and formats
-what they return.
+Agents with a shell join and format answers in Python with `from beamtime import bt`, where every
+operation is a function whose answer is a plain dict; the `script` tool (family `scripts`) runs the
+same code for clients without a shell.
 
 ```python
 a = bt.importance(from_="scaling/lr-sweep", target="metric.val/acc.max")
@@ -242,18 +242,6 @@ CLI: `beamtime note add`
 | `proposal` | string |  | verdicts: the judged proposal version |
 | `verdict` | object |  | verdicts: prediction -> confirmed, refuted or inconclusive |
 | `overall` | confirmed\|refuted\|inconclusive |  | confirmed, refuted, inconclusive |
-| `author` | string |  | who writes it: a person, or your model id such as claude-opus-5-5; default: the local account |
-
-### `script`
-
-Run Python with `bt` preloaded; answers its output.
-
-CLI: `beamtime script`
-
-| Parameter | Type | Default | |
-|---|---|---|---|
-| `code` | string | required | Python; `bt` is preloaded, print what you need |
-| `timeout` | number | `60` | seconds before the script is killed |
 | `author` | string |  | who writes it: a person, or your model id such as claude-opus-5-5; default: the local account |
 
 ### `proposal_set`
@@ -627,6 +615,20 @@ CLI: `beamtime cp`
 | `name` | string |  | a run: its new display name; a group: the destination's name |
 | `with_checkpoints` | boolean | `False` | copy checkpoint files in, leaving no reference to the source |
 | `with_record` | boolean | `False` | a group only: also copy proposal, notes, view, memory and blocks |
+
+## Family: scripts
+
+### `script`
+
+Run Python with `bt` preloaded; answers its output.
+
+CLI: `beamtime script`
+
+| Parameter | Type | Default | |
+|---|---|---|---|
+| `code` | string | required | Python; `bt` is preloaded, print what you need |
+| `timeout` | number | `60` | seconds before the script is killed |
+| `author` | string |  | who writes it: a person, or your model id such as claude-opus-5-5; default: the local account |
 
 ## Not for agents
 

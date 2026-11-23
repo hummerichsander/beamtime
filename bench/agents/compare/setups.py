@@ -93,7 +93,6 @@ class Project:
     allowed: str
     mcp_config: Path | None
     env: dict[str, str]
-    disallowed: str = ""
 
     @property
     def flags(self) -> list[str]:
@@ -103,8 +102,6 @@ class Project:
         flags = ["--tools", self.tools, "--allowedTools", self.allowed, "--strict-mcp-config"]
         if self.mcp_config is not None:
             flags += ["--mcp-config", str(self.mcp_config)]
-        if self.disallowed:
-            flags += ["--disallowedTools", self.disallowed]
         return (
             flags
             + ["--setting-sources", "project", "--disable-slash-commands"]
@@ -126,8 +123,6 @@ SETUPS = {
     "cli": Setup(
         name="cli", data="beamtime", mcp=False, env="beamtime", section=rules_block(), check=True
     ),
-    # mcp plus the `script` tool, which mcp hides: the two differ by that one tool.
-    "script": Setup(name="script", data="beamtime", mcp=True, env="base", section=rules_block()),
     "files": Setup(name="files", data="files", mcp=False, env="base", section=FILES),
     "tensorboard": Setup(
         name="tensorboard", data="tensorboard", mcp=False, env="base", section=TENSORBOARD
@@ -222,7 +217,6 @@ def planned(setup: str, session_dir: Path) -> Project:
         allowed=f"mcp__beamtime__*,{TOOLS}" if spec.mcp else TOOLS,
         mcp_config=session_dir / "mcp.json" if spec.mcp else None,
         env={},
-        disallowed="mcp__beamtime__script" if setup == "mcp" else "",
     )
 
 

@@ -37,10 +37,10 @@ hands you `beamtime setup`.
 
 ## Scripts
 
-When an agent has to join, filter or format several answers, it sends Python to the `script` tool
-(`beamtime script` with the code on stdin): `bt` is preloaded, and every operation is a function that
-returns its answer as a dict. The operations compute the statistics; the code only joins and formats what
-they return. Without MCP, the same code runs as a plain script with `from beamtime import bt`.
+When an agent has to join, filter or format several answers, it writes Python with
+`from beamtime import bt`: every operation is a function that returns its answer as a dict. The
+operations compute the statistics; the code only joins and formats what they return. An MCP client
+without a shell sends the same code to the `script` tool, which it reaches through `tools_more`.
 
 ## How much agents do
 

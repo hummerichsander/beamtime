@@ -26,7 +26,7 @@ uv run python bench/agents/mine.py                             # tool counts and
 `--guide <dir>` replaces the guide parts that have a file of the same name in `<dir>` (`index.md`,
 `views.md`, `notes.md`, ..., and `instructions.md` for the agent rules in CLAUDE.md), so a text can
 be tested without a release. The examples and the block catalogue are always the shipped ones.
-The MCP setup runs the default `mcp_tools: core` surface: 19 tools are listed and the others are called through `tools_more`, so a record names those calls `mcp__beamtime__tools_more`.
+The MCP setup runs the default `mcp_tools: core` surface: 20 tools are listed and the others are called through `tools_more`, so a record names those calls `mcp__beamtime__tools_more`.
 
 Runs go to `bench/agents/runs/<stamp>/` (not committed): per run the project with its generated log
 dir, the agent's transcript (`transcript.jsonl`), `record.json` (tool calls with errors, rounds,
@@ -126,14 +126,6 @@ over MCP, the CLI and its Python API, plain files, TensorBoard event files); see
 at no more than 1.5 times their tokens (`tables.TARGET`; `results.md` states it as met or not).
 `cli` is a regression check with no target: it runs on the first seed only (`Setup.check`), and a
 batch is fine when its cli score is not lower and its tokens not higher than the previous batch's.
-`script` is the `mcp` arm plus the `script` tool: the two setups have the same data, rules block, MCP
-config and environment, and `mcp` alone passes `--disallowedTools mcp__beamtime__script`, so they
-differ by that one tool. It runs on every seed and serves as the instrument that finds missing
-query-language constructs, not as a competing access path: a task where `script` beats `mcp` is a
-candidate gap only when the task's prompt does not restate an operation's own procedure
-(`Task.states_procedure`, set on `check-all`). The numbers of the earlier `script` arm (plain scripts
-with a `bt.py` copy and a refusing `beamtime`) are a different instrument and are not compared with
-the new ones.
 `files` and `tensorboard` are the baselines and run on every seed.
 
 - `compare/data.py`: `make_logdir(dest, seed=, now=)` writes a scale `s` log dir (47 runs, five groups)
@@ -207,20 +199,19 @@ the new ones.
   (`Grade.notes` keeps the judge's reasons). A file that is not a PNG (PDF, SVG) scores 0 on `file` and
   all items without a judge call; a usage-limit answer raises `score.JudgeStalled`, so the session
   stays ungraded.
-- `compare/setups.py`: `SETUPS` (`mcp`, `cli`, `script`, `files`, `tensorboard`) and `prepare(setup, session_dir,
+- `compare/setups.py`: `SETUPS` (`mcp`, `cli`, `files`, `tensorboard`) and `prepare(setup, session_dir,
   data_dir, envs)`, which builds a session's project in `session_dir/proj` and returns a `Project`: the
-  data (a copy of the log dir plus `beamtime.yaml` for `mcp`, `cli` and `script`, `runs/` for `files`, `tb/` for
+  data (a copy of the log dir plus `beamtime.yaml` for `mcp` and `cli`, `runs/` for `files`, `tb/` for
   `tensorboard`, exported by the `beamtime` environment since it has tensorboard), a CLAUDE.md that is
   the same preamble byte for byte plus a `## Data` section (Beamtime's rules block as shipped, with
   default agent settings, or four lines on the files), the tool list (`Bash,Read,Write,Edit,Glob,Grep`
-  everywhere, plus `mcp__beamtime__*` allowed for `mcp` and `script`), the MCP config (`mcp` and `script`), and the session's
+  everywhere, plus `mcp__beamtime__*` allowed for `mcp`), the MCP config (`mcp`), and the session's
   environment: a PATH that starts with the setup's venv and drops every host folder holding a `beamtime`,
   its own `BEAMTIME_CACHE` and `XDG_CONFIG_HOME` inside the session folder. `Project.flags` are the
-  `claude` flags (`--tools`, `--allowedTools`, `--strict-mcp-config`, `--mcp-config` for `mcp` and `script`,
+  `claude` flags (`--tools`, `--allowedTools`, `--strict-mcp-config`, `--mcp-config` for `mcp`,
   `--setting-sources project`, `--disable-slash-commands`, `--no-session-persistence`); the session
   adds the prompt, model and output format. Only `cli` has `beamtime` on the PATH; `mcp` reaches the
-  server through the absolute command in its MCP config. `script` reaches the same server and differs from `mcp` only in `Project.disallowed` (`--disallowedTools
-  mcp__beamtime__script`, set for `mcp`). A Beamtime project's index is warmed with
+  server through the absolute command in its MCP config. A Beamtime project's index is warmed with
   `beamtime reindex` before the session (a user-only operation; the harness plays the user), so `status` never
   reports runs not yet indexed. `make_envs(root)` builds the two venvs with `uv venv` and
   `uv pip install` (`base`: numpy, pandas, scipy, matplotlib, tensorboard, pyyaml; `beamtime`: the same plus this
@@ -296,7 +287,7 @@ the new ones.
   cost, seconds, turns and tool calls), then mean score and correct k/n) and the figures `tokens-vs-score` (single column: geometric mean
   of tokens per session over tasks against mean score, one point per setup, bars over the seeds) and
   `time-per-task` (double column: median seconds per task, bars over the seeds) as `.pdf` and `.svg`.
-  `results.md` also carries the **Goal** (mcp against files) and the **Gaps** (script against mcp) sections.
+  `results.md` also carries the **Goal** section (mcp against files).
   With two or more batches it also writes `<out>/models.md`, the per-setup table with one row per
   setup and model. Ungraded sessions (`crashed`, `not started`, `usage limit`, `judge failed`, not
   graded yet) are left out of every mean and counted; a session with `leak` is listed and left out of the figures only; one with `other_model` is
@@ -332,9 +323,9 @@ the new ones.
   inconclusive) with `f1` on the names (`field: name`; `f1` reads `id` unless the check names a field) and
   `keyed` on `new`. With these two the comparison had 14 tasks.
 - Detector tasks (E23): four more probe areas the 14 tasks do not reach, each written as the question a
-  researcher asks and the answer shape, with no operation named, no procedure restated and
-  `states_procedure` false (`test_new_tasks_name_no_operation`). With them the comparison has 18 tasks
-  and 234 sessions per model and repetition (cli on one seed).
+  researcher asks and the answer shape, with no operation named and no procedure restated
+  (`test_new_tasks_name_no_operation`). With them the comparison has 18 tasks
+  and 180 sessions per model and repetition (cli on one seed).
   `cross-group` (`wide`): which of `sweeps/s04` and `sweeps/s11` reached the lower mean final `val/loss`
   over its finished runs, with the run counts (`wide_truth.cross_group`; counting the failed and killed
   runs changes the answer on seed 7). `record-history` (`wide`): the runs of `study/optimizer` that started
@@ -348,25 +339,20 @@ the new ones.
   (`truth.run_lifecycle`, from `_events.jsonl`). Neither data set has hidden or copied runs, so the
   lifecycle probe covers restarts only.
 
-**The gap detector.** `uv run python bench/agents/compare/sessions.py --setups mcp script --reps 3`
-runs the two arms on every task and seed; `tables.py` then writes a **Gaps** section into `results.md`.
-It pairs the arms on (task, seed, rep) over the sessions both ran, leaves out tasks marked
-`states_procedure`, and lists a task as a candidate when script's median total tokens are at most
-`tables.GAP_RATIO` (0.85) of mcp's and its mean score is at most `tables.GAP_SCORE` (0.02) below
-mcp's: a cheaper wrong answer is not a gap, a cheaper better one is. The table has an empty **missing construct** column. A batch with
-fewer than two reps heads the section "Inconclusive" (one rep cannot separate a gap from session
-variance, finding 7 of the plan) and still lists its rows; a batch without both arms has no section.
-Read it like this: a candidate becomes work only when its missing construct can be named as a query
-construct or operation that would have spared the script; if it cannot be named, the win is wording,
-variance or a procedure the prompt states, and it stays a candidate. Record for each candidate why it
-was accepted or rejected as a line under **Gap judgements** below, so the next run starts from the
-last judgement. Running the detector costs billed sessions and is the user's step: with the 18 tasks
-`--setups mcp script --reps 3` is 324 sessions (`--dry-run` prints the count), roughly $15 at the November
-batch's rate of $8.71 for 182 sessions. Keep nothing of `bench/agents/runs/` in git.
+**The script arm (retired).** A `script` setup, the `mcp` arm plus the `script` tool (hidden from `mcp`
+with `--disallowedTools`), served as a gap detector: a task where it beat `mcp` on tokens at the same score
+named a missing query construct. Its last batch, `compare-20261123-084305` (324 sessions, 3 reps), found
+both arms at 159/162 correct and `script` at 1.30x mcp's median tokens; the agents had Bash and joined
+exported answers with Python there, so the tool added nothing. `script` moved behind `tools_more` and the
+arm went with it: hidden behind the dispatcher, no flag can take it from `mcp`. A comparison of an
+MCP-only, no-shell arm with and without `script` would be its own instrument. Keep nothing of
+`bench/agents/runs/` in git.
 
 **Gap judgements** (task, batch, verdict and why):
 
 - `drivers`, accepted: script beat mcp at 0.69x tokens on three seeds and four arm revisions; the missing
   construct was a measure of which setting drives a metric, now the `importance` query kind.
 - `check-all`, rejected: the prompt spells out the t-interval procedure and `beamtime check` already does
-  it; the task is marked `states_procedure` and the detector leaves it out.
+  it; the task was marked `states_procedure` and the detector left it out.
+- `table`, `compare-20261123-084305`, rejected: script at 0.84x mcp's tokens, but only 2 of its 9 sessions
+  called `script`; the spread between sessions (69k-125k against 81k-114k) covers the difference.

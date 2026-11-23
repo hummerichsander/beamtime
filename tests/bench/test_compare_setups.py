@@ -101,7 +101,7 @@ def test_claude_md(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
 
     assert len(set(head.values())) == 1
     assert head["mcp"] == setups.PREAMBLE
-    assert tail["mcp"] == tail["cli"] == tail["script"]
+    assert tail["mcp"] == tail["cli"]
     assert len(set(tail.values())) == 3
     assert "beamtime" in tail["mcp"] and "beamtime" not in tail["files"].lower()
     assert "numpy, pandas, scipy and\nmatplotlib" in head["files"]
@@ -135,38 +135,6 @@ def test_tools_and_mcp(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> Non
     assert Path(server["command"]).name == "beamtime"
 
 
-def test_script_is_mcp_plus_the_tool(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
-    """The two arms have the same data, CLAUDE.md, server and environment; one flag differs."""
-    mcp = prepare("mcp", tmp_path, data_dir, envs)
-    script = prepare("script", tmp_path, data_dir, envs)
-    left = json.loads(mcp.mcp_config.read_text(encoding="utf-8"))["mcpServers"]["beamtime"]
-    right = json.loads(script.mcp_config.read_text(encoding="utf-8"))["mcpServers"]["beamtime"]
-
-    assert mcp.claude_md.read_text(encoding="utf-8") == script.claude_md.read_text(encoding="utf-8")
-    assert left["command"] == right["command"] and left["env"].keys() == right["env"].keys()
-    assert (mcp.tools, mcp.allowed) == (script.tools, script.allowed)
-    assert mcp.env["PATH"] == script.env["PATH"]
-    assert setups.SETUPS["mcp"].data == setups.SETUPS["script"].data
-    assert (mcp.disallowed, script.disallowed) == ("mcp__beamtime__script", "")
-    i = mcp.flags.index("--disallowedTools")
-    assert mcp.flags[i + 1] == "mcp__beamtime__script"
-    same = [f for f in mcp.flags[:i] + mcp.flags[i + 2 :] if f != str(mcp.mcp_config)]
-    assert same == [f for f in script.flags if f != str(script.mcp_config)]
-
-
-def test_script_tool_listed() -> None:
-    """The server lists ``script`` as a core tool, so only the ``mcp`` arm's flag hides it."""
-    from beamtime.mcp.server import tools
-
-    assert "script" in {tool.name for tool in tools()}
-
-
-def test_only_mcp_disallows_a_tool(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
-    """The other setups pass no ``--disallowedTools``."""
-    for name in ("cli", "script", "files"):
-        assert "--disallowedTools" not in prepare(name, tmp_path, data_dir, envs).flags
-
-
 def test_command_flags(tmp_path: Path, data_dir: Path, envs: setups.Envs) -> None:
     """The user's skills, settings and MCP servers stay out of every session."""
     for name in ("mcp", "cli", "files"):
@@ -186,10 +154,8 @@ def test_files_path_has_no_beamtime(
     files = prepare("files", tmp_path, data_dir, envs)
     mcp = prepare("mcp", tmp_path, data_dir, envs)
     cli = prepare("cli", tmp_path, data_dir, envs)
-    script = prepare("script", tmp_path, data_dir, envs)
 
     assert str(host_beamtime) not in files.env["PATH"]
-    assert shutil.which("beamtime", path=script.env["PATH"]) is None
     assert shutil.which("beamtime", path=files.env["PATH"]) is None
     assert shutil.which("beamtime", path=mcp.env["PATH"]) is None
     assert files.env["PATH"].startswith(str(envs.base / "bin"))

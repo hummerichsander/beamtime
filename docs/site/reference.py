@@ -69,9 +69,9 @@ the [commands](cli.md), each as a tool named like its command path (`note add` i
 setting `mcp_tools: core` lists the {len(CORE)} core tools plus `tools_more`, which describes and
 calls the tools of the families ({", ".join(FAMILIES)}); `all` lists all {len(BY_TOOL)}.
 
-The `script` tool runs the Python an agent sends with `bt` preloaded: every operation is a function
-whose answer is a plain dict, so the operations compute the statistics and Python joins and formats
-what they return.
+Agents with a shell join and format answers in Python with `from beamtime import bt`, where every
+operation is a function whose answer is a plain dict; the `script` tool (family `scripts`) runs the
+same code for clients without a shell.
 
 {MCP_EXAMPLE}
 

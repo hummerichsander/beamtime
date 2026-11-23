@@ -453,12 +453,10 @@ OPERATIONS = ("compare", "check", "importance", "timeline", "diagnose", "digest"
 
 
 def test_new_tasks_name_no_operation() -> None:
-    """The four detector tasks ask a question and give the answer shape; none names an operation
-    or marks that it restates one's procedure."""
+    """The four newer tasks ask a question and give the answer shape; none names an operation."""
     tasks = grade.load_tasks()
 
     for task_id in NEW_TASKS:
         task = tasks[task_id]
-        assert not task.states_procedure
         assert not [o for o in OPERATIONS if re.search(rf"\b{o}\b", task.prompt.lower())]
-        assert {"mcp", "script"} <= set(task.setups)
+        assert "mcp" in task.setups

@@ -17,7 +17,7 @@ spaces for `_`.
 - {{launch_line}}
 - {{conventions}}
 - The operations compute the statistics, intervals and per-run summaries, and every reader of the record
-  shares their numbers. Python (`script`, or `beamtime script`) joins, filters and formats the answers; it
+  shares their numbers. Python (`from beamtime import bt`) joins, filters and formats the answers; it
   does not arrive at them: before computing a number yourself, look for the operation or field that
   returns it (`guide analysis`).
 - Ask with the tools; never parse run files. Writes add new files; never edit, move or delete in the
