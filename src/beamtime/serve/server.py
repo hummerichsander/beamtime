@@ -82,11 +82,22 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
             "open that one, or stop it first"
         )
     registration: Registration | None = None
+    server = None
+    stopped = threading.Event()
+
+    # only a flag: an exception raised from a handler can land in C code that swallows it.
+    def on_signal(signum: int, frame: Any) -> None:
+        stopped.set()
+        if server is not None:
+            server.handle_exit(signum, frame)
+
     # taken before the record exists and the app warms up: a change made during startup must count.
     before = code_files() if p.watch else {}
     try:
-        # uvicorn re-raises the signal that stopped it; SIGTERM must still clean up.
-        signal.signal(signal.SIGTERM, stop)
+        # set before the record exists, so a signal during startup is never lost; asyncio then
+        # sets no SIGINT handler of its own, and uvicorn hands a signal back here after it stops.
+        signal.signal(signal.SIGINT, on_signal)
+        signal.signal(signal.SIGTERM, on_signal)
         registration = register(
             "index" if sock is None else "serve",
             root=str(ctx.root),
@@ -98,8 +109,8 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
         )
         if sock is None:
             say(f"Beamtime indexes {ctx.logdir} (no UI); Ctrl-C stops.")
-            while daemon.thread.is_alive():
-                daemon.thread.join(1.0)
+            while daemon.thread.is_alive() and not stopped.wait(1.0):
+                pass
             return {"kind": "serve", "lines": ["stopped"]}
         token = load_token(cache)
         url = f"http://localhost:{daemon.port}/f/local?token={token}"
@@ -116,7 +127,8 @@ def serve(ctx: Context, p: r.ServeParams) -> dict[str, Any]:
         if p.watch:
             threading.Thread(target=watch_code, args=(server, restart, before), daemon=True).start()
             say("--watch: restarts when Beamtime's code changes.")
-        server.run(sockets=[sock])
+        if not stopped.is_set():
+            server.run(sockets=[sock])
         return {"kind": "serve", "lines": ["stopped"]}
     except (KeyboardInterrupt, SystemExit):
         return {"kind": "serve", "lines": ["stopped"]}
@@ -373,14 +385,6 @@ def again(port: int | None) -> None:
     if port is not None:
         args += ["--port", str(port)]
     os.execv(sys.executable, [sys.executable, *args])
-
-
-def stop(signum: int, frame: Any) -> None:
-    """Turn SIGTERM into a normal exit, so the daemon releases its lock.
-
-    :param signum: The signal.
-    :param frame: The interrupted frame."""
-    raise SystemExit(0)
 
 
 def say(text: str) -> None:
