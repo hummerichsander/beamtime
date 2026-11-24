@@ -656,6 +656,7 @@ beamtime setup
 | `--remote` |  | a remote, NAME[=HOST][:PATH] (repeatable) |
 | `--skip-remote` |  | a project remote this machine doesn't use (repeatable) |
 | `--install-remote` |  | install this version of beamtime there, after the review (repeatable) |
+| `--remote-command` |  | NAME=COMMAND: how a remote's shell starts beamtime (repeatable) |
 | `--ssh-share` |  | add ControlMaster lines to ~/.ssh/config for a host (repeatable) |
 | `--cache` |  | the index cache of this machine: memory or a path |
 | `--agents` |  | agent clients that get the MCP server and the rules |

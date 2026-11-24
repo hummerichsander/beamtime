@@ -32,8 +32,9 @@ Host mycluster
 beamtime source add cluster mycluster:/scratch/myproject/beamtime
 ```
 
-This finds how to start Beamtime there and writes the entry to your user settings (`--project`:
-to `beamtime.yaml`):
+This finds how to start Beamtime there (a venv such as `.venv` in or above the log dir, the `PATH`,
+`~/.local/bin`, venvs in your home or scratch, conda environments; `--command` says it yourself) and
+writes the entry to your user settings (`--project`: to `beamtime.yaml`):
 
 ```yaml
 remotes:

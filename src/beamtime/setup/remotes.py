@@ -21,14 +21,36 @@ Host {host}
   ControlPath ~/.ssh/cm-%r@%h-%p
   ControlPersist 12h
 """
+# the first beamtime that answers wins: a venv in or above the log dir (the project's own), the
+# PATH, the user's bin, then venvs and conda envs a level or two below home or scratch.
 PROBE = """\
 p={path}
-c=$(command -v beamtime 2>/dev/null); how=path
-if [ -z "$c" ] && [ -n "$p" ] && [ -x "$p/../.venv/bin/beamtime" ]; then
-  c="$p/../.venv/bin/beamtime"; how=venv
+c=; v=; n=0
+try() {{
+  [ -z "$c" ] && [ -x "$1" ] && [ "$n" -lt 8 ] || return 0
+  n=$((n + 1))
+  v=$("$1" --version 2>/dev/null) && [ -n "$v" ] && c=$1
+  return 0
+}}
+if [ -n "$p" ]; then
+  d=$p
+  while [ -z "$c" ]; do
+    for e in .venv venv env .env; do try "$d/$e/bin/beamtime"; done
+    case "$d" in /|.) break ;; esac
+    d=$(dirname "$d")
+  done
 fi
-echo "how=$how"
-[ -n "$c" ] && echo "version=$("$c" --version 2>/dev/null)"
+try "$(command -v beamtime 2>/dev/null)"
+[ -n "$c" ] && [ "$c" = "$(command -v beamtime 2>/dev/null)" ] && c=beamtime
+s=${{SCRATCH:-/nonexistent}}
+for f in "$HOME"/.local/bin/beamtime "$HOME"/*/.venv/bin/beamtime "$HOME"/*/venv/bin/beamtime \
+  "$HOME"/*/*/.venv/bin/beamtime "$HOME"/*/*/venv/bin/beamtime "$s"/*/.venv/bin/beamtime \
+  "$s"/*/venv/bin/beamtime "$HOME"/.conda/envs/*/bin/beamtime "$HOME"/*conda*/envs/*/bin/beamtime \
+  "$HOME"/*forge*/envs/*/bin/beamtime "$HOME"/*conda*/bin/beamtime "$HOME"/*forge*/bin/beamtime; do
+  try "$f"
+done
+case "$c" in "$HOME"/*) c="~${{c#"$HOME"}}" ;; esac
+[ -n "$c" ] && echo "command=$c" && echo "version=$v"
 echo "python=$(python3 --version 2>&1)"
 echo "scratch=${{SCRATCH:+yes}}"
 if [ -n "$p" ]; then
@@ -87,22 +109,6 @@ def remote_path(path: str) -> str:
     return '"' + re.sub(r'(["\\`])', r"\\\1", path) + '"'
 
 
-def probe_command(host: str, path: str, timeout: float = 30) -> str | None:
-    """Find how to start Beamtime on a remote host: on its ``PATH``, else the venv next to the
-    project the log dir sits in.
-
-    :param host: The ssh host.
-    :param path: The remote log dir.
-    :param timeout: Seconds each ssh may take.
-    :return: The command to run there; ``None`` if neither probe succeeds."""
-    if ssh_run(host, "command -v beamtime", timeout).returncode == 0:
-        return "beamtime"
-    venv = f"{path.rstrip('/')}/../.venv/bin/beamtime".replace("{user}", "${USER}")
-    if ssh_run(host, f"test -x {remote_path(venv)}", timeout).returncode == 0:
-        return venv
-    return None
-
-
 def probe(
     hosts: list[str], paths: dict[str, str | None] | None = None, *, timeout: float = 30
 ) -> dict[str, Probe]:
@@ -141,11 +147,7 @@ def probe_host(host: str, path: str | None, timeout: float) -> Probe:
     found = re.search(r"(\d+)\.(\d+)", facts.get("python", ""))
     python = facts["python"].removeprefix("Python ").strip() if found else None
     version = (facts.get("version") or "").split()[-1:] or None
-    command = None
-    if version:
-        command = "beamtime"
-        if facts.get("how") == "venv" and path:
-            command = f"{path.rstrip('/')}/../.venv/bin/beamtime".replace("{user}", "${USER}")
+    command = (facts.get("command") or None) if version else None
     fstype = facts.get("fstype") or None
     kept = dict(
         command=command,

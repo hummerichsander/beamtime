@@ -63,7 +63,7 @@ def fake_probe(hosts: list[str], paths: dict[str, str | None] | None = None) -> 
     :param hosts: The ssh hosts.
     :param paths: The log dir per host.
     :return: One probe per host."""
-    ok = Probe("juwels", "ok", command="beamtime", version="0.3.0", scratch=True, fstype="gpfs")
+    ok = Probe("juwels", "ok", command="beamtime", version=__version__, scratch=True, fstype="gpfs")
     bare = Probe("lab-gpu", "no_beamtime", python="3.12.1")
     return {h: ok if h == "juwels" else bare for h in hosts}
 
@@ -383,8 +383,8 @@ def test_install_and_path_per_machine(egnn: Scan) -> None:
         (LOGDIR, ENTER),
         (HOSTS, DOWN + SPACE + ENTER),
         ("Where do runs go on juwels?", ENTER),
-        ("Install Beamtime on lab-gpu?", ENTER),
         ("Where do runs go on lab-gpu?", ENTER),
+        ("Install Beamtime on lab-gpu?", ENTER),
         (AGENTS, ENTER),
         (STYLE, ENTER),
         (RULES, ENTER),
@@ -403,6 +403,41 @@ def test_install_and_path_per_machine(egnn: Scan) -> None:
     assert "✓ ssh  ✗ beamtime not found" in done.output and "${SCRATCH} is gpfs" in done.output
     assert "beamtime[serve]==" in done.output
     assert "other machines" in done.output.split(REVIEW)[-1]
+
+
+@posix
+def test_typed_path_finds_the_project_venv(egnn: Scan) -> None:
+    """The path typed for a machine is checked again, so the venv beside it is found and kept."""
+    asked: list[dict[str, str | None]] = []
+
+    def venv_probe(hosts: list[str], paths: dict[str, str | None] | None = None) -> dict[str, Probe]:
+        asked.append(dict(paths or {}))
+        if (paths or {}).get("juwels") == "~/repo/beamtime":
+            found = Probe("juwels", "ok", command="~/repo/.venv/bin/beamtime", version=__version__)
+        else:
+            found = Probe("juwels", "no_beamtime", python="3.12.1", scratch=True)
+        return {h: found for h in hosts}
+
+    script = [
+        (WHERE, ENTER),
+        (LOGDIR, ENTER),
+        (HOSTS, ENTER),
+        ("Where do runs go on juwels?", b"\x7f" * 40 + b"~/repo/beamtime" + ENTER),
+        (AGENTS, ENTER),
+        (STYLE, ENTER),
+        (RULES, ENTER),
+        (IMPORT, ENTER),
+        (GIT, ENTER),
+        (SDK, ENTER),
+        (REVIEW, CTRL_C),
+    ]
+    answers = Answers.defaults(egnn)
+    done = drive(lambda t: run(t, egnn, answers, probe=venv_probe, which=fake_which), script)
+    assert done.stuck is None and "Install Beamtime" not in done.output
+    assert asked == [{"juwels": "${SCRATCH}/egnn-md/beamtime"}, {"juwels": "~/repo/beamtime"}]
+    assert answers.remotes == [Remote("juwels", None, "~/repo/beamtime")]
+    assert answers.commands == {"juwels": "~/repo/.venv/bin/beamtime"}
+    assert answers.install_remotes == []
 
 
 @pytest.mark.parametrize("where", [WHERE, AGENTS, IMPORT, REVIEW])
@@ -685,7 +720,7 @@ def mate_probe(hosts: list[str], paths: dict[str, str | None] | None = None) -> 
     :param paths: The log dir per host.
     :return: One probe per host."""
     code = Probe("juwels", "needs_code", detail="Permission denied (keyboard-interactive)")
-    fine = Probe("lab-gpu", "ok", command="beamtime", version="0.3.0")
+    fine = Probe("lab-gpu", "ok", command="beamtime", version=__version__)
     return {h: code if h == "juwels" else fine for h in hosts}
 
 

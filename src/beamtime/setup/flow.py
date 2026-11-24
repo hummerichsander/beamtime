@@ -859,6 +859,7 @@ class FirstSetup:
         self.probe = probe
         self.which = which
         self.probes: dict[str, Probe] = {}
+        self.probed: dict[str, str] = {}
         self.fine = False
         self.rows: dict[str, Row] = {}
         self.imports_asked = False
@@ -1027,33 +1028,47 @@ class FirstSetup:
         if not a.remotes:
             return
         project = scan.root.name
-        if todo := [h for h in (r.host or r.name for r in a.remotes) if h not in self.probes]:
+        guess = {r.host or r.name: r.path or f"${{SCRATCH}}/{project}/beamtime" for r in a.remotes}
+        if todo := [h for h in guess if h not in self.probes]:
             title = f"Checking {todo[0] if len(todo) == 1 else f'{len(todo)} machines'}"
             with term.task(title) as task:
-                found = self.probe(todo, {h: f"${{SCRATCH}}/{project}/beamtime" for h in todo})
+                found = self.probe(todo, {h: guess[h] for h in todo})
                 for host in todo:
                     self.probes[host] = found[host]
+                    self.probed[host] = guess[host]
                     task.line(probe_line(term, host, found[host]))
         kept: list[Remote] = []
         for i, r in enumerate(a.remotes, 1):
             host = r.host or r.name
-            found = self.probes[host]
-            if found.status == "old_python":
+            if self.probes[host].status == "old_python":
                 term.say(
-                    [f"{host}: {found.detail}; Beamtime can't run there, so it is left out.", ""]
+                    [
+                        f"{host}: {self.probes[host].detail}; Beamtime can't run there, "
+                        "so it is left out.",
+                        "",
+                    ]
                 )
-                continue
-            a.install_remotes = [n for n in a.install_remotes if n != r.name]
-            if found.status == "no_beamtime" and not self.ask_install(term, a, r, host):
                 continue
             default = r.path or (
-                f"${{SCRATCH}}/{project}/beamtime" if found.scratch else f"~/{project}/beamtime"
+                f"${{SCRATCH}}/{project}/beamtime"
+                if self.probes[host].scratch
+                else f"~/{project}/beamtime"
             )
-            kept.append(
-                msgspec.structs.replace(
-                    r, path=self.ask_path(term, host, default, i, len(a.remotes))
-                )
-            )
+            path = self.ask_path(term, host, default, i, len(a.remotes))
+            if self.probed.get(host) != path and self.probes[host].status in ("ok", "no_beamtime"):
+                # the project's own venv sits next to the log dir, which only now is known.
+                with term.task(f"Checking {host}") as task:
+                    self.probes[host] = self.probe([host], {host: path})[host]
+                    self.probed[host] = path
+                    task.line(probe_line(term, host, self.probes[host]))
+            found = self.probes[host]
+            a.install_remotes = [n for n in a.install_remotes if n != r.name]
+            a.commands.pop(r.name, None)
+            if found.command:
+                a.commands[r.name] = found.command
+            elif found.status == "no_beamtime" and not self.ask_install(term, a, r, host):
+                continue
+            kept.append(msgspec.structs.replace(r, path=path))
         a.remotes = kept
 
     def ask_install(self, term: Term, a: Answers, remote: Remote, host: str) -> bool:
@@ -1681,6 +1696,7 @@ class Teammate:
         :param a: The answers.
         :param scan: The facts of the project and the machine."""
         self.check(term, a.remotes, scan)
+        self.keep_commands(a)
 
     def check(self, term: Term, remotes: list[Remote], scan: Scan) -> None:
         """Probe the machines not probed yet, in one task, and word what was found.
@@ -1710,6 +1726,14 @@ class Teammate:
                 else:
                     task.line(probe_line(term, host, self.probes[host]))
 
+    def keep_commands(self, a: Answers) -> None:
+        """Keep the command each probe found, so the user's settings start Beamtime the same way.
+
+        :param a: The answers; ``commands`` is changed in place."""
+        for r in a.remotes:
+            if (found := self.probes.get(self.address(r))) and found.command:
+                a.commands[r.name] = found.command
+
     def ask_reach(self, term: Term, a: Answers, scan: Scan) -> None:
         """Ask how to reach each project remote that ssh doesn't know here; empty leaves it out.
 
@@ -1732,6 +1756,7 @@ class Teammate:
             kept.append(msgspec.structs.replace(r, host=host))
             self.check(term, kept[-1:], scan)
         a.remotes = kept
+        self.keep_commands(a)
 
     def ask_ssh(self, term: Term, a: Answers, scan: Scan) -> None:
         """Ask, per host that needs a password and a code, whether to share one login.

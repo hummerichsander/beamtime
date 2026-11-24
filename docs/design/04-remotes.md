@@ -203,8 +203,9 @@ remotes:
 - Beamtime stores no credentials; authentication is the user's ssh configuration.
 - `beamtime source add <name> <host:/path> [--command] [--cache] [--project]` writes the user
   settings by default (`--project` writes `beamtime.yaml` instead), probing ssh for the command
-  (`command -v beamtime`, then the venv next to the path, whose `~`, `${VAR}` and `{user}` the
-  remote shell expands) unless `--command` is given.
+  (the setup's probe: a venv in or above the path, whose `~`, `${VAR}` and `{user}` the remote shell
+  expands, then the `PATH`, `~/.local/bin`, venvs below home or `$SCRATCH` and conda environments;
+  [setup](10-setup.md#remotes)) unless `--command` is given.
   `source list` and `source rm <name>` read and edit the same settings; all three are user-only.
   A name can't contain `@`, `/`, `=` or `:`, since they spell a place, a path or a flag value; `setup --remote` checks the same rule.
 - `beamtime setup` adds any number of remotes at once, probes them together, installs Beamtime there on

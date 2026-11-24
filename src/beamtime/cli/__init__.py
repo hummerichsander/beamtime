@@ -148,6 +148,8 @@ def add_field(
             kw |= {"action": "append", "type": evidence_item, "default": [], "metavar": "ITEM"}
         case "remote" | "skip_remote" | "install_remote" | "ssh_share":
             kw |= {"action": "append", "default": [], "metavar": "NAME"}
+        case "remote_command":
+            kw |= {"action": "append", "default": [], "metavar": "NAME=COMMAND"}
         case "agent_set":
             kw |= {"action": "extend", "default": [], "type": agent_pairs, "metavar": "KEY=VALUE"}
         case "import" | "import_notes" | "import_memory":

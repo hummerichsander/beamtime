@@ -36,9 +36,9 @@ case "$host" in
   unknown_host) echo "Host key verification failed." >&2; exit 255 ;;
   slow) exec sleep 30 ;;
   local) exec sh -c "$line" ;;
-  ok) printf 'how=path\\nversion=beamtime 0.2.2\\npython=Python 3.12.1\\nfstype=ext4\\n' ;;
-  no_beamtime) printf 'how=path\\npython=Python 3.12.1\\nfstype=ext4\\n' ;;
-  old_python) printf 'how=path\\npython=Python 3.9.2\\n' ;;
+  ok) printf 'command=beamtime\\nversion=beamtime 0.2.2\\npython=Python 3.12.1\\nfstype=ext4\\n' ;;
+  no_beamtime) printf 'python=Python 3.12.1\\nfstype=ext4\\n' ;;
+  old_python) printf 'python=Python 3.9.2\\n' ;;
   *) echo "ssh: Could not resolve hostname $host" >&2; exit 255 ;;
 esac
 """
@@ -107,7 +107,7 @@ def test_probe_line_runs_in_a_shell(ssh: Path, tmp_path: Path, monkeypatch: pyte
     monkeypatch.setenv("PATH", f"{fake}:{venv.parent.parent}:/usr/bin:/bin")
     found = probe(["local"], {"local": "~/proj/beamtime"})["local"]
     assert found.status == "ok" and found.version == "0.2.2", found
-    assert found.command == "~/proj/beamtime/../.venv/bin/beamtime"
+    assert found.command == "~/proj/.venv/bin/beamtime"
     assert found.python == "3.12.1"
     assert found.scratch
 
@@ -215,3 +215,14 @@ def test_ssh_share_of_one_host_twice(ssh: Path, project: Path, home: Path) -> No
     text = config.read_text(encoding="utf-8")
     assert text.count("# beamtime: one login per session for jw") == 1
     assert "ControlPersist 12h\n\n# beamtime: one login per session for other\n" in text
+
+
+def test_found_command_goes_to_the_user_settings(project: Path, home: Path) -> None:  # noqa: F811
+    """A command found on a remote is written where the remote's host is; plain ``beamtime`` is not."""
+    changes = make_plan(
+        project, home, "--remote", "juwels=jdoe@login:~/repo/beamtime", "--remote", "lab=u@lab:/p",
+        "--remote-command", "juwels=~/repo/.venv/bin/beamtime", "--remote-command", "lab=beamtime",
+    )  # fmt: skip
+    mine = next(c for c in changes if c.where == "machine" and "settings.yaml" in c.label)
+    assert "command: ~/repo/.venv/bin/beamtime" in mine.after
+    assert mine.after.count("command:") == 1

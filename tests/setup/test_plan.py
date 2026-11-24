@@ -165,6 +165,7 @@ def test_command_round_trips(scene: Scan) -> None:
         "setup", "--runs", "both", "--logdir", "my runs", "--link-logdir", "/scratch/my runs",
         "--remote", "juwels:${SCRATCH}/egnn", "--remote", "lab-gpu=jdoe@lab.example.org",
         "--remote", "a=u@h:/p x", "--skip-remote", "old", "--install-remote", "juwels",
+        "--remote-command", "lab-gpu=~/my repo/.venv/bin/beamtime",
         "--ssh-share", "juwels", "--cache", "/tmp/my cache", "--agents", "claude-code,codex",
         "--agent-style", "analysis", "--agent-set", "seeds=5,launch_runs=allowed", "--no-rules",
         "--import", "tb logs", "--import", "wandb", "--import-notes", "NOTES.md",
@@ -174,6 +175,12 @@ def test_command_round_trips(scene: Scan) -> None:
     answers = Answers.from_params(parse(argv), scene)
     assert answers != Answers.defaults(scene)
     assert repeat(command(answers, scene), scene) == answers
+
+
+def test_remote_command_needs_a_name(scene: Scan) -> None:
+    """``--remote-command`` without ``NAME=`` is refused."""
+    with pytest.raises(ValueError, match="NAME=COMMAND"):
+        Answers.from_params(parse(["setup", "--remote-command", "beamtime"]), scene)
 
 
 def test_agent_set_repeats_and_keeps_commas(scene: Scan) -> None:

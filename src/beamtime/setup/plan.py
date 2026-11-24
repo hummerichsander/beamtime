@@ -90,6 +90,7 @@ class Answers(msgspec.Struct, kw_only=True):
     remotes: list[Remote] = []
     skip_remotes: list[str] = []
     install_remotes: list[str] = []
+    commands: dict[str, str] = {}
     ssh_share: list[str] = []
     cache: str | None = None
     agents: list[str] = []
@@ -204,6 +205,12 @@ class Answers(msgspec.Struct, kw_only=True):
                 raise ValueError(
                     f"--update {item!r}: choose from {', '.join(UPDATE_ITEMS)} or remote:NAME"
                 )
+        commands = {}
+        for text in p.remote_command:
+            name, sep, command = text.partition("=")
+            if not sep or not name or not command.strip():
+                raise ValueError(f"--remote-command {text!r}: write NAME=COMMAND")
+            commands[name] = command.strip()
         added = [Remote.parse(t) for t in p.remote]
         taken = {r.name for r in added} | set(p.skip_remote)
         return cls(
@@ -216,6 +223,7 @@ class Answers(msgspec.Struct, kw_only=True):
                 *p.skip_remote,
             ],
             install_remotes=list(p.install_remote),
+            commands={**base.commands, **commands},
             ssh_share=list(p.ssh_share),
             cache=p.cache,
             agents=[a for a in p.agents if a] if p.agents or p.no_agents else base.agents,
@@ -294,6 +302,12 @@ def flags(answers: Answers, scan: "Scan") -> list[str]:
             case "skip_remotes" | "install_remotes":
                 flag = f.name.removesuffix("s").replace("_", "-")
                 out += [f"--{flag} {shlex.quote(v)}" for v in value]
+            case "commands":
+                out += [
+                    f"--remote-command {shlex.quote(f'{k}={v}')}"
+                    for k, v in value.items()
+                    if default.get(k) != v
+                ]
             case "ssh_share":
                 out += [f"--ssh-share {shlex.quote(v)}" for v in value]
             case "agents":
@@ -626,6 +640,10 @@ class Planner:
                 conf["host"] = r.host or r.name
             if r.name in a.install_remotes:
                 conf.setdefault("command", REMOTE_COMMAND)
+            elif (command := a.commands.get(r.name)) and (
+                command != "beamtime" or "command" in conf
+            ):
+                conf["command"] = command
             if conf != old:
                 rows[f"remotes.{r.name}"] = (old or None, conf)
         for name in a.skip_remotes:

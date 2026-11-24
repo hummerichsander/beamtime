@@ -397,14 +397,14 @@ def source_add(ctx: Context, p: r.SourceAddParams) -> dict[str, Any]:
     :param p: The parameters.
     :return: What was written."""
     from beamtime.settings import load, user_settings_path, write_remote
-    from beamtime.setup.remotes import probe_command, remote_name_problem
+    from beamtime.setup.remotes import probe_host, remote_name_problem
 
     if (problem := remote_name_problem(p.name)) is not None:
         raise OpError(f"{p.name!r}: {problem}", code=2)
     host, _, path = p.remote.partition(":")
     if not host or not path.startswith(("/", "~", "$")):
         raise OpError(f"{p.remote!r}: give host:/absolute/path/to/beamtime", code=2)
-    command = p.command or probe_command(host, path)
+    command = p.command or probe_host(host, path, timeout=30).command
     conf = {"host": host, "path": path, "command": command or "beamtime", "cache": p.cache}
     target = (ctx.root / "beamtime.yaml") if p.project else user_settings_path()
     write_remote(target, p.name, conf)

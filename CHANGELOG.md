@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed** `beamtime setup` finding Beamtime on a remote: the probe now tries a venv (`.venv`, `venv`, `env`)
+  in or above the remote log dir, the `PATH`, `~/.local/bin`, venvs below home or `$SCRATCH` and conda
+  environments; a machine is probed again once its log dir is typed, and the command found is written to the
+  user settings (`--remote-command NAME=COMMAND`), where before a venv's Beamtime was found but not kept.
+  `beamtime source add` uses the same probe.
+
 ## 0.3.1
 
 - **Added** `beamtime importance <group> --target <field>` and the `importance` MCP tool: one row per config

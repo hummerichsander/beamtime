@@ -353,32 +353,61 @@ def test_source_add_keeps_the_file_and_checks_the_path(ctx: Context, project: Pa
         call("source add", {"name": "x", "remote": "h:relative", "command": "bt"}, ctx)
 
 
-def test_source_probe_expands_the_path_on_the_remote(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The venv probe lets the remote shell expand ``~`` and ``${VAR}`` in the log dir's path."""
+def remote_tool(path: Path, text: str = "beamtime 0.3.0") -> None:
+    """Write an executable that prints one line, as ``beamtime --version`` does.
+
+    :param path: Where the tool goes.
+    :param text: What it prints."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"#!/bin/sh\necho '{text}'\n", encoding="utf-8")
+    path.chmod(0o755)
+
+
+@pytest.fixture
+def remote_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Run the probe's ssh line in a local shell whose home is a temporary folder and whose
+    ``PATH`` has no Beamtime.
+
+    :param tmp_path: The test's temporary directory.
+    :param monkeypatch: The patcher.
+    :return: The remote home."""
     import subprocess
 
-    from beamtime.setup.remotes import probe_command
-
     home = tmp_path / "home"
-    venv = home / "proj" / ".venv" / "bin" / "beamtime"
-    venv.parent.mkdir(parents=True)
-    (home / "proj" / "beamtime").mkdir()
-    venv.write_text("#!/bin/sh\n", encoding="utf-8")
-    venv.chmod(0o755)
+    home.mkdir()
     real = subprocess.run
 
     def remote(argv: list[str], **kw) -> subprocess.CompletedProcess:
-        # the last argument is the line ssh hands the remote shell; no beamtime on its PATH.
-        line = argv[-1].replace("command -v beamtime", "false")
         env = {"HOME": str(home), "PROJ": str(home / "proj"), "PATH": "/usr/bin:/bin"}
-        return real(["sh", "-c", line], env=env, **kw)
+        return real(["sh", "-c", argv[-1]], env=env, **kw)
 
     monkeypatch.setattr(subprocess, "run", remote)
-    assert probe_command("h", "~/proj/beamtime") == "~/proj/beamtime/../.venv/bin/beamtime"
-    assert probe_command("h", "${PROJ}/beamtime") == "${PROJ}/beamtime/../.venv/bin/beamtime"
-    assert probe_command("h", "/nowhere/beamtime") is None
+    return home
+
+
+def test_source_probe_expands_the_path_on_the_remote(remote_home: Path) -> None:
+    """The probe lets the remote shell expand ``~`` and ``${VAR}`` and finds the project's venv."""
+    from beamtime.setup.remotes import probe_host
+
+    remote_tool(remote_home / "proj" / ".venv" / "bin" / "beamtime")
+    assert probe_host("h", "~/proj/beamtime", 30).command == "~/proj/.venv/bin/beamtime"
+    assert probe_host("h", "${PROJ}/beamtime", 30).command == "~/proj/.venv/bin/beamtime"
+    assert probe_host("h", "${PROJ}/beamtime/deep/er", 30).command == "~/proj/.venv/bin/beamtime"
+
+
+def test_source_probe_finds_typical_installs(remote_home: Path) -> None:
+    """Without a venv by the log dir the probe tries the user's bin, then venvs below home."""
+    from beamtime.setup.remotes import probe_host
+
+    assert probe_host("h", "/nowhere/beamtime", 30).command is None
+    remote_tool(remote_home / "code" / "proj" / "venv" / "bin" / "beamtime")
+    assert probe_host("h", "/nowhere/beamtime", 30).command == "~/code/proj/venv/bin/beamtime"
+    remote_tool(remote_home / ".local" / "bin" / "beamtime")
+    found = probe_host("h", "/nowhere/beamtime", 30)
+    assert found.command == "~/.local/bin/beamtime" and found.version == "0.3.0"
+    remote_tool(remote_home / "proj" / ".venv" / "bin" / "beamtime", "boom")
+    (remote_home / "proj" / ".venv" / "bin" / "beamtime").write_text("#!/bin/sh\nexit 1\n")
+    assert probe_host("h", "~/proj/beamtime", 30).command == "~/.local/bin/beamtime"
 
 
 @pytest.fixture

@@ -569,6 +569,10 @@ class SetupParams(Params, kw_only=True):
             description="install this version of beamtime there, after the review (repeatable)"
         ),
     ] = msgspec.field(default_factory=list)
+    remote_command: Annotated[
+        list[str],
+        msgspec.Meta(description="NAME=COMMAND: how a remote's shell starts beamtime (repeatable)"),
+    ] = msgspec.field(default_factory=list)
     ssh_share: Annotated[
         list[str],
         msgspec.Meta(

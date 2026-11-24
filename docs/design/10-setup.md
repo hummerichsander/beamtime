@@ -254,6 +254,7 @@ the scan's defaults, plus `--yes`.
 | `--remote <name>[=<host>][:<path>]` (repeatable) | a remote: its source name (no `@`, `/`, `=` or `:`, the rule of `source add`), how this machine reaches it, its log dir there | `path` to `beamtime.yaml`; `host`, `command` to the user settings |
 | `--skip-remote <name>` (repeatable) | a project remote this machine doesn't use | user settings: `remotes.<name>.enabled: false` |
 | `--install-remote <name>` (repeatable) | `pip install --user beamtime==<this version>` there, after the review | the remote's `~/.local` |
+| `--remote-command <name>=<command>` (repeatable) | how the remote's shell starts Beamtime, as the probe found it | user settings: `remotes.<name>.command` |
 | `--ssh-share <name>` (repeatable) | add ControlMaster lines for a host with a second factor | `~/.ssh/config` |
 | `--cache memory\|<path>` | the index cache of this machine | user settings: `cache` |
 | `--agents a,b,...` \| `--no-agents` | which agent clients get the MCP server and rules | each client's config, see [Agent clients](#agent-clients) |
@@ -375,16 +376,22 @@ for any number of hosts:
    (`+ Add a host`: an alias or `user@host`).
 2. **One probe for all**, in parallel, before any question about them: `ssh -o BatchMode=yes
    -o ConnectTimeout=10 <host> <one line>` reports the login (key, needs a second factor, unknown
-   host), `beamtime --version` and the command found (`probe_command`, [layer 4](04-remotes.md#configuration)),
+   host), the command found and its `beamtime --version` ([layer 4](04-remotes.md#configuration)),
    `python3 --version`, and the filesystem type of the default path's parent. A login that needs a
    password or code fails under `BatchMode` with `keyboard-interactive` and is reported as such.
    `setup/remotes.py:probe(hosts, paths) -> dict[str, Probe]` runs one ssh per host in threads, each
    with a 30 s timeout that fails that host alone; a `Probe` has `status` (`ok`, `needs_code`,
    `unknown_host`, `no_beamtime`, `old_python`, or `failed` with the reason), `command`, `version`,
-   `python`, `fstype` and `scratch` (whether `$SCRATCH` is set there). The command is `beamtime` on the `PATH`, else the venv next to the path's
-   project.
-3. **Per host**: install if missing, then its log dir path (default: `${SCRATCH}/<project>/beamtime`
-   where the host has `$SCRATCH`, else `~/<project>/beamtime`). Variables expand on that host.
+   `python`, `fstype` and `scratch` (whether `$SCRATCH` is set there). The command is the first
+   `beamtime` that answers `--version`, tried in this order: a venv (`.venv`, `venv`, `env`, `.env`) in the
+   log dir or any folder above it, the `PATH` of a non-interactive ssh shell (then just `beamtime`),
+   `~/.local/bin` (pip `--user`, pipx, uv tools), venvs one or two levels below home or `$SCRATCH`, then conda
+   environments; a path under home is written with `~`. The probe runs before the path is asked, on the
+   default path; once a typed path differs, that host is probed again with it, so a project's own venv
+   beside its log dir is found.
+3. **Per host**: its log dir path (default: `${SCRATCH}/<project>/beamtime` where the host has
+   `$SCRATCH`, else `~/<project>/beamtime`; variables expand on that host), then install if the probe of
+   that path found no Beamtime. A found command other than `beamtime` is kept as `--remote-command`.
 4. **Install** is `ssh <host> 'python3 -m pip install --user beamtime[serve]==<this version>'`,
    run after the review, as the last apply step. A remote Python older than 3.11 can't run the CLI:
    the step says so and offers only skipping or the command with another interpreter.
@@ -911,7 +918,7 @@ appearing as work finishes) and the review.
 | `setup/flow.py` | `Step`, `run()`, `setup()` and `reconfigure()` ([The wizard](#the-wizard), [Reconfiguring](#reconfiguring)), the questions of each flow (`FirstSetup`, `Teammate`, `Cluster`, `Update`), their defaults from the scan |
 | `setup/term.py` | the prompt primitives |
 | `setup/agents.py` | the client table, `mcp_command()`, registering, the rules block written to files |
-| `setup/remotes.py` | the parallel probe, `probe_command` (also used by `source add`), the remote name rule, installs, ssh sharing |
+| `setup/remotes.py` | the parallel probe (`probe_host` also used by `source add`), the remote name rule, installs, ssh sharing |
 | `setup/importers/` | `tensorboard`, `wandb`, `mlflow`, `csv`, `beamtime`, and the one run writer |
 | `setup/stale.py`, `setup/changes.py` | `Stale`, `find()` and one check per item; the noticeable changes per release (`since()`) |
 | `guide/rules.py`, `guide/rules/` | the rules template, its history, rendering and matching |
@@ -931,7 +938,7 @@ terminal, no `--yes`) or plans and applies directly.
   and `significance=1.5` are refused with the rule), so numbers are written as numbers.
 - **This machine's settings** get `cache` when `--cache` names one, the `host` of each `--remote` (the
   name when no host is given), `command: ~/.local/bin/beamtime` for a remote that `--install-remote`
-  installs, and `enabled: false` for `--skip-remote`. A value that is already there is not written, so a
+  installs, else the `--remote-command` (plain `beamtime` only to replace another command), and `enabled: false` for `--skip-remote`. A value that is already there is not written, so a
   rerun writes nothing and a default is never written.
 - **Agents**: per client the MCP registration (left out when already registered, unless `--update mcp`),
   the skills for Claude Code (when they differ), and one rules block per rules file (left out when the
