@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.2
 
 - **Fixed** `beamtime setup` finding Beamtime on a remote: the probe now tries a venv (`.venv`, `venv`, `env`)
   in or above the remote log dir, the `PATH`, `~/.local/bin`, venvs below home or `$SCRATCH` and conda
