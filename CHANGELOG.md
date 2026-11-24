@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1
 
 - **Added** `beamtime importance <group> --target <field>` and the `importance` MCP tool: one row per config
   field with its Spearman rank correlation, η² on quantile bins and the number of runs the row rests on, ordered by
@@ -26,6 +26,7 @@
 - **Changed** `beamtime block check`: query-less custom blocks count as duplicates only when their code is equal.
 - **Removed** the benchmark's `script` arm and its Gaps section: with a shell the agents joined answers through Bash
   as cheaply, and behind `tools_more` the tool can no longer be hidden from the `mcp` arm (`bench/agents/README.md`).
+- **Fixed** `beamtime serve`: a SIGINT or SIGTERM during startup is no longer lost; serve stops instead of serving on.
 
 ## 0.3.0
 
