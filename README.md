@@ -39,8 +39,8 @@ Lightning, sharing and figures, and settings. The same pages are in [`docs/`](do
 Apache 2.0. The web interface bundles third-party packages under MIT, ISC, BSD-3-Clause,
 Apache-2.0 and Unlicense terms; their licenses ship with it in `THIRD_PARTY_LICENSES.txt`.
 
-## Acknowlegements
-The project was developed using agentic LLM systems—specifically Antropic's Claude Code with Opus 
+## Acknowledgements
+The project was developed using agentic LLM systems—specifically Anthropic's Claude Code with Opus 
 5.5 (October 2026). The code was collaboratively *designed* by humans and LLMs; every single line of
 code—including unit and end-to-end tests—was *written* by LLMs. Human-led end-to-end tests are 
 running in parallel.
